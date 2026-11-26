@@ -24,13 +24,13 @@ theorem Window.readEnvelope_at {part whole : KBytes} {start : Nat}
     rw [KBytes.length_toList _ partWf] at enough
     exact enough
   have marker : whole.read start 4 = 0xffffffff := by
-    have same := atPart.read 0 4 (by omega) (by decide)
+    have same := Window.read atPart 0 4 (by omega) (by decide)
     rw [Nat.add_zero] at same
     rw [same, KBytes.read_eq part 0 4 partWf (by omega)]
     exact spec.2.2.1
-  have count := atPart.read 4 4 (by omega) (by decide)
+  have count := Window.read atPart 4 4 (by omega) (by decide)
   have localCount := KBytes.read_eq part 4 4 partWf (by omega)
-  have wholeSpan := atPart.extent
+  have wholeSpan := Window.extent atPart
   have wholeEnough : ¬ start + 8 > whole.len := by omega
   cases envelope with
   | eos =>
@@ -53,7 +53,7 @@ theorem Window.readBody_at {part whole : KBytes} {start offset size : Nat}
     readBody limits whole (start + offset) size = .ok extracted := by
   obtain ⟨offAlign, sizeAlign, budget, within, result⟩ := (readBody_iff _ _ _ _ _).1 read
   exact (readBody_iff _ _ _ _ _).2 ⟨by omega, sizeAlign, budget,
-    by have := atPart.extent; omega, result.trans (atPart.slice offset size within).symm⟩
+    by have := Window.extent atPart; omega, result.trans (Window.slice atPart offset size within).symm⟩
 
 theorem emitFrame_bodyWindow {limits : Limits} {message : Message} {body wire : KBytes}
     (written : emitFrame limits message body = .ok wire) :
@@ -82,7 +82,7 @@ theorem emitFrame_bodyFull {limits : Limits} {metadata : RecordBatch} {body wire
     (read : readBody limits wire (8 + MetadataWriter.wireSize ⟨.recordBatch metadata, body.len⟩)
       body.len = .ok extracted) :
     extracted = body.slice 0 body.len := by
-  have exactWindow := (emitFrame_bodyWindow written).2.slice 0 body.len (by omega)
+  have exactWindow := Window.slice (emitFrame_bodyWindow written).2 0 body.len (by omega)
   simpa only [Nat.add_zero] using (readBody_iff _ _ _ _ _).1 read |>.2.2.2.2 |>.trans exactWindow
 
 private theorem readColumns_fullSlice (body : KBytes) (wf : body.wf = true)

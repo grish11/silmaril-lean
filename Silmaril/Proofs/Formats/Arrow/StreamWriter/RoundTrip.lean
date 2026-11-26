@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Arrow.StreamWriter.Defs
+public import Silmaril.Formats.Arrow.StreamWriter.Window.Defs
 import Silmaril.Formats.Arrow.Body.Thms
 import Silmaril.Formats.Arrow.Framing.Thms
 import Silmaril.Formats.Arrow.Layout.Thms
@@ -18,6 +19,47 @@ namespace Silmaril.Proofs.Formats.Arrow.StreamWriter
 
 open Silmaril.Formats.Arrow Silmaril.Formats.Arrow.StreamWriter
 
+theorem emitBatchFrame_at {limits : ObservationLimits}
+    {input : Writer.BatchInput} {physical : BatchFrame input.fields}
+    {part whole : KBytes} {start : Nat}
+    (written : Writer.emitBatch limits input = .ok physical)
+    (framed : emitFrame limits.ipc ⟨.recordBatch physical.metadata, physical.body.len⟩
+      physical.body = .ok part)
+    (atRecord : Window part whole start) (aligned : start % 8 = 0) :
+    let size := MetadataWriter.wireSize ⟨.recordBatch physical.metadata, physical.body.len⟩
+    ∃ (raw : KBytes) (batch : BatchFrame input.fields),
+      part.wf = true ∧ part.len = 8 + size + physical.body.len ∧ part.len % 8 = 0 ∧
+      readEnvelope limits.ipc whole start = .ok (.metadata size) ∧
+      readMessage limits.ipc (whole.slice (start + 8) size) =
+        .ok ⟨.recordBatch batch.metadata, physical.body.len⟩ ∧
+      readBody limits.ipc whole (start + 8 + size) physical.body.len = .ok raw ∧
+      validateBatch input.fields batch.metadata raw = .ok batch ∧
+      batch.metadata.rowCount = input.rowCount ∧
+      decodeBatch limits batch = .ok input.observe ∧ input.observe.length = input.rowCount := by
+  let message : Message := ⟨.recordBatch physical.metadata, physical.body.len⟩
+  let size := MetadataWriter.wireSize message
+  obtain ⟨partWf, length, prefixRead, metadataRead, raw, bodyRead, _⟩ := emitFrame_exact framed
+  obtain ⟨count, bodyAligned, rows⟩ := Writer.emitBatch_roundtrip written
+  have sizeAligned := (MetadataWriter.wireSize_aligned message).2
+  have metadataIn : 8 + size ≤ part.len := by
+    change part.len = 8 + size + physical.body.len at length
+    omega
+  have rawFull := emitFrame_bodyFull framed bodyRead
+  have bodyWf := (emitFrame_bodyWindow framed).1
+  have sameLength : raw.len = physical.body.len := by rw [rawFull, KBytes.len_slice]
+  have fits : physical.metadata.Fits input.fields raw.len := sameLength ▸ physical.layout
+  let batch : BatchFrame input.fields := ⟨physical.metadata, raw, fits⟩
+  have rowLength := ((decodeBatch_iff limits physical input.observe).1 rows).2.shape.1.trans count
+  refine ⟨raw, batch, partWf, length, ?_, Window.readEnvelope_at atRecord aligned partWf prefixRead,
+    ?_, ?_, ?_, count, ?_, rowLength⟩
+  · change part.len = 8 + size + physical.body.len at length
+    change size % 8 = 0 at sizeAligned
+    omega
+  · rwa [Window.slice atRecord 8 size metadataIn]
+  · simpa only [Nat.add_assoc] using Window.readBody_at atRecord aligned bodyRead
+  · simp only [validateBatch, dite_eq_left fits, batch]
+  · exact (decodeBatch_fullSlice limits physical bodyWf batch rfl rawFull).trans rows
+
 private theorem readRecord_at {limits : ObservationLimits} {fields : List Field}
     {input : Writer.BatchInput} {part whole : KBytes} {start : Nat}
     (written : emitRecord limits fields input = .ok part)
@@ -34,31 +76,13 @@ private theorem readRecord_at {limits : ObservationLimits} {fields : List Field}
   by_cases schema : input.fields = fields
   · subst fields
     cases physical : Writer.emitBatch limits input with
-    | error error =>
-      simp [emitRecord, physical, bind, Except.bind] at written
+    | error error => simp [emitRecord, physical, bind, Except.bind] at written
     | ok frame =>
       simp [emitRecord, physical, bind, Except.bind] at written
-      let message : Message := ⟨.recordBatch frame.metadata, frame.body.len⟩
-      let size := MetadataWriter.wireSize message
-      obtain ⟨partWf, length, prefixRead, metadataRead, raw, bodyRead, _⟩ := emitFrame_exact written
-      obtain ⟨count, bodyAligned, rows⟩ := Writer.emitBatch_roundtrip physical
-      have sizeAligned := (MetadataWriter.wireSize_aligned message).2
-      have metadataIn : 8 + size ≤ part.len := by change part.len = 8 + size + frame.body.len at length; omega
-      have rawFull := emitFrame_bodyFull written bodyRead
-      have bodyWf := (emitFrame_bodyWindow written).1
-      have sameLength : raw.len = frame.body.len := by rw [rawFull, KBytes.len_slice]
-      have fits : frame.metadata.Fits input.fields raw.len := sameLength ▸ frame.layout
-      let batch : BatchFrame input.fields := ⟨frame.metadata, raw, fits⟩
-      have rowLength := ((decodeBatch_iff limits frame input.observe).1 rows).2.shape.1.trans count
-      refine ⟨size, message, raw, batch, partWf, length, ?_,
-        atRecord.readEnvelope_at aligned partWf prefixRead, ?_, rfl, ?_, ?_, count, ?_, rowLength⟩
-      · change part.len = 8 + size + frame.body.len at length
-        change size % 8 = 0 at sizeAligned
-        omega
-      · rwa [atRecord.slice 8 size metadataIn]
-      · simpa only [Nat.add_assoc] using atRecord.readBody_at aligned bodyRead
-      · simp only [validateBatch, dite_eq_left fits, batch]
-      · exact (decodeBatch_fullSlice limits frame bodyWf batch rfl rawFull).trans rows
+      obtain ⟨raw, batch, wf, extent, frameAligned, envelope, metadata, body, layout, count, rows,
+        lengths⟩ := emitBatchFrame_at physical written atRecord aligned
+      exact ⟨_, _, raw, batch, wf, extent, frameAligned, envelope, metadata, rfl, body, layout,
+        count, rows, lengths⟩
   · simp [emitRecord, schema, bind, Except.bind] at written
 
 private theorem readBatches_written (limits : ObservationLimits) (fields : List Field) (whole : KBytes)
@@ -77,7 +101,7 @@ private theorem readBatches_written (limits : ObservationLimits) (fields : List 
   | nil =>
     have empty : pieces = [] := by simpa [pure, Except.pure] using written.symm
     subst pieces
-    have read := position.window.readEnvelope_at aligned (by rfl) (read_eos limits.ipc)
+    have read := Window.readEnvelope_at position.window aligned (by rfl) (read_eos limits.ipc)
     have stop : start + 8 = whole.len := position.endOffset
     refine ⟨[], rfl, ?_, rfl, rfl, rfl⟩
     cases fuel <;> simp [Stream.readBatches, read, stop, bind, Except.bind, pure, Except.pure]
@@ -141,11 +165,11 @@ theorem emit_roundtrip {limits : ObservationLimits} {fields : List Field}
         have position : Suffix tail (front ++ tail) front.len := .right front .self
         have window : Window front (front ++ tail) 0 := .left .self tail
         have prefixRead : readEnvelope limits.ipc (front ++ tail) 0 = .ok (.metadata size) :=
-          window.readEnvelope_at (by decide) frontWf envelope
+          Window.readEnvelope_at window (by decide) frontWf envelope
         have metadataRead :
             readMessage limits.ipc ((front ++ tail).slice 8 size) = .ok ⟨.schema fields, 0⟩ := by
           rw [show (front ++ tail).slice 8 size = front.slice 8 size from
-            window.slice 8 size (by omega)]
+            Window.slice window 8 size (by omega)]
           exact metadata
         obtain ⟨frames, tailWf, read, count, rows, lengths⟩ :=
           readBatches_written limits fields (front ++ tail) [] records position aligned

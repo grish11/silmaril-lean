@@ -3,7 +3,7 @@ module
 import Silmaril.Data.IncludeBytes
 import Silmaril.Formats.Arrow.Body.Defs
 import Silmaril.Formats.Arrow.StreamWriter.Defs
-import Silmaril.Formats.Arrow.FileReader.Defs
+import Silmaril.Formats.Arrow.FileWriter.Defs
 import Lean.Data.Json.FromToJson.Basic
 
 open Silmaril Silmaril.Formats.Arrow
@@ -175,23 +175,27 @@ def run (directory : Option System.FilePath) : IO Unit := do
     (.malformed .batchLayout)
   IO.println "Arrow IPC V5 writer: mixed, empty, zero-column and rejection cases passed"
 
-def runStreams (directory : Option System.FilePath) : IO Unit := do
-  if let some path := directory then IO.FS.createDirAll path
+private def streamCases : List (String × List Field × List BatchInput × List (List Row)) :=
   let empty := { mixed.input with rowCount := 0, columns := [
     ⟨"n", true, .int32 []⟩, ⟨"téxt", true, .utf8 []⟩] }
   let emptyBatch : BatchInput := ⟨0, [⟨"n", false, .int32 []⟩, ⟨"téxt", true, .utf8 []⟩]⟩
-  let specimens : List (String × List Field × List BatchInput × List (List Row)) := [
+  [
     ("mixed", mixed.input.fields, [mixed.input, empty, mixed.input], [mixed.expected, [], mixed.expected]),
     ("empty", emptyBatch.fields, [emptyBatch], [[]]),
     ("zero-columns", [], [⟨3, []⟩, ⟨0, []⟩], [[[], [], []], []]),
     ("schema-only", [⟨"", false, .utf8⟩], [], [])]
-  for (name, fields, inputs, expected) in specimens do
+
+private def fixtureLimits (fields : List Field) (inputs : List BatchInput) : ObservationLimits :=
+  let counts := inputs.map (·.rowCount)
+  { ipc := { fields := fields.length, rows := counts.foldl max 0, batches := inputs.length }
+    totalRows := counts.sum
+    totalCells := fields.length * counts.sum }
+
+def runStreams (directory : Option System.FilePath) : IO Unit := do
+  if let some path := directory then IO.FS.createDirAll path
+  for (name, fields, inputs, expected) in streamCases do
     let counts := inputs.map (·.rowCount)
-    let limits : ObservationLimits := {
-      ipc := { fields := fields.length, rows := counts.foldl max 0, batches := inputs.length }
-      totalRows := counts.sum
-      totalCells := fields.length * counts.sum
-    }
+    let limits := fixtureLimits fields inputs
     let .ok bytes := StreamWriter.emit limits fields inputs
       | throw (IO.userError s!"{name}: stream emission failed")
     let wire := packed bytes.toByteArray
@@ -222,6 +226,41 @@ def runStreams (directory : Option System.FilePath) : IO Unit := do
   let .error (.malformed .flatbuffer) := MetadataWriter.emit {} ⟨.recordBatch oversized, 0⟩
     | throw (IO.userError "nonrepresentable field node accepted")
   IO.println "Arrow IPC V5 stream writer: exact metadata, ordered nullable rows, counts and EOS passed"
+
+def runFiles (directory : Option System.FilePath) : IO Unit := do
+  if let some path := directory then IO.FS.createDirAll path
+  for (name, fields, inputs, expected) in streamCases do
+    let limits := fixtureLimits fields inputs
+    let bytes ← match FileWriter.emit limits fields inputs with
+      | .ok bytes => pure bytes
+      | .error error => throw (IO.userError s!"{name}: file emission {repr error}")
+    let wire := packed bytes.toByteArray
+    let .ok index := FileReader.readIndex limits.ipc wire
+      | throw (IO.userError s!"{name}: file index")
+    check s!"{name}: exact indexed fields and batch count"
+      (index.footer.fields == fields && index.footer.blocks.length == inputs.length)
+    let .ok footerBytes := FooterWriter.emit limits.ipc index.footer
+      | throw (IO.userError s!"{name}: standalone footer")
+    check s!"{name}: exact footer bytes"
+      (footerBytes.toList == (wire.slice index.span.start index.span.length).toList)
+    let .ok rows := FileReader.readRows limits wire
+      | throw (IO.userError s!"{name}: file read")
+    check s!"{name}: ordered file rows" (rows == ⟨fields, expected⟩)
+    for n in [:inputs.length + 1] do
+      let .ok found := index.readRowsAt limits n | throw (IO.userError s!"{name}: batch {n}")
+      check s!"{name}: indexed rows {n}" (found == expected[n]?)
+    if let some path := directory then IO.FS.writeBinFile (path / (name ++ ".arrow")) bytes.toByteArray
+  let .error (.limit .batches) := FileWriter.emit { ipc := { batches := 1 } } [] [⟨0, []⟩, ⟨0, []⟩]
+    | throw (IO.userError "file batch budget accepted")
+  let .error (.limit .totalRows) := FileWriter.emit { totalRows := 2 } [] [⟨1, []⟩, ⟨2, []⟩]
+    | throw (IO.userError "file aggregate zero-column row budget accepted")
+  let .error (.malformed .batchLayout) := FileWriter.emit {} [] [mixed.input]
+    | throw (IO.userError "file schema mismatch accepted")
+  let .error (.malformed .batchLayout) := FooterWriter.emit {} ⟨[], [⟨2^63, 16, 0⟩]⟩
+    | throw (IO.userError "nonrepresentable block offset accepted")
+  let .error (.limit .metadataBytes) := FooterWriter.emit { metadataBytes := 40 } ⟨[], []⟩
+    | throw (IO.userError "footer byte budget accepted")
+  IO.println "Arrow IPC V5 file writer: exact footer, indexed rows, order and budgets passed"
 
 end PhysicalWriterTests
 
@@ -323,11 +362,13 @@ private def fileRegressions : IO Unit := do
   IO.println "Arrow IPC V5 file: footer ranges, indexed observations, errors and budgets passed"
 
 public def main (args : List String) : IO Unit := do
-  let (bodyDirectory, streamDirectory) ← match args with
-    | [] => pure (none, none)
-    | ["--write-body-fixtures", output] => pure (some (System.FilePath.mk output), none)
-    | ["--write-stream-fixtures", output] => pure (none, some (System.FilePath.mk output))
-    | _ => throw (IO.userError "usage: arrow_ipc_metadata_tests [--write-body-fixtures DIR | --write-stream-fixtures DIR]")
+  let (bodyDirectory, streamDirectory, fileDirectory) ← match args with
+    | [] => pure (none, none, none)
+    | ["--write-body-fixtures", output] => pure (some (System.FilePath.mk output), none, none)
+    | ["--write-stream-fixtures", output] => pure (none, some (System.FilePath.mk output), none)
+    | ["--write-file-fixtures", output] => pure (none, none, some (System.FilePath.mk output))
+    | _ => throw (IO.userError
+        "usage: arrow_ipc_metadata_tests [--write-body-fixtures|--write-stream-fixtures|--write-file-fixtures DIR]")
   let bytes ← IO.FS.readBinFile "tests/formats/arrow-ipc/nullable-int32-utf8.arrows"
   check "fixture length" (bytes.size == 1128)
   let input := packed bytes
@@ -382,3 +423,4 @@ public def main (args : List String) : IO Unit := do
   PhysicalWriterTests.run bodyDirectory
   PhysicalWriterTests.runStreams streamDirectory
   fileRegressions
+  PhysicalWriterTests.runFiles fileDirectory

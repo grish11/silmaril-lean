@@ -49,14 +49,25 @@ def fieldOffsets : Nat → Nat → List KBytes → List Nat
   | slot, start, field :: rest =>
     (start + 12 - slot) :: fieldOffsets (slot + 4) (start + field.len) rest
 
-def schemaBytes (fields : List Field) (bodyLength : Nat) : KBytes :=
+/-- The relocatable schema vtable, table and children. The schema table
+starts at byte eight. Place this payload at an eight-byte boundary. -/
+def schemaPayload (fields : List Field) : KBytes :=
   let objects := fields.map fieldBytes
-  let vectorEnd := 68 + fields.length * 4
+  let vectorEnd := 20 + fields.length * 4
   let gap := Writer.padding vectorEnd
-  let offsets := fieldOffsets 68 (vectorEnd + gap) objects
-  messagePrefix 1 56 bodyLength ++
-    (words (halfwords 8 8 :: halfwords 0 4 :: 8 :: 4 :: fields.length :: offsets) ++
-      (KBytes.zeros gap ++ objects.foldr (· ++ ·) KBytes.empty))
+  let offsets := fieldOffsets 20 (vectorEnd + gap) objects
+  words (halfwords 8 8 :: halfwords 0 4 :: 8 :: 4 :: fields.length :: offsets) ++
+    (KBytes.zeros gap ++ objects.foldr (· ++ ·) KBytes.empty)
+
+def schemaPayloadSize (fields : List Field) : Nat :=
+  let vectorEnd := 20 + fields.length * 4
+  vectorEnd + Writer.padding vectorEnd +
+    (fields.map fun field =>
+      let size := 53 + field.name.utf8ByteSize
+      size + Writer.padding size).sum
+
+def schemaBytes (fields : List Field) (bodyLength : Nat) : KBytes :=
+  messagePrefix 1 56 bodyLength ++ schemaPayload fields
 
 /-- The RecordBatch table starts at 64. The inline struct vectors have
 four-byte length words and eight-byte-aligned 16-byte elements. -/
@@ -76,12 +87,7 @@ open Wire
 /-- Compute the metadata extent before encoding field names or building vectors. -/
 def wireSize (message : Message) : Nat :=
   match message.header with
-  | .schema fields =>
-    let vectorEnd := 68 + fields.length * 4
-    vectorEnd + Writer.padding vectorEnd +
-      (fields.map fun field =>
-        let size := 53 + field.name.utf8ByteSize
-        size + Writer.padding size).sum
+  | .schema fields => 48 + schemaPayloadSize fields
   | .recordBatch batch => 104 + 16 * batch.nodes.length + 16 * batch.buffers.length
 
 def checkDomain (limits : Limits) (message : Message) : Except Error Unit := do
