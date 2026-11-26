@@ -3,9 +3,10 @@
 `Silmaril.Formats.Parquet.DeltaBinaryPacked.Defs` reads one exact encoded
 scalar slice. `parse physical limits expected source` returns a wire AST.
 `decode` takes the same inputs and returns an ordered `List Int32` or
-`List Int64` according to `physical`. The expected count is supplied by the
-caller and checked against the encoded count. The public proof header is
-`Silmaril.Formats.Parquet.DeltaBinaryPacked.Thms`.
+`List Int64` according to `physical`. `parsePrefix` returns the checked AST
+and the untouched suffix of a bounded input. The caller supplies the
+expected count, which is checked against the encoded count. The public
+proof header is `Silmaril.Formats.Parquet.DeltaBinaryPacked.Thms`.
 
 The wire specification is Apache Parquet Format **2.14.0**, commit
 `04d56f291ff963e98bc37ab8100e2fc133ff583c`. The raw `Encodings.md` SHA-256 is
@@ -36,8 +37,8 @@ The wire specification is Apache Parquet Format **2.14.0**, commit
   `blockValues` cap also bounds the work to unpack an active padded miniblock.
 - Zero and one value use the complete header and no blocks. The first-value
   field is read in both cases and is ignored for zero values. Trailing
-  bytes are rejected for every count. This degenerate profile matches the
-  pinned parquet-java writer.
+  bytes are rejected by the exact reader for every count. This degenerate
+  profile matches the pinned parquet-java writer.
 - Reconstruction adds the unsigned residual to the signed minimum and adds
   the result to the preceding value, wrapping to the physical width. The
   intermediate sum can be computed in `Int` because narrowing at the end
@@ -50,14 +51,20 @@ structures. `Stream.wire` describes the exact bytes, including the unused
 widths and the full payload of each active miniblock. `Header.first` and
 `Block.minimum` read the signed interpretations of the stored ZigZag codes.
 The API takes a bounded slice with a known expected count. Page layout,
-compression, scanner integration, DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY,
+compression, scanner integration, DELTA_BYTE_ARRAY,
 logical annotations, and a Lean writer remain outside this reader.
+The [DELTA_LENGTH_BYTE_ARRAY reader](parquet-delta-length-byte-array.md)
+uses `parsePrefix` to split the length substream from its value suffix.
+The byte cap covers the whole input, including the suffix.
 
 ## Public proofs
 
 - `parse_sound` proves that the parsed AST accounts for the entire input,
   with valid header geometry, signed-field code bounds, exact block and
   miniblock coverage, and the caller's byte and value limits.
+- `parsePrefix_sound` and `parsePrefix_consumed` identify the exact consumed
+  prefix and remaining suffix. `parse_ok_iff` characterizes exact parsing by
+  success with an empty suffix.
 - `step_toInt` identifies the signed result of each reconstruction step as
   the balanced residue modulo `2^32` or `2^64`.
 - `reconstruct_getElem` characterizes output position `i` by folding the

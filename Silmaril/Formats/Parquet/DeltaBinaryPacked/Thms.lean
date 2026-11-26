@@ -10,6 +10,27 @@ public section
 
 namespace Silmaril.Formats.Parquet.DeltaBinaryPacked
 
+/-- The checked prefix and the untouched suffix account for the supplied bytes. -/
+theorem parsePrefix_sound {physical : Physical} {limits : Limits} {expected : Nat}
+    {source : Bytes} {stream : Stream} {rest : List UInt8}
+    (h : parsePrefix physical limits expected source = .ok (stream, rest)) :
+    source.length ≤ limits.bytes ∧ source.toList = stream.wire ++ rest ∧
+      stream.Valid physical limits expected :=
+  Proofs.Formats.Parquet.DeltaBinaryPacked.parsePrefix_sound h
+
+theorem parsePrefix_consumed {physical : Physical} {limits : Limits} {expected : Nat}
+    {source : Bytes} {stream : Stream} {rest : List UInt8}
+    (h : parsePrefix physical limits expected source = .ok (stream, rest)) :
+    source.toList.take stream.wire.length = stream.wire ∧
+      source.toList.drop stream.wire.length = rest :=
+  Proofs.Formats.Parquet.DeltaBinaryPacked.parsePrefix_consumed h
+
+theorem parse_ok_iff {physical : Physical} {limits : Limits} {expected : Nat}
+    {source : Bytes} {stream : Stream} :
+    parse physical limits expected source = .ok stream ↔
+      parsePrefix physical limits expected source = .ok (stream, []) :=
+  Proofs.Formats.Parquet.DeltaBinaryPacked.parse_ok_iff
+
 /-- The AST accounts for the entire input and satisfies the checked profile. -/
 theorem parse_sound {physical : Physical} {limits : Limits} {expected : Nat}
     {source : Bytes} {stream : Stream} (h : parse physical limits expected source = .ok stream) :

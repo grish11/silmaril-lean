@@ -178,9 +178,8 @@ def readBlock (physical : Physical) (header : Header) (count : Nat) (input : Lis
   pure (⟨minimum, count, minis, unused⟩, rest)
 
 def readBlocks (physical : Physical) (header : Header) :
-    Nat → Nat → List UInt8 → List Block → Except Error (List Block)
-  | _, 0, [], reversed => .ok reversed.reverse
-  | _, 0, _ :: _, _ => .error .trailingBytes
+    Nat → Nat → List UInt8 → List Block → Except Error (List Block × List UInt8)
+  | _, 0, rest, reversed => .ok (reversed.reverse, rest)
   | 0, _ + 1, _, _ => .error .blockLimit
   | fuel + 1, remaining + 1, input, reversed => do
     let count := min (remaining + 1) header.blockSize
@@ -189,16 +188,26 @@ def readBlocks (physical : Physical) (header : Header) :
 
 end Internal
 
-/-- The count and exact byte extent are supplied by the caller. -/
-def parse (physical : Physical) (limits : Limits) (expected : Nat) (source : Bytes) :
-    Except Error Stream :=
+/-- Read one delta stream prefix. The byte cap applies to the entire input,
+including the untouched suffix returned on success. -/
+def parsePrefix (physical : Physical) (limits : Limits) (expected : Nat) (source : Bytes) :
+    Except Error (Stream × List UInt8) :=
   if limits.bytes < source.length then .error .byteLimit
   else if limits.values < expected then .error .valueLimit
   else do
     let (header, input) ← Internal.readHeader physical source.toList
     Internal.validateHeader limits expected header
-    let blocks ← Internal.readBlocks physical header limits.blocks (header.totalCount - 1) input []
-    pure ⟨header, blocks⟩
+    let (blocks, rest) ← Internal.readBlocks physical header limits.blocks (header.totalCount - 1)
+      input []
+    pure (⟨header, blocks⟩, rest)
+
+/-- Read one exact delta stream, rejecting all bytes beyond its final block. -/
+def parse (physical : Physical) (limits : Limits) (expected : Nat) (source : Bytes) :
+    Except Error Stream := do
+  let (stream, rest) ← parsePrefix physical limits expected source
+  match rest with
+  | [] => .ok stream
+  | _ :: _ => .error .trailingBytes
 
 def Miniblock.residuals (size : Nat) (mini : Miniblock) : List Nat :=
   Hybrid.unpackGroups mini.width.toNat (size / 8) mini.payload []

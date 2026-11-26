@@ -123,20 +123,18 @@ private theorem readBlock_sound {physical : Physical} {header : Header} {count :
     simp [Block.wire, List.append_assoc]
 
 private theorem readBlocks_zero {physical : Physical} {header : Header} {fuel : Nat}
-    {input : List UInt8} {reversed output : List Block}
-    (h : Internal.readBlocks physical header fuel 0 input reversed = .ok output) :
-    ∃ blocks, output = reversed.reverse ++ blocks ∧ input = blocks.flatMap Block.wire ∧
+    {input rest : List UInt8} {reversed output : List Block}
+    (h : Internal.readBlocks physical header fuel 0 input reversed = .ok (output, rest)) :
+    ∃ blocks, output = reversed.reverse ++ blocks ∧ input = blocks.flatMap Block.wire ++ rest ∧
       BlocksFit physical header 0 blocks ∧ blocks.length ≤ fuel := by
-  cases input with
-  | nil =>
-    have same : reversed.reverse = output := by simpa [Internal.readBlocks] using h
-    exact ⟨[], by simpa using same.symm, rfl, .done, Nat.zero_le _⟩
-  | cons => simp [Internal.readBlocks] at h
+  simp [Internal.readBlocks] at h
+  obtain ⟨rfl, rfl⟩ := h
+  exact ⟨[], by simp, rfl, .done, Nat.zero_le _⟩
 
 private theorem readBlocks_sound {physical : Physical} {header : Header} {fuel remaining : Nat}
-    {input : List UInt8} {reversed output : List Block}
-    (h : Internal.readBlocks physical header fuel remaining input reversed = .ok output) :
-    ∃ blocks, output = reversed.reverse ++ blocks ∧ input = blocks.flatMap Block.wire ∧
+    {input rest : List UInt8} {reversed output : List Block}
+    (h : Internal.readBlocks physical header fuel remaining input reversed = .ok (output, rest)) :
+    ∃ blocks, output = reversed.reverse ++ blocks ∧ input = blocks.flatMap Block.wire ++ rest ∧
       BlocksFit physical header remaining blocks ∧ blocks.length ≤ fuel := by
   induction fuel generalizing remaining input reversed with
   | zero =>
@@ -148,19 +146,21 @@ private theorem readBlocks_sound {physical : Physical} {header : Header} {fuel r
     | zero => exact readBlocks_zero h
     | succ remaining =>
       unfold Internal.readBlocks at h
-      obtain ⟨⟨block, rest⟩, read, h⟩ := bind_ok h
+      obtain ⟨⟨block, tail⟩, read, h⟩ := bind_ok h
       obtain ⟨count, minBound, widths, minis, blockBytes⟩ := readBlock_sound read
       obtain ⟨blocks, values, tailBytes, fit, budget⟩ := ih h
       rw [← count] at fit
       refine ⟨block :: blocks, ?_, ?_, .use (by omega) count minBound widths minis fit,
         Nat.succ_le_succ budget⟩
       · simpa [List.reverse_cons, List.append_assoc] using values
-      · rw [blockBytes, tailBytes, List.flatMap_cons]
+      · rw [blockBytes, tailBytes, List.flatMap_cons, List.append_assoc]
 
-public theorem parse_sound {physical : Physical} {limits : Limits} {expected : Nat}
-    {source : Bytes} {stream : Stream} (h : parse physical limits expected source = .ok stream) :
-    source.length ≤ limits.bytes ∧ source.toList = stream.wire ∧ stream.Valid physical limits expected := by
-  unfold parse at h
+public theorem parsePrefix_sound {physical : Physical} {limits : Limits} {expected : Nat}
+    {source : Bytes} {stream : Stream} {rest : List UInt8}
+    (h : parsePrefix physical limits expected source = .ok (stream, rest)) :
+    source.length ≤ limits.bytes ∧ source.toList = stream.wire ++ rest ∧
+      stream.Valid physical limits expected := by
+  unfold parsePrefix at h
   split at h
   · contradiction
   · rename_i bytes
@@ -170,7 +170,7 @@ public theorem parse_sound {physical : Physical} {limits : Limits} {expected : N
       obtain ⟨⟨header, _⟩, read, h⟩ := bind_ok h
       obtain ⟨validated, checked, h⟩ := bind_ok h
       cases validated
-      obtain ⟨output, readBlocks, h⟩ := bind_ok h
+      obtain ⟨⟨output, tail⟩, readBlocks, h⟩ := bind_ok h
       obtain ⟨codes, headerBytes⟩ := readHeader_sound read
       obtain ⟨blocks, output, blockBytes, fit, bounded⟩ := readBlocks_sound readBlocks
       cases h
@@ -178,6 +178,36 @@ public theorem parse_sound {physical : Physical} {limits : Limits} {expected : N
       subst output
       refine ⟨by omega, ?_, ⟨by omega, validateHeader_sound checked, codes, fit, bounded⟩⟩
       rw [headerBytes, blockBytes]
-      rfl
+      simp [Stream.wire, List.append_assoc]
+
+public theorem parsePrefix_consumed {physical : Physical} {limits : Limits} {expected : Nat}
+    {source : Bytes} {stream : Stream} {rest : List UInt8}
+    (h : parsePrefix physical limits expected source = .ok (stream, rest)) :
+    source.toList.take stream.wire.length = stream.wire ∧
+      source.toList.drop stream.wire.length = rest := by
+  rw [(parsePrefix_sound h).2.1]
+  simp
+
+public theorem parse_ok_iff {physical : Physical} {limits : Limits} {expected : Nat}
+    {source : Bytes} {stream : Stream} :
+    parse physical limits expected source = .ok stream ↔
+      parsePrefix physical limits expected source = .ok (stream, []) := by
+  unfold parse
+  constructor
+  · intro h
+    obtain ⟨⟨parsed, rest⟩, prefixed, h⟩ := bind_ok h
+    cases rest with
+    | nil =>
+      cases h
+      exact prefixed
+    | cons => contradiction
+  · intro h
+    rw [h]
+    rfl
+
+public theorem parse_sound {physical : Physical} {limits : Limits} {expected : Nat}
+    {source : Bytes} {stream : Stream} (h : parse physical limits expected source = .ok stream) :
+    source.length ≤ limits.bytes ∧ source.toList = stream.wire ∧ stream.Valid physical limits expected := by
+  simpa using parsePrefix_sound (parse_ok_iff.mp h)
 
 end Silmaril.Proofs.Formats.Parquet.DeltaBinaryPacked

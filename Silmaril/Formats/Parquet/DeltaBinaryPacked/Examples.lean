@@ -67,6 +67,13 @@ private def padded : Bytes := .ofList [0x80, 1, 4, 2, 14, 3, 1, 255, 254, 253, 2
 #guard decode32 2 (padded.push 0) = .error .trailingBytes
 #guard decode32 0 (empty32.push 0) = .error .trailingBytes
 #guard decode32 1 (singleton32.push 0) = .error .trailingBytes
+#guard (parsePrefix .int32 limits 2 ((padded.push 0).push 255)).map
+    (fun (stream, rest) => (stream.reconstruct .int32, rest)) = .ok ([7, 6], [0, 255])
+#guard (parsePrefix .int32 limits 0 (empty32.push 255)).map Prod.snd = .ok [255]
+#guard (parsePrefix .int32 limits 1 (singleton32.push 255)).map Prod.snd = .ok [255]
+#guard (parsePrefix .int32 limits 140 (blocks32.push 255)).map Prod.snd = .ok [255]
+#guard (parsePrefix .int32 { limits with bytes := 5 } 0 (empty32.push 255)).map Prod.snd =
+  .error .byteLimit
 #guard decode32 0 .empty = .error (.wire .truncated)
 #guard decode32 1 empty32 = .error .countMismatch
 #guard decode32 0 (.ofList [0x80, 0x81, 0, 4, 0, 0]) = .error (.wire .noncanonicalHeader)
