@@ -52,14 +52,8 @@ variable {A B : Interface M policy}
 every native arrow in either position. -/
 theorem isCentral_of_pureRun {p : Program Φ A.ty B.ty} (hp : p.HasPureRun M) :
     @PremonoidalCategory.IsCentral _ _ (tensorStruct (M := M) (policy := policy))
-      A B (ofProgram p) := by
-  constructor
-  · intro _ _ f
-    exact Quotient.inductionOn f fun q =>
-      Quotient.sound (Program.equiv_of_run_eq (Program.run_leftTensor_eq_rightTensor_of_left_pure q hp))
-  · intro _ _ f
-    exact Quotient.inductionOn f fun q =>
-      Quotient.sound (Program.equiv_of_run_eq (Program.run_leftTensor_eq_rightTensor_of_right_pure q hp))
+      A B (ofProgram p) :=
+  PremonoidalProofs.isCentral_of_pureRun hp
 
 /-- Centrality for an arrow given by a native pure term in a compatible model. -/
 theorem isCentral_of_pure {ε : Type w} [HasEff Φ ε] [Bot ε] {p : Program Φ A.ty B.ty}

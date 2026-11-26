@@ -6,7 +6,7 @@ public section
 
 namespace Silmaril.Isotope.LetCase.HandledTrace.PremonoidalProofs
 
-open Silmaril.Isotope.Semantics Silmaril.Elgot.ITree
+open CategoryTheory Silmaril.Isotope.Semantics Silmaril.Elgot.ITree
 
 universe u v e s
 
@@ -76,5 +76,17 @@ theorem triangle (A B : τ) :
   obtain ⟨⟨a, u⟩, rfl⟩ := pack[A, unit].surjective au
   simp only [Program.run_seq, Program.run_assocHom, Program.run_whiskerLeft, Program.run_whiskerRight,
     Program.run_snd, Program.run_fst, pure_bind]
+
+theorem isCentral_of_pureRun {X Y : Interface M policy}
+    {p : Program Φ X.ty Y.ty} (hp : p.HasPureRun M) :
+    @PremonoidalCategory.IsCentral _ _ (tensorStruct (M := M) (policy := policy))
+      X Y (Arrow.ofProgram p) := by
+  constructor
+  · intro _ _ f
+    exact Quotient.inductionOn f fun q =>
+      Quotient.sound (Program.equiv_of_run_eq (run_eq_left_pure q hp))
+  · intro _ _ f
+    exact Quotient.inductionOn f fun q =>
+      Quotient.sound (Program.equiv_of_run_eq (run_eq_right_pure q hp))
 
 end Silmaril.Isotope.LetCase.HandledTrace.PremonoidalProofs
