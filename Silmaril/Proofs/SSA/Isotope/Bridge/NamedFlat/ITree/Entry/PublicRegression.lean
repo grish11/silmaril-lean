@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Construction.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Stores.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
 namespace Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
@@ -135,19 +135,20 @@ private def seedStore : Name → Value Atom :=
 example : (seedBuilt true).seed? seedStore = some ⟨⟩ := by decide
 example : (branchBuilt false).seed? seedStore = some (.inl ⟨⟩) := by decide
 example : (branchBuilt true).seed? seedStore = some (.inr ⟨⟩) := by decide
-example : (seedBuilt true).refinementFromStore? (branchBuilt false) (fun _ => .unit) = none := by decide
+private theorem malformedStore :
+    (seedBuilt true).refinementFromStore? (branchBuilt false) (fun _ => .unit) = none := by decide
 
-private abbrev branchInclusion (second : Bool) :=
+private abbrev branchInclusion (second : Bool) (initial : Name → Value Atom) :=
   ∀ policy : Silmaril.Logic.ITree.Model.{0,0} signature.traceSignature.toSignature,
     ∀ x, policy.initial x → ∀ trace,
       Silmaril.Elgot.ITree.HandledTrace policy.step x
-        (LiveOut.observeRaw signature.primitive exits seedFields (seededGraph true) seedStore) trace →
+        (LiveOut.observeRaw signature.primitive exits seedFields (seededGraph true) initial) trace →
       Silmaril.Elgot.ITree.HandledTrace policy.step x
-        (LiveOut.observeRaw signature.primitive exits seedFields (branchSeedGraph second) seedStore) trace
+        (LiveOut.observeRaw signature.primitive exits seedFields (branchSeedGraph second) initial) trace
 
 private theorem branchDecision (second : Bool) (verdict : Bool)
     (computed : (seedBuilt true).refinementFromStore? (branchBuilt second) seedStore = some verdict) :
-    verdict = true ↔ branchInclusion second :=
+    verdict = true ↔ branchInclusion second seedStore :=
   (((seedBuilt true).refinementFromStore?_eq_some_iff (branchBuilt second) seedStore verdict).mp computed).2.2
 
 set_option maxHeartbeats 1000000 in
@@ -158,22 +159,60 @@ set_option maxHeartbeats 1000000 in
 private theorem branchRejects :
     (seedBuilt true).program.refinementBetween? (branchBuilt true).program 0 ⟨⟩ 0 (.inr ⟨⟩) = false := by cbv
 
-private theorem storeVerdict (second : Bool) (pkt : Denote bit) (verdict : Bool)
-    (seed : (branchBuilt second).seed? seedStore = some pkt)
+private theorem storeVerdict (second : Bool) (initial : Name → Value Atom) (pkt : Denote bit) (verdict : Bool)
+    (constant : (seedBuilt true).seed? initial = some ⟨⟩)
+    (seed : (branchBuilt second).seed? initial = some pkt)
     (compared : (seedBuilt true).program.refinementBetween? (branchBuilt second).program 0 ⟨⟩ 0 pkt = verdict) :
-    (seedBuilt true).refinementFromStore? (branchBuilt second) seedStore = some verdict := by
-  have constant : (seedBuilt true).seed? seedStore = some ⟨⟩ := by decide
-  change ((seedBuilt true).seed? seedStore).bind (fun leftPacket => ((branchBuilt second).seed? seedStore).bind
+    (seedBuilt true).refinementFromStore? (branchBuilt second) initial = some verdict := by
+  change ((seedBuilt true).seed? initial).bind (fun leftPacket => ((branchBuilt second).seed? initial).bind
     fun rightPacket => some ((seedBuilt true).program.refinementBetween? (branchBuilt second).program
       0 leftPacket 0 rightPacket)) = some verdict
   rw [constant, seed]
   exact congrArg some compared
 
-example : branchInclusion false :=
-  (branchDecision false true (storeVerdict false (.inl ⟨⟩) true (by decide) branchAccepts)).mp rfl
+private theorem firstStorePasses :
+    (seedBuilt true).refinementFromStore? (branchBuilt false) seedStore = some true :=
+  storeVerdict false seedStore (.inl ⟨⟩) true (by decide) (by decide) branchAccepts
 
-example : ¬ branchInclusion true :=
+example : branchInclusion false seedStore := (branchDecision false true firstStorePasses).mp rfl
+
+example : ¬ branchInclusion true seedStore :=
   fun included => Bool.noConfusion
-    ((branchDecision true false (storeVerdict true (.inr ⟨⟩) false (by decide) branchRejects)).mpr included)
+    ((branchDecision true false
+      (storeVerdict true seedStore (.inr ⟨⟩) false (by decide) (by decide) branchRejects)).mpr included)
+
+-- Keep both RTL tables fixed. The second store varies only the right
+-- capture, whose different typed bit leads to the second ordered exit.
+private def laterStore : Name → Value Atom := upd seedStore (branchCapture false) (.inr .unit)
+
+private theorem laterStoreFails :
+    (seedBuilt true).refinementFromStore? (branchBuilt false) laterStore = some false :=
+  storeVerdict false laterStore (.inr ⟨⟩) false (by decide) (by decide) branchRejects
+
+private def finiteStores : Fin 2 → Name → Value Atom :=
+  Fin.cases seedStore (fun _ => laterStore)
+
+example : (seedBuilt true).refinementOverStores? (branchBuilt false) (fun _ : Fin 1 => seedStore) = some true := by
+  simp only [Seeded.refinementOverStores?, List.ofFn_succ, List.ofFn_zero, firstStorePasses]
+  rfl
+
+private theorem finiteFails : (seedBuilt true).refinementOverStores? (branchBuilt false) finiteStores = some false := by
+  simp only [Seeded.refinementOverStores?, List.ofFn_succ, List.ofFn_zero, finiteStores,
+    Fin.cases_zero, Fin.cases_succ, firstStorePasses, laterStoreFails]
+  rfl
+
+example : ¬ ∀ i, branchInclusion false (finiteStores i) :=
+  fun valid => Bool.noConfusion
+    ((((seedBuilt true).refinementOverStores?_eq_some_iff (branchBuilt false) finiteStores false).mp
+      finiteFails).2.mpr valid)
+
+private def mixedStores : Fin 3 → Name → Value Atom :=
+  Fin.cases seedStore (Fin.cases laterStore (fun _ _ => .unit))
+
+-- An ill-typed store invalidates the finite interface even after a valid failure.
+example : (seedBuilt true).refinementOverStores? (branchBuilt false) mixedStores = none := by
+  simp only [Seeded.refinementOverStores?, List.ofFn_succ, List.ofFn_zero, mixedStores,
+    Fin.cases_zero, Fin.cases_succ, firstStorePasses, laterStoreFails, malformedStore]
+  rfl
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
