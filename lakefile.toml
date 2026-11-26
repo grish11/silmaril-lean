@@ -497,11 +497,6 @@ globs = ["tests.ssa.PeggyEquational"]
 name = "PEGIRBridgeTests"
 globs = ["tests.ssa.PEGIRBridge"]
 
-# Check the bundled ordered Peggy, RVSDG and MLIR comorphisms.
-[[lean_lib]]
-name = "PeggyIRComorphismTests"
-globs = ["tests.ssa.PeggyIRComorphisms"]
-
 # The component and generator tools of the Wasm release (docs/projects/wasm-components.md).
 [[lean_exe]]
 name = "wasm-tools-gen"

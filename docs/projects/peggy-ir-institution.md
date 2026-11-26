@@ -64,13 +64,13 @@ IR models have separate proof obligations.
 ## Checks
 
 ```sh
-make check CHECK_TARGETS='+Silmaril.SSA.Peggy.Bridge.IR.Canonical PeggyIRComorphismTests PeggyInstitutionTests PeggyEquationalTests PEGIRBridgeTests'
-lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/PeggyIRComorphisms.lean
-for module in \\
-  Silmaril.SSA.Peggy.Bridge.IR.Defs Silmaril.SSA.Peggy.Bridge.IR.Thms \\
-  Silmaril.SSA.Peggy.Bridge.IR.Canonical Silmaril.Proofs.SSA.Peggy.Bridge.IR.Naturality \\
-  Silmaril.Proofs.SSA.Peggy.Bridge.IR.Satisfaction tests.ssa.PeggyIRComorphisms; do
-  SILMARIL_REPLAY_MODULE="$module" LEAN_NUM_THREADS=1 \\
+make check CHECK_TARGETS='+Silmaril.SSA.Peggy.Bridge.IR.Canonical PeggyInstitutionTests PeggyEquationalTests PEGIRBridgeTests'
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/PeggyInstitution.lean
+for module in \
+  Silmaril.SSA.Peggy.Bridge.IR.Defs Silmaril.SSA.Peggy.Bridge.IR.Thms \
+  Silmaril.SSA.Peggy.Bridge.IR.Canonical Silmaril.Proofs.SSA.Peggy.Bridge.IR.Naturality \
+  Silmaril.Proofs.SSA.Peggy.Bridge.IR.Satisfaction tests.ssa.PeggyInstitution; do
+  SILMARIL_REPLAY_MODULE="$module" LEAN_NUM_THREADS=1 \
     lake env lean -DwarningAsError=true tools/compiler-explorer/Replay.lean
 done
 ```
@@ -80,4 +80,4 @@ roots. Two source literals give different results. A nonidentity signature
 arrow identifies the literals, and the resulting equation holds in the
 canonical regionless evaluator. The test applies the bundled satisfaction
 theorem and checks exact sentence naturality on both compilation stages.
-[Regression](../../tests/ssa/PeggyIRComorphisms.lean)
+[Regression](../../tests/ssa/PeggyInstitution.lean)
