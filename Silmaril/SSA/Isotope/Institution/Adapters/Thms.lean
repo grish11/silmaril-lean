@@ -1,7 +1,6 @@
 module
 
-public import Silmaril.SSA.Isotope.Institution.Adapters.Iteration.Thms
-public import Silmaril.SSA.Isotope.Institution.Adapters.Powerset.Thms
+public import Silmaril.SSA.Isotope.Institution.Adapters.UpperPowerset.Thms
 public import Silmaril.SSA.Isotope.Institution.Relational.Inclusions.Thms
 import Silmaril.Proofs.SSA.Isotope.Institution.Adapters.Hierarchy
 
@@ -57,6 +56,32 @@ variable [Subtyping τ] [Bot ε] [TypeModel.{u, v} τ]
 
 attribute [local instance] LetParIter.nativeProductModel LetParIter.nativeUnitModel
   Iteration.nativeCoproductModel Iteration.nativeEmptyModel
+
+/-- The upper square commutes as corridors at the same fixed powerset profile. -/
+theorem caseIter_corridor_commutes (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
+    (pair : Elgot.ParallelPairing (SetM : Type v → Type v)) (S : InstrSig τ ε) :
+    (Powerset.letCase (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).ρ.app S ≫
+        (UpperPowerset.letParCase hΓ pair).ρ.app S =
+      (Relational.caseIterRho Γ TyDen).app S ≫ (UpperPowerset.letIter hΓ pair).ρ.app S :=
+  Room.hom_ext (funext fun φ => (caseIter_sentence_commutes φ).symm) rfl
+
+/-- The upper square commutes as bundled institution comorphisms. -/
+theorem caseIter_comorphism_commutes (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
+    (pair : Elgot.ParallelPairing (SetM : Type v → Type v)) :
+    (Powerset.letCase (ε := ε) (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).comp
+        (UpperPowerset.letParCase (ε := ε) hΓ pair) =
+      (Relational.caseIterCoHom (ε := ε) Γ TyDen).comp (UpperPowerset.letIter (ε := ε) hΓ pair) :=
+  Proofs.caseIter_comorphism_commutes hΓ pair
+
+/-- The composite routes agree on sentences, model reducts, and satisfaction. -/
+theorem seqIter_corridor_commutes (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
+    (pair : Elgot.ParallelPairing (SetM : Type v → Type v)) (S : InstrSig τ ε) :
+    ((Powerset.letSeq (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).ρ.app S ≫
+        (Powerset.letParCaseInclusion (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).ρ.app S) ≫
+        (UpperPowerset.letParCase hΓ pair).ρ.app S =
+      ((Relational.seqCaseRho Γ TyDen).app S ≫ (Relational.caseIterRho Γ TyDen).app S) ≫
+        (UpperPowerset.letIter hΓ pair).ρ.app S :=
+  Room.hom_ext (funext fun φ => (seqIter_sentence_commutes φ).symm) rfl
 
 /-- The case route to LetParIter reflects relational satisfaction in the fixed powerset profile. -/
 theorem caseIter_set_satisfaction (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))

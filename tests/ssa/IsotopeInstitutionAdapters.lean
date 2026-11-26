@@ -82,4 +82,85 @@ theorem native_relabelled_choose_fails :
     (Parallel.Control.case Val Id) context pairing) changeOpcode model
       (Powerset.ofLetCase equation)).mp h
 
+section Iteration
+
+open LetIter.ProofRelevant.Semantics (TypeModel)
+
+private def coerceValue : {A B : Sorts} → Ty.Subty A B → Val A → Val B
+  | _, _, .refl _, x => x
+  | _, _, .trans f g, x => coerceValue g (coerceValue f x)
+  | _, _, .product f g, (x, y) => (coerceValue f x, coerceValue g y)
+  | _, _, .coprod f g, x => Sum.map (coerceValue f) (coerceValue g) x
+  | _, _, .empty _, x => x.elim
+  | _, _, .unit _, _ => PUnit.unit
+
+local instance : TypeModel Sorts where
+  interp := Val
+  productEquiv _ _ := Equiv.refl _
+  unitEquiv := ⟨fun _ => (), fun _ => PUnit.unit, fun _ => rfl, fun _ => rfl⟩
+  coprodEquiv _ _ := Equiv.refl _
+  emptyEquiv := ⟨PEmpty.elim, Empty.elim, fun x => x.elim, fun x => x.elim⟩
+  coe := coerceValue
+
+local instance : Bot Bool := ⟨false⟩
+
+private def loopSignature : InstrSig Sorts Bool where
+  Instr := Unit
+  hasTy := ⟨fun _ => Bit, fun _ => coprod unit Bit⟩
+  hasEff := ⟨fun _ => false⟩
+
+private def loopBound : BoundCtx Sorts 1 := .snoc .nil Bit
+
+private def feedback (returns : Bool) (state : Bool) : PUnit ⊕ Bool :=
+  if returns && state then .inl PUnit.unit else .inr true
+
+private def loopModel (returns : Bool) : UpperPowerset.Model loopSignature where
+  instructions :=
+    { denote := fun _ a => pure (feedback returns a)
+      denotePure := fun _ _ => feedback returns
+      denote_pure := fun _ _ _ => rfl }
+
+private def loopEquation : Relational.LetIter.Sentence loopSignature context :=
+  ⟨⟨1, loopBound, unit⟩, ⟨.iter (.bv 0) (.op () (.bv 0)), .iter .bv (.op .bv)⟩, ⟨.unit, .unit⟩⟩
+
+attribute [local instance] LetParIter.nativeProductModel LetParIter.nativeUnitModel
+  Iteration.nativeCoproductModel
+
+private theorem returns_in_at_most_two_steps :
+    Relational.LetIter.Sentence.Satisfies (UpperPowerset.Model.toRelational.obj (loopModel true)) loopEquation := by
+  intro γ ρ b
+  change (∃ a : Bool, a = ρ (0 : Fin 1) ∧ Relation.Iterates
+    (fun s result => ∃ x, x = s ∧ result = feedback true x) a b) ↔ b = PUnit.unit
+  cases b
+  refine ⟨fun _ => rfl, fun _ => ⟨ρ (0 : Fin 1), rfl, ?_⟩⟩
+  cases ρ (0 : Fin 1)
+  · exact .more (a' := true) ⟨false, rfl, rfl⟩ (.done ⟨true, rfl, rfl⟩)
+  · exact .done ⟨true, rfl, rfl⟩
+
+private theorem no_successful_step :
+    ¬ Relational.LetIter.Sentence.Satisfies (UpperPowerset.Model.toRelational.obj (loopModel false)) loopEquation := by
+  intro h
+  let γ : FreeEnv Val context := fun x => nomatch x
+  let ρ : BoundEnv Val loopBound := BoundEnv.snoc (fun i => Fin.elim0 i) false
+  have result := (h γ ρ PUnit.unit).mpr rfl
+  change ∃ a : Bool, a = false ∧ Relation.Iterates
+    (fun s result => ∃ x, x = s ∧ result = feedback false x) a PUnit.unit at result
+  obtain ⟨_, _, run⟩ := result
+  refine Relation.Iterates.not_of_no_return (fun _ b ⟨_, _, h⟩ => ?_) run
+  change Sum.inl b = Sum.inr true at h
+  cases h
+
+/-- The exact feedback equation is satisfied for a two-step return. -/
+theorem upper_loop_holds (pair : Elgot.ParallelPairing (SetM : Type → Type)) :
+    (UpperPowerset.room pair loopSignature Empty).Sat (loopModel true) (Iteration.ofLetIter loopEquation) :=
+  ((UpperPowerset.letIter (ε := Bool) Iteration.visibleEnv_nil_surjective pair).satisfaction
+    loopSignature (loopModel true) loopEquation).mpr returns_in_at_most_two_steps
+
+/-- Continuing forever has an empty successful-result set and fails the same equation. -/
+theorem upper_loop_fails (pair : Elgot.ParallelPairing (SetM : Type → Type)) :
+    ¬ (UpperPowerset.room pair loopSignature Empty).Sat (loopModel false) (Iteration.ofLetIter loopEquation) :=
+  fun h => no_successful_step (((UpperPowerset.letIter (ε := Bool) Iteration.visibleEnv_nil_surjective pair).satisfaction
+    loopSignature (loopModel false) loopEquation).mp h)
+
+end Iteration
 end Silmaril.Isotope.Institution.Adapters.Tests

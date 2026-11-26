@@ -3,6 +3,9 @@ module
 import all tests.ssa.IsotopeInstitutionAdapters
 import all Silmaril.SSA.Isotope.Institution.Adapters.Thms
 import all Silmaril.Proofs.SSA.Isotope.Institution.Adapters.Hierarchy
+import all Silmaril.SSA.Isotope.Institution.Adapters.UpperPowerset.Defs
+import all Silmaril.SSA.Isotope.Institution.Adapters.UpperPowerset.Thms
+import all Silmaril.Proofs.SSA.Isotope.Institution.Adapters.UpperPowerset
 import all Silmaril.SSA.Isotope.Institution.Adapters.Powerset.Defs
 import all Silmaril.SSA.Isotope.Institution.Adapters.Powerset.Thms
 import all Silmaril.SSA.Isotope.Institution.Adapters.Iteration.Defs

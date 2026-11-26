@@ -60,10 +60,19 @@ powerset pairing. Bottom-effect instructions must have coherent pure
 interpretations. The comparison applies on the same visible environment
 coverage as the case reduct.
 
+The `UpperPowerset` institution bundles that profile over all native
+LetParIter sentences. It retains the pure interpretations across signature
+reducts. For a fixed pairing, its model arrows are precisely upper strict
+arrows with identity computation maps. `UpperPowerset.letIter` and
+`UpperPowerset.letParCase` use this shared target. Both model reducts
+commute with opcode relabeling and take membership of the same primitive
+computations.
+
 `Silmaril.SSA.Isotope.Institution.Adapters.Thms` exposes the commuting
 sentence squares and outer rectangle, using equality of exact witnesses.
-It also states equality of the lower corridors on both sentence and model
-components, and relates the upper case path to successful-result satisfaction.
+It also states equality of the lower, upper, and outer corridors on
+both sentence and model components. The upper square commutes as bundled
+comorphisms on the same powerset profiles.
 
 The underlying syntax is proof relevant. These maps apply to each given
 endpoint witness. A raw syntax descent requires separate compatibility of the
