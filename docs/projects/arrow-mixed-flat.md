@@ -217,3 +217,59 @@ an independent inbound control.
 make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.StreamWriter.Examples +Silmaril.Formats.Arrow.MixedFlat.StreamWriter.Axioms'
 python3 -I scripts/arrow-mixed-flat/stream_writer_fixtures.py --out /tmp/arrow-mixed-flat-stream-writer
 ```
+
+## Indexed files in a bounded carrier window
+
+`MixedFlat.File.Window.readIndex limits carrier start stop` accepts an
+explicit absolute window `[start, stop)` in an immutable `KBytes`
+carrier. The window starts on an eight-byte boundary. The trailing magic
+ends at `stop`. The caller supplies both bounds. Every footer block
+offset is an absolute address from byte zero of the carrier. Lengths count
+the original prefix, padded metadata and body extents.
+
+The reader checks the carrier and bounds first. It locates the footer
+trailer within the bounded window, checks both magic words and leading
+padding, then parses the footer and embedded Schema on the original
+carrier. The two supported Schema declarations must match exactly.
+The bodyless Schema ends at the first block's start. Contiguous aligned
+blocks in footer order occupy the interval through the exact modern EOS
+immediately before the footer. The reader checks the index before
+selecting any batch.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/File/Window/Defs.lean)
+
+`Index.readAt` decodes one selected block using the existing mixed V5
+decoder. It checks the selected continuation prefix and compares
+Message lengths with the indexed extents before slicing the metadata
+and body. An absent entry returns `.ok none`. A malformed selected
+record reports its footer index. Bytes in the carrier outside the window
+cannot satisfy a declared file block range.
+
+`readIndex_exact` recovers the original footer, matching embedded
+Schema and EOS. `Index.footer_range` and `Index.footer_bytes_exact`
+give the original footer window. `Index.block_ranges` proves the selected
+prefix, metadata and body fit inside the caller window and end before
+EOS. `Index.block_order` gives physical order and non-overlap.
+`Index.readAt_exact` identifies the three original byte slices and
+recovers the same ordered nullable observation from the standalone
+mixed batch reader.
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/File/Window/Thms.lean)
+
+The pinned PyArrow 26.0.1 producer writes an Int32/BinaryView V5 file at
+byte 64 and appends a suffix after the file. On the whole carrier,
+`ipc.open_file(..., footer_offset=1354)` checks both Schema declarations
+and reads the batches out of order with row counts `[4, 0, 2]` in footer
+order. The pinned carrier SHA-256 is
+`f1c55f598ee91bf522d50e582121f977ed4c62cda5be64026b95dcda0215e9ee`.
+Independent PyArrow and Lean checks isolate an external-prefix failure
+in the first record and a negative view length in the last record.
+The other batches remain readable. Lean guards also exercise out-of-window
+blocks whose bytes exist in the carrier, Schema disagreement, and malformed
+prefix lengths and EOS.
+[Producer and independent check](../../scripts/arrow-mixed-flat/window_fixtures.py) ·
+[Lean guards](../../Silmaril/Formats/Arrow/MixedFlat/File/Window/Examples.lean) ·
+[Pinned PyArrow wheel](../../tests/formats/arrow-ipc/requirements.txt)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.File.Window.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Window.Axioms'
+python3 -I scripts/arrow-mixed-flat/window_fixtures.py --out /tmp/arrow-mixed-window.bin
+```

@@ -29,6 +29,18 @@ theorem Index.block_order {input : KBytes} (index : Index input) :
     List.Pairwise (fun earlier later : FileBlock => earlier.endOffset ≤ later.offset) index.footer.blocks :=
   index.fits.block_order
 
+/-- Checked record decoding exposes the admitted frame, metadata and body. -/
+theorem readRecord_witness {limits : MixedFlat.Limits} {input : KBytes}
+    {fields : List MixedFlat.Field} {block : FileBlock} {observed : MixedFlat.Observed}
+    (read : readRecord limits input fields block = .ok observed) :
+    ∃ record body,
+      readEnvelope limits.observation.ipc input block.offset = .ok (.metadata (block.metadataLength - 8)) ∧
+      MixedFlat.readMetadata limits.observation.ipc limits.view.dataBuffers limits.totalDataBuffers
+        fields (metadataSlice input block) = .ok record ∧
+      readBody limits.observation.ipc input (block.offset + block.metadataLength) block.bodyLength = .ok body ∧
+      MixedFlat.readParsed limits fields record body = .ok observed :=
+  Proofs.Formats.Arrow.MixedFlat.File.readRecord_witness read
+
 /-- A successful indexed observation comes from the selected footer entry.
 The declared metadata and body contain precisely the source octets, and
 standalone decoding with the embedded Schema gives the same observation. -/

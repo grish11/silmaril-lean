@@ -37,7 +37,7 @@ theorem readIndex_exact {limits : Arrow.Limits} {input : KBytes} {index : Index 
   cases read
   simp_all [Index.schemaMetadata, mapError_ok_iff]
 
-private theorem readRecord_witness {limits : MixedFlat.Limits} {input : KBytes}
+theorem readRecord_witness {limits : MixedFlat.Limits} {input : KBytes}
     {fields : List MixedFlat.Field} {block : FileBlock} {observed : MixedFlat.Observed}
     (read : readRecord limits input fields block = .ok observed) :
     ∃ record body,
