@@ -89,8 +89,11 @@ proves the blocks are contiguous, aligned and in frame order.
 schema, batch count and all byte extents. `FileWriter.emit_index_exact`
 proves that a checked write recovers its exact planned footer and boundaries
 with `FileReader.readIndex`. The writer checks the index before returning
-the bytes. General ordered row recovery through `FileReader.readRows`
-remains open and is exercised by the native and independent fixtures.
+the bytes. `FileWriter.emit_roundtrip` proves that under the same limits,
+`FileReader.readRows` returns the declared schema and one ordered nullable
+observation per input batch. It also proves the indexed metadata counts
+and observation lengths equal the declared counts, including empty batches
+and positive-row zero-column batches.
 [File writer laws](../../Silmaril/Formats/Arrow/FileWriter/Thms.lean) ·
 [Footer laws](../../Silmaril/Formats/Arrow/FooterWriter/Thms.lean)
 

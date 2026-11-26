@@ -52,6 +52,7 @@ example : Body.validAt (.leaf 2 0x0100) 8 = some true := by rfl
 #print axioms FileWriter.packRecords_exact
 #print axioms FileWriter.assemble_extent
 #print axioms FileWriter.emit_index_exact
+#print axioms FileWriter.emit_roundtrip
 
 #print axioms Writer.checkInput_iff
 #print axioms Writer.packBuffers_exact
@@ -63,5 +64,6 @@ example : Body.validAt (.leaf 2 0x0100) 8 = some true := by rfl
 #print axioms MetadataWriter.emit_exact
 #print axioms StreamWriter.read_eos
 #print axioms StreamWriter.emitFrame_exact
+#print axioms StreamWriter.emitBatchFrame_at
 #print axioms StreamWriter.emit_roundtrip
 #print axioms StreamWriter.emit_readRows

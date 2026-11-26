@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Arrow.FileWriter.Defs
 import Silmaril.Proofs.Formats.Arrow.FileWriter
+import Silmaril.Proofs.Formats.Arrow.FileWriter.RoundTrip
 
 @[expose] public section
 
@@ -36,5 +37,17 @@ theorem emit_index_exact {limits : ObservationLimits} {fields : List Field}
         index.footer = plan.footer ∧ index.schemaEnd = plan.schemaEnd ∧
         index.span.start = plan.footerStart ∧ index.span.length = plan.footerLength :=
   Proofs.Formats.Arrow.FileWriter.emit_index_exact written
+
+/-- A successful file write preserves the schema, ordered nullable rows, and
+one explicit count per batch. This includes empty and zero-column batches. -/
+theorem emit_roundtrip {limits : ObservationLimits} {fields : List Field}
+    {inputs : List Writer.BatchInput} {wire : KBytes} (written : emit limits fields inputs = .ok wire) :
+    ∃ (index : FileReader.Index wire) (batches : List (BatchFrame index.footer.fields)),
+      FileReader.readIndex limits.ipc wire = .ok index ∧ index.footer.fields = fields ∧
+      index.readBatches limits.ipc = .ok batches ∧
+      batches.map (·.metadata.rowCount) = inputs.map (·.rowCount) ∧
+      FileReader.readRows limits wire = .ok ⟨fields, inputs.map Writer.BatchInput.observe⟩ ∧
+      (inputs.map Writer.BatchInput.observe).map List.length = inputs.map (·.rowCount) :=
+  Proofs.Formats.Arrow.FileWriter.emit_roundtrip written
 
 end Silmaril.Formats.Arrow.FileWriter

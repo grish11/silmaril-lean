@@ -1,11 +1,14 @@
 module
 
+public import Silmaril.Formats.Arrow.StreamWriter.Window.Defs
 public import Silmaril.Prelude.Bytes.Write.Thms
 import Init.Omega
 
 @[expose] public section
 
 namespace Silmaril.Proofs.Formats.Arrow.StreamWriter
+
+open Silmaril.Formats.Arrow.StreamWriter
 
 theorem append_length (left right : KBytes) : (left ++ right).len = left.len + right.len := rfl
 
@@ -75,15 +78,6 @@ theorem slice_full_slice (bytes : KBytes) (wf : bytes.wf = true) (offset width :
     simp only [KBytes.slice, KBytes.len_slice, ite_eq_right hLeft, ite_eq_right hRight]
     rw [ihLeft leftWf _ _ (by omega) (by omega), ihRight rightWf _ _ (by omega) (by omega)]
 
-/-- A byte tree occurs as an unmodified subtree of another tree. Its position
-is the sum of the lengths of the preceding subtrees. -/
-inductive Window (part : KBytes) : KBytes → Nat → Prop where
-  | self : Window part part 0
-  | left {front : KBytes} {offset : Nat} (previous : Window part front offset) (back : KBytes) :
-      Window part (front ++ back) offset
-  | right (front : KBytes) {back : KBytes} {offset : Nat} (previous : Window part back offset) :
-      Window part (front ++ back) (front.len + offset)
-
 theorem Window.extent {part whole : KBytes} {start : Nat} (atPart : Window part whole start) :
     start + part.len ≤ whole.len := by
   induction atPart with
@@ -97,7 +91,7 @@ theorem Window.read {part whole : KBytes} {start : Nat} (atPart : Window part wh
   induction atPart with
   | self => rw [Nat.zero_add]
   | left atChild back ih =>
-    have extent := atChild.extent
+    have extent := Window.extent atChild
     change (KBytes.node _ _ back).read _ _ = _
     rw [KBytes.read, ite_eq_left (by omega)]
     exact ih
@@ -115,7 +109,7 @@ theorem Window.slice {part whole : KBytes} {start : Nat} (atPart : Window part w
   induction atPart with
   | self => rw [Nat.zero_add]
   | left atChild back ih =>
-    have extent := atChild.extent
+    have extent := Window.extent atChild
     change (KBytes.node _ _ back).slice _ _ = _
     rw [KBytes.slice, ite_eq_left (by omega)]
     exact ih
