@@ -18,8 +18,8 @@ structure Field where
   deriving DecidableEq, Repr
 
 /-- The callback receives one checked data-page header and its exact on-disk
-payload, for an uncompressed flat INT32 column. It returns row slots in
-page order. The scan checks count and nullability independently. -/
+payload, for a flat INT32 column. It returns row slots in page order.
+The scan checks count and nullability independently. -/
 abbrev DecodePage (ε : Type) :=
   Field → Page.Header → Bytes → Except ε (List (Option Int32))
 
@@ -111,12 +111,12 @@ private def admitsValueEncoding (allowDelta : Bool) (encoding : Int) : Bool :=
 /-- The scanner rejects every non-data page. The opt-in delta profile also
 requires the page's actual scalar encoding to occur in column metadata. -/
 private def checkPage {ε : Type} (limits : Limits) (field : Field) (header : Page.Header)
-    (rejectCRC allowDelta : Bool) (advertised : List Int) :
+    (rejectCRC allowDelta : Bool) (advertised : List Int) (requiredCodec : Int) :
     Except (Error ε) (Nat × Option Nat) := do
   if rejectCRC && header.crc.isSome then throw .crcUnsupported
   if header.compressedSize > limits.maxPageBytes || header.uncompressedSize > limits.maxPageBytes then
     throw .pageByteLimit
-  if header.compressedSize != header.uncompressedSize then throw .pageSize
+  if requiredCodec == 0 && header.compressedSize != header.uncompressedSize then throw .pageSize
   let admits := fun encoding =>
     admitsValueEncoding allowDelta encoding && (!allowDelta || advertised.contains encoding)
   match header.kind with
@@ -133,31 +133,33 @@ private def checkPage {ε : Type} (limits : Limits) (field : Field) (header : Pa
     pure (info.numValues, some info.numNulls)
   | .dictionary _ | .skipped _ => throw .unsupportedKind
 
-private def frameColumn {ε : Type} (checksumLimit : Option Nat) (allowDelta : Bool)
+private def frameColumn {ε : Type} (checksumLimit : Option Nat) (allowDelta : Bool) (requiredCodec : Int)
     (limits : Limits) (source : Bytes) (footerStart : Nat) (field : Field) (rowCount : Nat)
-    (column : Footer.ColumnChunk) : Except (Error ε) (List Page.Frame) := do
-  if rowCount > limits.maxRows then throw .rowLimit
+    (column : Footer.ColumnChunk) : Except (Error ε) (List Page.Frame) :=
   let metadata := column.metadata
-  if metadata.pathInSchema != [field.name] then
-    throw (.columnPath field.name metadata.pathInSchema)
-  if metadata.physicalType != .int32 then throw (.columnType field.name)
-  if metadata.numValues != (rowCount : Int) then throw (.columnCount field.name)
-  if metadata.codec != 0 then throw (.columnCodec field.name)
-  if !metadata.encodings.all (fun id => admitsValueEncoding allowDelta id || id == 3) ||
+  if rowCount > limits.maxRows then .error .rowLimit
+  else if metadata.pathInSchema != [field.name] then .error (.columnPath field.name metadata.pathInSchema)
+  else if metadata.physicalType != .int32 then .error (.columnType field.name)
+  else if metadata.numValues != (rowCount : Int) then .error (.columnCount field.name)
+  else if metadata.codec != requiredCodec then .error (.columnCodec field.name)
+  else if !metadata.encodings.all (fun id => admitsValueEncoding allowDelta id || id == 3) ||
       (rowCount != 0 && !metadata.encodings.any (admitsValueEncoding allowDelta)) then
-    throw (.columnEncoding field.name)
-  if metadata.dictionaryPageOffset.isSome || metadata.indexPageOffset.isSome then throw .unsupportedKind
-  let some span := Page.columnSpan footerStart metadata | throw (.columnBounds field.name)
-  match checksumLimit with
-  | none => (Page.readChunk limits.page source span).mapError .page
-  | some cap =>
-    (Page.Checksum.readChunkWithCRC limits.page (fun _ => min cap limits.maxPageBytes) source span).mapError
-      (fun | .page reason => .page reason | .checksum reason => .checksum reason)
+    .error (.columnEncoding field.name)
+  else if metadata.dictionaryPageOffset.isSome || metadata.indexPageOffset.isSome then .error .unsupportedKind
+  else
+    match Page.columnSpan footerStart metadata with
+    | none => .error (.columnBounds field.name)
+    | some span =>
+      match checksumLimit with
+      | none => (Page.readChunk limits.page source span).mapError .page
+      | some cap =>
+        (Page.Checksum.readChunkWithCRC limits.page (fun _ => min cap limits.maxPageBytes) source span).mapError
+          (fun | .page reason => .page reason | .checksum reason => .checksum reason)
 
 private def readFrame {ε : Type} (limits : Limits) (decoder : DecodePage ε) (source : Bytes)
     (field : Field) (frame : Page.Frame) (remaining : Nat) (rejectCRC allowDelta : Bool)
-    (advertised : List Int) : Except (Error ε) (Nat × List (Option Int32)) := do
-  let (count, nulls) ← checkPage limits field frame.value rejectCRC allowDelta advertised
+    (advertised : List Int) (requiredCodec : Int) : Except (Error ε) (Nat × List (Option Int32)) := do
+  let (count, nulls) ← checkPage limits field frame.value rejectCRC allowDelta advertised requiredCodec
   if remaining < count then throw .pageCount
   let payload := Footer.fileBytes source frame.payload.start frame.payload.stop
   let values ← (decoder field frame.value payload).mapError .decoder
@@ -166,15 +168,16 @@ private def readFrame {ε : Type} (limits : Limits) (decoder : DecodePage ε) (s
       nulls.any (fun n => values.countP Option.isNone != n) then throw .pageNulls
   pure (count, values)
 
-private def scanColumnCore {ε : Type} (checksumLimit : Option Nat) (allowDelta : Bool)
+private def scanColumnCore {ε : Type} (checksumLimit : Option Nat) (allowDelta : Bool) (requiredCodec : Int)
     (limits : Limits) (decoder : DecodePage ε) (source : Bytes) (footerStart : Nat) (field : Field)
     (rowCount : Nat) (column : Footer.ColumnChunk) : Except (ColumnFailure ε) (ColumnValues rowCount) := do
-  let frames ← (frameColumn checksumLimit allowDelta limits source footerStart field rowCount column).mapError .column
+  let frames ← (frameColumn checksumLimit allowDelta requiredCodec limits source footerStart field
+    rowCount column).mapError .column
   let mut remaining := rowCount
   let mut cells := #[]
   for (frame, index) in frames.zipIdx do
     let (count, values) ← (readFrame limits decoder source field frame remaining
-      checksumLimit.isNone allowDelta column.metadata.encodings).mapError (.atPage index frame.header.start)
+      checksumLimit.isNone allowDelta column.metadata.encodings requiredCodec).mapError (.atPage index frame.header.start)
     remaining := remaining - count
     cells := cells ++ values.toArray
   if remaining != 0 then throw (.column .pageCount)
@@ -186,13 +189,13 @@ private def scanColumnCore {ε : Type} (checksumLimit : Option Nat) (allowDelta 
 def scanColumn {ε : Type} (limits : Limits) (decoder : DecodePage ε) (source : Bytes)
     (footerStart : Nat) (field : Field) (rowCount : Nat) (column : Footer.ColumnChunk) :
     Except (Error ε) (ColumnValues rowCount) :=
-  (scanColumnCore none false limits decoder source footerStart field rowCount column).mapError ColumnFailure.reason
+  (scanColumnCore none false 0 limits decoder source footerStart field rowCount column).mapError ColumnFailure.reason
 
 /-- Verify the original framed pages before decoding any of their PLAIN bodies. -/
 def scanColumnWithCRC {ε : Type} (checksumLimit : Nat) (limits : Limits) (decoder : DecodePage ε)
     (source : Bytes) (footerStart : Nat) (field : Field) (rowCount : Nat) (column : Footer.ColumnChunk) :
     Except (Error ε) (ColumnValues rowCount) :=
-  (scanColumnCore (some checksumLimit) false limits decoder source footerStart field rowCount column).mapError
+  (scanColumnCore (some checksumLimit) false 0 limits decoder source footerStart field rowCount column).mapError
     ColumnFailure.reason
 
 /-- Scan one uncompressed flat INT32 column admitting PLAIN and DELTA_BINARY_PACKED
@@ -200,7 +203,14 @@ data pages. The callback consumes the original body. This profile rejects page C
 def scanColumnPlainDelta {ε : Type} (limits : Limits) (decoder : DecodePage ε)
     (source : Bytes) (footerStart : Nat) (field : Field) (rowCount : Nat) (column : Footer.ColumnChunk) :
     Except (ColumnFailure ε) (ColumnValues rowCount) :=
-  scanColumnCore none true limits decoder source footerStart field rowCount column
+  scanColumnCore none true 0 limits decoder source footerStart field rowCount column
+
+/-- Scan a flat PLAIN INT32 column whose checked footer codec is Snappy (1).
+The callback receives each exact on-disk body. CRC-bearing pages are rejected. -/
+def scanColumnSnappy {ε : Type} (limits : Limits) (decoder : DecodePage ε)
+    (source : Bytes) (footerStart : Nat) (field : Field) (rowCount : Nat) (column : Footer.ColumnChunk) :
+    Except (ColumnFailure ε) (ColumnValues rowCount) :=
+  scanColumnCore none false 1 limits decoder source footerStart field rowCount column
 
 private def scanColumns {ε : Type} (limits : Limits) (decoder : DecodePage ε) (source : Bytes)
     (footerStart rowCount : Nat) (pairs : List (Field × Footer.ColumnChunk)) :

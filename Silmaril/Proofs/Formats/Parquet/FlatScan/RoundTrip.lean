@@ -27,7 +27,7 @@ theorem scanColumn_singleV1 {ε : Type} {limits : Limits} {decoder : DecodePage 
     (length : slots.length = rows) (nonNull : field.layout = .required → slots.any Option.isNone = false) :
     ∃ result, scanColumn limits decoder source footerStart field rows column = .ok result ∧
       result.cells.toList = slots := by
-  have page : checkPage (ε := ε) limits field frame.value true false [0, 3] = .ok (rows, none) := by
+  have page : checkPage (ε := ε) limits field frame.value true false [0, 3] 0 = .ok (rows, none) := by
     simp [header, checkPage, admitsValueEncoding, Nat.not_lt.mpr pageBound, Pure.pure, Except.pure]
   have noNull : ¬ (field.layout = .required ∧ none ∈ slots) := by
     rintro ⟨required, present⟩
