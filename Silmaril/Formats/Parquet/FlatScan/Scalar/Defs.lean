@@ -36,4 +36,14 @@ where
         .v2 v2.numNulls v2.numRows v2.repetitionBytes v2.definitionBytes (some v2.isCompressed))
     | .dictionary _ | .skipped _ => .error .unsupportedKind
 
+/-- The flat V1 callback uses the exact sizes and encodings from its header. -/
+theorem decodeInt32Page_v1 (limits : ScalarPage.Limits) (field : Field)
+    (compressed uncompressed : Nat) (crc : Option UInt32) (info : Page.DataV1) (body : Bytes) :
+    decodeInt32Page limits field ⟨uncompressed, compressed, crc, .dataV1 info⟩ body =
+      (ScalarPage.decode .int32
+        ⟨⟨compressed, uncompressed⟩, ⟨0, if field.layout == .required then 0 else 1⟩,
+          info.numValues, 0, info.encoding, .v1 info.definitionLevelEncoding info.repetitionLevelEncoding⟩
+        limits body).mapError AdapterError.scalar := by
+  simp [decodeInt32Page, decodeInt32Page.pageParameters, Bind.bind, Except.bind]
+
 end Silmaril.Formats.Parquet.FlatScan
