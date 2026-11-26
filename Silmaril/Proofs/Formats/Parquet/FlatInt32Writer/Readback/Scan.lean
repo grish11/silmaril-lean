@@ -76,6 +76,23 @@ private theorem leafSchema {columns : List Column} {chunks : List Chunk}
     rcases column with ⟨_, values⟩
     cases values <;> simp [Chunk.index, Compact.ColumnIndex.schema, Column.scanField, same]
 
+/-- Recover the scanner's ordered physical schema from the emitted footer. -/
+theorem emit_flatSchema {limits : Limits} {input : Input} {output : Encoded}
+    (written : emit limits input = .ok output) :
+    FlatScan.flatSchema (ε := FlatScan.AdapterError) (limits.scanLimits input) output.metadata.schema =
+      .ok (input.columns.map Column.scanField) := by
+  obtain ⟨valid, _, metadata, _, _⟩ := emit_layout written
+  have columns := emit_columns written
+  rw [metadata]
+  have schemaOk := FlatScan.flatSchema_of_fields (ε := FlatScan.AdapterError)
+    (limits := limits.scanLimits input) "schema" (input.columns.map Column.scanField)
+    (by simp [Limits.scanLimits]) (by simpa [List.map_map, Function.comp_def, Column.scanField] using valid.2.2.2.1)
+  rw [← leafSchema (columns.imp (fun _ _ related => related.1))] at schemaOk
+  have schemaWidth : (input.columns.map Column.scanField).length = (output.chunks.map Chunk.index).length := by
+    simpa using columns.length_eq
+  rw [schemaWidth] at schemaOk
+  simpa only [Compact.metadata, Compact.schemaRoot, List.length_map, List.map_map, Function.comp_def] using schemaOk
+
 theorem emit_scanFileRowGroup {limits : Limits} {input : Input} {output : Encoded}
     (written : emit limits input = .ok output) :
     ∃ batch, FlatScan.scanFileRowGroup (limits.scanLimits input) (FlatScan.decodeInt32Page limits.page.scalar)
@@ -96,13 +113,8 @@ theorem emit_scanFileRowGroup {limits : Limits} {input : Input} {output : Encode
       scanChunk same count located header fits framed page) decoded
   have read := checked.2.2.2.1
   rw [metadata] at read
-  have schemaOk := FlatScan.flatSchema_of_fields (ε := FlatScan.AdapterError)
-    (limits := limits.scanLimits input) "schema" (input.columns.map Column.scanField)
-    (by simp [Limits.scanLimits]) (by simpa [List.map_map, Function.comp_def, Column.scanField] using valid.2.2.2.1)
-  rw [← leafSchema (columns.imp (fun _ _ related => related.1))] at schemaOk
-  have schemaWidth : (input.columns.map Column.scanField).length = (output.chunks.map Chunk.index).length := by
-    simpa using columns.length_eq
-  rw [schemaWidth] at schemaOk
+  have schemaOk := emit_flatSchema written
+  rw [metadata] at schemaOk
   have recovered := FlatScan.scanFileRowGroup_single
     (limits := limits.scanLimits input) (decoder := FlatScan.decodeInt32Page limits.page.scalar)
     (source := output.bytes) (footer := output.footer)
@@ -116,7 +128,7 @@ theorem emit_scanFileRowGroup {limits : Limits} {input : Input} {output : Encode
     simpa only [List.length_map] using columns.length_eq
   have full := recovered
     (by simpa only [Limits.scanLimits, Compact.metadata, List.length_map, List.map_map, Function.comp_def] using read)
-    (by simpa only [Compact.schemaRoot, List.length_map] using schemaOk)
+    (by simpa only [Compact.metadata, List.length_map, List.map_map, Function.comp_def] using schemaOk)
     (Nat.le_refl _) (by simp [Limits.scanLimits]) arity (zipObservations ready)
   obtain ⟨batch, run, rows, observed⟩ := full
   refine ⟨batch, run, rows, observed, ?_⟩

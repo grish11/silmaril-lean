@@ -20,6 +20,13 @@ theorem emit_decodeScanPages {limits : Limits} {input : Input} {output : Encoded
         .ok column.values.slots) input.columns output.chunks :=
   Proofs.Formats.Parquet.FlatInt32Writer.Readback.emit_decodeScanPages written
 
+/-- Recover the scanner's ordered physical schema from the emitted footer. -/
+theorem emit_flatSchema {limits : Limits} {input : Input} {output : Encoded}
+    (written : emit limits input = .ok output) :
+    FlatScan.flatSchema (ε := FlatScan.AdapterError) (limits.scanLimits input) output.metadata.schema =
+      .ok (input.columns.map Column.scanField) :=
+  Proofs.Formats.Parquet.FlatInt32Writer.Readback.emit_flatSchema written
+
 /-- A successful write yields the exact ordered fields, nullable cells and
 rows when read from file bytes by the checked scanner. The explicit count is
 preserved, including an empty row group. -/

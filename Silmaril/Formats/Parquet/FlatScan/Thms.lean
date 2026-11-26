@@ -24,4 +24,23 @@ theorem scanRowGroup_dimensions {ε : Type} {limits : Limits} {decoder : DecodeP
     batch.rows.length = group.numRows.toNat ∧ batch.columns.length = group.columns.length :=
   Proofs.Formats.Parquet.FlatScan.scanRowGroup_dimensions parsed
 
+/-- Every assembled row has one cell per scanned column. -/
+theorem rows_width (batch : Batch) (row : List (Option Int32)) (present : row ∈ batch.rows) :
+    row.length = batch.columns.length :=
+  Proofs.Formats.Parquet.FlatScan.rows_width batch row present
+
+/-- Reuse a recovered footer when its version, row counts and group index
+pass the file-level checks. -/
+theorem scanFileRowGroup_of_footer {ε : Type} {limits : Limits} {decoder : DecodePage ε}
+    {source : Bytes} {footer : Footer.Span} {metadata : Footer.Metadata} {index : Nat}
+    {group : Footer.RowGroup}
+    (read : Footer.readFooter limits.footer source = .ok (footer, metadata))
+    (version : metadata.version = 1 ∨ metadata.version = 2)
+    (counts : (metadata.rowGroups.all fun group => 0 ≤ group.numRows) = true)
+    (total : (metadata.rowGroups.map (·.numRows)).sum = metadata.numRows)
+    (found : metadata.rowGroups[index]? = some group) :
+    scanFileRowGroup limits decoder source index =
+      scanRowGroup limits decoder source footer.start metadata.schema group :=
+  Proofs.Formats.Parquet.FlatScan.scanFileRowGroup_of_footer read version counts total found
+
 end Silmaril.Formats.Parquet.FlatScan

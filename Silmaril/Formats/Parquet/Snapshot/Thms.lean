@@ -48,4 +48,18 @@ theorem Checked.collect_readAll_first_error (snapshot : Checked) (decode : Decod
   Proofs.Formats.Parquet.Snapshot.collect_readAll_first_error snapshot decode before after index groups
     error split earlier failed
 
+/-- A checked singleton footer and a successful group read yield one batch
+followed by EOS, including when the decoded row list is empty. -/
+theorem readAll_single {limits : Limits} {bytes : Bytes} {footer : Footer.Span}
+    {metadata : Footer.Metadata} {group : Footer.RowGroup} {bind : Bind schema Value Failure}
+    {decode : DecodeGroup schema Value Failure} {rows : Reader.RowGroup schema Value}
+    (read : Footer.readFooter limits.footer bytes = .ok (footer, metadata))
+    (valid : Footer.validate footer.start limits.maxSchemaDepth metadata = .ok ())
+    (single : metadata.rowGroups = [group]) (bound : bind metadata = .ok decode)
+    (decoded : ∀ snapshot, snapshot.bytes = bytes → snapshot.footer = footer →
+      decode snapshot 0 group = .ok rows)
+    (count : rows.length = group.numRows.toNat) :
+    readAll limits bind bytes = .ok ⟨schema, ⟨[AlignedColumns.ofRows rows], .eos⟩⟩ :=
+  Proofs.Formats.Parquet.Snapshot.readAll_single read valid single bound decoded count
+
 end Silmaril.Formats.Parquet.Snapshot

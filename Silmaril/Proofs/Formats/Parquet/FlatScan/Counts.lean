@@ -70,4 +70,46 @@ public theorem scanRowGroup_dimensions {ε : Type} {limits : Limits} {decoder : 
     obtain ⟨rows, columns⟩ := arity fields prepared
     exact ⟨(rows_length batch).trans rows, columns⟩
 
+/-- Every assembled row has one cell per scanned column. -/
+public theorem rows_width (batch : Batch) (row : List (Option Int32)) (present : row ∈ batch.rows) :
+    row.length = batch.columns.length := by
+  have width {count : Nat} (columns : List (Field × ColumnValues count))
+      (rows : List (List (Option Int32))) (n : Nat)
+      (sized : ∀ row ∈ rows, List.length row = n) :
+      ∀ row ∈ columns.foldl (fun rows (_, column) =>
+        List.zipWith (fun row cell => cell :: row) rows column.cells.toList) rows,
+        row.length = n + columns.length := by
+    induction columns generalizing rows n with
+    | nil => simpa using sized
+    | cons column columns ih =>
+      change ∀ row ∈ columns.foldl _ (List.zipWith (fun row cell => cell :: row) rows
+        column.2.cells.toList), row.length = n + (column :: columns).length
+      have step : ∀ row ∈ List.zipWith (fun row cell => cell :: row) rows column.2.cells.toList,
+          List.length row = n + 1 := by
+        intro row mem
+        obtain ⟨index, bound, rfl⟩ := List.mem_iff_getElem.mp mem
+        have inRows : index < rows.length := by
+          simp only [List.length_zipWith] at bound
+          exact Nat.lt_of_lt_of_le bound (Nat.min_le_left _ _)
+        rw [List.getElem_zipWith, List.length_cons, sized rows[index] (List.getElem_mem inRows)]
+      simpa [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using ih _ (n + 1) step
+  rw [Batch.rows] at present
+  obtain ⟨reversed, member, rfl⟩ := List.mem_map.mp present
+  simpa using width batch.columns (List.replicate batch.rowCount []) 0 (by simp) reversed member
+
+/-- Reuse a recovered footer when its version, row counts and group index
+pass the file-level checks. -/
+public theorem scanFileRowGroup_of_footer {ε : Type} {limits : Limits} {decoder : DecodePage ε}
+    {source : Bytes} {footer : Footer.Span} {metadata : Footer.Metadata} {index : Nat}
+    {group : Footer.RowGroup}
+    (read : Footer.readFooter limits.footer source = .ok (footer, metadata))
+    (version : metadata.version = 1 ∨ metadata.version = 2)
+    (counts : (metadata.rowGroups.all fun group => 0 ≤ group.numRows) = true)
+    (total : (metadata.rowGroups.map (·.numRows)).sum = metadata.numRows)
+    (found : metadata.rowGroups[index]? = some group) :
+    scanFileRowGroup limits decoder source index =
+      scanRowGroup limits decoder source footer.start metadata.schema group := by
+  rcases version with version | version <;>
+    simp [scanFileRowGroup, read, version, counts, total, found, Except.mapError, Bind.bind, Except.bind]
+
 end Silmaril.Proofs.Formats.Parquet.FlatScan
