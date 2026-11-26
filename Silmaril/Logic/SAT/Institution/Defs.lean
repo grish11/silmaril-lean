@@ -58,7 +58,7 @@ def InformationLE (a b : Option Bool) : Prop := ∀ x, a = some x → b = some x
 end K3
 
 /-- Independent positive (support) and negative (refutation) evidence. -/
-structure Evidence where
+@[ext] structure Evidence where
   support : Bool
   refute : Bool
   deriving DecidableEq
@@ -128,11 +128,21 @@ end Problem
 def Completes (v : PartialValuation A) (t : TotalValuation A) : Prop :=
   ∀ a b, v a = some b → t a = b
 
+/-- Every completion of the reduct lifts to a completion of the target valuation. -/
+def CompletionCovers (f : A → B) (v : PartialValuation B) : Prop :=
+  ∀ s, Completes (reduct f v) s → ∃ t, Completes v t ∧ reduct f t = s
+
+/-- Independent universal satisfaction and refutation over total completions. -/
+noncomputable def Problem.completionEvidence (v : PartialValuation A) (F : Problem A) : Evidence :=
+  letI := Classical.propDecidable
+  ⟨decide (∀ t, Completes v t → F.eval t = true),
+   decide (∀ t, Completes v t → F.eval t = false)⟩
+
 /-- Supervaluation is true or false when all completions agree, and unknown when they split. -/
 noncomputable def Problem.superEval (v : PartialValuation A) (F : Problem A) : Option Bool :=
-  letI := Classical.propDecidable
-  if ∀ t, Completes v t → F.eval t = true then some true
-  else if ∀ t, Completes v t → F.eval t = false then some false
+  let e := F.completionEvidence v
+  if e.support then some true
+  else if e.refute then some false
   else none
 
 end Silmaril.Logic.SAT.Institution

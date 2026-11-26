@@ -25,6 +25,11 @@ theorem disj_le_iff (a b e : Evidence) :
   simp only [TruthLE, disj, Bool.and_eq_true, Bool.or_eq_true]
   grind
 
+theorem ofK3_informationLE_iff (a b : Option Bool) :
+    (ofK3 a).InformationLE (ofK3 b) ↔ K3.InformationLE a b := by
+  rcases a with _ | (_ | _) <;> rcases b with _ | (_ | _) <;>
+    simp [InformationLE, ofK3, neither, falseOnly, trueOnly, K3.InformationLE]
+
 end Evidence
 
 namespace Problem
@@ -85,7 +90,27 @@ theorem completion_lifts_iff (f : A → B) (v : PartialValuation B) {s : TotalVa
     (∃ t, Completes v t ∧ reduct f t = s) ↔ ∀ a a', f a = f a' → s a = s a' :=
   Proofs.Logic.SAT.Institution.completion_lifts_iff f v hs
 
+theorem completionCovers_of_injective (f : A → B) (hf : Function.Injective f)
+    (v : PartialValuation B) : CompletionCovers f v :=
+  fun s hs => (completion_lifts_iff f v hs).2 fun _ _ h => congrArg s (hf h)
+
 namespace Problem
+
+theorem completionEvidence_support_iff (v : PartialValuation A) (F : Problem A) :
+    (F.completionEvidence v).support = true ↔ ∀ t, Completes v t → F.eval t = true :=
+  Proofs.Logic.SAT.Institution.completionEvidence_support_iff v F
+
+theorem completionEvidence_refute_iff (v : PartialValuation A) (F : Problem A) :
+    (F.completionEvidence v).refute = true ↔ ∀ t, Completes v t → F.eval t = false :=
+  Proofs.Logic.SAT.Institution.completionEvidence_refute_iff v F
+
+theorem completionEvidence_consistent (v : PartialValuation A) (F : Problem A) :
+    ¬ ((F.completionEvidence v).support = true ∧ (F.completionEvidence v).refute = true) :=
+  Proofs.Logic.SAT.Institution.completionEvidence_consistent v F
+
+theorem completionEvidence_eq_ofK3_superEval (v : PartialValuation A) (F : Problem A) :
+    F.completionEvidence v = Evidence.ofK3 (F.superEval v) :=
+  Proofs.Logic.SAT.Institution.completionEvidence_eq_ofK3_superEval v F
 
 theorem superEval_eq_some (v : PartialValuation A) (F : Problem A) (b : Bool) :
     F.superEval v = some b ↔ ∀ t, Completes v t → F.eval t = b :=
@@ -104,15 +129,33 @@ theorem evalK3_informationLE_superEval (v : PartialValuation A) (F : Problem A) 
     K3.InformationLE (F.evalK3 v) (F.superEval v) :=
   Proofs.Logic.SAT.Institution.evalK3_informationLE_superEval v F
 
+theorem superEval_rename_of_coverage (f : A → B) (v : PartialValuation B)
+    (covers : CompletionCovers f v) (F : Problem A) :
+    (F.rename f).superEval v = F.superEval (reduct f v) :=
+  Proofs.Logic.SAT.Institution.superEval_rename_of_coverage f v covers F
+
 theorem superEval_rename_of_injective (f : A → B) (hf : Function.Injective f)
     (v : PartialValuation B) (F : Problem A) :
     (F.rename f).superEval v = F.superEval (reduct f v) :=
-  Proofs.Logic.SAT.Institution.superEval_rename_of_injective f hf v F
+  superEval_rename_of_coverage f v (completionCovers_of_injective f hf v) F
 
 /-- Identification of atoms can remove completions and make an unknown verdict definite. -/
 theorem superEval_rename_informationLE (f : A → B) (v : PartialValuation B) (F : Problem A) :
     K3.InformationLE (F.superEval (reduct f v)) ((F.rename f).superEval v) :=
   Proofs.Logic.SAT.Institution.superEval_rename_informationLE f v F
+
+/-- Covers preserve both universal flags exactly. -/
+theorem completionEvidence_rename_of_coverage (f : A → B) (v : PartialValuation B)
+    (covers : CompletionCovers f v) (F : Problem A) :
+    (F.rename f).completionEvidence v = F.completionEvidence (reduct f v) := by
+  simp only [completionEvidence_eq_ofK3_superEval, superEval_rename_of_coverage f v covers]
+
+/-- Every atom map preserves established universal flags from reduct to translation. -/
+theorem completionEvidence_rename_informationLE (f : A → B) (v : PartialValuation B)
+    (F : Problem A) :
+    Evidence.InformationLE (F.completionEvidence (reduct f v)) ((F.rename f).completionEvidence v) := by
+  simpa only [completionEvidence_eq_ofK3_superEval, Evidence.ofK3_informationLE_iff] using
+    superEval_rename_informationLE f v F
 
 end Problem
 

@@ -38,7 +38,10 @@ gives agreement throughout the three-value fragment with at most one evidence bi
 A total completion agrees with every known atom. Filling missing atoms with false witnesses
 `exists_completion`. `Problem.superEval_eq_some` characterizes a definite result by unanimity
 among completions. `Problem.superEval_eq_none` characterizes unknown by a true completion and
-a false completion. `Problem.superEval_total` gives agreement on total assignments, and
+a false completion. `Problem.completionEvidence_support_iff` and
+`Problem.completionEvidence_refute_iff` characterize the independently defined universal
+flags. `Problem.completionEvidence_consistent` rules out simultaneous flags because the
+completion family is nonempty. `Problem.superEval_total` gives agreement on total assignments, and
 `Problem.evalK3_informationLE_superEval` says a definite compositional result survives
 completion. Supervaluation here quantifies over total assignments to a strong Kleene partial
 valuation. The four-valued evidence semantics also permits conflicting information.
@@ -48,7 +51,11 @@ completion lifts exactly when it assigns equal values to atoms identified by the
 uses the common value on each occupied fibre and fills missing values outside the image.
 Consequently injections give equality (`Problem.superEval_rename_of_injective`). For arbitrary
 maps, the target quantifies over a possibly smaller collection of reducts. Its result refines
-the source in the information order (`Problem.superEval_rename_informationLE`).
+the source in the information order (`Problem.superEval_rename_informationLE`). The same
+laws for the two flags are `Problem.completionEvidence_rename_of_coverage` and
+`Problem.completionEvidence_rename_informationLE`. The covering hypothesis is stated as
+`CompletionCovers`; `completion_reduct_image_subset` and `completion_reduct_image_eq_of_coverage`
+give the corresponding set-image laws. [Set-image lemmas](../../Silmaril/Logic/SAT/Institution/Ordinary/Thms.lean)
 
 For `p ∨ ¬q` with both atoms unknown, the source has a falsifying completion `p = false,
 q = true` and a satisfying completion. Identifying the atoms rules out the falsifying
@@ -73,7 +80,18 @@ For example, entailment in the evidence refutation bundle takes refutation of al
 as its hypothesis and asks for refutation of the conclusion. Global UNSAT of a CNF says
 that every total valuation falsifies it. [Room consequence API](../../Silmaril/Logic/Institution/Room.lean)
 
-Generalized-core integration is deferred. For terminology and background, see
+## Generalized-core integration
+
+Use the existing room functors' `sentenceFunctor` and `modelFunctor` with the exact
+`eval_*_rename` laws and the completion refinement law. The SAT evidence fields are Boolean.
+The core's proposition-valued fields are `e.support = true` and `e.refute = true`, which
+preserve the information order by definition. The completion set can be supplied to the
+core's universal evidence constructor. For the negative flag, Boolean evaluation being
+false is equivalent to it failing to be true. Each exact evaluator can use a single type
+code. A typed instance with all three evaluations would need a shared model functor, since
+their valuation carriers differ. Core integration is deferred.
+
+For terminology and background, see
 [Many-Valued Logic](https://plato.stanford.edu/entries/logic-manyvalued/),
 [Belnap, *A Useful Four-Valued Logic*](https://doi.org/10.1007/978-94-010-1161-7_2),
 and [Fine, *Vagueness, Truth and Logic*](https://doi.org/10.1007/BF00485047).
