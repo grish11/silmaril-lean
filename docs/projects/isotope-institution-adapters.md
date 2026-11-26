@@ -36,6 +36,16 @@ with ordered pairing, giving logs `[2, 7]` and `[7, 2]`. A semantics on a syntax
 quotient needs a separate proof that its model laws validate the generating
 equations on the relevant witnesses. [Ordered writer regression](https://github.com/hiloopai/silmaril-lean/blob/1aefb95777b0a1f261b6fdde490781ff708de141/tests/ssa/LetIterWeakTreeSoundness.lean#L420-L430)
 
+The Brookes SC probe uses closed `Behavior (Store W) A` computations, concrete
+SC opcode evaluations, and `Behavior.parallelPairing Store |>.pair`. In its
+Boolean-owner signature, `acquire false` and `acquire true` have the same source,
+target, and effect, so an `InstrSig` relabeling can exchange them. A fixed-primitive
+Brookes profile additionally requires signature arrows to preserve the full SC
+designation, including the owner, and reducts to preserve the designated
+interpretation. The observation compares full closed behaviors. Singleton
+projection can identify different full behaviors and discard gaps another
+component can complete during scheduling. [Fixed-world Brookes model and singleton observation](brookes-sc-concrete.md#singleton-observations-and-interference)
+
 ## Upper tier
 
 `Silmaril.SSA.Isotope.Institution.Adapters.Iteration.Thms` gives two
