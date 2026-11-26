@@ -57,6 +57,16 @@ theorem hasTrace_vis_request {R : Type u} (e : E R) (k : R → Tree E A) :
     HasTrace (vis e k) (.request e) :=
   ⟨k, out_vis e k⟩
 
+theorem hasTrace_vis_request_iff {R S : Type u} (e : E R) (k : R → Tree E A) (d : E S) :
+    HasTrace (vis e k) (.request d) ↔ ∃ h : S = R, h ▸ d = e :=
+  Silmaril.Proofs.Semantics.Elgot.ITree.trace_request_vis_iff e k d
+
+theorem hasTrace_vis_exchange {R S : Type u} (e : E R) (k : R → Tree E A)
+    (d : E S) (r : S) (p : Trace E A) :
+    HasTrace (vis e k) (.exchange d r p) ↔
+      ∃ h : S = R, h ▸ d = e ∧ HasTrace (k (h ▸ r)) p :=
+  Silmaril.Proofs.Semantics.Elgot.ITree.trace_exchange_vis_iff e k d r p
+
 @[simp] theorem hasTrace_vis_exchange_iff {R : Type u} (e : E R) (k : R → Tree E A)
     (r : R) (p : Trace E A) :
     HasTrace (vis e k) (.exchange e r p) ↔ HasTrace (k r) p :=

@@ -871,6 +871,17 @@ replays. A checked cyclic pair with the same first request satisfies the
 sentence when replies are denied and fails when that request can complete.
 [Ordered reply policies](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/Institution/Policy/Thms.lean)
 
+At fixed handler policy, finite handled-trace inclusion is a precongruence
+for sequencing with a common continuation on the complete typed return.
+When changing the continuation, the comparison is required at each
+reachable payload and possible replay state. The native LetCase let and
+case rules keep the ambient captures and use the exact sum tag to choose
+the arm. Replay reuses the exact typed exchanges and their state path.
+For a projected result, plugging applies when the continuation factors
+through that projection. A context that reads a discarded store field
+can separate two projected-equal computations.
+[Handled-trace sequencing](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment
