@@ -1,0 +1,59 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "thrift": "0.25.0",
+  "late_failure": {
+    "provenance": "Thrift DataPageHeader encoding edit in group 1",
+    "bytes": 276,
+    "offset": 51,
+    "sha256": "61b9814b5d8b27e85ecaf0a7830aadc0f33bfd308fea52e3697ae9bb0e7fb5b0"
+  },
+  "cases": {
+    "optional": {
+      "field": "日付",
+      "nullable": true,
+      "groups": [
+        [
+          -2147483648,
+          -1,
+          null
+        ],
+        [
+          0,
+          11016,
+          2147483647
+        ]
+      ],
+      "parquet": {
+        "bytes": 278,
+        "sha256": "4a7daf180d60cab87b5bdb92dbfaa54bc5c1c5728f108ddc442b73c96d8ffa40"
+      },
+      "ipc_reference": {
+        "bytes": 464,
+        "sha256": "97385842c5d6449d45c3a11d09ef5f9a2c94d7f2e729bfd7bdca4859000f1371"
+      }
+    },
+    "required": {
+      "field": "日付",
+      "nullable": false,
+      "groups": [
+        [
+          -719528,
+          -1,
+          0
+        ],
+        [
+          11016
+        ]
+      ],
+      "parquet": {
+        "bytes": 246,
+        "sha256": "0c04e7d0a6e62526a548f25c99d0cd3b9ce88c0a54b23fe223306d3911fb38cc"
+      },
+      "ipc_reference": {
+        "bytes": 448,
+        "sha256": "5488445ab44dc55e92f90259460e7988d3bd03264f6ed6d0f7b4df0169ce408c"
+      }
+    }
+  }
+}
