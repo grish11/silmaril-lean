@@ -58,7 +58,7 @@ private theorem explainHead_none (replies : ∀ key, List (Reply key))
     (known : ∀ p, previous p = none ↔ p ∈ pairs)
     (left : Head Q R S Reply) (right : Head Q R T Reply) :
     explainHead replies previous left right = none ↔ compatible pairs left right = true := by
-  cases left <;> cases right <;> simp only [explainHead, compatible, compatibleUnder, reduceCtorEq, iff_self]
+  cases left <;> cases right <;> simp only [explainHead, compatible, compatibleUnder, compatibleUsing, reduceCtorEq, iff_self]
   · rename_i left right
     by_cases same : left = right <;> simp [same]
   · rename_i l nextL r nextR

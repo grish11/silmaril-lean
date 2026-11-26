@@ -1,7 +1,9 @@
 module
 
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Thms
+import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
+meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Defs
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 
@@ -197,6 +199,44 @@ private def viaPing (thirdExitsRight : Bool) : Program sig (fun _ : Fin 1 => bit
     | _ => false
   | _ => false
 
+-- Completing ping changes admission of the exact same poll key and reply.
+-- The loop and middle replies remain available in both handler states.
+private def advance (closed : Bool) (key : sig.Request) (reply : sig.Reply key) : Option Bool :=
+  match key with
+  | ⟨.ping, _⟩ => some true
+  | ⟨.poll, _⟩ =>
+    match reply with
+    | .inr (.inr _) => if closed then none else some false
+    | _ => some closed
+
+private def startOpen (closed : Bool) : Bool := !closed
+private abbrev protocol := sig.traceModelWithHandler advance startOpen
+
+private def lastExchange : Program.ObservationTrace sig :=
+  .exchange (.ask pollKey) lastReply (.result (Program.renderResult exitSecond))
+
+example : Silmaril.Elgot.ITree.Replay protocol.step false lastExchange :=
+  ⟨false, rfl, trivial⟩
+
+example : ¬ Silmaril.Elgot.ITree.Replay protocol.step true lastExchange := by
+  rintro ⟨_, impossible, _⟩
+  cases impossible
+
+example : ¬ Silmaril.Elgot.ITree.Replay protocol.step false trace := by
+  rintro ⟨first, hfirst, second, hsecond, _, impossible, _⟩
+  change some false = some first at hfirst
+  change some true = some second at hsecond
+  cases hfirst
+  cases hsecond
+  cases impossible
+
+example : Silmaril.Elgot.ITree.Replay protocol.step false admittedPrefix :=
+  ⟨false, rfl, true, rfl, trivial⟩
+
+#guard !(left.refinementAtWithHandler? advance right 0 packet false)
+#guard left.refinementAtWithHandler? advance right 0 packet true
+#guard (viaPing true).refinementWithHandler? advance startOpen (viaPing false) 0 flag
+
 section Packed
 
 open Silmaril (HasTy)
@@ -255,6 +295,66 @@ example : Silmaril.Logic.ITree.TraceInstitution.institution.{0, 1, 0}.Sat sig.tr
     ⟨sig.traceModelUnder admitCommon⟩ sentence :=
   (Program.refinementAtUnder?_iff_traceSat admitCommon packet packedLeft packedRight
     ambient ambient env env (fun _ => rfl) (fun _ => rfl)).mp (by cbv)
+
+-- A smaller checked dispatcher exercises the state update and the
+-- ordered-exit distinction with a kernel-reducible product.
+private def unitSig : PrimitiveSignature Opcode :=
+  ⟨fun _ => .unit, fun _ => .unit⟩
+
+private def unitInputs : Fin 1 → PacketType := fun _ => .unit
+private def unitPorts : Fin 2 → PacketType := fun _ => .unit
+
+private def gatedExit (port : Fin 2) : Program unitSig unitInputs unitPorts where
+  locals := 2
+  localType := unitPorts
+  entry _ := .inl 0
+  entryType _ := rfl
+  block i := Fin.cases (.apply .ping .unit (.inl 1) .unit)
+    (fun _ => .apply .poll .unit (.inr port) .unit) i
+
+private def gate (closed : Bool) (key : unitSig.Request) (_ : unitSig.Reply key) : Option Bool :=
+  match key.1 with
+  | .ping => some true
+  | .poll => if closed then none else some false
+
+private def unitContext : BoundCtx PacketType 1 := .snoc .nil .unit
+
+private theorem gatedAdmitted (port : Fin 2) :
+    (elaborate ((gatedExit port).compile 0) (gatedExit port).exits captures).isSome := by
+  fin_cases port <;> decide
+
+private def gatedTarget (port : Fin 2) :=
+  (elaborate ((gatedExit port).compile 0) (gatedExit port).exits captures).get (gatedAdmitted port)
+
+private def packedGated (port : Fin 2) : Program.PackedEntry (gatedExit port) 0 where
+  count := 1
+  captures := captures
+  context := unitContext
+  blocks := unitPorts
+  exits := unitPorts
+  target := gatedTarget port
+  accepted := Option.eq_some_of_isSome (gatedAdmitted port)
+  typed := by
+    let _ := unitSig.typing
+    exact check_sound _ _ _ _ (by fin_cases port <;> decide)
+
+private def unitPacket : Denote (unitInputs 0) := ⟨⟩
+
+private noncomputable def gatedSentence :=
+  (packedGated 0).refinementSentence (packedGated 1) .leftToRight ambient ambient ambient ambient
+
+example : Silmaril.Logic.ITree.TraceInstitution.institution.{0, 1, 0}.Sat unitSig.traceSignature
+    ⟨unitSig.traceModelWithHandler gate startOpen⟩ gatedSentence :=
+  (Program.refinementWithHandler?_iff_traceSat gate startOpen unitPacket (packedGated 0) (packedGated 1)
+    ambient ambient ambient ambient (fun _ => rfl) (fun _ => rfl)).mp (by cbv)
+
+example : ¬ Silmaril.Logic.ITree.TraceInstitution.institution.{0, 1, 0}.Sat unitSig.traceSignature
+    ⟨unitSig.traceModelWithHandler (fun h _ _ => some h) startOpen⟩ gatedSentence := by
+  intro sat
+  have accepted := (Program.refinementWithHandler?_iff_traceSat (fun h _ _ => some h) startOpen unitPacket
+    (packedGated 0) (packedGated 1) ambient ambient ambient ambient (fun _ => rfl) (fun _ => rfl)).mpr sat
+  have rejected : (gatedExit 0).refinementWithHandler? (fun h _ _ => some h) startOpen (gatedExit 1) 0 unitPacket = false := by cbv
+  simp [rejected] at accepted
 
 end Packed
 

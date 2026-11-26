@@ -101,6 +101,36 @@ theorem refinementUnder?_iff_traceSat [DecidableEq F] (admits : ∀ key, signatu
   exact forall_congr' fun input => forall_congr' fun packet => refinementAtUnder?_iff_traceSat admits packet
     (leftEntry input) (rightEntry input) _ _ _ _ (leftAgrees input packet) (rightAgrees input packet)
 
+/-- Decide the existing pointwise satisfaction judgment at the given
+handler state. The initial-state predicate is used only by global satisfaction. -/
+theorem refinementAtWithHandler?_iff_traceSatAt [DecidableEq F] {H : Type} [DecidableEq H] [Fintype H]
+    (advance : H → ∀ key, signature.Reply key → Option H) (initial : H → Bool) (h : H)
+    (packet : Denote (inputs input)) (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom)
+    (leftAgrees : leftEntry.recordAgrees packet leftRecord)
+    (rightAgrees : rightEntry.recordAgrees packet rightRecord) :
+    left.refinementAtWithHandler? advance right input packet h = true ↔
+      TraceInstitution.SatAt (signature.traceModelWithHandler advance initial)
+        (leftEntry.refinementSentence rightEntry .leftToRight leftAmbient rightAmbient leftRecord rightRecord) h :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.refinementAtWithHandler_traceSatAt
+    advance initial h packet leftEntry rightEntry leftAmbient rightAmbient leftRecord rightRecord leftAgrees rightAgrees
+
+/-- Decide satisfaction of the packed sentence at every designated initial
+handler state, at the selected typed input packet. -/
+theorem refinementWithHandler?_iff_traceSat [DecidableEq F] {H : Type} [DecidableEq H] [Fintype H]
+    (advance : H → ∀ key, signature.Reply key → Option H) (initial : H → Bool)
+    (packet : Denote (inputs input)) (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom)
+    (leftAgrees : leftEntry.recordAgrees packet leftRecord)
+    (rightAgrees : rightEntry.recordAgrees packet rightRecord) :
+    left.refinementWithHandler? advance initial right input packet = true ↔
+      TraceInstitution.institution.{0, 1, 0}.Sat signature.traceSignature
+        ⟨signature.traceModelWithHandler advance initial⟩
+        (leftEntry.refinementSentence rightEntry .leftToRight leftAmbient rightAmbient leftRecord rightRecord) := by
+  rw [Program.refinementWithHandler?, decide_eq_true_eq]
+  exact forall_congr' fun h => imp_congr_right fun _ => refinementAtWithHandler?_iff_traceSatAt
+    advance initial h packet leftEntry rightEntry _ _ _ _ leftAgrees rightAgrees
+
 /-- A mismatch refutes the directed sentence at its packet in the existing
 trace institution, with the same ordered packed exits and typed replies. -/
 theorem explainMismatch?_refutes_traceSat [DecidableEq F]

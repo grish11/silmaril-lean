@@ -8,7 +8,7 @@ public import Silmaril.Logic.ITree.Institution.Trace.Defs
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 
 open Silmaril.Elgot.ITree (TraceSignature HasTrace)
-open Silmaril.Elgot.ITree.Finite (Event replyHandler compareUnder)
+open Silmaril.Elgot.ITree.Finite (Event replyHandler compareUnder statefulReplyHandler compareWithHandler)
 open Silmaril.Logic.ITree
 open Silmaril.Isotope.LambdaSSA
 
@@ -33,6 +33,15 @@ def PrimitiveSignature.traceModelUnder {F : Type} (signature : PrimitiveSignatur
   initial _ := True
   step := replyHandler admits
 
+/-- A shared handler with a Boolean initial-state predicate and one
+optional successor for each key and typed reply at the current state. -/
+def PrimitiveSignature.traceModelWithHandler {F H : Type} (signature : PrimitiveSignature F)
+    (advance : H → ∀ key, signature.Reply key → Option H) (initial : H → Bool) :
+    Silmaril.Logic.ITree.Model.{0, 0} signature.traceSignature.toSignature where
+  State := H
+  initial h := initial h = true
+  step := statefulReplyHandler advance
+
 namespace Program
 
 variable {F : Type} {signature : PrimitiveSignature F} {a b : Nat}
@@ -49,6 +58,21 @@ def refinementAtUnder? [DecidableEq F] (admits : ∀ key, signature.Reply key �
 def refinementUnder? [DecidableEq F] (admits : ∀ key, signature.Reply key → Bool)
     (left right : Program signature inputs outputs) : Bool :=
   decide (∀ input packet, left.refinementAtUnder? admits right input packet = true)
+
+/-- Decide refinement at the selected packet and handler state. -/
+def refinementAtWithHandler? [DecidableEq F] {H : Type} [DecidableEq H] [Fintype H]
+    (advance : H → ∀ key, signature.Reply key → Option H)
+    (left right : Program signature inputs outputs) (input : Fin a) (packet : Denote (inputs input))
+    (h : H) : Bool :=
+  compareWithHandler advance left.states right.states Finset.univ left.step right.step
+    (left.start input packet) (right.start input packet) h
+
+/-- Decide the sentence for the selected packet at all designated initial
+handler states. An empty initial set satisfies the sentence vacuously. -/
+def refinementWithHandler? [DecidableEq F] {H : Type} [DecidableEq H] [Fintype H]
+    (advance : H → ∀ key, signature.Reply key → Option H) (initial : H → Bool)
+    (left right : Program signature inputs outputs) (input : Fin a) (packet : Denote (inputs input)) : Bool :=
+  decide (∀ h, initial h = true → left.refinementAtWithHandler? advance right input packet h = true)
 
 /-- An ordinary trace-predicate sentence over the actual packed trees.
 It requires every admitted source trace to occur in the target tree. -/

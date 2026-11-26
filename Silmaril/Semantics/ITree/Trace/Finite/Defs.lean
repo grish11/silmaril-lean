@@ -11,7 +11,7 @@ public import Mathlib.Data.Fintype.Pi
 
 namespace Silmaril.Elgot.ITree.Finite
 
-universe u
+universe u v
 
 /-- A request key determines the reply type. The key can include the opcode and its typed argument. -/
 inductive Event (Q : Type) (Reply : Q → Type := fun _ => Bool) : Type → Type where
@@ -68,17 +68,29 @@ request key and the actual typed reply. -/
 def replyHandler (admits : ∀ key, Reply key → Bool) : Handler Unit (Event Q Reply)
   | ⟨_, .ask key⟩, _, reply, _ => admits key reply = true
 
+variable {H : Type v}
+
+/-- A completed exchange either has one next handler state or is denied.
+The event key and reply retain their original types. -/
+def statefulReplyHandler (advance : H → ∀ key, Reply key → Option H) : Handler H (Event Q Reply)
+  | ⟨_, .ask key⟩, h, reply, h' => advance h key reply = some h'
+
 variable [DecidableEq T] [DecidableEq Q] [DecidableEq R] [∀ key, Fintype (Reply key)]
 
-def compatibleUnder (admits : ∀ key, Reply key → Bool) (pairs : Finset (S × T)) :
+def compatibleUsing (follow : ∀ key, Reply key → S → T → Prop)
+    [∀ key reply s t, Decidable (follow key reply s t)] :
     Head Q R S Reply → Head Q R T Reply → Bool
   | .stop, _ => true
   | .result left, .result right => decide (left = right)
   | .request left nextL, .request right nextR =>
     if same : left = right then
-      decide (∀ reply, admits left reply = true → (nextL reply, nextR (same ▸ reply)) ∈ pairs)
+      decide (∀ reply, follow left reply (nextL reply) (nextR (same ▸ reply)))
     else false
   | _, _ => false
+
+def compatibleUnder (admits : ∀ key, Reply key → Bool) (pairs : Finset (S × T)) :
+    Head Q R S Reply → Head Q R T Reply → Bool :=
+  compatibleUsing (fun key reply s t => admits key reply = true → (s, t) ∈ pairs)
 
 abbrev compatible (pairs : Finset (S × T)) : Head Q R S Reply → Head Q R T Reply → Bool :=
   compatibleUnder (fun _ _ => true) pairs
@@ -95,5 +107,29 @@ def compareUnder (admits : ∀ key, Reply key → Bool) (statesL : Finset S) (st
 def compare (statesL : Finset S) (statesR : Finset T)
     (left : S → Step Q R S Reply) (right : T → Step Q R T Reply) (startL : S) (startR : T) : Bool :=
   compareUnder (fun _ _ => true) statesL statesR left right startL startR
+
+/-- Check the single successor of an admitted exchange. -/
+def handlerSuccessor [DecidableEq H] (pairs : Finset ((S × T) × H)) (s : S) (t : T) :
+    Option H → Prop
+  | none => True
+  | some h => ((s, t), h) ∈ pairs
+
+instance [DecidableEq H] (pairs : Finset ((S × T) × H)) (s : S) (t : T) (next : Option H) :
+    Decidable (handlerSuccessor pairs s t next) :=
+  match next with
+  | none => isTrue trivial
+  | some h => inferInstanceAs (Decidable (((s, t), h) ∈ pairs))
+
+/-- Prune the product of two graph states and one shared handler state.
+Silent normalization is independent of the handler. Pending requests
+still compare their keys even when every reply is denied. -/
+def compareWithHandler [DecidableEq H] (advance : H → ∀ key, Reply key → Option H)
+    (statesL : Finset S) (statesR : Finset T) (statesH : Finset H)
+    (left : S → Step Q R S Reply) (right : T → Step Q R T Reply)
+    (startL : S) (startR : T) (startH : H) : Bool :=
+  decide (((startL, startR), startH) ∈ prune (fun pairs ((s, t), h) =>
+    compatibleUsing (fun key reply nextL nextR => handlerSuccessor pairs nextL nextR (advance h key reply))
+      (headFrom left statesL s) (headFrom right statesR t))
+    ((statesL ×ˢ statesR) ×ˢ statesH))
 
 end Silmaril.Elgot.ITree.Finite
