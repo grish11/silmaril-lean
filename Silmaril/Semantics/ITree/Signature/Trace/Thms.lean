@@ -65,7 +65,15 @@ open CategoryTheory
 
 universe u v w
 
-variable {S T : Signature.{u}} {A : Type v} {X : Type w}
+variable {S T U : Signature.{u}} {A : Type v} {X : Type w}
+
+@[simp] theorem Hom.traceLift_id (p q : Trace S.Event A) : (𝟙 S : S ⟶ S).TraceLift p q ↔ p = q :=
+  Proofs.traceLift_id p q
+
+/-- An exact lift along a composite factors through an intermediate trace. -/
+theorem Hom.traceLift_comp (f : S ⟶ T) (g : T ⟶ U) (p : Trace S.Event A) (r : Trace U.Event A) :
+    (f ≫ g).TraceLift p r ↔ ∃ q, f.TraceLift p q ∧ g.TraceLift q r :=
+  Proofs.traceLift_comp f g p r
 
 /-- Injective request keys determine the source trace of each lift. -/
 theorem Hom.traceLift_unique (f : S ⟶ T) (keys : Function.Injective f.request)

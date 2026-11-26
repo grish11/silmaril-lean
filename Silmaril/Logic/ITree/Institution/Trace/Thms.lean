@@ -37,6 +37,15 @@ theorem satisfaction (f : S ⟶ T) (M : Model.{u,w} T.toSignature) (φ : Sentenc
 theorem Sentence.translateLift_eq (f : S ⟶ T) (φ : Sentence.{u,v} S) : φ.translateLift f.hom = φ.translate f :=
   Proofs.translateLift_eq f φ
 
+@[simp] theorem Sentence.translateLift_id (φ : Sentence.{u,v} S) :
+    φ.translateLift (𝟙 S.toSignature) = φ :=
+  Proofs.translateLift_id φ
+
+/-- The whole predicate and the translated tree agree under composition. -/
+theorem Sentence.translateLift_comp (f : S.toSignature ⟶ T.toSignature) (g : T.toSignature ⟶ U.toSignature)
+    (φ : Sentence.{u,v} S) : φ.translateLift (f ≫ g) = (φ.translateLift f).translateLift g :=
+  Proofs.translateLift_comp f g φ
+
 /-- Lifted translation uses the same initial state and admits each alias
 along its own handler transitions. Injective complete keys suffice. -/
 theorem satisfaction_lift_at (f : S.toSignature ⟶ T.toSignature) (keys : Function.Injective f.request)

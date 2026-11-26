@@ -11,7 +11,57 @@ open CategoryTheory
 
 universe u v w
 
-variable {S T : Signature.{u}} {A : Type v} {X : Type w}
+variable {S T U : Signature.{u}} {A : Type v} {X : Type w}
+
+theorem traceLift_id (p q : Trace S.Event A) : (𝟙 S : S ⟶ S).TraceLift p q ↔ p = q := by
+  constructor
+  · intro lift
+    induction lift with
+    | «prefix» | result | request => rfl
+    | exchange e r _ ih => exact congrArg (Trace.exchange e r) ih
+  · rintro rfl
+    induction p with
+    | «prefix» => exact .prefix
+    | result a => exact .result a
+    | request e => exact .request e
+    | exchange e r p ih => exact .exchange e r ih
+
+private theorem traceLift_compose (f : S ⟶ T) (g : T ⟶ U)
+    {p : Trace S.Event A} {q q' : Trace T.Event A} {r : Trace U.Event A}
+    (first : f.TraceLift p q) (second : g.TraceLift q' r) (same : q = q') :
+    (f ≫ g).TraceLift p r := by
+  induction first generalizing q' r with
+  | «prefix» | result =>
+    cases second <;> cases same
+    first | exact .prefix | exact .result _
+  | @request R e =>
+    cases second with
+    | request e' =>
+      cases same
+      exact .request e
+    | «prefix» | result | exchange => cases same
+  | @exchange R e reply p q _ ih =>
+    cases second with
+    | exchange e' reply' tail =>
+      cases same
+      exact .exchange e reply' (ih tail rfl)
+    | «prefix» | result | request => cases same
+
+theorem traceLift_comp (f : S ⟶ T) (g : T ⟶ U) (p : Trace S.Event A) (r : Trace U.Event A) :
+    (f ≫ g).TraceLift p r ↔ ∃ q, f.TraceLift p q ∧ g.TraceLift q r := by
+  constructor
+  · intro lift
+    induction lift with
+    | «prefix» => exact ⟨.prefix, .prefix, .prefix⟩
+    | result a => exact ⟨.result a, .result a, .result a⟩
+    | request e => exact ⟨_, .request e, .request _⟩
+    | @exchange R e reply p r _ ih =>
+      obtain ⟨q, first, second⟩ := ih
+      let key := f.request ⟨R, e⟩
+      exact ⟨.exchange key.2 (g.reply key reply) q, .exchange e (g.reply key reply) first,
+        .exchange key.2 reply second⟩
+  · rintro ⟨q, first, second⟩
+    exact traceLift_compose f g first second rfl
 
 theorem traceLift_unique (f : S ⟶ T) (keys : Function.Injective f.request)
     {p q : Trace S.Event A} {r s : Trace T.Event A} (h : f.TraceLift p r) (g : f.TraceLift q s)

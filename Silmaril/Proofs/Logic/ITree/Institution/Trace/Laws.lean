@@ -39,6 +39,22 @@ theorem translateLift_eq (f : S ⟶ T) (φ : Sentence.{u,v} S) : φ.translateLif
   unfold Sentence.translateLift Sentence.translate
   simp only [f.traceLift_iff]
 
+theorem translateLift_id (φ : Sentence.{u,v} S) : φ.translateLift (𝟙 S.toSignature) = φ := by
+  cases φ
+  simp [Sentence.translateLift]
+
+theorem translateLift_comp (f : S.toSignature ⟶ T.toSignature) (g : T.toSignature ⟶ U.toSignature)
+    (φ : Sentence.{u,v} S) : φ.translateLift (f ≫ g) = (φ.translateLift f).translateLift g := by
+  refine congrArg₂ (Sentence.mk φ.Result) (f.tree_comp g id id φ.program) (funext fun r => propext ?_)
+  change (∃ p, φ.accepts p ∧ (f ≫ g).TraceLift p r) ↔
+    ∃ q, (∃ p, φ.accepts p ∧ f.TraceLift p q) ∧ g.TraceLift q r
+  constructor
+  · rintro ⟨p, accepted, lift⟩
+    obtain ⟨q, first, second⟩ := (f.traceLift_comp g p r).mp lift
+    exact ⟨q, ⟨p, accepted, first⟩, second⟩
+  · rintro ⟨q, ⟨p, accepted, first⟩, second⟩
+    exact ⟨p, accepted, (f.traceLift_comp g p r).mpr ⟨q, first, second⟩⟩
+
 theorem satisfaction_lift_at (f : S.toSignature ⟶ T.toSignature) (keys : Function.Injective f.request)
     (M : Model.{u,w} T.toSignature) (φ : Sentence.{u,v} S) (x : M.State) :
     SatAt M (φ.translateLift f) x ↔ SatAt (M.reduct f) φ x := by

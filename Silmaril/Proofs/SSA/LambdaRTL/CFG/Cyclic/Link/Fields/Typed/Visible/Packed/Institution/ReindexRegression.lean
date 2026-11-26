@@ -2,6 +2,7 @@ module
 
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Reindex.Thms
 import Silmaril.Semantics.ITree.Signature.Execution.Thms
+import Silmaril.Logic.ITree.Institution.Trace.Category.Thms
 import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
@@ -269,6 +270,107 @@ example : ¬ TraceInstitution.Sat aliasPolicy chosenSentence := by
   | «prefix» | result => cases aliasesEqual
   | request event => cases event; cases aliasesEqual
   | exchange event => cases event; cases aliasesEqual
+
+-- The second arrow keeps both aliases of the first reply and omits all
+-- aliases of the second. The composite therefore aliases and omits replies.
+private def filtered : Silmaril.Elgot.ITree.Signature := ⟨Event signature.Request (fun _ => Bool)⟩
+
+private def keepFirst : aliased ⟶ filtered where
+  request
+    | ⟨_, .ask k⟩ => ⟨Bool, .ask k⟩
+  reply
+    | ⟨_, .ask _⟩ => fun name => (name, .inl ⟨⟩)
+
+private theorem keepFirst_keys : Function.Injective keepFirst.request := by
+  rintro ⟨_, left⟩ ⟨_, right⟩ same
+  cases left with | ask left =>
+  cases right with | ask right =>
+  let keyOf : Request filtered.Event → signature.Request := fun
+    | ⟨_, .ask k⟩ => k
+  have keys : left = right := congrArg keyOf same
+  cases keys
+  rfl
+
+private abbrev originalObj : Silmaril.Elgot.ITree.Signature.InjectiveRequests := ⟨signature.traceSignature.toSignature⟩
+private abbrev aliasedObj : Silmaril.Elgot.ITree.Signature.InjectiveRequests := ⟨aliased⟩
+private abbrev filteredObj : Silmaril.Elgot.ITree.Signature.InjectiveRequests := ⟨filtered⟩
+private def aliasArrow : originalObj ⟶ aliasedObj := ⟨aliases, aliases_keys⟩
+private def firstArrow : aliasedObj ⟶ filteredObj := ⟨keepFirst, keepFirst_keys⟩
+
+example : ¬ Function.Injective ((aliases ≫ keepFirst).reply ⟨_, .ask (key false)⟩) := by
+  intro injective
+  have same : false = true := injective rfl
+  cases same
+
+example : ¬ Function.Surjective ((aliases ≫ keepFirst).reply ⟨_, .ask (key false)⟩) := by
+  intro onto
+  obtain ⟨_, impossible⟩ := onto (.inr ⟨⟩)
+  cases impossible
+
+private def firstOnly (trace : Trace signature.traceSignature.toSignature.Event (Nat × Value Atom)) : Prop :=
+  match trace with
+  | .exchange (.ask _) reply _ =>
+    match reply with
+    | .inl _ => True
+    | .inr _ => False
+  | _ => True
+
+private noncomputable def firstSentence : TraceInstitution.Sentence.{0, 1} signature.traceSignature :=
+  ⟨_, (packed false 1).observe env env, firstOnly⟩
+
+private def filteredPolicy : Silmaril.Logic.ITree.Model.{0, 0} filtered where
+  State := Bool
+  initial state := state = false
+  step
+    | ⟨_, .ask _⟩, state, name, next => state = false ∧ name = true ∧ next = true
+
+private theorem firstSat : TraceInstitution.Sat (filteredPolicy.reduct (aliases ≫ keepFirst)) firstSentence := by
+  intro x initial trace seen
+  cases trace with
+  | «prefix» | request | result => trivial
+  | exchange event reply tail =>
+    cases event
+    cases reply with
+    | inl => trivial
+    | inr =>
+      obtain ⟨_, ⟨_, impossible, _⟩, _⟩ := seen.2
+      cases impossible
+
+-- The intermediate model still offers the second source reply and reaches
+-- the distinct ordered exit. The final reduct satisfies this same sentence.
+example : ¬ TraceInstitution.Sat (aliasPolicy.reduct aliases) firstSentence := by
+  let trace : Trace signature.traceSignature.toSignature.Event (Nat × Value Atom) :=
+    .exchange (.ask (key false)) (.inr ⟨⟩) (.result (FiniteCFG.packedTreeOutput (1, .unit)))
+  have seen : HandledTrace (aliasPolicy.reduct aliases).step false (packed false 1 |>.observe env env) trace := by
+    refine ⟨?_, ⟨true, ⟨(true, .inr ⟨⟩), rfl, rfl, rfl, rfl⟩, trivial⟩⟩
+    rw [packed_shape]
+    exact (hasTrace_vis_exchange_iff _ _ _ _).mpr (out_ret _)
+  exact fun sat => sat false rfl trace seen
+
+private noncomputable abbrev liftInst := TraceInstitution.liftInstitution.{0, 1, 0}
+
+example :
+    liftInst.Sen.map (aliasArrow ≫ firstArrow) firstSentence =
+      liftInst.Sen.map firstArrow (liftInst.Sen.map aliasArrow firstSentence) :=
+  liftInst.Sen.map_comp_apply aliasArrow firstArrow firstSentence
+
+example :
+    ((liftInst.Mod.map (aliasArrow ≫ firstArrow).op).toFunctor.obj ⟨filteredPolicy⟩).as =
+      (filteredPolicy.reduct keepFirst).reduct aliases :=
+  Silmaril.Logic.ITree.Model.reduct_comp aliases keepFirst filteredPolicy
+
+example : liftInst.Sat filteredObj ⟨filteredPolicy⟩ (liftInst.Sen.map (aliasArrow ≫ firstArrow) firstSentence) :=
+  (liftInst.satisfaction (aliasArrow ≫ firstArrow) ⟨filteredPolicy⟩ firstSentence).mpr firstSat
+
+-- The selected alias still executes the actual packed dispatcher and reaches
+-- the first ordered result in the composed signature.
+example : HandledTrace filteredPolicy.step false ((packed false 1).observeMapped (aliases ≫ keepFirst) env env)
+    (.exchange (.ask (key false)) true (.result (FiniteCFG.packedTreeOutput (0, .unit)))) := by
+  refine ⟨?_, ⟨true, ⟨rfl, rfl, rfl⟩, trivial⟩⟩
+  rw [Program.PackedEntry.observe_mapped, packed_shape]
+  erw [Silmaril.Elgot.ITree.Signature.Hom.tree_vis (aliases ≫ keepFirst), hasTrace_vis_exchange_iff,
+    Silmaril.Elgot.ITree.Signature.Hom.tree_ret (aliases ≫ keepFirst)]
+  exact out_ret _
 
 end ReplyAliases
 
