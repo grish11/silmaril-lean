@@ -715,6 +715,33 @@ selected live-outs. The extracted directed witness still separates the
 actual packed runs after embedding the request key in a larger signature.
 [Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
 
+### Renaming registers in structural capture comparisons
+
+Register renaming acts on the named entry, row operands, binders, and
+block parameters. Live-out attachment uses the corresponding register at
+each position in the original field list. The packet-closed cyclic run
+theorems then give equality of the numbered exit and selected payload
+trees at corresponding stores, using the same primitive interpretation.
+[Mutable run theorem](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/RegisterRename/Thms.lean)
+
+Exact named elaboration produces the same positional table after
+an injective register map. `StructuralEntry.rename` carries its admission
+certificate, the checked dispatcher, and the structural seed to the
+renamed graph. Under a register bijection, the joint store enumeration maps
+each representative by inverse lookup. Repeated occurrences keep their
+types and continue to share one register value. The decoder, empty-domain
+flag, directed verdict, and extracted trace agree. The witness store moves
+to the corresponding register names.
+[Elaboration theorem](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/RegisterRename/Thms.lean)
+· [Structural decision and witness theorems](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/RegisterRename/Thms.lean)
+
+At the two checked seeds, register renaming composes with the handled-trace
+satisfaction square for a faithful event relabelling. The regression moves
+both the repeated capture and the selected live-out register and exercises
+the renamed extractor after a completed primitive request. The same ordered
+exit and encoded payload still distinguish the two runs.
+[Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
+
 ### Reverse lowering of open flat SSA to mutable RTL
 
 `NamedFlat.Entry.Reverse.lowerChecked` generates an ordinary named mutable CFG

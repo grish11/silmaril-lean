@@ -1,6 +1,7 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Institution.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Thms
+meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Defs
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
@@ -244,5 +245,35 @@ example :
     effectWitness.property a b ha hb
   refine ⟨a, b, ha, hb, distinguished.1, fun accepted => distinguished.2 ?_⟩
   exact accepted () trivial _ ⟨distinguished.1, Silmaril.Elgot.ITree.Replay.allReplies _⟩
+
+-- Change both the repeated source capture and the selected final register.
+private def registerNames : Name ≃ Name :=
+  (Equiv.swap shared ⟨40⟩).trans (Equiv.swap liveOut ⟨90⟩)
+
+private def renamedLeft := effectLeft.rename registerNames.toEmbedding
+private def renamedRight := effectRight.rename registerNames.toEmbedding
+
+example : renamedLeft.footprint = [(⟨40⟩, narrowBit), (⟨40⟩, bit)] := by
+  rw [show renamedLeft = effectLeft.rename registerNames.toEmbedding from rfl, effectLeft.footprint_rename]
+  decide
+
+example : renamedLeft.refinementFromStore? renamedRight (renameStore registerNames mismatchingStore) = some false :=
+  (effectLeft.refinementFromStore?_rename effectRight registerNames mismatchingStore).trans effectRejects
+
+example : renamedLeft.refinementOverCaptures renamedRight = effectLeft.refinementOverCaptures effectRight :=
+  effectLeft.refinementOverCaptures_rename effectRight registerNames
+
+example : (effectWitness.val.rename registerNames).Refutes renamedLeft renamedRight :=
+  (effectWitness.val.refutes_rename_iff effectLeft effectRight registerNames).mpr effectWitness.property
+
+-- Execute the renamed extractor as well as transporting its checked witness.
+#guard match renamedLeft.refinementCounterexample? renamedRight with
+  | some checked =>
+    match checked.val.trace with
+    | .exchange (.ask _) _ (.result packet) =>
+      decide (checked.val.initial ⟨40⟩ = Value.inl .unit ∧ checked.val.initial shared = Value.unit ∧
+        packet = (0, Value.inr (.inl (.pair .unit (.pair (.inl .unit) .unit)))))
+    | _ => false
+  | none => false
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
