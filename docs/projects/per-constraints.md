@@ -94,9 +94,10 @@ make check CHECK_TARGETS='Silmaril.Calculi.PERConstraints.Finite.Examples.Thms'
 ordered pair `[L, U]` denotes every PER `M` with `L ≤ M ≤ U`, where `≤` is
 relation inclusion. An admissibility predicate can impose guarded constructor
 closure or a background theory. `Bounds.Certain` quantifies over every admissible
-completion, and `Bounds.Possible` asks for one. An empty fiber makes every query
-certain and none possible. `conflict_fiber_empty` exhibits this on the original
-conflicting EQ/DISTINCT dictionary. `Bounds.satisfaction_exact` and
+completion, `Bounds.Refuted` asks whether each completion refutes the query, and
+`Bounds.Possible` asks for a satisfying completion. Both universal flags hold on
+an empty fiber, as in `conflict_fiber_empty` for the original conflicting
+EQ/DISTINCT dictionary. `Bounds.satisfaction_exact` and
 `Bounds.reduct_exact` recover the original institution's satisfaction and reduct
 on singleton intervals.
 
@@ -122,16 +123,18 @@ joined with the required pairs. The upper bound itself is then greatest.
 
 `Bounds.pull_mapsTo` pulls back both endpoints and every completion whose
 admissibility transports. `Bounds.pull_mapsTo_closed` applies this to guarded
-signature morphisms. Along an arbitrary map, certainty passes from the source
-reduct to the target translation and possibility passes in the other direction.
-These are the information-lax satisfaction laws.
-`Bounds.map_iff_of_coverage` gives equivalences when every admissible source
-completion lifts. `Bounds.pull_surjOn_of_injective` proves coverage for
-unrestricted PERs along injective term maps. For a collapsing map,
-`collapse_possible_strict` shows that source possibility can fail to lift, and
+signature morphisms. `Bounds.flags_of_subset` preserves both universal flags as
+the completion family shrinks. `Bounds.flags_map` compares the reduct's evidence
+to the target translation's evidence in that direction, component by component.
+When every admissible source completion lifts, `Bounds.flags_map_iff_of_coverage`
+gives both flag equivalences and `Bounds.completion_image_eq_of_coverage`
+identifies the reduct image with the source family. `Bounds.pull_surjOn_of_injective`
+proves coverage for unrestricted PERs along injective term maps. For a collapsing
+map, `collapse_refutation_strict` shows that the refutation flag can increase, and
 `collapse_reduct_not_least` shows that reduct can lose leastness in a theory
-fiber. These are local PER results, available for a later generalized
-institution interface.
+fiber. A generalized institution adapter can evaluate the same completion sets
+with its evidence type. An adapter for restricted fibers also needs to choose
+admissibility coherently across its signatures.
 
 ```sh
 make check CHECK_TARGETS='+Silmaril.Calculi.PERConstraints.Interval.Examples.Thms'

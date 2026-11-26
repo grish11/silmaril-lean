@@ -38,6 +38,21 @@ theorem refines_iff (more less : Bounds α) :
     more.Refines less ↔ more.completions (fun _ => True) ⊆ less.completions (fun _ => True) :=
   IntervalProofs.refines_iff more less
 
+theorem completions_subset_of_refines {more less : Bounds α} (h : more.Refines less) :
+    more.completions admissible ⊆ less.completions admissible :=
+  fun _ hm => ⟨⟨h.1.trans hm.1.1, hm.1.2.trans h.2⟩, hm.2⟩
+
+/-- Refining a completion family by subset inclusion preserves each universal flag. -/
+theorem flags_of_subset {more less : Bounds α} {moreAdmissible lessAdmissible : PER α → Prop}
+    (subset : more.completions moreAdmissible ⊆ less.completions lessAdmissible) :
+    (less.Certain lessAdmissible query → more.Certain moreAdmissible query) ∧
+    (less.Refuted lessAdmissible query → more.Refuted moreAdmissible query) :=
+  ⟨fun certain model hm => certain model (subset hm), fun refuted model hm => refuted model (subset hm)⟩
+
+theorem refuted_iff_not_possible : bounds.Refuted admissible query ↔ ¬ bounds.Possible admissible query :=
+  ⟨fun refuted ⟨model, hm, holds⟩ => refuted model hm holds,
+    fun impossible model hm holds => impossible ⟨model, hm, holds⟩⟩
+
 @[simp] theorem completions_exact (model : PER α) (admissible : PER α → Prop) :
     (exact model).completions admissible = {candidate | candidate = model ∧ admissible model} :=
   IntervalProofs.completions_exact model admissible
@@ -45,6 +60,10 @@ theorem refines_iff (more less : Bounds α) :
 theorem certain_exact (model : PER α) :
     (exact model).Certain admissible query ↔ (admissible model → query model) := by
   simp [Certain]
+
+theorem refuted_exact (model : PER α) :
+    (exact model).Refuted admissible query ↔ (admissible model → ¬ query model) := by
+  simp [Refuted]
 
 theorem possible_exact (model : PER α) :
     (exact model).Possible admissible query ↔ admissible model ∧ query model := by
@@ -61,6 +80,10 @@ theorem satisfaction_exact {signature : Syntax} (model : Model signature) (sente
 theorem empty_completions (empty : bounds.completions admissible = ∅) :
     bounds.Certain admissible query ∧ ¬ bounds.Possible admissible query := by
   simp [Certain, Possible, empty]
+
+theorem flags_of_empty (empty : bounds.completions admissible = ∅) :
+    bounds.Certain admissible query ∧ bounds.Refuted admissible query := by
+  simp [Certain, Refuted, empty]
 
 theorem possible_of_certain (nonempty : (bounds.completions admissible).Nonempty)
     (certain : bounds.Certain admissible query) : bounds.Possible admissible query :=
@@ -177,6 +200,27 @@ theorem possible_of_map
     (targetBounds.pull rename).Possible sourceAdmissible (fun model => sentence.Holds model) :=
   IntervalProofs.possible_map maps sentence
 
+/-- The reduct's two evidence flags imply the respective flags of the translated query. -/
+theorem flags_map
+    (maps : Set.MapsTo (fun model => model.pull rename) (targetBounds.completions targetAdmissible)
+      ((targetBounds.pull rename).completions sourceAdmissible)) (sentence : CNF α) :
+    ((targetBounds.pull rename).Certain sourceAdmissible (fun model => sentence.Holds model) →
+      targetBounds.Certain targetAdmissible (fun model => (sentence.map rename).Holds model)) ∧
+    ((targetBounds.pull rename).Refuted sourceAdmissible (fun model => sentence.Holds model) →
+      targetBounds.Refuted targetAdmissible (fun model => (sentence.map rename).Holds model)) :=
+  ⟨certain_map maps sentence, fun refuted model hm holds =>
+    refuted _ (maps hm) ((CNF.holds_map model rename sentence).mp holds)⟩
+
+/-- A covering reduct has as its image exactly the designated source family. -/
+theorem completion_image_eq_of_coverage
+    (maps : Set.MapsTo (fun model => model.pull rename) (targetBounds.completions targetAdmissible)
+      ((targetBounds.pull rename).completions sourceAdmissible))
+    (covers : Set.SurjOn (fun model => model.pull rename) (targetBounds.completions targetAdmissible)
+      ((targetBounds.pull rename).completions sourceAdmissible)) :
+    (fun model => model.pull rename) '' targetBounds.completions targetAdmissible =
+      (targetBounds.pull rename).completions sourceAdmissible :=
+  Set.Subset.antisymm (Set.image_subset_iff.mpr maps) covers
+
 /-- Pullback of completions plus coverage of all source completions gives both
 satisfaction equivalences. -/
 theorem map_iff_of_coverage
@@ -189,6 +233,20 @@ theorem map_iff_of_coverage
     (targetBounds.Possible targetAdmissible (fun model => (sentence.map rename).Holds model) ↔
       (targetBounds.pull rename).Possible sourceAdmissible (fun model => sentence.Holds model)) :=
   IntervalProofs.map_iff_of_coverage maps covers sentence
+
+/-- Componentwise equivalence of the two universal flags under coverage. -/
+theorem flags_map_iff_of_coverage
+    (maps : Set.MapsTo (fun model => model.pull rename) (targetBounds.completions targetAdmissible)
+      ((targetBounds.pull rename).completions sourceAdmissible))
+    (covers : Set.SurjOn (fun model => model.pull rename) (targetBounds.completions targetAdmissible)
+      ((targetBounds.pull rename).completions sourceAdmissible)) (sentence : CNF α) :
+    (targetBounds.Certain targetAdmissible (fun model => (sentence.map rename).Holds model) ↔
+      (targetBounds.pull rename).Certain sourceAdmissible (fun model => sentence.Holds model)) ∧
+    (targetBounds.Refuted targetAdmissible (fun model => (sentence.map rename).Holds model) ↔
+      (targetBounds.pull rename).Refuted sourceAdmissible (fun model => sentence.Holds model)) := by
+  rw [refuted_iff_not_possible, refuted_iff_not_possible]
+  obtain ⟨certain, possible⟩ := map_iff_of_coverage maps covers sentence
+  exact ⟨certain, not_congr possible⟩
 
 end Bounds
 

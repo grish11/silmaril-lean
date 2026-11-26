@@ -41,6 +41,13 @@ theorem collapse_possible_strict :
     ¬ (full Unit).Possible (fun _ => True) (fun model => (separateBools.map collapse).Holds model) :=
   Proofs.collapse_possible_strict
 
+/-- A noncovering reduct can strictly increase the negative flag after translation. -/
+theorem collapse_refutation_strict :
+    ¬ ((full Unit).pull collapse).Refuted (fun _ => True) (fun model => separateBools.Holds model) ∧
+    (full Unit).Refuted (fun _ => True) (fun model => (separateBools.map collapse).Holds model) :=
+  ⟨fun h => Bounds.refuted_iff_not_possible.mp h collapse_possible_strict.1,
+    Bounds.refuted_iff_not_possible.mpr collapse_possible_strict.2⟩
+
 /-- Even a least model of a translated EQ can reduce to a non-least model. -/
 theorem collapse_reduct_not_least :
     IsLeast ((full Unit).completions (fun model => (requireFalse.map collapse).Holds model)) (PER.equality Unit) ∧

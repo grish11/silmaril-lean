@@ -32,6 +32,10 @@ def completions (bounds : Bounds α) (admissible : PER α → Prop) : Set (PER �
 def Certain (bounds : Bounds α) (admissible query : PER α → Prop) : Prop :=
   ∀ model ∈ bounds.completions admissible, query model
 
+/-- The negative evidence flag holds when every admissible completion refutes the query. -/
+def Refuted (bounds : Bounds α) (admissible query : PER α → Prop) : Prop :=
+  ∀ model ∈ bounds.completions admissible, ¬ query model
+
 def Possible (bounds : Bounds α) (admissible query : PER α → Prop) : Prop :=
   ∃ model ∈ bounds.completions admissible, query model
 
