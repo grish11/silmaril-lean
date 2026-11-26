@@ -21,7 +21,8 @@ Semantics of SSA*, §2.1 (Fig. "Grammar for 3-address code"):
 part of the block list *after* the current block, and a label that is not found there is an
 **exit** of the graph (the same convention as a λRTL region's free labels). This makes `jump`
 structurally recursive on the block list (no fuel, no well-founded order on labels), and a
-backward jump is not a loop but an exit. Loops are a later stage (`docs/projects/ssa.md`).
+backward jump is an exit. `Silmaril.SSA.LambdaRTL.CFG.Cyclic.Defs` gives full-table lookup
+and iteration on the same syntax.
 
 **Flattening.** `flatten : Region V L F → CFG V (L ⊕ Path) F` erases the dominator tree into
 labelled blocks. Block labels are tree paths `Path = List Bool` (cf. the structural block

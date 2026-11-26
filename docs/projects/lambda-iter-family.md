@@ -19,7 +19,8 @@ comparisons.
 | λSSA with general CFGs | Isotope [`Region` and `Region.Eval`](../../Silmaril/SSA/Isotope/LambdaSSA/Defs.lean) use positional variables and jumps. [`Region.denote`](../../Silmaril/Raw/SSA/Isotope/LambdaSSA/Denotation/Monadic/Region.lean) uses exact typing, typed label coproducts and Elgot iteration. The [categorical graphs](../../Silmaril/SSA/Isotope/LambdaSSA/Categorical/Thms.lean) use distributive Freyd structure with strong Elgot iteration for regions. [`categoricalTermDenote_eq` and `categoricalRegionDenote_eq`](../../Silmaril/SSA/Isotope/LambdaSSA/Kleisli/Thms.lean) specialize to Kleisli models with the corresponding typing-coherence premises and a lawful Elgot monad for regions. | The [observational compilations](../../Silmaril/Raw/SSA/Isotope/Institution/Observational/Compilations.lean) and quotient isomorphism above use operational observations. [Machine RTL](../../Silmaril/Machine/RTL/Thms.lean) is a separate SSA-form register machine; `toLambdaSSA_eval_iff` assumes a matching call oracle, and [`ofLambdaSSA_eval_iff`](../../Silmaril/Machine/OfLambdaSSA/Thms.lean) is restricted to `RootFits`. A general typed operational-to-monadic adequacy theorem for this row was not audited. |
 | λRTL with loops | [`Loop.Region`](../../Silmaril/SSA/LambdaRTL/Loop/Defs.lean) extends the named syntax with a self-recursive handler. [`Loop.Region.evalObs_eq_evalSSA_of_isSSA`](../../Silmaril/SSA/LambdaRTL/Loop/Thms.lean) uses a lawful Elgot monad and the loop SSA judgment. | [`acyclicToLoopSSA` and `loopSSAToRTL`](../../Silmaril/SSA/LambdaRTL/Loop/Institution/Defs.lean) are comorphisms at the exit/payload observation. A lowering of those loops to the forward CFG is absent from these headers. |
 | Flat typed SSA | [`FiniteCFG.HasType` and `erase_hasType_iff`](../../Silmaril/Raw/SSA/Isotope/LambdaSSA/Flat.lean) relate heterogeneous block arguments and typed exits to ordinary λSSA CFG typing. [`encodeCFG_hasType`](../../Silmaril/Raw/SSA/Isotope/Morphism/SSAIter/Encode.lean) checks the finite-sum LetIter encoding. | [`encodeCFG_eval`](../../Silmaril/Raw/SSA/Isotope/Morphism/SSAIter/Correctness.lean) preserves finite evaluation under matching captured environments and the same primitive relation. [`encodeCFG_diverges`](../../Silmaril/Raw/SSA/Isotope/Morphism/SSAIter/Divergence.lean) is the forward divergence comparison. A translation between this representation and the named forward graph is absent from the cited modules. A separate flat institution and an ITree-specific adequacy result were not audited. |
-| Forward flat SSA / mutable RTL | [`CFG`, `flatten`, `toRegion`, `run`](../../Silmaril/SSA/LambdaRTL/CFG/Defs.lean) operate on explicit block arguments. [`run_flatten` and `run_eq_toRegion`](../../Silmaril/SSA/LambdaRTL/CFG/Thms.lean) preserve the full mutable result in a lawful monad. | [`validate_obs_eq_evalSSA`](../../Silmaril/SSA/LambdaRTL/CFG/Version/Thms.lean) requires validator acceptance and a dominance-scoped source region. `validate_versionTop_obs` replaces source SSA with the pair law and version-zero input. Both compare to the existing **region** semantics. At the audited baseline, a direct lexical runner for forward blocks was absent. Classical φ syntax, global name uniqueness, cyclic flat lookup and a flat CFG institution are outside this bridge. |
+| Forward flat SSA / mutable RTL | [`CFG`, `flatten`, `toRegion`, `run`](../../Silmaril/SSA/LambdaRTL/CFG/Defs.lean) operate on explicit block arguments. [`run_flatten` and `run_eq_toRegion`](../../Silmaril/SSA/LambdaRTL/CFG/Thms.lean) preserve the full mutable result in a lawful monad. | [`validate_obs_eq_evalSSA`](../../Silmaril/SSA/LambdaRTL/CFG/Version/Thms.lean) requires validator acceptance and a dominance-scoped source region. `validate_versionTop_obs` replaces source SSA with the pair law and version-zero input. Both compare to the existing **region** semantics. At the audited baseline, a direct lexical runner for forward blocks was absent. Classical φ syntax, global name uniqueness and a flat CFG institution are outside this bridge. |
+| Cyclic named flat RTL | [`Cyclic.step` and `Cyclic.run`](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Defs.lean) search the full table for each jump and iterate on the incoming label, payload and store. | [`Cyclic.run_eq_forward`](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Thms.lean) compares the full outcome in a lawful Elgot monad when table and suffix lookup agree on every named block's syntactic targets. `iter_obs_of_step_encoding` isolates the per-transfer simulation needed for cyclic versioning. |
 
 The public thesis formalization provides a separate reference point. Its
 [`TypedDominanceWellFormedFlat`](https://github.com/imbrem/thesis/blob/69a8126f2d3eb6d32050e0bd9511251b33dbcea7/formalization/thesis/Isotope/TAC/Bridge/DomFlatSemantics.lean)
@@ -81,4 +82,37 @@ the expected block list and both runs compute directly on that output.
 lake build --wfail Silmaril.SSA.LambdaRTL.CFG.Version.Flat.Thms \
   Silmaril.SSA.LambdaRTL.CFG.Lexical.Examples.Thms \
   Silmaril.SSA.LambdaRTL.CFG.Version.Examples.Thms
+```
+
+## Cyclic named CFG execution
+
+`Cyclic.step` uses first-match lookup in the whole block table. A hit writes
+the parameter in the incoming store and executes one block, so a transfer
+can reenter an earlier block. A missing label exits with the label, argument
+and store. The entry executes once, then `Cyclic.run` iterates the step.
+`Cyclic.IsForward` compares lookup results for every syntactic target of each
+named block, using the suffix after that block. The entry searches the whole
+table in both modes. The agreement proof uses lawful monadic sequencing and
+the iteration fixpoint law.
+[Cyclic semantics and agreement](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Thms.lean)
+
+The `Part` regression counts down along `10 → 20 → 10`, incrementing a
+register on each visit to block 20. After two back-edge transfers, full-table
+lookup exits at label 99 with payload 2 and final registers `(0, 2)`. The forward
+runner exits on the first backward transfer at label 10 with payload 1 and
+final registers `(1, 1)`.
+[Finite back-edge trace](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Examples/Thms.lean)
+
+A cyclic versioning proof can use `iter_obs_of_step_encoding`. It needs a
+pure encoding of the incoming label, argument and the destination's live-in
+register values. For every source transfer, mapping a returned result by
+`obs` and a continuing transfer by that encoding must agree with one target
+step, including its effects. Naturality and uniformity lift that equation
+through iteration. A graph-level proof must also relate the initial entry
+transfers. Cyclic versioning and the typed Isotope dispatcher adapter remain
+separate obligations.
+
+```sh
+lake build --wfail Silmaril.SSA.LambdaRTL.CFG.Cyclic.Thms \
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Examples.Thms
 ```
