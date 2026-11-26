@@ -77,11 +77,16 @@ def budget (Name : Type) : Inst.{0,0,0,u + 1,u + 1} where
 abbrev BoundedSentence (levels : Nat) (S : Signature Name) :=
   {s : Sentence S // s.judgment.UsesBelow levels}
 
+/-- The translated judgment has the same syntax bound as the event. -/
+def BoundedSentence.toFinite {levels : Nat} {S : Signature Name}
+    (s : BoundedSentence levels S) : Finite.Sentence levels :=
+  ⟨s.val.judgment, s.property⟩
+
 /-- The ordinary room at a fixed universe budget. -/
 def fixedRoom (levels : Nat) (S : Signature Name) : Room.{0,u + 1,u + 1} where
   Sen := BoundedSentence levels S
   Mod := (Finite.room.{u} levels).Mod
-  Sat M s := (Finite.room.{u} levels).Sat M ⟨s.val.judgment, s.property⟩
+  Sat M s := (Finite.room.{u} levels).Sat M (BoundedSentence.toFinite s)
 
 /-- The fixed-budget sentence translation. -/
 def BoundedSentence.weaken {n : Nat} {S T : Signature Name} (f : S ⟶ T)
@@ -103,7 +108,7 @@ def toFiniteMLTT (Name : Type) (levels : Nat) :
     Inst.CoHom (fixedBudget.{u} Name levels) (Finite.bundled.{u} levels) where
   Φ := (Functor.const _).obj (Discrete.mk ())
   ρ := {
-    app _ := ⟨fun s => ⟨s.val.judgment, s.property⟩, 𝟭 _, fun _ _ => Iff.rfl⟩
+    app _ := ⟨BoundedSentence.toFinite, 𝟭 _, fun _ _ => Iff.rfl⟩
     naturality _ _ _ := Room.hom_ext rfl rfl }
 
 end Silmaril.ProofFormats.LeanNDJSON.MLTT

@@ -1,6 +1,6 @@
 module
 
-import Silmaril.ProofFormats.LeanNDJSON.MLTT.Thms
+import Silmaril.ProofFormats.LeanNDJSON.MLTT.Bounded.Thms
 import Silmaril.ProofFormats.LeanNDJSON.MLTT.Decode.Thms
 meta import Silmaril.ProofFormats.LeanNDJSON.MLTT.Decode.Defs
 
@@ -44,10 +44,20 @@ private def universeEvent : Sentence (⟨[]⟩ : Signature String) :=
 example (T : FiniteTower 1) : ¬ (⟨1, T⟩ : BudgetModel).Satisfies universeEvent :=
   fun h => (by decide : ¬ 2 ≤ 1) h.1
 
+private def universeAtTwo : BoundedSentence 2 (⟨[]⟩ : Signature String) :=
+  ⟨universeEvent, show 2 ≤ 2 from Nat.le_refl _⟩
+
+private theorem universeAtTwo_derivable : fixedDerives ∅ universeAtTwo :=
+  .univ (show 0 + 1 < 2 by decide) .nil_ok
+
 example (T : FiniteTower 2) : (⟨2, T⟩ : BudgetModel).Satisfies universeEvent :=
-  BudgetModel.satisfies_of_bounded_derivation ⟨2, T⟩ (H := ∅)
-    (show 2 ≤ 2 from Nat.le_refl _) (fun _ h => False.elim h)
-    (.univ (show 0 + 1 < 2 by decide) .nil_ok)
+  BudgetModel.satisfies_of_fixed_derivation ⟨2, T⟩ universeAtTwo_derivable (fun _ h => False.elim h)
+
+example : fixedDerives ∅ (BoundedSentence.include (by decide : 2 ≤ 3) universeAtTwo) := by
+  have lifted :=
+    (fixedInclusionLogic.{0} String (by decide : 2 ≤ 3)).map_derives _ ∅ _ universeAtTwo_derivable
+  rw [Set.image_empty] at lifted
+  exact lifted
 
 private def selfMembership : Sentence (⟨[]⟩ : Signature String) :=
   .atSignature ⟨[]⟩ ⟨"selfMembership", .univ 0, .univ 0⟩

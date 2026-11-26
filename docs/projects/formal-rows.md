@@ -166,16 +166,25 @@ whole syntax against that count and then interprets it under every assignment sa
 the event's declaration context. The bound includes definition bodies and types in that
 context. Satisfaction is natural under prefix extension. As for any context-conditional
 judgment, semantic validity can hold vacuously when a context has no satisfying assignment.
-`BudgetModel.satisfies_of_bounded_derivation` uses the existing uniformly bounded MLTT rules
-and finite-tower soundness. A syntax bound alone gives neither a bound on an arbitrary
-derivation nor a consistency result. The interpretation makes no claim about Lean kernel
-replay or compatibility with Lean's conversion rules.
 
-For graph integration, specialize `pi` and `budget` to `Lean.Name`. Register the fixed
-slice `fixedBudget Lean.Name n` as the source of `toFiniteMLTT Lean.Name n`, targeting
-`logic.type_theory.extensional_mltt.finite.bundled` at the same `n`.
-Use `toFiniteMLTT_modelExpansive` as the edge fact. The existing unbounded extensional
-MLTT logic comparison is `derives_iff_mltt`.
+`Silmaril.ProofFormats.LeanNDJSON.MLTT.Bounded.Thms` pairs the fixed-budget institution with
+`fixedLogic`. Its derivations are those of `ExtensionalMLTT.Finite.logic` on the translated
+premises and conclusion, so every rule in the proof must fit the budget.
+`toFiniteMLTTLogic` preserves and reflects derivability. `fixedLogic_sound` uses the
+existing finite-tower soundness theorem, and `fixedInclusionLogic` uses
+`Finite.inclusionLogic` to transport derivations from budget `n` to budget `m ≥ n`.
+Its model reduct is the finite-tower restriction. A syntax bound alone gives neither a
+bound on an arbitrary derivation nor a consistency result. The interpretation makes
+no claim about Lean kernel replay or compatibility with Lean's conversion rules.
+
+The π-institution is available as a library construction. For LogicGraph, specialize
+`budget` and `fixedBudget` to `Lean.Name` for ordinary institution records. At a chosen
+signature `S`, use `consequence S` and `fixedConsequence S n` for derivability records.
+Connect `fixedBudget Lean.Name n` to `logic.type_theory.extensional_mltt.finite.bundled`
+at the same budget with `toFiniteMLTT Lean.Name n`, attaching
+`toFiniteMLTT_modelExpansive` as the edge fact. An ordinary edge between fixed budgets
+can use the institution projection of `fixedInclusionLogic Lean.Name h`.
+`derives_iff_mltt` supplies the unbounded syntactic comparison on translated judgments.
 
 `Silmaril.ProofFormats.LeanNDJSON.MLTT.Examples` tests the byte adapter against a real export
 and checks distinct structured names, malformed references, unsupported syntax, and finite
