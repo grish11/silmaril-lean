@@ -170,3 +170,25 @@ diff -r data/parquet-byte-array-legacy-events "$fixture_tmp"
 lake build --wfail +Silmaril.Formats.Parquet.ByteArrayFallback.File.LegacyTests
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/parquet-byte-array-fallback-file/Axioms.lean
 ```
+
+### Filter and project legacy events
+
+`ByteArrayFallback.File.scan_readAllLegacy_order` composes the checked
+legacy source with `Arrow.Events.EventStream.scan`. Each successfully
+decoded group contributes a batch. The predicate sees the original row,
+keeps only true results, and runs before the projection. This preserves
+footer group positions even when a filter removes every row in a group
+or the projection selects zero columns. The trace keeps its terminal cause.
+`scan_readAllLegacy_first_error` states the exact filtered and projected
+prefix for an original indexed group failure.
+
+The scan regressions reuse both legacy event fixtures. Keeping all rows
+with a zero-column projection produces counts `[384, 0, 384]` at EOS and
+`[384, 0]` on the damaged file. Keeping values longer than eight bytes
+produces `[118, 0, 118]` or `[118, 0]` with either the original field or
+zero columns. An unknown predicate on every row gives `[0, 0]` before the
+same original group 2, column 1, frame 19, header 21009 error.
+
+```sh
+lake build --wfail +Silmaril.Formats.Parquet.ByteArrayFallback.File.ScanTests
+```

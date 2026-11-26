@@ -11,3 +11,5 @@ import Silmaril.Formats.Parquet.ByteArrayFallback.File.Thms
 #print axioms Silmaril.Formats.Parquet.ByteArrayFallback.File.readAllLegacy_success
 #print axioms Silmaril.Formats.Parquet.ByteArrayFallback.File.readAllLegacy_first_error
 #print axioms Silmaril.Formats.Parquet.ByteArrayFallback.File.readAllLegacy_open_error
+#print axioms Silmaril.Formats.Parquet.ByteArrayFallback.File.scan_readAllLegacy_order
+#print axioms Silmaril.Formats.Parquet.ByteArrayFallback.File.scan_readAllLegacy_first_error

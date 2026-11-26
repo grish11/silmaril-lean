@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Parquet.ByteArrayFallback.File.Defs
 import Silmaril.Formats.Parquet.Reader.Thms
+import Silmaril.Semantics.Relational.Table.Thms
 
 public section
 
@@ -58,5 +59,48 @@ theorem readAll_first_errorFor {before after : List Nat} {index : Nat}
         .readError (.readFailure cause)⟩⟩ := by
   rw [readAll_orderFor opened, split, denote_successful_prefix (after := index :: after) earlier]
   simp [Reader.denoteGroups, rowsAtFor, failed, Except.map, Except.mapError, List.map_map]
+
+private theorem scan_batches {selected : Scan.Schema String FlatColumn.Layout}
+    (projection : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Projection schema)
+    (keep : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Predicate schema Value)
+    (groups : List (Reader.RowGroup selected Value)) (termination : Events.Termination ByteArrayFallback.File.Error) :
+    (Events.EventStream.scan (.ok ⟨selected, ⟨groups.map AlignedColumns.ofRows, termination⟩⟩)
+      projection keep) =
+      .ok ⟨(projection selected).schema,
+        ⟨groups.map (fun rows => AlignedColumns.ofRows ((projection selected).scan (keep selected) rows)),
+          termination⟩⟩ := by
+  simp [Events.EventStream.scan, Except.map, Events.Trace.scan, List.map_map, Function.comp_def]
+
+theorem scan_readAllLegacy_order (opened : ByteArrayFallback.openFile limits input name = .ok checked)
+    (projection : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Projection schema)
+    (keep : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Predicate schema Value) :
+    let selected := schema name
+    let trace := Reader.denoteGroups (rowsAtFor .plainDictionaryV1 checked limits)
+      (List.range checked.snapshot.groupCount)
+    ((readAllLegacy limits input name).scan projection keep) = .ok ⟨(projection selected).schema,
+      ⟨trace.1.map (fun rows => AlignedColumns.ofRows ((projection selected).scan (keep selected) rows)),
+        trace.2⟩⟩ := by
+  change ((readAllFor .plainDictionaryV1 limits input name).scan projection keep) = _
+  rw [readAll_orderFor opened]
+  exact scan_batches projection keep _ _
+
+theorem scan_readAllLegacy_first_error {before after : List Nat} {index : Nat}
+    {groups : List (List (Option Bytes))} {cause : ByteArrayFallback.Error}
+    (opened : ByteArrayFallback.openFile limits input name = .ok checked)
+    (split : List.range checked.snapshot.groupCount = before ++ index :: after)
+    (earlier : List.Forall₂ (fun i slots => ByteArrayFallback.readLegacyGroup checked limits i = .ok slots) before groups)
+    (failed : ByteArrayFallback.readLegacyGroup checked limits index = .error cause)
+    (projection : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Projection schema)
+    (keep : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Predicate schema Value) :
+    let selected := schema name
+    ((readAllLegacy limits input name).scan projection keep) = .ok ⟨(projection selected).schema,
+      ⟨groups.map (fun slots => AlignedColumns.ofRows
+        ((projection selected).scan (keep selected) (Plain.ByteArray.File.rows name .optional slots))),
+        .readError (.readFailure cause)⟩⟩ := by
+  change ((readAllFor .plainDictionaryV1 limits input name).scan projection keep) = _
+  rw [readAll_first_errorFor opened split earlier failed, ← List.map_map]
+  simpa only [List.map_map, Function.comp_def] using
+    (scan_batches (selected := schema name) projection keep
+      (groups.map (Plain.ByteArray.File.rows name .optional)) (.readError (.readFailure cause)))
 
 end Silmaril.Proofs.Formats.Parquet.ByteArrayFallback.File

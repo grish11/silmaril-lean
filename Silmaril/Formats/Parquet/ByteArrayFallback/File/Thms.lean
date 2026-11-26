@@ -88,4 +88,36 @@ theorem readAllLegacy_open_error {cause : Plain.ByteArray.File.Error}
   rw [readAllLegacy, readAllFor, openSourceFor, failed]
   rfl
 
+/-- Scan the successfully read groups in footer order. Each group keeps a batch,
+even if the predicate keeps no rows or the projection has width zero. -/
+theorem scan_readAllLegacy_order (opened : ByteArrayFallback.openFile limits input name = .ok checked)
+    (projection : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Projection schema)
+    (keep : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Predicate schema Value) :
+    let selected := schema name
+    let trace := Reader.denoteGroups (rowsAtFor .plainDictionaryV1 checked limits)
+      (List.range checked.snapshot.groupCount)
+    ((readAllLegacy limits input name).scan projection keep) = .ok ⟨(projection selected).schema,
+      ⟨trace.1.map (fun rows => AlignedColumns.ofRows ((projection selected).scan (keep selected) rows)),
+        trace.2⟩⟩ :=
+  Proofs.Formats.Parquet.ByteArrayFallback.File.scan_readAllLegacy_order
+    opened projection keep
+
+/-- Filter and project exactly the complete prefix before the first failure.
+The original indexed cause is the terminal read error. -/
+theorem scan_readAllLegacy_first_error {before after : List Nat} {index : Nat}
+    {groups : List (List (Option Bytes))} {cause : ByteArrayFallback.Error}
+    (opened : ByteArrayFallback.openFile limits input name = .ok checked)
+    (split : List.range checked.snapshot.groupCount = before ++ index :: after)
+    (earlier : List.Forall₂ (fun i slots => ByteArrayFallback.readLegacyGroup checked limits i = .ok slots) before groups)
+    (failed : ByteArrayFallback.readLegacyGroup checked limits index = .error cause)
+    (projection : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Projection schema)
+    (keep : (schema : Scan.Schema String FlatColumn.Layout) → Scan.Predicate schema Value) :
+    let selected := schema name
+    ((readAllLegacy limits input name).scan projection keep) = .ok ⟨(projection selected).schema,
+      ⟨groups.map (fun slots => AlignedColumns.ofRows
+        ((projection selected).scan (keep selected) (Plain.ByteArray.File.rows name .optional slots))),
+        .readError (.readFailure cause)⟩⟩ :=
+  Proofs.Formats.Parquet.ByteArrayFallback.File.scan_readAllLegacy_first_error
+    opened split earlier failed projection keep
+
 end Silmaril.Formats.Parquet.ByteArrayFallback.File
