@@ -912,6 +912,15 @@ arguments, and the two pure unitors give natural isomorphisms. These
 laws concern the individual actions and their pure structural maps.
 [Associator and unit naturality](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Category/Tensor/Coherence/Thms.lean)
 
+A native representative that returns a pure value function is central
+against every program in either tensor position. Syntactic purity
+supplies this premise when primitive interpretation respects the
+declared bottom effect. The two written execution orders then agree
+as weak trees, with the same handler replay. The central associator and
+unitors, triangle, and pentagon give the ordered premonoidal instance.
+The designated tensor on a pair of arrows is left sequential.
+[Ordered native premonoidal structure](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Category/Tensor/Premonoidal/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment
