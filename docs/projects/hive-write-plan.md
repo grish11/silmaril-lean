@@ -91,6 +91,41 @@ reader. They compare the parsed and typed result to the grouped input.
 The same fixture generator and hashes below verify membership and
 bytes independently. Lean alone asserts reconstruction order.
 
+## Planning from a checked snapshot scan
+
+[`Manifest.planSnapshots`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/WritePlan/Defs.lean)
+takes an already prepared typed manifest. It scans immutable snapshots in
+literal occurrence order with the full augmented schema and the caller's
+partition predicate. The strict scan observes a reached file's terminal
+outcome even when its partition is filtered out.
+
+`WritePlan.plan` runs only after observed EOS. Earlier termination returns
+`.scan` with the original typed outcome and the exact selected ordered
+prefix. Open and group-read failures keep their literal file path and
+payload, including the group index when present. An encoder or other
+write-plan error returns `.planning` after EOS. No files or no selected
+rows yield an empty plan when the scan reaches EOS. A failure with an
+empty selected prefix remains a scan error.
+
+[`planSnapshots_eq_reference`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/WritePlan/Thms.lean)
+relates the composition to the independent checked snapshot row denotation
+and the write-plan reference. A successful result groups by the first
+occurrence of each directory among **selected rows**, with stable physical
+payloads within each bucket, including duplicate rows and null cells.
+Grouping can change cross-directory interleaving. Lookup and error paths
+retain their original spellings. Output directories use the supplied
+write-plan options and encoder.
+
+The [snapshot-to-plan checks](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/WritePlan/Checks.lean)
+reuse the [pinned PyArrow V1 and V2 inputs](parquet-flat-scan.md#independent-fixtures).
+They include EOS with interleaved directory occurrences, null cells,
+no files, no selected rows, and a V2 page-header failure at byte 234
+in zero-based group 1. The derived damaged fixture has SHA-256
+`37492c1b898d2f65f9601e4cda5f17f50ee296702fedc97abc55910141a88cac`.
+The failure is checked with the partition both retained and filtered,
+including an empty selected prefix. This is a pure composition
+over supplied snapshots and rows.
+
 ## Pinned checks
 
 [PyArrow membership oracle](../../scripts/hive-write-plan-oracle/Oracle.py) ·
