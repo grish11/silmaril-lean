@@ -24,6 +24,17 @@ theorem int32_printParse : int32.PrintParse := Proofs.Formats.Csv.CellCodecs.int
 theorem int32_textBytesOK (value : Int32) : textBytesOK (int32Text value) = true :=
   Proofs.Formats.Csv.CellCodecs.int32_textBytesOK value
 
+/-- Accepted text is exactly the canonical decimal of the returned Int64. -/
+theorem parseInt64_eq_some_iff (field : Field) (value : Int64) :
+    parseInt64 field = some value ↔ DecimalSpelling field value.toInt :=
+  Proofs.Formats.Csv.CellCodecs.parseInt64_eq_some_iff field value
+
+/-- Int64 parsing recovers every successfully printed value. -/
+theorem int64_parsePrint : int64.ParsePrint := Proofs.Formats.Csv.CellCodecs.int64_parsePrint
+
+/-- Int64 printing recovers every successfully parsed spelling. -/
+theorem int64_printParse : int64.PrintParse := Proofs.Formats.Csv.CellCodecs.int64_printParse
+
 /-- Parsing succeeds exactly on the CSV field alphabet. -/
 theorem utf8_parse_isSome_iff (field : Field) :
     (utf8.parse field).isSome = true ↔ textBytesOK field = true :=
