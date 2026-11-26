@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Arrow.Framing.Defs
+public import Init.Data.Vector.OfFn
 
 /-! Checked FlatBuffers access for the Arrow V5 Message, Schema, Field and
 RecordBatch IDLs. All offsets are relative to the padded metadata slice. -/
@@ -80,6 +81,34 @@ structure RecordBatch where
   nodes : List FieldNode
   buffers : List Buffer
   deriving DecidableEq, Repr
+
+namespace BinaryView
+
+inductive MetadataError where
+  | metadata (cause : Arrow.Error)
+  | nodeCount (actual : Nat)
+  | countCardinality (actual : Nat)
+  | negativeCount
+  | dataBufferLimit
+  | descriptorCount (expected actual : Nat)
+  deriving DecidableEq, Repr
+
+/-- Metadata for one preselected view field. The declared variadic count
+determines the length and order of the data descriptor vector. -/
+structure BatchMetadata (source : KBytes) (maxDataBuffers : Nat) where
+  rowCount : Nat
+  bodyLength : Nat
+  node : FieldNode
+  validity : Buffer
+  views : Buffer
+  countOffset : Nat
+  dataCount : Nat
+  data : Vector Buffer dataCount
+  countWord : source.readLE countOffset 8 = some dataCount
+  signedCount : dataCount < 2^63
+  countWithin : dataCount ≤ maxDataBuffers
+
+end BinaryView
 
 inductive MessageHeader where
   | schema (fields : List Field)
@@ -258,25 +287,41 @@ private def readSchemaFieldType (bytes : KBytes) (tag : Nat) (payload : Table) :
   else
     return .primitive (← primitiveFieldType bytes tag payload)
 
-private def batch (limits : Limits) (bytes : KBytes) (value : Table) :
-    Except Error RecordBatch := do
+private structure BatchVectors where
+  rowCount : Nat
+  nodeFirst : Nat
+  nodeCount : Nat
+  bufferFirst : Nat
+  bufferCount : Nat
+
+private def batchVectors (limits : Limits) (bytes : KBytes) (value : Table) :
+    Except Error BatchVectors := do
   tableShape value 5
   let rowCount ← scalar bytes value 0 8
   check (rowCount < 2^63)
   if rowCount > limits.rows then throw (.limit .rows)
   let (nodeFirst, nodeCount) ← vector bytes value 1 16 8
   let (bufferFirst, bufferCount) ← vector bytes value 2 16 8
-  if nodeCount > limits.fields || bufferCount > 3 * limits.fields then
+  return ⟨rowCount, nodeFirst, nodeCount, bufferFirst, bufferCount⟩
+
+private def readNodeAt (bytes : KBytes) (first index : Nat) : Except Error FieldNode := do
+  let pos := first + 16 * index
+  return ⟨← natural64 bytes pos, ← natural64 bytes (pos + 8)⟩
+
+private def readBufferAt (bytes : KBytes) (first index : Nat) : Except Error Buffer := do
+  let pos := first + 16 * index
+  return ⟨← natural64 bytes pos, ← natural64 bytes (pos + 8)⟩
+
+private def batch (limits : Limits) (bytes : KBytes) (value : Table) :
+    Except Error RecordBatch := do
+  let vectors ← batchVectors limits bytes value
+  if vectors.nodeCount > limits.fields || vectors.bufferCount > 3 * limits.fields then
     throw (.limit .fields)
   noTable bytes value 3 .compression
   emptyVector bytes value 4 8 8 .variadicBuffers
-  let nodes ← (List.range nodeCount).mapM fun index => do
-    let pos := nodeFirst + 16 * index
-    pure (FieldNode.mk (← natural64 bytes pos) (← natural64 bytes (pos + 8)))
-  let buffers ← (List.range bufferCount).mapM fun index => do
-    let pos := bufferFirst + 16 * index
-    pure (Buffer.mk (← natural64 bytes pos) (← natural64 bytes (pos + 8)))
-  return ⟨rowCount, nodes, buffers⟩
+  let nodes ← (List.range vectors.nodeCount).mapM (readNodeAt bytes vectors.nodeFirst)
+  let buffers ← (List.range vectors.bufferCount).mapM (readBufferAt bytes vectors.bufferFirst)
+  return ⟨vectors.rowCount, nodes, buffers⟩
 
 private def messageParts (limits : Limits) (bytes : KBytes) :
     Except Error (Nat × Table × Nat) := do
@@ -293,6 +338,36 @@ private def messageParts (limits : Limits) (bytes : KBytes) :
   if bodyLength ≥ 2^63 then throw (.malformed .bodyLength)
   emptyVector bytes value 4 4 4 .customMetadata
   return (tag, payload, bodyLength)
+
+/-- Read V5 RecordBatch metadata for one preselected BinaryView or Utf8View
+field. Validate the singleton count vector and descriptor cardinality
+before reading its individual descriptors. -/
+public def BinaryView.readBatchMetadata (limits : Limits) (maxDataBuffers : Nat) (bytes : KBytes) :
+    Except BinaryView.MetadataError (BinaryView.BatchMetadata bytes maxDataBuffers) := do
+  let (tag, payload, bodyLength) ← (messageParts limits bytes).mapError .metadata
+  if tag ≠ 3 then throw (.metadata (.unsupported (.messageKind tag)))
+  let vectors ← (batchVectors limits bytes payload).mapError .metadata
+  if vectors.nodeCount > limits.fields then throw (.metadata (.limit .fields))
+  if vectors.nodeCount ≠ 1 then throw (.nodeCount vectors.nodeCount)
+  (noTable bytes payload 3 .compression).mapError .metadata
+  let (first, entries) ← (vector bytes payload 4 8 8).mapError .metadata
+  if entries ≠ 1 then throw (.countCardinality entries)
+  match word : bytes.readLE first 8 with
+  | none => throw (.metadata (.malformed .flatbuffer))
+  | some count =>
+    if signed : count < 2^63 then
+      if within : count ≤ maxDataBuffers then
+        if vectors.bufferCount ≠ 2 + count then
+          throw (.descriptorCount (2 + count) vectors.bufferCount)
+        let node ← (readNodeAt bytes vectors.nodeFirst 0).mapError .metadata
+        let validity ← (readBufferAt bytes vectors.bufferFirst 0).mapError .metadata
+        let views ← (readBufferAt bytes vectors.bufferFirst 1).mapError .metadata
+        let data ← Vector.ofFnM
+          (fun index : Fin count => (readBufferAt bytes vectors.bufferFirst (2 + index.val)).mapError .metadata)
+        return ⟨vectors.rowCount, bodyLength, node, validity, views, first, count, data,
+          word, signed, within⟩
+      else throw .dataBufferLimit
+    else throw .negativeCount
 
 /-- Read a standalone V5 Schema message. The normalized type payloads and
 schema byte order are available to readers without changing the existing IPC AST. -/
