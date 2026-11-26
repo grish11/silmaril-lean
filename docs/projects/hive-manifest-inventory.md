@@ -48,6 +48,30 @@ The caller supplies every occurrence. Directory enumeration, broad
 hidden-file filtering, summary-based schema planning and scheduling are
 outside this profile.
 
+## Opt-in ordering for a supplied listing
+
+`Manifest.prepareOrderedInventory` uses the same bounded admission before
+sorting. A bad declaration still reports its original index, and controls
+and repeats still count against the original limits. On success it sorts the
+typed files by the full original path using ascending Lean string order.
+This compares literal spellings case-sensitively. For example, the percent
+sign sorts before a digit and no percent decoding is applied to the sort key.
+
+The sort is stable and retains all occurrences. Distinct spellings with the
+same canonical directory stay distinct, and identical literal paths are
+kept as repeated scan inputs. The typed partition cells travel with each
+file. `Inventory.orderFiles_perm` proves preservation of the full typed list
+up to permutation. `Inventory.orderFiles_paths_eq_of_perm` proves that the
+sorted lookup sequence depends only on the multiset of admitted keys.
+These guarantees concern admitted inputs. Failure precedence follows the
+listing's original order.
+
+Callers using the paired checked path ingress can apply `Inventory.orderFiles`
+to its successful result. `Inventory.orderFiles_paths` and the paired ingress
+path-preservation law show that this supplies the sorted original keys to
+the existing paired opener. The scan's action budget applies when callers
+run the scan over those entries. All listing enumeration stays with the caller.
+
 ## Independent fixture
 
 [Fixture generator](../../scripts/hive-inventory-oracle/Oracle.py) ·
@@ -63,6 +87,10 @@ scan of those paths in the supplied occurrence order reads
 `(10, 7), (20, null), (10, 7), (30, 9)` for `(value, year)`. Passing the
 full explicit list fails on `_SUCCESS`. Silmaril admits the mixed inventory
 and reads the same ordered nullable rows to EOS using its checked reader.
+The opt-in ordering control reverses the supplied listing, then checks
+`(10, 7), (10, 7), (30, 9), (20, null)` to EOS. PyArrow supplies the data-file
+membership, and the oracle sorts those literal occurrences using UTF-8 bytes
+before explicit readback. The oracle exercises the caller's ordering policy.
 
 Spark 4.1.0 evidence comes from source inspection. Spark excludes controls
 from data discovery under a broader policy and can use the summaries for

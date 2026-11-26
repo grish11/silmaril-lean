@@ -1,9 +1,12 @@
 module
 
 import Silmaril.Data.IncludeBytes
+import Silmaril.Formats.Hive.Manifest.Inventory.Ordered.Thms
 import Silmaril.Formats.Hive.Manifest.Inventory.Thms
+import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Ingress.Thms
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.FlatInt32.Defs
 meta import Silmaril.Data.IncludeBytes
+meta import Silmaril.Formats.Hive.Manifest.Inventory.Ordered.Defs
 meta import Silmaril.Formats.Hive.Manifest.Inventory.Defs
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.FlatInt32.Defs
 
@@ -82,14 +85,15 @@ private def lookup : String → Except String Bytes
     .ok ⟨include_bytes "../../../../../tools/parquet-flat-scan/fixtures/hive-inventory/year=9/part-b.parquet"⟩
   | _ => .error "literal path missing"
 
-private def observe (declared : List String) :
-    Option (List (List (Option Int32)) ×
-      Events.Termination (FileError (Snapshot.Error (Snapshot.FlatInt32.Error String)))) :=
-  (admit declared).toOption.map fun files =>
-    let projection := Scan.Projection.id (schema.extend physical)
-    let trace := scan (flatInt32SnapshotOpener (physical := physical) {} lookup)
-      projection (fun _ => some true) files
-    (trace.rows.map (fun row => List.ofFn fun i => (row i : Option Int32)), trace.termination)
+private def observeFiles (files : List (File schema Cell)) :
+    List (List (Option Int32)) ×
+      Events.Termination (FileError (Snapshot.Error (Snapshot.FlatInt32.Error String))) :=
+  let projection := Scan.Projection.id (schema.extend physical)
+  let trace := scan (flatInt32SnapshotOpener (physical := physical) {} lookup)
+    projection (fun _ => some true) files
+  (trace.rows.map (fun row => List.ofFn fun i => (row i : Option Int32)), trace.termination)
+
+private def observe (declared : List String) := (admit declared).toOption.map observeFiles
 
 #guard observe mixed =
   some ([[some 10, some 7], [some 20, none], [some 10, some 7], [some 30, some 9]], .eos)
@@ -97,6 +101,38 @@ private def observe (declared : List String) :
 #guard observe ["year=7/part-a.parquet"] =
   some ([], .readError (.open "year=7/part-a.parquet" (.input (.lookup "literal path missing"))))
 
+private def admitOrdered (declared : List String) (bounds : Limits := limits) :=
+  prepareOrderedInventory physical schema bounds {} convert declared
+
+private def orderedPaths (declared : List String) (bounds : Limits := limits) :=
+  (admitOrdered declared bounds).map (List.map (·.path.declared))
+
+#guard orderedPaths mixed == .ok [escaped, escaped, other, nullPartition]
+#guard orderedPaths mixed.reverse == orderedPaths mixed
+#guard (admitOrdered mixed.reverse).toOption.map observeFiles =
+  some ([[some 10, some 7], [some 10, some 7], [some 30, some 9], [some 20, none]], .eos)
+#guard orderedPaths ["year=7/part-a.parquet", escaped, "year=7/part-a.parquet"] ==
+  .ok [escaped, "year=7/part-a.parquet", "year=7/part-a.parquet"]
+#guard orderedPaths ["year=7/_success", "_SUCCESS", "year=7/%5FSUCCESS"] ==
+  .ok ["year=7/%5FSUCCESS", "year=7/_success"]
+#guard orderedPaths ["_SUCCESS", "_metadata", "_common_metadata"] == .ok []
+#guard orderedPaths mixed.reverse ⟨6, 128⟩ == .error (.entryLimit 6)
+#guard orderedPaths [nullPartition, "z//bad.parquet", "../a.parquet", escaped] ==
+  .error (.entry 1 (.relativePath "z//bad.parquet" .invalidSegment))
+
+example {int32 byteArray : Int32ByteArrayGroup.Field}
+    {partitions : PartitionSchema Int32ByteArrayGroup.File.Kind} {options : PartitionPath.Options}
+    {listing : List String} {files : List (File partitions Int32ByteArrayGroup.File.Value)}
+    (admitted : Int32ByteArray.Ingress.preparePaths int32 byteArray partitions options listing = .ok files) :
+    (orderFiles files).map (·.path.declared) =
+      listing.mergeSort (fun a b => decide (a ≤ b)) := by
+  rw [orderFiles_paths, Int32ByteArray.Ingress.preparePaths_preserves_paths int32 byteArray admitted]
+
 #print axioms Manifest.prepareInventory_eq_reference
+#print axioms orderFiles_perm
+#print axioms orderFiles_paths
+#print axioms orderFiles_paths_eq_of_perm
+#print axioms Manifest.prepareOrderedInventory_eq_reference
+#print axioms Manifest.prepareOrderedInventory_error_iff
 
 end Silmaril.Formats.Hive.Manifest.Inventory

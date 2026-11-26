@@ -60,6 +60,23 @@ assert rows == [
     {"value": 10, "year": 7},
     {"value": 30, "year": 9},
 ]
+# Directory discovery establishes membership. Caller-side bytewise ordering
+# defines the successful manifest even if the listing arrives reversed.
+permuted_inventory = list(reversed(inventory))
+ordered_paths = sorted((path for path in permuted_inventory if path in selected_set), key=str.encode)
+assert ordered_paths == [escaped, escaped, other, null_partition]
+ordered_dataset = ds.dataset(
+    [str(root / path) for path in ordered_paths], format="parquet", partitioning=partitions,
+    partition_base_dir=str(root), exclude_invalid_files=False,
+)
+ordered_rows = ordered_dataset.to_table(use_threads=False).to_pylist()
+assert ordered_rows == [
+    {"value": 10, "year": 7},
+    {"value": 10, "year": 7},
+    {"value": 30, "year": 9},
+    {"value": 20, "year": None},
+]
+
 try:
     ds.dataset(
         [str(root / path) for path in inventory], format="parquet", partitioning=partitions,
@@ -80,6 +97,8 @@ observation = {
     "directory_discovered": sorted(selected_set),
     "selected_occurrences": selected,
     "ordered_typed_rows": rows,
+    "lexical_occurrences": ordered_paths,
+    "lexical_rows": ordered_rows,
     "unfiltered_explicit_inventory_error": explicit_unfiltered,
     "sha256": {path: hashlib.sha256((root / path).read_bytes()).hexdigest() for path in paths},
 }
