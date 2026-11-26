@@ -8,7 +8,7 @@ public section
 namespace Silmaril.Formats.Hive.ParquetScan
 
 open Silmaril.Relational Silmaril.Formats.Arrow
-open Silmaril.Formats.Hive.TypedPartitions (PartitionSchema extendRow)
+open Silmaril.Formats.Hive.TypedPartitions (PartitionSchema extendRow partitionCells)
 
 variable {Kind Error : Type*} {Value : Kind → Type*}
 variable {physical : Scan.Schema String Kind} {schema : PartitionSchema Kind}
@@ -39,6 +39,31 @@ theorem rows_extendTrace (trace : Events.Trace physical Value Error)
     (cells : Scan.Row schema.toScan Value) :
     (extendTrace trace cells).rows = trace.rows.map (fun row => extendRow row cells) :=
   Proofs.Formats.Hive.ParquetScan.rows_extendTrace trace cells
+
+/-- Hoisting preserves the ordered rows and the terminal outcome of one partition. -/
+theorem scanPartition_observation (projection : Scan.Projection (schema.extend physical))
+    (predicate : Scan.Predicate schema.toScan Value) (part : Partition physical schema Value Error) :
+    let rowwise := part.augmented.scan projection (fun row => predicate (partitionCells row))
+    let hoisted := scanPartition projection predicate part
+    hoisted.rows = rowwise.rows ∧ hoisted.termination = rowwise.termination :=
+  Proofs.Formats.Hive.ParquetScan.scanPartition_observation projection predicate part
+
+/-- Logical scanning commutes with ordered trace assembly. -/
+theorem assemble_scan {Item : Type*} {input : Scan.Schema String Kind}
+    (traceOf : Item → Events.Trace input Value Error) (items : List Item)
+    (projection : Scan.Projection input) (predicate : Scan.Predicate input Value) :
+    (assemble traceOf items).scan projection predicate =
+      assemble (fun item => (traceOf item).scan projection predicate) items :=
+  Proofs.Formats.Hive.ParquetScan.assemble_scan traceOf items projection predicate
+
+/-- Matching per-item observations preserve ordered assembly, including its first terminal failure. -/
+theorem assemble_observation {Item : Type*} {output : Scan.Schema String Kind}
+    (left right : Item → Events.Trace output Value Error) (items : List Item)
+    (equal : ∀ item, (left item).rows = (right item).rows ∧
+      (left item).termination = (right item).termination) :
+    (assemble left items).rows = (assemble right items).rows ∧
+      (assemble left items).termination = (assemble right items).termination :=
+  Proofs.Formats.Hive.ParquetScan.assemble_observation left right items equal
 
 /-- Both scans observe ordered projected rows and the same terminal outcome.
 Batch boundaries can differ. This compares supplied traces, with no open skipping. -/
