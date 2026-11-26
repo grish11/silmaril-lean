@@ -74,6 +74,13 @@ def Batch.rows (batch : Batch) : List (List (Option Int32)) :=
     (List.replicate batch.rowCount [])
   reversed.map List.reverse
 
+private def flatField {ε : Type} (node : Footer.SchemaElement) : Except (Error ε) Field := do
+  if node.physicalType != some .int32 || node.numChildren.getD 0 != 0 then throw .schema
+  match node.repetition with
+  | some .required => pure (⟨node.name, .required⟩ : Field)
+  | some .optional => pure ⟨node.name, .optional⟩
+  | _ => throw .schema
+
 /-- Validate the footer schema for this profile and return the leaves in wire
 order. An opener can check the ordered names and layouts without reading any
 row groups. `limits.maxColumns` bounds the schema width. -/
@@ -84,12 +91,7 @@ def flatSchema {ε : Type} (limits : Limits) (schema : List Footer.SchemaElement
   if root.physicalType.isSome || root.typeLength.isSome ||
       (root.repetition != none && root.repetition != some .required) ||
       root.numChildren != some (Int.ofNat children.length) then throw .schema
-  let fields ← children.mapM fun node => do
-    if node.physicalType != some .int32 || node.numChildren.getD 0 != 0 then throw .schema
-    match node.repetition with
-    | some .required => pure (⟨node.name, .required⟩ : Field)
-    | some .optional => pure ⟨node.name, .optional⟩
-    | _ => throw .schema
+  let fields ← children.mapM flatField
   if !(fields.map (·.name)).Nodup then throw .duplicateField
   pure fields
 
