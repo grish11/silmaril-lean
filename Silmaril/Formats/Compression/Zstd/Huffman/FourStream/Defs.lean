@@ -100,6 +100,11 @@ inductive ChunksWire (table : SingleStream.Table) : List Chunk → List (List UI
       ChunkWire table chunk out → ChunksWire table chunks suffix →
       ChunksWire table (chunk :: chunks) (out :: suffix)
 
+def DecodedWire (table : SingleStream.Table) (declared regenerated : Nat)
+    (input out : List UInt8) : Prop :=
+  ∃ parts output, ExtentsWire declared input parts ∧ CountsWire regenerated parts ∧
+    ChunksWire table parts.chunks output ∧ out = output.flatten
+
 namespace Internal
 
 def decodeChunks (table : SingleStream.Table) : Nat → List Chunk → Except Error (List (List UInt8))
@@ -110,6 +115,12 @@ def decodeChunks (table : SingleStream.Table) : Nat → List Chunk → Except Er
     return out :: suffix
 
 end Internal
+
+/-- Decode an exact four-stream payload with the caller's checked table. -/
+def decodeTable (limits : Limits) (table : SingleStream.Table)
+    (declared regenerated : Nat) (input : List UInt8) : Except Error (List UInt8) := do
+  let parts ← split limits declared regenerated input
+  (Internal.decodeChunks table 1 parts.chunks).map List.flatten
 
 /-- Decode four exact streams using a single table built from direct-profile
     weights. The jump-table splitter is independent of the tree profile. -/
