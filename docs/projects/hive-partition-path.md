@@ -79,3 +79,52 @@ python3 tests/formats/hive-partition/oracles.py --hive-jars /path/to/jars
 This runs PyArrow parse and selected format cases, and the Hive release's
 `FileUtils.makePartName` against the same fixture manifest. These oracles are
 standalone checks and require no changes to the root build configuration.
+
+## Opt-in literal Hive file paths
+
+[`Manifest.Literal.prepareFile`](../../Silmaril/Formats/Hive/Manifest/Literal/Defs.lean)
+supports the overlapping strict relative-path profile of PyArrow 26.0.1
+`HivePartitioning(segment_encoding="none")`. It checks a caller-supplied UTF-8
+byte limit on the complete declared file path before lexical or binding
+checks. It then splits the parent and opaque leaf, splits each directory
+segment at its first literal equals sign, and binds the resulting raw
+strings against the supplied partition schema. Duplicate and required-key
+checks use literal keys. Empty text is present, and an empty marker is
+invalid. Like ordinary single-file preparation, this function assumes the
+caller has checked the schema against the physical columns. PyArrow's
+broader directory handling and inference are outside this profile.
+
+Only exact literal equality with the configured marker yields a null.
+For example, `%5f_HIVE_DEFAULT_PARTITION__` is present text in literal mode,
+and means null in URI mode. `value_of_uri_marker_alias` proves the distinction
+for any non-marker spelling that URI-decodes to the marker.
+`prepareFile_path` proves the exact declared lookup key and byte bound.
+The canonical directory uses the existing internal URI rendering. The
+opener uses the unchanged declared string, including the leaf's original
+case and percent spelling.
+
+The bounded API covers reading supplied paths. The pinned PyArrow formatter
+still URI-escapes present values in either parsing mode. In both modes it
+prints null and literal `__HIVE_DEFAULT_PARTITION__` as the same segment.
+That wire spelling therefore cannot recover whether the producer supplied
+null or literal text. The existing Silmaril URI renderer refuses the literal
+marker. The pinned Hive 4.1.0 fixture goes further and shows empty text
+printing the marker too. Spark 4.1.0 source checks the raw spelling before
+casting string values and then uses its own unescape routine. That source
+evidence does not establish Spark parser equivalence.
+[PyArrow source](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/cpp/src/arrow/dataset/partition.cc#L689-L765) ·
+[Hive producer fixture](../../tests/formats/hive-partition/fixtures.json) ·
+[Spark source](https://github.com/apache/spark/blob/e221b56be7b6d9e48e107fc4d1cf0c15f02700f8/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/PartitioningUtils.scala#L544-L549)
+
+[The literal-mode oracle](../../scripts/hive-literal-path-oracle/Oracle.py)
+uses CPython 3.14.7, PyArrow 26.0.1 and NumPy 2.5.5 with the digest and
+wheel hashes in the [inventory replay](hive-manifest-inventory.md#independent-fixture).
+It places copies of the pinned [paired Parquet fixture](../../data/parquet-int32-byte-array-file/empty-middle-v2.parquet)
+under distinct literal names and reads each under both PyArrow modes. It also
+checks actual formatter output for null, literal sentinel text, and an
+escaped spelling.
+
+```sh
+python -I scripts/hive-literal-path-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet
+lake build --wfail +Silmaril.Formats.Hive.Manifest.Literal.Checks
+```
