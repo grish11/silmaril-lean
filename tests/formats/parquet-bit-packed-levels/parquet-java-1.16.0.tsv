@@ -1,0 +1,10 @@
+producer	zero-width	0	3	-	a55a	0,0,0
+producer	zero-count	7	0	-	a55a	-
+producer	nullable-mask	1	5	b0	a55a	1,0,1,1,0
+producer	non-power-of-two-bound	2	5	8600	a55a	2,0,1,2,0
+producer	spec-group	7	8	053977	a55a	0,1,2,3,4,5,6,7
+producer	second-group	7	9	05397720	a55a	0,1,2,3,4,5,6,7,1
+producer	signed-max-level	2147483647	3	fffffffe0000000000000008	a55a	2147483647,0,1
+consumer	unused-low-bits	1	5	b7	a55a	1,0,1,1,0
+consumer	spare-code	2	1	c0	a55a	3
+consumer	truncated	7	9	053977	-	0,1,2,3,4,5,6,7,0
