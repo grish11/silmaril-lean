@@ -228,6 +228,8 @@ def runStreams (directory : Option System.FilePath) : IO Unit := do
   IO.println "Arrow IPC V5 stream writer: exact metadata, ordered nullable rows, counts and EOS passed"
 
 def runFiles (directory : Option System.FilePath) : IO Unit := do
+  let oracle ← IO.FS.readFile "tests/formats/arrow-ipc/read_writer_fixtures.py"
+  check "writer oracle agrees with the embedded test input" (oracle == include_str "read_writer_fixtures.py")
   if let some path := directory then IO.FS.createDirAll path
   for (name, fields, inputs, expected) in streamCases do
     let limits := fixtureLimits fields inputs

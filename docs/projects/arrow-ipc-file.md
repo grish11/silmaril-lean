@@ -96,10 +96,11 @@ observation per input batch. It also proves the indexed metadata counts
 and observation lengths equal the declared counts, including empty batches
 and positive-row zero-column batches.
 [File writer laws](../../Silmaril/Formats/Arrow/FileWriter/Thms.lean) ·
-[Footer laws](../../Silmaril/Formats/Arrow/FooterWriter/Thms.lean)
+[Footer laws](../../Silmaril/Formats/Arrow/FooterWriter/Thms.lean) ·
+[Axiom audit](../../Silmaril/Formats/Arrow/FileWriter/Axioms.lean)
 
 ```sh
-lake build --wfail +Silmaril.Formats.Arrow.FileWriter.Thms arrow_ipc_metadata_tests
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.FileWriter.Axioms arrow_ipc_metadata_tests'
 .lake/build/bin/arrow_ipc_metadata_tests --write-file-fixtures /tmp/arrow-files
 python3 -I tests/formats/arrow-ipc/read_writer_fixtures.py --files /tmp/arrow-files
 ```
