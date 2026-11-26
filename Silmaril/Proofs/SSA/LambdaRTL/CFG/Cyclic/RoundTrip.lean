@@ -63,7 +63,7 @@ private theorem hit (model : Model F M α) {rename : V → W} {regs : Finset V}
   rw [body_rename model injective _ covered]
   exact block_input model block closed (by simp [upd])
 
-private theorem step_rename (model : Model F M α) {rename : V → W} {regs : Finset V}
+private theorem step_rename_table (model : Model F M α) {rename : V → W} {regs : Finset V}
     (injective : Set.InjOn rename regs) (table : List (K × Block V K F))
     (covered : ∀ item ∈ table, item.2.body.toRegion.vars ⊆ regs)
     (closed : ∀ item ∈ table, item.2.body.toRegion.fv ⊆ {item.2.param})
@@ -86,38 +86,58 @@ private theorem step_rename (model : Model F M α) {rename : V → W} {regs : Fi
         ih (fun item member => covered item (List.mem_cons_of_mem _ member))
           (fun item member => closed item (List.mem_cons_of_mem _ member))
 
-variable [Iterate M] [LawfulElgotMonad M]
-
-private theorem run_rename (model : Model F M α) (graph : CFG V K F) {rename : V → W}
+theorem step_rename (model : Model F M α) (graph : CFG V K F) {rename : V → W}
     (injective : Set.InjOn rename (support graph))
-    (closed : ∀ item ∈ graph.blocks, item.2.body.toRegion.fv ⊆ {item.2.param})
-    (store : W → α) :
-    obs <$> Cyclic.run model (renameGraph rename graph) store =
-      Cyclic.runSSA model graph (store ∘ rename) := by
+    (closed : PacketClosed graph) (input : V → α) (transfer : Transfer W K α) :
+    Sum.map obs obs <$> Cyclic.step model (renameGraph rename graph).blocks transfer =
+      Cyclic.stepSSA model graph.blocks input (obs transfer) := by
   have covered : ∀ item ∈ graph.blocks, item.2.body.toRegion.vars ⊆ support graph := by
     intro item member reg used
     exact Finset.mem_union_right _ (List.mem_toFinset.mpr (List.mem_flatMap.mpr
       ⟨item, member, List.mem_cons_of_mem _ (Finset.mem_toList.mpr used)⟩))
-  have commute (transfer : Transfer W K α) :
-      Sum.map obs obs <$> Cyclic.step model (renameGraph rename graph).blocks transfer =
-        Cyclic.stepSSA model graph.blocks (store ∘ rename) (obs transfer) := by
-    rcases transfer with ⟨label, payload, next⟩
-    exact step_rename model injective graph.blocks covered closed _ label payload next
+  rcases transfer with ⟨label, payload, store⟩
+  exact step_rename_table model injective graph.blocks covered closed input label payload store
+
+variable [Iterate M] [LawfulElgotMonad M]
+
+theorem run_rename (model : Model F M α) (graph : CFG V K F) {rename : V → W}
+    (injective : Set.InjOn rename (support graph)) (closed : PacketClosed graph)
+    (input : V → α) (store : W → α)
+    (entry_agrees : ∀ reg ∈ graph.entry.toRegion.fv, store (rename reg) = input reg) :
+    obs <$> Cyclic.run model (renameGraph rename graph) store =
+      Cyclic.runSSA model graph input := by
   have entry : (renameBody rename graph.entry).evalJump model store =
-      graph.entry.evalJump model (store ∘ rename) :=
-    body_rename model injective _ (fun _ used => Finset.mem_union_left _ used) store
+      graph.entry.evalJump model input := by
+    rw [body_rename model injective _ (fun _ used => Finset.mem_union_left _ used),
+      Body.evalJump_eq_evalSSA, Body.evalJump_eq_evalSSA]
+    exact Region.evalSSA_congr model _ entry_agrees
   rw [Cyclic.run, Cyclic.runSSA, ← entry, Body.evalJump]
   simp only [renameGraph, Body.exec_eq_evalRTL, map_bind, bind_assoc, pure_bind]
   apply bind_congr
   intro transfer
-  exact iter_obs_of_step_encoding model _ obs _ commute transfer
+  exact iter_obs_of_step_encoding model _ obs _ (step_rename model graph injective closed input) transfer
 
 theorem roundTrip_run_obs [Infinite V] (model : Model F M α) (pairs : model.PairLawful)
     (graph : CFG V K F) (store : V → α) :
     obs <$> Cyclic.run model (Versioning.roundTrip graph) store = obs <$> Cyclic.run model graph store := by
-  rw [Versioning.roundTrip, run_rename model _ (deversion_injOn _) (fun item member =>
-    Region.fv_subset_of_isSSA (Versioning.compile_blocks_areSSA graph item member))]
-  simpa [Function.comp_def] using (Versioning.run_commutes model pairs graph
-    (store ∘ Silmaril.SSA.LambdaRTL.RoundTrip.deversion (support (Versioning.compile graph)))).symm
+  let rename := Silmaril.SSA.LambdaRTL.RoundTrip.deversion (support (Versioning.compile graph))
+  rw [Versioning.roundTrip, deversionGraph, run_rename model _ (deversion_injOn _)
+    (fun item member => Region.fv_subset_of_isSSA (Versioning.compile_blocks_areSSA graph item member))
+    (store ∘ rename) store (fun _ _ => rfl)]
+  simpa [rename, Function.comp_def] using
+    (Versioning.run_commutes model pairs graph (store ∘ rename)).symm
+
+theorem runSSA_deversion_reversion [Infinite V] (model : Model F M α) (pairs : model.PairLawful)
+    (graph : CFG (V × Nat) K F) (closed : PacketClosed graph)
+    (entry_zero : ∀ reg ∈ graph.entry.toRegion.fv, reg.2 = 0) (input : V × Nat → α) :
+    Cyclic.runSSA model (Versioning.compile (deversionGraph graph)) input =
+      Cyclic.runSSA model graph input := by
+  rw [← Versioning.run_commutes model pairs, deversionGraph]
+  apply run_rename model graph (deversion_injOn _) closed
+  rintro ⟨reg, version⟩ used
+  have zero := entry_zero (reg, version) used
+  change version = 0 at zero
+  subst version
+  simp
 
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.CyclicRoundTrip

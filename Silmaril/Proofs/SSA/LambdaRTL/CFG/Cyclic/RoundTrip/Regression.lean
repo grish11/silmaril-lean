@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.RoundTrip.Thms
+import Silmaril.SSA.LambdaRTL.Thms
 import Silmaril.Semantics.Elgot.Thms
 import Mathlib.Data.Nat.Pairing
 
@@ -86,5 +87,79 @@ example : obs <$> Cyclic.run model (Versioning.roundTrip loop) initial =
     Part.some (99, Nat.pair 7 3) := by
   rw [Versioning.roundTrip_run_obs model pairs, sourceReturns]
   rfl
+
+/-! The authored lexical graph uses a control-and-pair packet at label 10
+and a plain pair at label 20. Its packets are independent of the compiler's
+snapshot layout. -/
+
+private def lexicalHeader : Block (Nat × Nat) Nat Unit :=
+  ⟨(0, 5), .let2 (0, 1) (0, 2) (.val (.var (0, 5))) <| .term <|
+    .case (.val (.var (0, 1))) (0, 3) (.br 99 (.var (0, 2))) (0, 3) (.br 20 (.var (0, 2)))⟩
+
+private def lexicalSwap : Block (Nat × Nat) Nat Unit :=
+  ⟨(1, 7), .let2 (1, 1) (2, 1) (.val (.var (1, 7))) <| .term <|
+    .br 10 (.pair .unit (.pair (.var (2, 1)) (.var (1, 1))))⟩
+
+private def lexicalLoop : CFG (Nat × Nat) Nat Unit :=
+  ⟨.term (.br 10 (.pair (.var (0, 0)) (.pair (.var (1, 0)) (.var (2, 0))))),
+    [(10, lexicalHeader), (20, lexicalSwap)]⟩
+
+private def lexicalInput (reg : Nat × Nat) : Nat :=
+  if reg.2 = 0 then initial reg.1 else 42
+
+private theorem lexicalEntrySSA :
+    lexicalLoop.entry.toRegion.IsSSA {(0, 0), (1, 0), (2, 0)} := by
+  simp [lexicalLoop, Body.toRegion, Term.toRegion, Region.IsSSA, Val.fv, Finset.insert_comm]
+
+private theorem lexicalEntryZero : ∀ reg ∈ lexicalLoop.entry.toRegion.fv, reg.2 = 0 := by
+  intro reg used
+  have member := Region.fv_subset_of_isSSA lexicalEntrySSA used
+  simp only [Finset.mem_insert, Finset.mem_singleton] at member
+  rcases member with rfl | rfl | rfl <;> rfl
+
+private theorem lexicalClosed : PacketClosed lexicalLoop := by
+  intro item member
+  simp only [lexicalLoop, List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl
+  · apply Region.fv_subset_of_isSSA
+    simp [lexicalHeader, Body.toRegion, Term.toRegion, Region.IsSSA, Op.fv, Val.fv]
+  · apply Region.fv_subset_of_isSSA
+    simp [lexicalSwap, Body.toRegion, Term.toRegion, Region.IsSSA, Op.fv, Val.fv]
+
+-- Every compiled block has a version-zero parameter, even if its body never reads it.
+example : ¬ ∃ source : CFG Nat Nat Unit, Versioning.compile source = lexicalLoop := by
+  rintro ⟨source, equal⟩
+  have firstParam := congrArg (fun graph : CFG (Nat × Nat) Nat Unit =>
+    graph.blocks.head?.map (fun item => item.2.param.2)) equal
+  cases source with
+  | mk entry blocks =>
+    cases blocks <;> simp [Versioning.compile, Versioning.compileBlock, lexicalLoop, lexicalHeader] at firstParam
+
+private theorem lexicalReturns :
+    Cyclic.runSSA model lexicalLoop lexicalInput = Part.some (99, Nat.pair 7 3) := by
+  have entry : lexicalLoop.entry.evalJump model lexicalInput =
+      pure (10, Nat.pair 1 (Nat.pair 3 7)) := rfl
+  rw [Cyclic.runSSA, entry, pure_bind]
+  have toSwap : Cyclic.stepSSA model lexicalLoop.blocks lexicalInput (10, Nat.pair 1 (Nat.pair 3 7)) =
+      Part.some (.inr (20, Nat.pair 3 7)) := by
+    simp [Cyclic.stepSSA, lexicalLoop, lexicalHeader, Body.evalJump, Body.exec, Term.exec,
+      Op.eval, Val.eval, model, upd]
+  have back : Cyclic.stepSSA model lexicalLoop.blocks lexicalInput (20, Nat.pair 3 7) =
+      Part.some (.inr (10, Nat.pair 0 (Nat.pair 7 3))) := by
+    simp [Cyclic.stepSSA, lexicalLoop, lexicalSwap, List.lookup, Body.evalJump, Body.exec, Term.exec,
+      Op.eval, Val.eval, model, upd]
+  have toExit : Cyclic.stepSSA model lexicalLoop.blocks lexicalInput (10, Nat.pair 0 (Nat.pair 7 3)) =
+      Part.some (.inr (99, Nat.pair 7 3)) := by
+    simp [Cyclic.stepSSA, lexicalLoop, lexicalHeader, Body.evalJump, Body.exec, Term.exec,
+      Op.eval, Val.eval, model, upd]
+  have exit : Cyclic.stepSSA model lexicalLoop.blocks lexicalInput (99, Nat.pair 7 3) =
+      Part.some (.inl (99, Nat.pair 7 3)) := rfl
+  exact Part.eq_some_iff.mpr ((Silmaril.Elgot.Part.mem_iter_iff _ _ _).mpr
+    (.more (Part.eq_some_iff.mp toSwap) <| .more (Part.eq_some_iff.mp back) <|
+      .more (Part.eq_some_iff.mp toExit) <| .done (Part.eq_some_iff.mp exit)))
+
+example : Cyclic.runSSA model (Versioning.compile (deversionGraph lexicalLoop)) lexicalInput =
+    Part.some (99, Nat.pair 7 3) := by
+  rw [runSSA_deversion_reversion model pairs lexicalLoop lexicalClosed lexicalEntryZero, lexicalReturns]
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.RoundTrip

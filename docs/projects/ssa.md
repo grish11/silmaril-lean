@@ -120,6 +120,13 @@ decoder. A block receives its live-ins in that packet, so decoding never
 depends on stale register values. The result adds lawful Elgot iteration to
 the acyclic assumptions and projects away the final store.
 
+In the lexical-to-mutable-to-lexical direction, [`Cyclic.RoundTrip.runSSA_deversion_reversion`](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/RoundTrip/Thms.lean)
+compares the original and re-versioned graphs in the same lexical environment.
+The entry reads only version-zero names and each labelled body reads its free
+inputs from its packet parameter. The general renaming theorem only requires
+agreement on the entry's free inputs after renaming. The source can use a
+handwritten packet layout, as in the [non-image back-edge regression](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/RoundTrip/Regression.lean).
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`
