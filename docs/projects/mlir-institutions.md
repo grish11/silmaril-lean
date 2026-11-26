@@ -77,6 +77,37 @@ lake build --wfail +Silmaril.SSA.MLIR.Signature.FixedSorts.Examples.Thms
 make check CHECK_TARGETS=+Silmaril.SSA.MLIR.Signature.FixedSorts.Examples.Thms
 ```
 
+### Freely choosing a generator map
+
+Fix a sort type, a region flag, and a generator signature `C` in
+`Signature.FixedSorts`. An object of `Under C` consists of a signature `X`
+and a chosen renaming `c : C ⟶ X`. An arrow `f : X ⟶ X'` preserves this
+choice when `c ≫ f = c'`. The forgetful functor drops the chosen renaming.
+Its left adjoint sends `S` to the left injection `C ⟶ C ⨿ S`, using the
+fixed-sort coproduct. The natural hom equivalence sends an arrow under `C`
+to its restriction to `S`. Its inverse combines the chosen map `c` with the
+given renaming from `S` by coproduct elimination.
+
+`chosenGeneratorsMonad C` is the monad induced by this adjunction on
+`FixedSorts` for the same sort type and region flag. Its functor adds `C` on
+the left and acts on a renaming `f` by `𝟙 C ⨿ f`.
+The unit is the right injection. Multiplication from `C ⨿ (C ⨿ S)` takes the
+outer copy of `C` to the inner left injection and acts as identity on the
+inner `C ⨿ S`, so the two copies choose the same generator labels. Mathlib's
+`Monad` checks naturality of the unit and multiplication, both unit laws,
+and associativity. The construction specifies chosen renamings of labels.
+Operational control still requires an execution semantics for the relevant syntax.
+[Adjunction and component laws](../../Silmaril/SSA/MLIR/Signature/FixedSorts/ChosenGenerators/Thms.lean)
+
+The fixed-sort coproduct shares the sort type and tags the labels of both
+summands. The disjoint-sort coproduct also tags the sorts. A shared-base pushout
+starts with a span `C ← B → S` and requires its two maps out to agree on the
+image of `B`. Any identifications from that span are part of the pushout data.
+
+```sh
+lake build --wfail +Silmaril.SSA.MLIR.Signature.FixedSorts.ChosenGenerators.Thms
+```
+
 ## Sentences and models
 
 A block has one expression per yielded value. An application selects a result
