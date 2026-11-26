@@ -20,6 +20,13 @@ open Int32ByteArrayGroup.File (Kind Value)
 
 variable {Failure : Type} {int32 byteArray : Field} {partitions : PartitionSchema Kind}
 
+theorem int32ByteArraySnapshotOpener_congr_lookup (limits : Int32ByteArrayGroup.File.Limits)
+    (int32 byteArray : Field) (partitions : PartitionSchema Kind)
+    {left right : String → Except Failure Bytes} {path : String} (agree : left path = right path) :
+    int32ByteArraySnapshotOpener limits int32 byteArray partitions left path =
+      int32ByteArraySnapshotOpener limits int32 byteArray partitions right path := by
+  simp only [int32ByteArraySnapshotOpener, Int32ByteArray.openChecked, agree]
+
 theorem int32ByteArraySnapshotOpener_fullConsumption (limits : Int32ByteArrayGroup.File.Limits)
     (int32 byteArray : Field) (partitions : PartitionSchema Kind) (lookup : String → Except Failure Bytes) :
     Opener.FullConsumption (int32ByteArraySnapshotOpener limits int32 byteArray partitions lookup) := by

@@ -15,6 +15,15 @@ open Int32ByteArrayGroup.File (Kind Value)
 
 variable {Failure : Type} {int32 byteArray : Field} {partitions : PartitionSchema Kind}
 
+/-- A checked open takes its bytes from the resolver at the literal key. -/
+theorem int32ByteArraySnapshotOpener_congr_lookup (limits : Int32ByteArrayGroup.File.Limits)
+    (int32 byteArray : Field) (partitions : PartitionSchema Kind)
+    {left right : String → Except Failure Bytes} {path : String} (agree : left path = right path) :
+    int32ByteArraySnapshotOpener limits int32 byteArray partitions left path =
+      int32ByteArraySnapshotOpener limits int32 byteArray partitions right path :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.int32ByteArraySnapshotOpener_congr_lookup
+    limits int32 byteArray partitions agree
+
 /-- Each paired open sets one pull per group and one for EOS. Closing its
 immutable cursor succeeds for every remaining suffix. -/
 theorem int32ByteArraySnapshotOpener_fullConsumption (limits : Int32ByteArrayGroup.File.Limits)

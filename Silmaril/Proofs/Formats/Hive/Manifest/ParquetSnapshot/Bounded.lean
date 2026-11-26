@@ -18,6 +18,22 @@ open Silmaril.Formats.Hive.TypedPartitions (PartitionSchema extendRow)
 variable {Group ReadError Kind Failure : Type*} {Value : Kind → Type*}
 variable {physical : Scan.Schema String Kind} {schema : PartitionSchema Kind}
 
+theorem scanBounded_congr_opener {left right : Opener Group physical Value ReadError}
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    (budget : Nat) (files : List (File schema Value))
+    (agree : ∀ file ∈ files, left file.path.declared = right file.path.declared) :
+    scanBounded left projection keep budget files = scanBounded right projection keep budget files := by
+  induction files generalizing budget with
+  | nil => rfl
+  | cons file rest ih =>
+    cases budget with
+    | zero => rfl
+    | succ pulls =>
+      rw [scanBounded, scanBounded, agree file (by simp)]
+      split
+      · rfl
+      · rw [ih _ (fun entry mem => agree entry (List.mem_cons_of_mem _ mem))]
+
 private theorem readFile_prefix (source : Reader.Source Group physical Value ReadError)
     (pulls : Nat) (close : ∀ rest, source.close rest = .ok ()) :
     ParquetScan.readFile source pulls =

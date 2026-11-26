@@ -15,6 +15,14 @@ variable {physical : Scan.Schema String Kind} {schema : PartitionSchema Kind}
 
 variable {Group ReadError : Type*}
 
+/-- The pure bounded trace depends on the opener only at manifest keys. -/
+theorem scanBounded_congr_opener {left right : Opener Group physical Value ReadError}
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    (budget : Nat) (files : List (File schema Value))
+    (agree : ∀ file ∈ files, left file.path.declared = right file.path.declared) :
+    scanBounded left projection keep budget files = scanBounded right projection keep budget files :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.scanBounded_congr_opener projection keep budget files agree
+
 /-- Full-consumption openers admit a cost witness for every finite manifest. -/
 theorem scanCost_exists (opener : Opener Group physical Value ReadError)
     (admitted : opener.FullConsumption) (files : List (File schema Value)) :

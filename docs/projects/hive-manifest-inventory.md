@@ -73,6 +73,24 @@ path-preservation law show that this supplies the sorted original keys to
 the existing paired opener. The scan's action budget applies when callers
 run the scan over those entries. All listing enumeration stays with the caller.
 
+## Bounded skip-open composition
+
+`prepareOrderedInventory_scanSkippingRejected_eq_reference` identifies the
+result of ordered admission followed by bounded paired skip-open scan.
+It gives the original indexed admission error or the same complete trace
+as bounded traversal of the sorted records after stable partition filtering.
+This includes aligned batch boundaries, the selected prefix, and the first
+reached typed failure in retained order. The budget charges the existing
+open, group pull, and explicit file EOS actions on retained occurrences.
+
+`scanOrderedSkippingRejected_congr_lookup` proves that only the resolver's
+results at retained literal keys can affect the pure scan. Rejected
+occurrences are removed before traversal, so they cause no resolve step.
+If the same key also has a retained occurrence, that occurrence can still
+resolve it. Equal sort keys keep tie order. Reordering two tied records
+with different cells can change the rows. These laws express pure trace
+behavior over supplied inputs.
+
 ## Independent fixture
 
 [Fixture generator](../../scripts/hive-inventory-oracle/Oracle.py) ·
