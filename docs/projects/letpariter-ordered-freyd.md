@@ -289,24 +289,24 @@ for result-dependent Kleisli continuations.
 `Behavior.shared_store_interchange_strict` witnesses a singleton
 observation from store `0` to `2` with result `(1,())` that admits
 the left write and read before the right write. Staging the writes
-before the read excludes that result. The checked pairing adapter
-uses those pure-map and tuple laws. Its `PUnit` law follows from
-`parallel_ret_right`, `mapResult_comp` and `bind_ret`. One
-concrete syntax soundness instantiation at `Behavior Nat` can use
-the read and two write primitives from that witness. The draft
-generic interpreter in #3715 exposes `LetParIter.sound` for this
-instantiation and `denote_embed` for agreement with native terms.
-Both declarations concern monadic denotations. The generic equation
-theory has pure-map and guarded-case laws, and leaves the directed
-rule above optional. [Iteration laws][brookes-iter] · [Parallel laws
-and witness][brookes-par] · [Generic pairing contract][generic] ·
-[Draft typed soundness and native agreement][generic-soundness]
+before the read excludes that result. [Iteration laws][brookes-iter] ·
+[Parallel laws and witness][brookes-par]
 
-The Lean bridge from the abstract ordered Freyd contract to the new
-syntax and the concrete Brookes instantiation remain open. The Brookes
-carrier observes finite possible completions. Contextual full
-abstraction, fairness, and operational adequacy for a full SC scheduler
-require separate results. [Brookes, journal §§7 and 10][brookes] ·
+A temporary Lean probe constructed `ParallelPairing (Behavior Store)`
+against Brookes revision `26c8bc210c58370d5f168f31421bd546c3f192a1`
+and generic pairing revision `3f83340976bd41c746c123ca832b2c8e834a09e1`.
+It used the pure-map and tuple laws, including `parallel_ret_right`,
+`mapResult_comp` and `bind_ret` for the `PUnit` unitor. The probe
+checked the adapter fields and Elgot instance synthesis. The generic
+syntax theorems `LetParIter.sound` and `denote_embed` concern
+monadic denotations. Integrating the probe's model with those
+theorems is a separate development. [Generic pairing contract][generic] ·
+[Typed soundness and native agreement][generic-soundness]
+
+The ordered Freyd interface and context-sharing arguments are
+mathematical. The Brookes carrier observes finite possible completions.
+Contextual full abstraction, fairness, and operational adequacy for a
+full SC scheduler require separate results. [Brookes, journal §§7 and 10][brookes] ·
 [Finite Brookes core guide](sc-brookes.md)
 
 Check the two generic Lean consequences with
