@@ -42,7 +42,7 @@ theorem Operand.preserves_run {Γ : List PacketType} {ty : PacketType}
 
 /-- Inserting the scheduled binders preserves the written entry and its actual
 old block iteration as complete weak trees. -/
-theorem Lifted.preserves_run (lifted : Lifted sig context source) (instr : Primitive E F α) (env : Env α) :
+theorem Lifted.preserves_run (lifted : Lifted sig context packets outputs source) (instr : Primitive E F α) (env : Env α) :
     region instr env source.erase = region instr env lifted.code.erase :=
   Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.RequestPrefix.EffectfulEntry.Multiple.Computed.preserves_run
     lifted instr env
@@ -52,7 +52,18 @@ theorem Compiled.preserves_run (built : Compiled sig context packets outputs sou
     region instr env source.erase = region instr env built.checked.prepared.emitted.code.erase :=
   (built.lifted.preserves_run instr env).trans (built.checked.preserves_run instr env)
 
-/-- Compare the original computed request with the exact packed readback
+/-- The packed row at an original block index is exactly that block with
+the outward labels relocated for the outlined rows and entry dispatcher. -/
+theorem Compiled.old_row (built : Compiled sig context packets outputs source) (i : Fin blocks) :
+    (built.checked.publicReadback.packed.target.block
+      ((oldLabel built.checked.outlined.count i).castSucc.cast built.checked.publicReadback.provenance.count)).erase =
+      ((source.block i).erase.renameLabels (moveExit blocks built.checked.outlined.count)).renameLabels
+        (moveExit (blocks + built.checked.outlined.count) 1) := by
+  rw [← built.checked.publicReadback.row_erasure, built.checked.prepared.emitted.row_eq,
+    built.checked.outlined.emitted.old_eq]
+  rfl
+
+/-- Compare the original computed entry with the exact packed readback
 at the encoded caller record and compatible primitive interpretation. -/
 theorem Compiled.public_run {A : Type 1} (built : Compiled sig context packets outputs source)
     {instr : Primitive (Event sig.Request sig.Reply) F A}

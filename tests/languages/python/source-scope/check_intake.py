@@ -2,6 +2,7 @@
 """Check the Python AST emitter, source scope and supported compiler profiles."""
 
 import argparse
+import functools
 import inspect
 import json
 import os
@@ -15,6 +16,20 @@ from types import CodeType
 ROOT = Path(__file__).resolve().parents[4]
 EMITTER = ROOT / "tools/python-source/source_ast.py"
 LAKE = os.environ.get("LAKE", "lake")
+
+# The snapshot goes through a file so nothing Lake prints can corrupt it.
+LAKE_ENVIRONMENT = ("import json, os, pathlib, sys; "
+                    "pathlib.Path(sys.argv[1]).write_text(json.dumps(dict(os.environ)))")
+
+
+@functools.cache
+def lake_environment():
+    """Return the environment Lake gives its children, entering Lake once per driver."""
+    with tempfile.TemporaryDirectory() as tmp:
+        snapshot = Path(tmp) / "environment.json"
+        subprocess.run([LAKE, "env", sys.executable, "-I", "-S", "-c", LAKE_ENVIRONMENT, str(snapshot)],
+                       cwd=ROOT, check=True)
+        return json.loads(snapshot.read_text())
 
 
 def emit(source, destination, text, *, check=True):
@@ -38,8 +53,9 @@ def check_lean(destination, regression, *, extra_imports=(), capture_output=Fals
         encoding="utf-8",
     )
     result = subprocess.run(
-        [LAKE, "env", "lean", "-DautoImplicit=false", "-DwarningAsError=true", str(destination)],
+        ["lean", "-DautoImplicit=false", "-DwarningAsError=true", str(destination)],
         cwd=ROOT,
+        env=lake_environment(),
         capture_output=capture_output,
         text=True,
     )

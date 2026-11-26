@@ -73,7 +73,7 @@ private def base : Store Nat :=
     funcs := [.wasm signature calleeModule writeThenLoad, .host hostType 7,
       .wasm program.functionType program.module program.function, .host producerType 8, .host prepare.type 9] }
 
-private def mem : Memory32 base := ⟨⟨1⟩, initial, rfl⟩
+private def mem : Memory32 base := ⟨⟨1⟩, initial, rfl, .fixed⟩
 private def host : HostSemantics Nat := fun code store operands outcome =>
   code = 7 ∧ store = mem.store written ∧ operands = [i32 23, i64 9, i32 word] ∧
     outcome = .returned (mem.store written) (.values [i32 42])
@@ -258,7 +258,7 @@ private theorem atCheckedLookup (ptr : BitVec 32) :
 
 private theorem BodyPath.calleeStep {bytes next : ByteArray} {a b : MemoryCallee.Phase}
     (path : BodyPath ⟨bytes, .memory callerSaved target a afterLookup, []⟩)
-    (move : MemoryCallee.Edge target bytes a next b) :
+    (move : MemoryCallee.Edge mem target bytes a next b) :
     BodyPath ⟨next, .afterMemory callerSaved target afterLookup b, []⟩ :=
   path.step (.memory move)
 

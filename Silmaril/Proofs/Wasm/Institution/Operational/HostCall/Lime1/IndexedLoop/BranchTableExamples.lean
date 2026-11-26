@@ -41,7 +41,7 @@ private def base : Store Nat :=
   { memories := [initial], funcs := [.wasm program.functionType program.module program.function,
       .host producerType 10, .host choose.type choose.code, .host follow.type follow.code] }
 
-private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
+private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl, .fixed⟩
 private def caller : Frame := ⟨[i32 9], {funcs := [⟨0⟩]}⟩
 private abbrev Check := Continuation.Checked base program.module [num64]
 

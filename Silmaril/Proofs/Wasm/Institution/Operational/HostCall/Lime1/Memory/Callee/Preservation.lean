@@ -3,6 +3,8 @@ module
 public import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Memory.Callee.Defs
 import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryWrite.Thms
+import Silmaril.Wasm.Institution.Operational.MemoryGrow.Thms
+import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Memory.Thms
 
 @[expose] public section
 
@@ -38,15 +40,15 @@ theorem typed_nil {callee : MemoryTarget} {stack : List Value} (typed : callee.f
   simpa [Graph.Memory32.Function.WellTyped, Graph.Memory32.Function.checkCode,
     Graph.Memory32.Function.checkRegion, Prefix.stackTypes, resultTyped] using typed
 
-private theorem tail_supported {op : Graph.Memory32.Op} {ops : List Graph.Memory32.Op}
-    (checked : (op :: ops).all MemoryTarget.supportedOp = true) :
-    ops.all MemoryTarget.supportedOp = true := by
+private theorem tail_supported {enabled : Bool} {op : Graph.Memory32.Op} {ops : List Graph.Memory32.Op}
+    (checked : (op :: ops).all (MemoryTarget.supportedOp enabled) = true) :
+    ops.all (MemoryTarget.supportedOp enabled) = true := by
   exact List.all_eq_true.mpr (fun a member => List.all_eq_true.mp checked a (List.mem_cons_of_mem _ member))
 
 theorem ready_step {H : Type} {base : Store H} {mem : Memory32 base} {callee : MemoryTarget}
     {bytes written : ByteArray} {phase next : Phase}
-    (checked : callee.Checked mem) (move : Edge callee bytes phase written next)
-    (ready : Ready callee phase) : Ready callee next := by
+    (checked : callee.Checked mem) (move : Edge mem callee bytes phase written next)
+    (ready : Ready callee mem.extent.growthEnabled phase) : Ready callee mem.extent.growthEnabled next := by
   cases move with
   | enter => exact ⟨ready, checked.supported, checked.body⟩
   | get found =>
@@ -62,6 +64,12 @@ theorem ready_step {H : Type} {base : Store H} {mem : Memory32 base} {callee : M
     obtain ⟨kept, address, operand, split, typed⟩ := Graph.Memory32.Function.store_typed ready.2.2
     obtain ⟨rfl, _⟩ := List.append_inj' split rfl
     exact ⟨ready.1, tail_supported ready.2.1, typed⟩
+  | size =>
+    exact ⟨ready.1, tail_supported ready.2.1, Graph.Memory32.Function.size_typed ready.2.2 _⟩
+  | grow _ _ | growFail =>
+    obtain ⟨kept, delta, split, typed⟩ := Graph.Memory32.Function.grow_typed ready.2.2
+    obtain ⟨rfl, _⟩ := List.append_inj' split rfl
+    exact ⟨ready.1, tail_supported ready.2.1, typed _⟩
   | loadTrap | storeTrap => exact ready.1
   | erase => exact ready
   | labelDone => exact ⟨ready.1, typed_nil ready.2.2⟩
@@ -70,11 +78,23 @@ theorem ready_step {H : Type} {base : Store H} {mem : Memory32 base} {callee : M
 
 theorem live_step {H : Type} {base : Store H} {mem : Memory32 base} {callee : MemoryTarget}
     {bytes written : ByteArray} {phase next : Phase}
-    (move : Edge callee bytes phase written next) (live : mem.Live bytes) : mem.Live written := by
+    (move : Edge mem callee bytes phase written next) (live : mem.Live bytes) : mem.Live written := by
   cases move with
   | store write =>
     have same : _ = bytes.size := MemoryWrite.closed_at write
-    exact same.trans live
+    exact mem.live_same_size live same
+  | grow enabled edge => exact mem.live_grow enabled live edge
   | _ => exact live
+
+theorem extent_mono {H : Type} {base : Store H} {mem : Memory32 base} {callee : MemoryTarget}
+    {bytes written : ByteArray} {phase next : Phase}
+    (move : Edge mem callee bytes phase written next) : bytes.size ≤ written.size := by
+  cases move with
+  | store write => exact Nat.le_of_eq (MemoryWrite.closed_at write).symm
+  | grow _ edge =>
+    rw [MemoryGrow.grown_bytes edge]
+    simp only [Memory32.current, ByteArray.size_append]
+    exact Nat.le_add_right _ _
+  | _ => exact Nat.le_refl _
 
 end Silmaril.Wasm.Institution.Operational.HostCall.Lime1.MemoryCallee.Proofs

@@ -727,7 +727,7 @@ theorem compiled_seed {A : Type 1} {Events : Type → Type}
 namespace Computed
 
 open Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.RequestPrefix.EffectfulEntry.Multiple.Computed
-  (Operand Requests Scheduled Substitution Lifted substExpr renameExpr bindSubstitution hoist)
+  (Operand Requests Scheduled Substitution Boundary Lifted substExpr renameExpr bindSubstitution hoist)
 
 variable {Δ Θ : List PacketType}
 
@@ -965,34 +965,52 @@ theorem operand_run (instr : Primitive E F α) (env : Env α) {ty : PacketType} 
       intro final _
       exact (operand_tree instr position final (readSlots position final) arg.schedule.value (fun _ => rfl)).symm
 
-private theorem entry_run (lifted : Lifted sig context source) (instr : Primitive E F α) (env : Env α) :
-    region instr env source.entry.erase = region instr env lifted.entry.erase := by
-  rw [lifted.source_eq, lifted.entry_eq, hoist, region_wrap]
-  let s := lifted.argument.schedule
-  calc
-    _ = bindRequests instr s.requests env (fun final =>
-        instr lifted.outer (evalOperand (readSlots position final) s.value) >>= fun reply =>
-          region instr (extend env reply) lifted.tail.erase) := by
-      simpa only [s, Operand.schedule, Operand.scheduleAt, region, term, bind_assoc] using
-        (schedule_run instr lifted.argument (fun slot => .var slot) env env (fun _ => rfl)
-          (fun arg => instr lifted.outer arg >>= fun reply => region instr (extend env reply) lifted.tail.erase)).symm
-    _ = _ := by
-      apply bind_scope_congr
-      intro final older
-      simp only [region, term, operand_tree instr position final (readSlots position final)
-        lifted.argument.schedule.value (fun _ => rfl), pure_bind]
-      apply bind_congr
-      intro reply
-      symm
-      apply LambdaSSA.Semantics.Interaction.region_renameVars
-      intro i
-      cases i with
-      | zero => rfl
-      | succ i => exact older i
+private theorem boundary_run {labels : Nat} {types : Fin labels → PacketType}
+    (boundary : Boundary sig context types) (instr : Primitive E F α) (env : Env α) :
+    region instr env boundary.written = region instr env boundary.lower := by
+  cases boundary with
+  | request outer argument tail =>
+    rw [Boundary.written, Boundary.lower, hoist, region_wrap]
+    let s := argument.schedule
+    calc
+      _ = bindRequests instr s.requests env (fun final =>
+          instr outer (evalOperand (readSlots position final) s.value) >>= fun reply =>
+            region instr (extend env reply) tail.erase) := by
+        simpa only [s, Operand.schedule, Operand.scheduleAt, region, term, bind_assoc] using
+          (schedule_run instr argument (fun slot => .var slot) env env (fun _ => rfl)
+            (fun arg => instr outer arg >>= fun reply => region instr (extend env reply) tail.erase)).symm
+      _ = _ := by
+        apply bind_scope_congr
+        intro final older
+        simp only [region, term, operand_tree instr position final (readSlots position final)
+          argument.schedule.value (fun _ => rfl), pure_bind]
+        apply bind_congr
+        intro reply
+        symm
+        apply LambdaSSA.Semantics.Interaction.region_renameVars
+        intro i
+        cases i with
+        | zero => rfl
+        | succ i => exact older i
+  | jump label argument =>
+    rw [Boundary.written, Boundary.lower, region_wrap]
+    calc
+      _ = bindRequests instr argument.schedule.requests env (fun final =>
+          pure (label.val, evalOperand (readSlots position final) argument.schedule.value)) := by
+        simpa only [region, Operand.schedule, Operand.scheduleAt] using
+          (schedule_run instr argument (fun slot => .var slot) env env (fun _ => rfl)
+            (fun packet => pure (label.val, packet))).symm
+      _ = _ := by
+        apply bind_scope_congr
+        intro final _
+        simp only [region, operand_tree instr position final (readSlots position final)
+          argument.schedule.value (fun _ => rfl), pure_bind]
 
-theorem preserves_run (lifted : Lifted sig context source) (instr : Primitive E F α) (env : Env α) :
+theorem preserves_run (lifted : Lifted sig context packets outputs source)
+    (instr : Primitive E F α) (env : Env α) :
     region instr env source.erase = region instr env lifted.code.erase := by
-  simp only [Lifted.code, FiniteCFG.erase, region, entry_run lifted instr env]
+  simp only [Lifted.code, FiniteCFG.erase, region, lifted.source_eq, lifted.entry_eq,
+    boundary_run lifted.boundary instr env]
 
 end Computed
 

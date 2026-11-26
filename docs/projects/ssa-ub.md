@@ -1233,6 +1233,20 @@ same endpoints.
 [Payload-aware native endpoint][ssa-ub-open-guarded-payload]
 [Named weak-tree transport][ssa-ub-named-guarded-payload]
 
+The packet-local recognizer checks the existing versioner's exact entry,
+request decoder, typed reply dispatch, and terminal rows. It infers the
+destinations and the ordered exit at each terminal row. The projected
+bit can be the terminal bit parameter or a unit-to-bit instruction from
+the supplied pure literal table. The unit-packet row needs the literal
+form. The recognizer derives the full weak-tree root and typed decoder
+equations for every accepted table. A comparison that cannot recognize
+a named program or validate a native readback returns no verdict.
+A negative verdict after both checks has a witness on the original
+named runners on the supplied finite carrier. The regression sends a
+changed bit and machine state around a backedge before taking the second
+ordered exit.
+[Recognized packet-local live-outs][ssa-ub-recognized-liveout]
+
 `Table.compareEntries?` lifts the fixed-carrier comparison to the
 existing exhaustive `CallerEnumeration` of a shared typed domain. Each
 caller is decoded separately into the exact entry type of each original
@@ -1531,4 +1545,5 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-cyclic-native-checker]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Finite/CFG/Dependent/Native/Thms.lean
 
 [ssa-ub-open-guarded-payload]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FixedCarrier/Payload/Thms.lean
+[ssa-ub-recognized-liveout]: ../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/Guarded/FixedCarrier/Payload/Recognize/Thms.lean
 [ssa-ub-named-guarded-payload]: ../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/Guarded/FixedCarrier/Payload/Thms.lean

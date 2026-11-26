@@ -259,7 +259,7 @@ def Ready {H : Type} {base : Store H} (mem : Memory32 base) (host : HostSemantic
       Checked base active.module (active.locals.map Value.type) targets delivered
         (saved.map Value.type ++ site.signature.results) ops ∧ Contract mem host ops
   | .memory saved callee phase ops => callee.Allocated base ∧ callee.Checked mem ∧
-      (∀ out, phase ≠ .done out) ∧ MemoryCallee.Ready callee phase ∧
+      (∀ out, phase ≠ .done out) ∧ MemoryCallee.Ready callee mem.extent.growthEnabled phase ∧
       Checked base active.module (active.locals.map Value.type) targets delivered
         (saved.map Value.type ++ callee.fn.declaration.results) ops ∧ Contract mem host ops
   | .trapped _ _ => True
@@ -370,7 +370,7 @@ inductive Edge {H : Type} {base : Store H} (mem : Memory32 base) (host : HostSem
       Edge mem host active results ⟨bytes, .wasm saved site callee phase ops, labels⟩
         ⟨bytes, .afterWasm saved site callee ops next, labels⟩
   | memory {bytes written saved callee phase next ops labels}
-      (move : MemoryCallee.Edge callee bytes phase written next) :
+      (move : MemoryCallee.Edge mem callee bytes phase written next) :
       Edge mem host active results ⟨bytes, .memory saved callee phase ops, labels⟩
         ⟨written, .afterMemory saved callee ops next, labels⟩
   | returned {bytes next saved site args ops vs labels} (live : mem.Live next)

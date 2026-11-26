@@ -285,6 +285,8 @@ theorem front {H : Type} {src dst : Config H} (h : Step CallFrame.limeNoHost src
 private inductive MemoryHead : Admin → Nat → Prop where
   | load (arg : V1.MemArg) : MemoryHead (.source (.intLoad .i32 none arg)) 1
   | store (arg : V1.MemArg) : MemoryHead (.source (.intStore .i32 none arg)) 2
+  | size : MemoryHead (.source .memorySize) 0
+  | grow : MemoryHead (.source .memoryGrow) 1
 
 private theorem MemoryHead.nonvalue {op : Admin} {arity : Nat} (h : MemoryHead op arity) :
     asValue? op = none := by
@@ -347,6 +349,13 @@ private theorem memory_cut {H : Type} {src dst : Config H} {op : Admin} {arity :
     obtain ⟨rfl, rfl, rfl⟩ := seen
     exact memory_leaf (.store _) (used := [Value.int .i32 address, Value.int .i32 word]) rfl code
       (.intStoreTrap s f _ _ _ _ _ a m found write)
+  | memorySize s f a m found =>
+    cases shape <;> simp [first, asValue?] at seen
+    exact memory_leaf .size (used := []) rfl code (.memorySize s f a m found)
+  | memoryGrow s f a m delta result bytes found grown =>
+    cases shape <;> simp only [first_value] at seen <;> simp [first, asValue?] at seen
+    exact memory_leaf .grow (used := [Value.int .i32 delta]) rfl code
+      (.memoryGrow s f a m delta result bytes found grown)
   | invokeHost | invokeHostDiverges => contradiction
   | pure s f move =>
     cases move <;> cases shape <;>
@@ -374,6 +383,26 @@ theorem intStore_strip {H : Type} {s : Store H} {f : Frame} {arg : V1.MemArg}
       .source (.intStore .i32 none arg)]⟩ mid ∧
       dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ := by
   obtain ⟨_, _, mid, split, len, head, eq⟩ := memory_cut (.store arg) move rfl
+  obtain ⟨rfl, rfl⟩ := List.append_inj' split len.symm
+  exact ⟨mid, head, eq⟩
+
+theorem memorySize_strip {H : Type} {s : Store H} {f : Frame}
+    {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Internal ⟨s, f, values saved ++ .source .memorySize :: tail⟩ dst) :
+    ∃ mid, Internal ⟨s, f, [.source .memorySize]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ := by
+  obtain ⟨kept, operands, mid, split, len, head, eq⟩ := memory_cut .size move rfl
+  obtain rfl := List.eq_nil_of_length_eq_zero len
+  simp at split
+  subst kept
+  exact ⟨mid, head, eq⟩
+
+theorem memoryGrow_strip {H : Type} {s : Store H} {f : Frame}
+    {delta : BitVec 32} {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Internal ⟨s, f, values (saved ++ [Value.int .i32 delta]) ++ .source .memoryGrow :: tail⟩ dst) :
+    ∃ mid, Internal ⟨s, f, [value (Value.int .i32 delta), .source .memoryGrow]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ := by
+  obtain ⟨_, _, mid, split, len, head, eq⟩ := memory_cut .grow move rfl
   obtain ⟨rfl, rfl⟩ := List.append_inj' split len.symm
   exact ⟨mid, head, eq⟩
 

@@ -43,9 +43,10 @@ variable (activation : ∀ fuel old,
 private abbrev iter (bodyFuel fuel : Nat) (old : Bank (regs := regs) m) :=
   iterate (body.run (model m) bodyFuel) (fun tag => tag.down.val == 1) fuel old
 
-private theorem lower_iterate (fuel : Nat) (input : Bank (regs := regs) m) :
+theorem lower_iterate (fuel : Nat) (input : Bank (regs := regs) m) :
     (lower control body).run (model m) fuel input =
-      (iter m body fuel fuel ((src entry).body.eval m input)).map (fun bank => .cons (bank.get control.result) .nil) := by
+      (iterate (body.run (model m) fuel) (fun tag => tag.down.val == 1) fuel
+        ((src entry).body.eval m input)).map (fun bank => .cons (bank.get control.result) .nil) := by
   rw [lower, ← RVSDG.NestedTheta.Graph.run_toTerm, Term.toTerm_toGraph]
   unfold lowerTerm Term.run
   erw [thenBase_eval (observe := fun bank =>

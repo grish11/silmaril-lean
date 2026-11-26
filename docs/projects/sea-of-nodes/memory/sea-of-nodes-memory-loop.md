@@ -1287,6 +1287,45 @@ three admitted activations that return their stop words on every heap.
 lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.Sequential.Linked.Triple.Satisfaction.Regression
 ```
 
+##### Institutions for the generated triple backends
+
+`Linked.Triple.Satisfaction.inst` gives a room at each typed capture
+signature for each of the numbered, MemRef, and coloured backends.
+The rooms use the existing triple sentences and discrete typed
+valuation models. Their satisfaction tests the actual linked
+artifacts over all initialized heaps at the model's cell count.
+The corridor for `h : P ⟶ Q` re-emits sentences forward and pulls
+valuations back by `reduct h`. Its identity and composition laws cover
+both actions. `comparison` is a comorphism between any two of these
+generated institutions, with identity translations on the common
+typed signatures, sentences, and valuation models.
+
+`room_satisfaction_image` relates all-target truth in the existing
+numbered runtime room at the canonical runtime to truth on the source
+reduct image at that cell count. `corridor_modelExpansive_iff`
+characterizes when a typed capture corridor covers every source
+model. A port retraction supplies coverage and makes the existing
+`Corridor.entails_map_iff` available. These comparisons use the typed
+capture category and canonical generated models.
+[Public institution and image laws](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/Sequential/Linked/Triple/Satisfaction/Institution/Thms.lean)
+
+```lean
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.Sequential.Linked.Triple.Satisfaction.Institution.Thms
+```
+
+The regression identifies the two store captures and inserts a spare
+word slot. Staged and composite re-emission both return `(3, 3, 11)`
+with `[11, 73, 11, 3, 91, 11]`. The original valuation supplies distinct
+store words and lies outside the composite image. Its original chain
+returns `(3, 3, 22)` with `[11, 73, 11, 3, 91, 22]`. The re-emitted
+equation holds for every target input at six cells, while the
+unrestricted source room rejects it. Insertion alone has a retraction.
+[Runnable institution regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/Sequential/Linked/Triple/Satisfaction/Institution/Regression.lean)
+
+```sh
+lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.Sequential.Linked.Triple.Satisfaction.Institution.Regression
+```
+
 ### Equations for coloured Petri completion
 
 `petriHolds` compares the two emitted graphs' finite completions for

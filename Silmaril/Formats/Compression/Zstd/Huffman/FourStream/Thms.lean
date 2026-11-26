@@ -23,6 +23,15 @@ theorem fourth_bounds {regenerated : Nat} {parts : Split} (wire : CountsWire reg
   unfold segmentSize at *
   omega
 
+/-- Reuse a checked table while retaining exact partition, quotas and output. -/
+theorem decodeTable_sound {limits : Limits} {table : SingleStream.Table}
+    {declared regenerated : Nat} {input out : List UInt8}
+    (success : decodeTable limits table declared regenerated input = .ok out) :
+    input.length = declared ∧ declared ≤ limits.inputBytes ∧
+      out.length = regenerated ∧ regenerated ≤ limits.outputSymbols ∧
+      DecodedWire table declared regenerated input out :=
+  Proofs.Formats.Compression.Zstd.Huffman.FourStream.decodeTable_sound success
+
 /-- One checked table denotes all four streams. Each stream exhausts its
     own bytes and the joined output has the exact regenerated size. -/
 theorem decode_sound {limits : Limits} {treeLimits : DirectWeights.Limits} {tree : DirectWeights.Tree}

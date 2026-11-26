@@ -174,9 +174,9 @@ those values. `probe_cached` identifies the normal canonical search as a
 specialization of the ordered probe with the total code test. `lookupOrMiss`
 preserves a hit and projects a raw error to a miss. The fixtures exercise
 this projection for the deep-key cyclic-value case. Canonical equality and
-membership still use cached keys. A full Go profile needs verified hash
-results, ordered candidate selection and identity comparison for function
-and builtin key leaves.
+membership still use cached keys. The [separate Go bucket profile](starlark-go-dictionary.md)
+computes scalar and tuple hashes and selects ordered candidates in a single
+eight-slot bucket.
 [Theorems](../../Silmaril/Languages/Starlark/Lists/Comparison/Thms.lean) · [Lean fixtures](../../Silmaril/Languages/Starlark/Lists/Comparison/Dictionary/Checks.lean)
 
 ## Dictionary keys and order

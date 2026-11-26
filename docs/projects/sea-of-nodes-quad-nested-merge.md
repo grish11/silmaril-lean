@@ -1001,6 +1001,71 @@ outer slots `15` and `73`. The third prints `none` at the inner
 boundary and `150` at the outer boundary.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Numbered/Petri/Boundaries/Regression.lean)
 
+### Follow both join packets through one coloured completion
+
+`Outer.Numbered.Petri.Trace.Thms` defines an ordered witness for the same
+checked shared-outer profile from *From Quads to Graphs* §3.1. In each
+activation the first marking retains the selected outer γ child. It
+exposes the complete inner γ bank on outer true and records the actual
+outer-false waiting tag and an absent inner bank on bypass. The next
+marking exposes the outer γ's full result bank before the shared tail.
+The body continues from that marking and publishes its latch packet.
+Feedback restarts the same θ with that exact bank. The stopping packet
+commits θ and exposes the original return port.
+
+`Trace.visits` links all of those checkpoints on one root firing witness.
+`Trace.replay` concatenates its segments into a legal completion of
+the original emitted numbered graph. `Windows.cf_packets` compares the
+complete banks and ordered source occurrences with the readback of the
+actual CF/Φ rows. `Activation.cf_latch` identifies the actual CF latch
+successor from the finished coloured packet. `trace_iff_source` relates
+the existence of a completed trace for a value to finite source return.
+`trace_iff_cf` gives the corresponding typed CF result at its own bound.
+The trace gives one legal schedule. CF visits, θ activations and coloured
+firings use independent bounds, and the packet comparison is at the join
+and latch boundaries.
+[Trace API](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Numbered/Petri/Trace/Thms.lean) ·
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Numbered/Petri/Trace/Regression.lean)
+
+Build both imports with `lake build --wfail`, prefixing each module with
+`+`. Paste the example into `QuadSharedPetriTrace.lean` and run
+`lake env lean -DautoImplicit=false -DwarningAsError=true QuadSharedPetriTrace.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Trace.Thms
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Trace.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Example
+  (observations packets stoppingBank)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Example renaming activation → headerAt
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example (plan)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Example (input width)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.InnerPhi.Example (rows)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Example renaming rows → outerRows
+open Silmaril.SSA.SeaOfNodes.MLIR (Word)
+open Silmaril.SSA.RVSDG.NestedTheta.Petri (Finishes)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered (lower)
+
+set_option maxHeartbeats 1000000 in
+example : ∃ witness : Trace plan input packets stoppingBank,
+    packets.map Packets.encode = (Windows.inputs plan witness.windows).map (cfPacketsAt plan rows outerRows input) ∧
+    Finishes semantics (lower plan) input (.cons (152 : Word width) .nil) := by
+  obtain ⟨first⟩ := activation plan (headerAt 0)
+  obtain ⟨second⟩ := activation plan (headerAt 1)
+  obtain ⟨last⟩ := activation plan (headerAt 2)
+  obtain ⟨witness⟩ := trace_of_windows plan input (.again first (.again second (.stop last)))
+  exact ⟨witness, Windows.cf_packets plan input rows outerRows witness.windows, witness.replay⟩
+
+#eval observations
+```
+
+The three rows show inner values `7`, `36`, and bypass, and outer
+values `15`, `73`, and `150`. The first two activations feed back and
+the third completes with `152`.
+
 ## Complete the emitted loop by coloured firing
 
 The `Backends/Petri/Thms` import adds completion laws for the numbered

@@ -67,8 +67,6 @@ private theorem stepAt {F : Type} {n d : Nat} (graph : CFG V K F) (exits : List 
 private def number (names : Fin 5 ≃ K) (p : K × Value α) : Transfer α :=
   ((names.symm p.1).val, p.2)
 
-private def restore (names : Fin 5 ≃ K) (p : Transfer α) : K × Value α :=
-  (names (if h : p.1 < 5 then ⟨p.1, h⟩ else 0), p.2)
 
 omit [DecidableEq K] in
 private theorem restore_number (names : Fin 5 ≃ K) : Function.LeftInverse
@@ -83,7 +81,7 @@ private theorem bind_injective {X Y : Type 1} (f : X → Y) (g : Y → X) (inv :
   have inverse (x : X) : g (f x) = x := inv x
   simpa only [bind_assoc, pure_bind, inverse, bind_pure] using lifted
 
-private theorem treeNumber_eq (checked : Checked a opcode (liveOpcodes profile)) (p : K × Value α) :
+private theorem treeNumber_eq {code : FiniteCFG P.Instr 3 2 1} (checked : Readback a code) (p : K × Value α) :
     treeNumber (labelIndex (lexical).blocks (I).exits) p = number names p := by
   have atName := checked.numbered (names.symm p.1)
   rw [Equiv.apply_symm_apply] at atName
@@ -91,7 +89,7 @@ private theorem treeNumber_eq (checked : Checked a opcode (liveOpcodes profile))
   rw [atName]
   rfl
 
-private theorem block_hit (checked : Checked a opcode (liveOpcodes profile)) (i : Fin 3) :
+private theorem block_hit {code : FiniteCFG P.Instr 3 2 1} (checked : Readback a code) (i : Fin 3) :
     (lexical).blocks.findFinIdx? (fun item => names (i.castAdd 2) == item.1) =
       some (Fin.cast checked.count.symm i) := by
   have numbered := checked.numbered (i.castAdd 2)
@@ -106,7 +104,7 @@ private theorem block_hit (checked : Checked a opcode (liveOpcodes profile)) (i 
       simp [labelIndex, hit, ext, checked.count] at numbered
       omega
 
-private theorem exit_miss (checked : Checked a opcode (liveOpcodes profile)) (i : TwoRequest.Tag) :
+private theorem exit_miss {code : FiniteCFG P.Instr 3 2 1} (checked : Readback a code) (i : TwoRequest.Tag) :
     (lexical).blocks.lookup (names (i.natAdd 3)) = none := by
   apply List.lookup_eq_none_iff.mpr
   have noHit : (lexical).blocks.findFinIdx? (fun item => names (i.natAdd 3) == item.1) = none := by
@@ -142,11 +140,11 @@ private theorem eval_entry (routes : Routes) (instr : Primitive E P.Instr α) (e
     region instr env (expected opcode routes (liveOpcodes profile)).entry.erase = pure (0, .pair (env 0) .unit) := by
   simp [expected, Flat.erase, Morphism.CaseSSA.erase, region, LambdaSSA.Semantics.Interaction.term]
 
-private theorem eval_loop (routes : Routes) (agrees : QueryAgreement opcode atom query instr)
+theorem eval_request (destination : Fin 3 → Fin 3) (agrees : QueryAgreement opcode atom query instr)
     (env : Env α) (packet : Syntax.Payload Bit) :
-    region instr (extend env (.pair (encodeValue atom packet.val) .unit)) ((expected opcode routes (liveOpcodes profile)).block 0).erase =
-      (query opcode packet >>= fun r => pure ((routes.destination r.down.1).val, .pair (encodeValue atom r.down.2.val) .unit)) := by
-  simp only [expected, Fin.cases_zero, Flat.erase, Morphism.CaseSSA.erase, region, LambdaSSA.Semantics.Interaction.term, pure_bind]
+    region instr (extend env (.pair (encodeValue atom packet.val) .unit)) (requestRow opcode destination).erase =
+      (query opcode packet >>= fun r => pure ((destination r.down.1).val, .pair (encodeValue atom r.down.2.val) .unit)) := by
+  simp only [requestRow, Flat.erase, Morphism.CaseSSA.erase, region, LambdaSSA.Semantics.Interaction.term, pure_bind]
   change (instr opcode (encodeValue atom packet.val) >>= _) = _
   rw [agrees packet, bind_assoc]
   congr 1
@@ -154,6 +152,14 @@ private theorem eval_loop (routes : Routes) (agrees : QueryAgreement opcode atom
   rw [pure_bind]
   rcases reply with ⟨⟨i, value⟩⟩
   fin_cases i <;> simp [replyValue, pack, extend] <;> rfl
+
+private theorem eval_loop (routes : Routes) (agrees : QueryAgreement opcode atom query instr)
+    (env : Env α) (packet : Syntax.Payload Bit) :
+    region instr (extend env (.pair (encodeValue atom packet.val) .unit))
+      ((expected opcode routes (liveOpcodes profile)).block 0).erase =
+      (query opcode packet >>= fun r => pure ((routes.destination r.down.1).val,
+        .pair (encodeValue atom r.down.2.val) .unit)) :=
+  eval_request atom query instr routes.destination agrees env packet
 
 omit [DecidableEq K] in
 private theorem eval_exit (profile : LiveProfile P.Instr) (agrees : LiveAgreement profile instr)
@@ -210,7 +216,7 @@ private theorem entry_eq (caller : Syntax.Payload Bit) (seedValue : input (seed,
   let env : Env α := fun _ => encodeValue atom caller.val
   have read := entryAt lexical (I).exits (I).version.names checked.count checked.accepted instr input env
     (fun _ => seedValue.symm)
-  simp only [treeNumber_eq checked] at read
+  simp only [treeNumber_eq (checked.readback)] at read
   apply bind_injective (E := E) (number names) (restore names) (restore_number names)
   change ((lexical).entry.evalJump m input >>= fun p => pure (number names p)) = _
   rw [read]
@@ -225,9 +231,9 @@ private theorem block_eq (agrees : QueryAgreement opcode atom query instr)
   let payload := Value.pair (encodeValue atom p.2.val) .unit
   let env : Env α := fun _ => .unit
   have read := stepAt lexical (I).exits (I).version.names checked.count checked.accepted instr input env
-    payload (names (index.castAdd 2)) index (block_hit checked index)
+    payload (names (index.castAdd 2)) index (block_hit (checked.readback) index)
   have numberFn : treeNumber (labelIndex (lexical).blocks (I).exits) = (number (α := α) names) :=
-    funext (treeNumber_eq checked)
+    funext (treeNumber_eq (checked.readback))
   rw [numberFn] at read
   apply bind_injective (E := E) (Sum.map id (number names)) (Sum.map id (restore names)) (by
     intro out
@@ -257,7 +263,7 @@ theorem localStep (agrees : QueryAgreement opcode atom query instr)
   rcases state with ⟨i | p⟩
   · let pending := encodeCursorWith (liveValues profile) names atom (atExit i)
     have miss : CFG.Cyclic.stepSSA m (lexical).blocks input pending = pure (.inl pending) := by
-      simp only [CFG.Cyclic.stepSSA, pending, encodeCursorWith, atExit, exit_miss checked i]
+      simp only [CFG.Cyclic.stepSSA, pending, encodeCursorWith, atExit, exit_miss (checked.readback) i]
     change (pure (Sum.inl (exitResult (liveValues profile) i : Transfer α) : Transfer α ⊕ Cursor Packets) >>= _) = mapReturn _ _ pending
     simp only [mapReturn, miss, pure_bind, liftPure, Function.comp_apply, Sum.map_inl, id_eq, Sum.elim_inl]
     have out := finish_number names i (exitPayload (α := α) (liveValues profile i))
@@ -271,5 +277,46 @@ theorem localStep (agrees : QueryAgreement opcode atom query instr)
     unfold mapReturn
     rw [headStep_eq, block_eq checked atom query instr input agrees liveAgrees caller p]
     simp only [liftPure, bind_assoc, pure_bind, Function.comp_apply, Sum.map_inr, Sum.elim_inr]
+
+omit checked
+
+section Readback
+
+variable {target : FiniteCFG P.Instr 3 2 1} (readback : Readback a target)
+include readback
+
+theorem entry_eval (env : Env α) (agrees : ∀ i, env i.val = input ((I).version.names i)) :
+    (lexical).entry.evalJump m input =
+      (region instr env target.entry.erase >>= fun p => pure (restore names p)) := by
+  have read := entryAt lexical (I).exits (I).version.names readback.count readback.accepted instr input env agrees
+  simp only [treeNumber_eq readback] at read
+  have decoded := congrArg (fun t : Tree E (Transfer α) => t >>= fun p => pure (restore names p)) read
+  have inverse (q : K × Value α) : restore names (number names q) = q := restore_number names q
+  simpa only [bind_assoc, pure_bind, inverse, bind_pure] using! decoded
+
+theorem block_eval (env : Env α) (p : Value α) (i : Fin 3) :
+    CFG.Cyclic.stepSSA m (lexical).blocks input (names (i.castAdd 2), p) =
+      (region instr (extend env p) (target.block i).erase >>= fun q => pure (.inr (restore names q))) := by
+  have read := stepAt lexical (I).exits (I).version.names readback.count readback.accepted instr input env
+    p (names (i.castAdd 2)) i (block_hit readback i)
+  have numberFn : treeNumber (labelIndex (lexical).blocks (I).exits) = (number (α := α) names) :=
+    funext (treeNumber_eq readback)
+  rw [numberFn] at read
+  have decoded := congrArg (fun t : Tree E ((K × Value α) ⊕ Transfer α) =>
+    t >>= fun q => pure (q.map id (restore names))) read
+  have inverse (q : (K × Value α) ⊕ (K × Value α)) :
+      (q.map id (number names)).map id (restore names) = q := by
+    cases q with
+    | inl => rfl
+    | inr p => exact congrArg Sum.inr (restore_number names p)
+  simpa only [bind_assoc, pure_bind, inverse, bind_pure, Sum.map_inr] using! decoded
+
+theorem exit_eval (p : Value α) (i : TwoRequest.Tag) :
+    mapReturn (CFG.Cyclic.stepSSA m (lexical).blocks input)
+      (liftPure fun t => FiniteCFG.packedTreeOutput (treeExitNumber (I).exits t)) (names (i.natAdd 3), p) =
+      pure (.inl (FiniteCFG.packedTreeOutput (i.val, p))) := by
+  simp [mapReturn, liftPure, CFG.Cyclic.stepSSA, exit_miss readback i, finish_number]
+
+end Readback
 
 end Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.LiveOut.PacketLocal.Guarded.Recognize

@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.Defs
 import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.Control
 import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Thms
+import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Memory.Thms
 import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Continuation.Thms
 import Silmaril.Wasm.Lime1.Execution.Callout.Properties
 
@@ -159,10 +160,10 @@ theorem call_run_iff (checked : p.Checked mem outer index) (contract : p.Contrac
   rw [← entry]
   constructor
   · intro run
-    obtain ⟨next, path, _, live, eq⟩ := (run_iff (a := ⟨mem.initial.data, .source⟩) checked contract trivial rfl).mp run
+    obtain ⟨next, path, _, live, eq⟩ := (run_iff (a := ⟨mem.initial.data, .source⟩) checked contract trivial mem.initial_live).mp run
     exact ⟨next, path, live, eq⟩
   · rintro ⟨next, path, _, rfl⟩
-    exact (run_sound (arg := arg) (a := ⟨mem.initial.data, .source⟩) checked contract trivial rfl path).1
+    exact (run_sound (arg := arg) (a := ⟨mem.initial.data, .source⟩) checked contract trivial mem.initial_live path).1
 
 
 end Silmaril.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.Proofs

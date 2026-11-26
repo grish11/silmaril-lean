@@ -13,6 +13,20 @@ open Wasm.Lime1.Execution
 
 variable {H : Type} {base : Store H} {mem : Memory32 base} {bytes : ByteArray}
 
+/-- Ordinary entry starts in the mode's live extent. -/
+theorem Memory32.initial_live : mem.Live mem.initial.data := Proofs.initial_live
+
+/-- Updating bytes at the same extent preserves either memory mode. -/
+theorem Memory32.live_same_size {next : ByteArray} (live : mem.Live bytes) (same : next.size = bytes.size) :
+    mem.Live next :=
+  Proofs.live_same_size live same
+
+/-- Only an opt-in memory can advance its live extent through native growth. -/
+theorem Memory32.live_grow {next : ByteArray} {delta : BitVec 32}
+    (enabled : mem.extent.growthEnabled = true) (live : mem.Live bytes)
+    (edge : MemoryGrow.Edge (mem.current bytes) (.request delta) (.grown next)) : mem.Live next :=
+  Proofs.live_grow enabled live edge
+
 /-- Every frame linked at slot zero reads the current designated bytes,
 including after a callee or host changes them. -/
 theorem Memory32.frameMemory_store {active : Frame} (slot : active.module.memories[0]? = some mem.address) :
@@ -20,7 +34,7 @@ theorem Memory32.frameMemory_store {active : Frame} (slot : active.module.memori
   Proofs.memory_at slot
 
 /-- The callee updates the same live store supplied to the caller. A
-successful write keeps its fixed extent, and a bounds trap retains the current
+successful write keeps its current extent, and a bounds trap retains the current
 bytes. Both successors retain the saved operands and exact native suffixes. -/
 theorem Memory32.activation_store_iff_at {host : HostSemantics H} {caller callee : Frame} {arity : Nat}
     {callerSaved saved : List Value} {callerTail tail : List Admin} {arg : Wasm.V1.MemArg} {ptr word : BitVec 32}

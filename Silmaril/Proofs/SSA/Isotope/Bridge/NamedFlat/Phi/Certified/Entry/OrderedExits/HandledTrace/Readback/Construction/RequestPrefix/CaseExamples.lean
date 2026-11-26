@@ -1410,4 +1410,95 @@ theorem destructure_packed
 
 example := destructure_packed destructureBuilt
 
+private def transferPacket : PacketType := .product bit bit
+
+-- The same effectful argument can go straight to the second exit or
+-- enter old block zero, which sends the same payload to the first exit.
+private def computedTransfer (throughBlock : Bool) : FiniteCFG (Fin 3) 1 2 1 where
+  entry := .br (if throughBlock then 0 else 2)
+    (.let₂ (.op 0 (.bv 0)) (.pair (.bv 1) (.bv 2)))
+  block _ := .br 1 (.bv 0)
+
+private def transferBuild (throughBlock : Bool) :=
+  EffectfulEntry.Multiple.Computed.compile destructureSig (.snoc .nil bit)
+    (fun _ => transferPacket) (fun _ => transferPacket) (computedTransfer throughBlock)
+
+private def transferBuilt (throughBlock : Bool) :
+    EffectfulEntry.Multiple.Computed.Compiled destructureSig (.snoc .nil bit)
+      (fun _ => transferPacket) (fun _ => transferPacket) (computedTransfer throughBlock) :=
+  (transferBuild throughBlock).get (by cases throughBlock <;> decide +kernel)
+
+private def transferRowMatches (throughBlock : Bool) (index : Nat) (expected : LambdaSSA.Region (Fin 3)) : Bool :=
+  match transferBuild throughBlock with
+  | none => false
+  | some built => packedRowMatches (some built.checked) index expected
+
+example (throughBlock : Bool) : transferRowMatches throughBlock 0 (.br 5 (.var 0)) = true :=
+  by cases throughBlock <;> decide +kernel
+
+example (throughBlock : Bool) :
+    transferRowMatches throughBlock 1 (.let₁ (.op 0 (.var 0)) (.br 2 (.pair (.var 1) (.var 0)))) = true :=
+  by cases throughBlock <;> decide +kernel
+
+example (throughBlock : Bool) :
+    transferRowMatches throughBlock 2 (.let₂ (.var 0) (.br 3 (.pair (.var 1) (.var 0)))) = true :=
+  by cases throughBlock <;> decide +kernel
+
+example (throughBlock : Bool) : transferRowMatches throughBlock 3
+    (.let₂ (.var 0) (.let₂ (.var 0) (.br (if throughBlock then 0 else 6) (.pair (.var 1) (.var 3))))) = true :=
+  by cases throughBlock <;> decide +kernel
+
+example (throughBlock : Bool) : transferRowMatches throughBlock 4 (.let₂ (.var 0) (.br 1 (.var 0))) = true :=
+  by cases throughBlock <;> decide +kernel
+
+example : (EffectfulEntry.Multiple.Computed.lift destructureSig (.snoc .nil bit)
+    (fun _ => bit) (fun _ => transferPacket) (computedTransfer true)).isNone = true := rfl
+
+example : (EffectfulEntry.Multiple.Computed.lift destructureSig (.snoc .nil bit)
+    (fun _ => transferPacket) (fun _ => bit) (computedTransfer false)).isNone = true := rfl
+
+private noncomputable def transferExpected (throughBlock : Bool) : Tree DestructureEvents (Transfer Atom) :=
+  vis (.ask pairRequest) fun (fields : destructureSig.Reply pairRequest) =>
+    pure (FiniteCFG.packedTreeOutput (if throughBlock then 0 else 1, .pair (bit.encode fields.1) (bit.encode first)))
+
+private theorem transfer_source (throughBlock : Bool) :
+    (resultCodec id <$> (region destructureSig.primitive (env first) (computedTransfer throughBlock).erase >>=
+      fun out => pure (FiniteCFG.packedTreeOutput out))) = transferExpected throughBlock := by
+  unfold transferExpected
+  rw [show (computedTransfer throughBlock).erase = .cfg (computedTransfer throughBlock).entry.erase 1
+    (fun i => ((computedTransfer throughBlock).block i).erase) from rfl, region]
+  simp only [computedTransfer, LambdaSSA.Flat.erase, Morphism.CaseSSA.erase, region,
+    LambdaSSA.Semantics.Interaction.term, map_eq_pure_bind, bind_assoc, pure_bind]
+  change (destructureSig.primitive pairRequest.1 ((destructureSig.argument pairRequest.1).encode pairRequest.2) >>= _) = _
+  rw [typed_call destructureSig pairRequest, vis_bind]
+  apply typed_request_congr destructureSig pairRequest
+  rintro ⟨left, right⟩
+  have pairReply : (destructureSig.reply pairRequest.1).encode (left, right) =
+      .pair (bit.encode left) (replyType.encode right) := rfl
+  cases throughBlock
+  · simp [pairReply, env, LambdaSSA.Semantics.Interaction.splitTransfer, resultCodec, codec_id]
+  · simp [pairReply, env, LambdaSSA.Semantics.Interaction.splitTransfer]
+    let step (p : LambdaSSA.Semantics.Interaction.BlockInput Atom 1) :
+        Tree DestructureEvents (Transfer Atom ⊕ LambdaSSA.Semantics.Interaction.BlockInput Atom 1) :=
+      pure (.inl (0, p.2))
+    let packet : Value Atom := .pair (bit.encode left) (bit.encode first)
+    change (fun out => resultCodec id (FiniteCFG.packedTreeOutput out)) <$>
+      Elgot.ITree.iterate step (0, packet) = _
+    have oldExit : Elgot.ITree.iterate step (0, packet) = pure (0, packet) := by
+      change Elgot.iter step (0, packet) = _
+      rw [congrFun (iterate_fixpoint step) (0, packet)]
+      simp only [step, pure_bind, Sum.elim_inl]
+    rw [oldExit]
+    simp only [map_eq_pure_bind, pure_bind, resultCodec, codec_id]
+    rfl
+
+theorem transfer_packed (throughBlock : Bool) :
+    (transferBuilt throughBlock).checked.publicReadback.packed.observe (env first) recursiveRecord =
+      transferExpected throughBlock := by
+  have primitives : PrimitivesAgree destructureSig.primitive destructureSig.primitive id := by
+    intro op value
+    rw [codec_id, show valueCodec (id : Atom → Atom) = id from funext codec_id, id_map]
+  exact ((transferBuilt throughBlock).public_run (env first) _ _ id primitives (codec_id _).symm).symm.trans
+    (transfer_source throughBlock)
+
 end Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.RequestPrefix.CaseExamples

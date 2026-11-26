@@ -49,7 +49,7 @@ private def base : Store Nat :=
       .host producerType 10, .host prepare.type prepare.code, .host innerJoin.type innerJoin.code,
       .host outerJoin.type outerJoin.code, .host finalJoin.type finalJoin.code] }
 
-private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
+private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl, .fixed⟩
 private def caller : Frame := ⟨[i32 9], {funcs := [⟨0⟩]}⟩
 private abbrev Check := Continuation.Checked base program.module [num64]
 private abbrev innerTargets := [innerType.results, [num32], rootResults]

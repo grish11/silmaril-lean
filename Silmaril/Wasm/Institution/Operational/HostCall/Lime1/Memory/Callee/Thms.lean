@@ -15,26 +15,31 @@ variable {H : Type} {base : Store H} {mem : Memory32 base} {callee : MemoryTarge
   {caller : Frame} {saved : List Value} {tail : List Admin} {bytes written : ByteArray} {phase next : Phase}
   {dst : Config H}
 
-theorem ready_step (checked : callee.Checked mem) (move : Edge callee bytes phase written next)
-    (ready : Ready callee phase) : Ready callee next :=
+theorem ready_step (checked : callee.Checked mem) (move : Edge mem callee bytes phase written next)
+    (ready : Ready callee mem.extent.growthEnabled phase) : Ready callee mem.extent.growthEnabled next :=
   Proofs.ready_step checked move ready
 
-theorem live_step (move : Edge callee bytes phase written next) (live : mem.Live bytes) : mem.Live written :=
+theorem live_step (move : Edge mem callee bytes phase written next) (live : mem.Live bytes) : mem.Live written :=
   Proofs.live_step move live
 
-/-- A step keeps the full ordered argument and result checks and the allocated
-memory's fixed extent. The byte array may change only at a successful store. -/
-theorem preserves (checked : callee.Checked mem) (move : Edge callee bytes phase written next)
-    (ready : Ready callee phase) (live : mem.Live bytes) : Ready callee next ∧ mem.Live written :=
+/-- A callee step preserves the live extent guard and the full ordered
+argument and result checks. Only successful stores and growth update bytes. -/
+theorem preserves (checked : callee.Checked mem) (move : Edge mem callee bytes phase written next)
+    (ready : Ready callee mem.extent.growthEnabled phase) (live : mem.Live bytes) : Ready callee mem.extent.growthEnabled next ∧ mem.Live written :=
   ⟨Proofs.ready_step checked move ready, Proofs.live_step move live⟩
+
+/-- Native callee steps can only advance the extent. Host returns are governed
+by their separate embedding contract. -/
+theorem extent_mono (move : Edge mem callee bytes phase written next) : bytes.size ≤ written.size :=
+  Proofs.extent_mono move
 
 /-- Exact native steps of the reached callee in the caller's operand and
 instruction context. Native label and frame exits are distinct. After the
 frame exit, the enclosing checked continuation takes over. -/
 theorem step_iff (checked : callee.Checked mem) (allocated : callee.Allocated base)
-    (ready : Ready callee phase) (live : mem.Live bytes) (notDone : ∀ out, phase ≠ .done out) :
+    (ready : Ready callee mem.extent.growthEnabled phase) (live : mem.Live bytes) (notDone : ∀ out, phase ≠ .done out) :
     Internal (config mem caller saved tail callee bytes phase) dst ↔
-      ∃ written next, Edge callee bytes phase written next ∧ dst = config mem caller saved tail callee written next :=
+      ∃ written next, Edge mem callee bytes phase written next ∧ dst = config mem caller saved tail callee written next :=
   Proofs.step_iff checked allocated ready live notDone
 
 /-- The suspended caller cannot reach a host while this callee is live. -/

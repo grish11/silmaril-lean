@@ -10,6 +10,7 @@ import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.B
 import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.SuffixLoopExamples
 import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.IndirectExamples
 import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.MemoryExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.GrowthExamples
 import Silmaril.Wasm.Institution.Operational.MemoryQuery.Native.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryWrite.Native.Thms
 

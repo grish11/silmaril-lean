@@ -8,7 +8,8 @@ public section
 
 namespace Silmaril.Isotope.Bridge.NamedFlat.Entry.LiveOut.PacketLocal.Guarded
 
-open Silmaril.Elgot (iter liftPure)
+open Silmaril.Elgot (iter mapReturn liftPure)
+open Silmaril.Elgot.ITree (Tree)
 open Silmaril.SSA.LambdaRTL (CFG obs)
 open LambdaSSA (FiniteCFG Region)
 open LambdaSSA.Semantics (Env extend)
@@ -51,6 +52,21 @@ theorem Corresponds.mutable_step (c : Corresponds a g caller query instr input r
     (step g caller query result state >>= liftPure (Sum.map id c.encode)) =
       Sum.map outgoing again <$> CFG.Cyclic.step m source.blocks pending :=
   Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.LiveOut.PacketLocal.Guarded.mutable_step c state pending encoded
+
+omit [HasTy P.Instr Syntax.Ty] in
+/-- Lift a checked packet representation through the original mutable runner.
+The encoded state may retain a typed payload at a pending ordered exit. -/
+theorem observe_eq_of_steps {C : Type 1}
+    (start : C) (next : C → Tree E (Transfer α ⊕ C)) (encode : C → K × Value α)
+    (entry : a.versioned.source.entry.evalJump (treeModel instr) input = pure (encode start))
+    (localStep : ∀ c,
+      (next c >>= liftPure (Sum.map id encode)) =
+        mapReturn (CFG.Cyclic.stepSSA (treeModel instr) a.versioned.source.blocks input)
+          (liftPure fun p => FiniteCFG.packedTreeOutput (treeExitNumber I.exits p)) (encode c)) :
+    LiveOut.observeRaw instr I.exits (fun k => (fields k).map Prod.fst) source
+      (fun reg => input (reg, 0)) = iter next start :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.LiveOut.PacketLocal.Guarded.observe_eq_of_steps
+    start next encode entry localStep
 
 /-- Lift the exact entry and local step equations through the existing
 cyclic runner. The result uses the original named table and exit projection. -/

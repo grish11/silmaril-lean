@@ -25,6 +25,13 @@ variable (routeVisits : Bank (regs := regs) m → Nat)
 variable {bodySigs : List (List (SeaOfNodes.Diamond.Ty Data))}
 variable (body : Term (Opcode Op) (dataPorts regs) [] bodySigs (bodyPorts regs))
 
+/-- The generated θ starts from the bank computed by the original preheader. -/
+theorem lower_iterate (fuel : Nat) (input : Bank (regs := regs) m) :
+    (lower control body).run (model m) fuel input =
+      (iterate (body.run (model m) fuel) (fun tag => tag.down.val == 1) fuel
+        ((src entry).body.eval m input)).map (fun bank => .cons (bank.get control.result) .nil) :=
+  Proofs.lower_iterate control m body fuel input
+
 variable (reachesJoin : ∀ old fuel,
   src.runFrom m (fuel + routeVisits old) control.header old = src.runFrom m fuel control.join (merge old))
 variable (activation : ∀ fuel old,

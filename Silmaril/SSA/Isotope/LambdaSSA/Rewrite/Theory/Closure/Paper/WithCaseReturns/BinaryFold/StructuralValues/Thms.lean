@@ -13,6 +13,7 @@ namespace Silmaril.Isotope.LambdaSSA.Region.Paper.WithCaseReturns.BinaryFold
 
 open CategoryTheory CategoryTheory.Limits
 open Paper.Extension.Singleton
+open Paper.Extension.Singleton.ValueCoproducts (exactCopair)
 open Paper.Extension.Singleton.StructuralValues (ofSyntaxType inclusion IncludesUnitEta StructuralUniformity)
 
 universe u v w
@@ -59,6 +60,12 @@ noncomputable def ternaryFold (A : τ) :
     ofSyntaxType S (Silmaril.coprod A (Silmaril.coprod A A)) ⟶ ofSyntaxType S A :=
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BinaryFoldStructuralValues.ternaryFold pe A
 
+/-- The structural fold forwards all three payloads through the exact coproduct. -/
+theorem ternaryFold_arrow (A : τ) :
+    (inclusion S).map (ternaryFold pe A) =
+      exactCopair S (𝟙 (ofType S A)) (exactCopair S (𝟙 (ofType S A)) (𝟙 (ofType S A))) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BinaryFoldStructuralValues.ternaryFold_arrow pe A
+
 /-- The three-copy step at the exact syntax sum boundary. -/
 noncomputable def ternaryStep {A : τ} {B : Q} (g : ofType S A ⟶ B ⨿ ofType S A) :
     ofType S (Silmaril.coprod A (Silmaril.coprod A A)) ⟶
@@ -70,6 +77,11 @@ theorem ternaryFold_square {A : τ} {B : Q} (g : ofType S A ⟶ B ⨿ ofType S A
     ternaryStep pe g ≫ coprod.map (𝟙 B) ((inclusion S).map (ternaryFold pe A)) =
       (inclusion S).map (ternaryFold pe A) ≫ g :=
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BinaryFoldStructuralValues.ternaryFold_square pe g
+
+/-- Enter the exact three-copy step at its first phase. -/
+theorem ternaryStep_iterate_first {A : τ} {B : Q} (g : ofType S A ⟶ B ⨿ ofType S A) :
+    (sumCofan S A (Silmaril.coprod A A)).inl ≫ I (ternaryStep pe g) = I (ThreeCycle.triple g) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BinaryFoldStructuralValues.ternaryStep_iterate_first pe g
 
 /-- Uniformity for the three-cycle is exactly the three-round law in BinaryFold. -/
 theorem ternaryFold_iff_triple {A : τ} {B : Q} (g : ofType S A ⟶ B ⨿ ofType S A) :

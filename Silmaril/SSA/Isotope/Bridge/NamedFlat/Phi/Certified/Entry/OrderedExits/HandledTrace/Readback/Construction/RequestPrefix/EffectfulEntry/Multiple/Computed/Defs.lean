@@ -13,7 +13,7 @@ open Morphism.CaseSSA (erase)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
   (Expr PacketType PrimitiveSignature Slot elaborateExpr)
 
-variable {F : Type} {blocks exits captures : Nat} {Γ Δ Θ : List PacketType}
+variable {F : Type} {blocks exits captures labels : Nat} {Γ Δ Θ : List PacketType}
   {sig : PrimitiveSignature F} {ty : PacketType}
 
 /-- The checked operand grammar shares structural leaves with the public
@@ -160,53 +160,95 @@ def hoist (outer : F) (arg : Operand sig Γ (sig.argument outer)) (tail : Region
     (.let₁ (.op outer (operand position scheduled.value))
       (tail.renameVars (Silmaril.DeBruijn.lift scheduled.requests.shift)))
 
-structure Lifted (sig : PrimitiveSignature F) (context : BoundCtx PacketType captures)
-    (source : FiniteCFG F blocks exits captures) where
-  outer : F
-  argument : Operand sig context.toList (sig.argument outer)
-  tail : Flat F (blocks + exits) (captures + 1)
-  source_eq : source.entry.erase = .let₁ (.op outer argument.written) tail.erase
-  entry : Flat F (blocks + exits) captures
-  entry_eq : entry.erase = hoist outer argument tail.erase
+/-- An exact written entry boundary and its operand type. Jumps use the
+same positional block and exit profile as the shared CFG checker. -/
+inductive Boundary (sig : PrimitiveSignature F) (context : BoundCtx PacketType captures)
+    (types : Fin labels → PacketType)
+  | request (outer : F) (arg : Operand sig context.toList (sig.argument outer))
+      (tail : Flat F labels (captures + 1))
+  | jump (label : Fin labels) (arg : Operand sig context.toList (types label))
 
-def Lifted.code {context : BoundCtx PacketType captures} {source : FiniteCFG F blocks exits captures}
-    (lifted : Lifted sig context source) : FiniteCFG F blocks exits captures :=
+def Boundary.written {labels : Nat} {context : BoundCtx PacketType captures}
+    {types : Fin labels → PacketType} : Boundary sig context types → Region F
+  | .request outer arg tail => .let₁ (.op outer arg.written) tail.erase
+  | .jump label arg => .br label.val arg.written
+
+/-- A jump consumes the structural residual directly at its original
+target. A request still shifts the older slots beneath its own reply. -/
+def Boundary.lower {labels : Nat} {context : BoundCtx PacketType captures}
+    {types : Fin labels → PacketType} : Boundary sig context types → Region F
+  | .request outer arg tail => hoist outer arg tail.erase
+  | .jump label arg =>
+    let scheduled := arg.schedule
+    scheduled.requests.wrap Region.let₁ Region.let₂ (.br label.val (operand position scheduled.value))
+
+/-- Check both the operand's synthesized type and its exact written syntax. -/
+def readArgument [DecidableEq F] (sig : PrimitiveSignature F) (Γ : List PacketType)
+    (expected : PacketType) (original : Tm F) :
+    Option {arg : Operand sig Γ expected // original = arg.written} := do
+  let ⟨ty, arg⟩ ← readOperand sig Γ original
+  if typed : ty = expected then
+    let arg := typed ▸ arg
+    if exactArg : original = arg.written then some ⟨arg, exactArg⟩ else none
+  else none
+
+def Boundary.read [DecidableEq F] (sig : PrimitiveSignature F)
+    (context : BoundCtx PacketType captures) (types : Fin labels → PacketType) :
+    (original : Flat F labels captures) → Option {b : Boundary sig context types // original.erase = b.written}
+  | .let₁ (.op outer original) tail => do
+    let ⟨arg, exactArg⟩ ← readArgument sig context.toList (sig.argument outer) (erase original)
+    return ⟨.request outer arg tail, by
+      change Region.let₁ (.op outer (erase original)) tail.erase = _
+      rw [exactArg]
+      rfl⟩
+  | .br label original => do
+    let ⟨arg, exactArg⟩ ← readArgument sig context.toList (types label) (erase original)
+    return ⟨.jump label arg, by
+      change Region.br label.val (erase original) = _
+      rw [exactArg]
+      rfl⟩
+  | _ => none
+
+structure Lifted (sig : PrimitiveSignature F) (context : BoundCtx PacketType captures)
+    (packets : Fin blocks → PacketType) (outputs : Fin exits → PacketType)
+    (source : FiniteCFG F blocks exits captures) where
+  boundary : Boundary sig context (SSA.FiniteSum.append packets outputs)
+  source_eq : source.entry.erase = boundary.written
+  entry : Flat F (blocks + exits) captures
+  entry_eq : entry.erase = boundary.lower
+
+def Lifted.code {context : BoundCtx PacketType captures} {packets : Fin blocks → PacketType}
+    {outputs : Fin exits → PacketType} {source : FiniteCFG F blocks exits captures}
+    (lifted : Lifted sig context packets outputs source) : FiniteCFG F blocks exits captures :=
   ⟨lifted.entry, source.block⟩
 
-/-- Check the first written request's operand. Require its exact erased
-syntax and outer argument type before reifying the hoisted entry. -/
+/-- Check an operand at a written request or jump, including outward
+jumps. Require its exact erased syntax and the boundary's expected type
+before reifying the scheduled entry. -/
 def lift [DecidableEq F] (sig : PrimitiveSignature F) (context : BoundCtx PacketType captures)
-    (source : FiniteCFG F blocks exits captures) : Option (Lifted sig context source) :=
-  match h : source.entry with
-  | .let₁ (.op outer original) tail => do
-    let ⟨ty, arg⟩ ← readOperand sig context.toList (erase original)
-    if typed : ty = sig.argument outer then
-      let arg := typed ▸ arg
-      if exactArg : erase original = arg.written then
-        let entry ← scopedRow (blocks + exits) captures (hoist outer arg tail.erase)
-        return ⟨outer, arg, tail, by
-          rw [h]
-          change Region.let₁ (.op outer (erase original)) tail.erase = _
-          rw [exactArg], entry.val, entry.property⟩
-      else none
-    else none
-  | _ => none
+    (packets : Fin blocks → PacketType) (outputs : Fin exits → PacketType)
+    (source : FiniteCFG F blocks exits captures) : Option (Lifted sig context packets outputs source) := do
+  let ⟨boundary, sourceEq⟩ ← Boundary.read sig context (SSA.FiniteSum.append packets outputs) source.entry
+  let entry ← scopedRow (blocks + exits) captures boundary.lower
+  return ⟨boundary, sourceEq, entry.val, entry.property⟩
 
 structure Compiled (sig : PrimitiveSignature F) (context : BoundCtx PacketType captures)
     (packets : Fin blocks → PacketType) (outputs : Fin exits → PacketType)
     (source : FiniteCFG F blocks exits captures) where
-  lifted : Lifted sig context source
+  lifted : Lifted sig context packets outputs source
   sourceTyped : letI := sig.typing; source.HasType context packets outputs
   checked : Multiple.Compiled sig context packets outputs lifted.code
 
 /-- Check the original CFG and lower its operand schedule through the
-existing recursive continuation compiler. The old block table is shared. -/
+existing recursive continuation compiler. The old block table is shared.
+The continuation compiler requires a nonempty frame at each scheduled
+request or unpack. -/
 def compile [DecidableEq F] (sig : PrimitiveSignature F) (context : BoundCtx PacketType captures)
     (packets : Fin blocks → PacketType) (outputs : Fin exits → PacketType)
     (source : FiniteCFG F blocks exits captures) : Option (Compiled sig context packets outputs source) :=
   letI := sig.typing;
   if original : NamedFlat.check source context packets outputs = true then
-    match lift sig context source with
+    match lift sig context packets outputs source with
     | none => none
     | some lifted =>
       (Multiple.compile sig context packets outputs lifted.code).map fun checked =>

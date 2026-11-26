@@ -1,0 +1,71 @@
+# Date32 calendar cells in typed UTF-8 CSV
+
+`Csv.Typed.Codecs.Date32.codec` encodes an Arrow Date32 word as a ten-byte
+`YYYY-MM-DD` field. Date32 counts signed days from 1970-01-01. This profile
+uses the proleptic Gregorian calendar with astronomical year zero. The first
+admitted day is `0000-01-01` (−719528) and the last is `9999-12-31` (2932896).
+Year `0000` and year `2000` have a February 29. Year `1900` does not.
+[Arrow 26.0.1 Schema.fbs](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/Schema.fbs)
+· [Parquet 2.14.0 logical types](https://github.com/apache/parquet-format/blob/04d56f291ff963e98bc37ab8100e2fc133ff583c/LogicalTypes.md#date)
+· [Gregorian model and references](arrow-parquet-date.md)
+
+The field parser consumes the entire field as ASCII digits with hyphens in
+positions 5 and 8. It validates the month and day and checks exact canonical
+spelling. Reduced precision, ordinal and week dates, expanded or signed
+years, whitespace, clock times and offsets are outside this date-only profile.
+The signed Date32 payload still supports its full range outside this codec.
+[ISO 8601-1:2019](https://www.iso.org/standard/70907.html)
+
+The `encode` and `decode` wrappers take an explicit ordered Date32 schema
+and a nullability predicate over its kinds. They use the existing typed
+UTF-8 CSV header, width, and CRLF wire rules. A nullable null is `N`, a
+present date is `TYYYY-MM-DD`, and an empty present value fails with
+`.csv (.parseCell column)`. An out-of-profile word fails with
+`.csv (.printCell column)`. Required nulls report the first zero-based
+row and column. Export checks required fields before framing. Import checks
+required fields after successful wire, schema, and cell decoding. Export
+quotes all fields as usual, and import also accepts legal unquoted fields.
+The tags are the existing typed CSV convention layered over the wire grammar.
+[RFC 4180 §2](https://www.rfc-editor.org/rfc/rfc4180#section-2)
+· [Executable API](../../Silmaril/Formats/Csv/Typed/Codecs/Date32/Defs.lean)
+
+`admitted_iff_signed` and `print_eq_some_iff` characterize printable words
+and their unique spelling. `parse_eq_some_iff` and `parse_length` characterize
+the accepted text and its width. `codec_parsePrint` and `codec_printParse` are
+the standard cell laws. `decode_encode` recovers the exact ordered table,
+including nulls, and `encode_of_decode` preserves the lexical rows on
+re-export. The latter permits normalization of CSV quoting or the final CRLF.
+[Theorem header](../../Silmaril/Formats/Csv/Typed/Codecs/Date32/Thms.lean)
+
+## Verification
+
+PyArrow 26.0.1 independently formats the signed Date32 words, including year
+zero and the two days immediately outside the admitted profile. Its Parquet
+writer produces an optional DATE column named `日付` in two row groups. The
+Lean fixture uses `Parquet.Date.Events.readAll` and standard
+`Arrow.Events.EventStream.collect` at EOF, keeps the field kind and nullability,
+and encodes the label as UTF-8. It checks exact signed slots and compares the
+export with CPython 3.13.5 `csv.writer` using `QUOTE_ALL` and CRLF. Both
+`QUOTE_ALL` and `QUOTE_MINIMAL` imports recover the same slots.
+
+CPython `datetime.date` cross-checks spellings and day offsets for years
+`0001`–`9999`. That type cannot represent year zero. The year-zero dates
+and the extended-year controls are checked with PyArrow's date formatting.
+CPython `csv` handles those spellings as strings. The pinned negative
+fixtures cover a non-leap century, trailing bytes, empty present text,
+expanded and signed years, a quoted comma inside the date, null in a
+required field, and an unterminated quote. Lean guards also cover signed
+Int32 extrema, header/width errors and malformed UTF-8.
+[Fixture hashes](../../scripts/date32-csv-oracle/fixtures.json)
+· [Oracle](../../scripts/date32-csv-oracle/check.py)
+· [Lean guards](../../Silmaril/Formats/Csv/Typed/Codecs/Date32/Tests.lean)
+
+```sh
+targets='+Silmaril.Formats.Csv.Typed.Codecs.Date32.Thms +Silmaril.Formats.Csv.Typed.Codecs.Date32.Tests'
+lake build --wfail $targets
+make check CHECK_TARGETS="$targets"
+python3 -I scripts/date32-csv-oracle/check.py
+```
+
+The oracle accepts `--pyarrow-path` for a separately unpacked PyArrow wheel.
+The manifest pins the Linux x86-64 CPython 3.13 wheel hash.

@@ -48,7 +48,7 @@ private def base : Store Nat :=
       .host innerJoin.type innerJoin.code, .host outerJoin.type outerJoin.code,
       .host innerAlternate.type innerAlternate.code] }
 
-private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
+private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl, .fixed⟩
 private def caller : Frame := ⟨[i32 99], {funcs := [⟨0⟩]}⟩
 
 private theorem checked : program.Checked memory caller ⟨0⟩ := by

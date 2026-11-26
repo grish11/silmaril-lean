@@ -65,4 +65,18 @@ theorem read_after (entry : Tuple m.Val args) (tokens : Tokens m.Val past) (mark
       simp only [Cut.tokens, phase, Vertex.outputs]
       exact ih _ mark.2 (by simpa only [finished, phase] using done)
 
+theorem finished_attach (entry : Tuple m.Val args) (tokens : Tokens m.Val past)
+    (prefixMark : Marking m front) (tailMark : Marking m tail) {result : Tuple m.Val bank}
+    (done : finished m front entry tokens prefixMark = some result) :
+    finished m whole entry tokens (cut.attach m prefixMark tailMark) =
+      finished m tail entry (cut.tokens m tokens prefixMark) tailMark := by
+  induction cut with
+  | stop => rfl
+  | bind _ _ _ ih =>
+    cases phase : prefixMark.1 with
+    | pending | waiting => simp [finished, phase] at done
+    | done value =>
+      simp only [Cut.attach, Cut.tokens, finished, phase, Vertex.outputs]
+      exact ih _ prefixMark.2 tailMark (by simpa only [finished, phase] using done)
+
 end Silmaril.SSA.RVSDG.NestedTheta.Petri.Cut.Proofs

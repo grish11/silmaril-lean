@@ -17,7 +17,7 @@ variable {V S : Type u} {Op : Dialect.{u, v} V S}
 variable {args head outs carried : Ports (PortType V S)}
 variable {past sigs : List (Ports (PortType V S))}
 
-private abbrev ChildrenComplete (m : Model.{u, v, w} Op) (node : Node Op args past head)
+abbrev ChildrenComplete (m : Model.{u, v, w} Op) (node : Node Op args past head)
     (children : Children (Term Op) node) :=
   ∀ (arm : Fin node.kind.arity) (input : Tuple m.Val node.kind.entry) (output : Tuple m.Val node.kind.exit),
     (children arm).Returns m input output →
@@ -35,11 +35,11 @@ private theorem lift_child (m : Model.{u, v, w} Op) {node : Node Op args past he
   steps.lift (p := Fire m (.bind node children rest) entry tokens)
     (fun mark => (.waiting arm (input, mark), tail)) (fun _ _ step => Fire.advance step)
 
-private theorem loop_steps (m : Model.{u, v, w} Op) (wires : Wires args past carried)
+theorem loop_steps (m : Model.{u, v, w} Op) (wires : Wires args past carried)
     (bodySigs : Fin 1 → List (Ports (PortType V S)))
     (children : (i : Fin 1) → Term Op carried [] (bodySigs i) (Theta.BodyResults carried))
     (rest : Term Op args (past ++ [carried]) sigs outs)
-    (entry : Tuple m.Val args) (tokens : Tokens m.Val past)
+    (entry : Tuple m.Val args) (tokens : Tokens m.Val past) (tail : Marking m rest)
     (childComplete : ChildrenComplete m (⟨carried, .theta carried, wires, bodySigs⟩ : Node Op args past carried)
       children)
     (input output : Tuple m.Val carried)
@@ -47,26 +47,27 @@ private theorem loop_steps (m : Model.{u, v, w} Op) (wires : Wires args past car
       (fun i again o => (children 0).Returns m i (Theta.bodyResult m again o)) input output) :
     let node : Node Op args past carried := ⟨carried, .theta carried, wires, bodySigs⟩
     ReflTransGen (Fire m (.bind node children rest) entry tokens)
-      (.waiting (0 : Fin 1) (input, pending m (children 0)), pending m rest)
-      (.done output, pending m rest) := by
+      (.waiting (0 : Fin 1) (input, pending m (children 0)), tail)
+      (.done output, tail) := by
   let node : Node Op args past carried := ⟨carried, .theta carried, wires, bodySigs⟩
   induction execution with
   | @stop start finish ran =>
     obtain ⟨mark, steps, done⟩ := childComplete (0 : Fin 1) start (Theta.bodyResult m false finish) ran
-    exact (lift_child m (node := node) (children := children) (rest := rest) entry tokens (pending m rest) (0 : Fin 1) start mark steps).tail (.commit done rfl)
+    exact (lift_child m (node := node) (children := children) (rest := rest) entry tokens (tail) (0 : Fin 1) start mark steps).tail (.commit done rfl)
   | @again start next finish ran more ih =>
     obtain ⟨mark, steps, done⟩ := childComplete (0 : Fin 1) start (Theta.bodyResult m true next) ran
-    exact ((lift_child m (node := node) (children := children) (rest := rest) entry tokens (pending m rest) (0 : Fin 1) start mark steps).tail
+    exact ((lift_child m (node := node) (children := children) (rest := rest) entry tokens (tail) (0 : Fin 1) start mark steps).tail
       (.restart done rfl rfl)).trans ih
 
-private theorem head_steps (m : Model.{u, v, w} Op) (node : Node Op args past head)
+theorem head_steps (m : Model.{u, v, w} Op) (node : Node Op args past head)
     (children : Children (Term Op) node) (rest : Term Op args (past ++ [head]) sigs outs)
-    (entry : Tuple m.Val args) (tokens : Tokens m.Val past) (childComplete : ChildrenComplete m node children)
+    (entry : Tuple m.Val args) (tokens : Tokens m.Val past) (tail : Marking m rest)
+    (childComplete : ChildrenComplete m node children)
     (input : Tuple m.Val node.ins) (output : Tuple m.Val head)
     (ready : read node.inputs entry tokens = some input)
     (execution : node.kind.Exec m (fun i x y => (children i).Returns m x y) input output) :
     ReflTransGen (Fire m (.bind node children rest) entry tokens)
-      (.pending, pending m rest) (.done output, pending m rest) := by
+      (.pending, tail) (.done output, tail) := by
   obtain ⟨ins, kind, wires, bodySigs⟩ := node
   cases kind with
   | base shape =>
@@ -78,10 +79,10 @@ private theorem head_steps (m : Model.{u, v, w} Op) (node : Node Op args past he
       | cons tag received =>
         let node : Node Op args past head := ⟨_, .base (.gamma extra), wires, bodySigs⟩
         obtain ⟨mark, steps, done⟩ := childComplete tag.down received output execution
-        exact ((lift_child m (node := node) (children := children) (rest := rest) entry tokens (pending m rest) tag.down received mark steps).head
+        exact ((lift_child m (node := node) (children := children) (rest := rest) entry tokens tail tag.down received mark steps).head
           (.enter ready rfl)).tail (.commit done rfl)
   | theta =>
-    exact (loop_steps m wires bodySigs children rest entry tokens childComplete input output execution).head
+    exact (loop_steps m wires bodySigs children rest entry tokens tail childComplete input output execution).head
       (.enter ready rfl)
 
 private theorem complete_term (m : Model.{u, v, w} Op) (t : Term Op args past sigs outs)
@@ -96,7 +97,7 @@ private theorem complete_term (m : Model.{u, v, w} Op) (t : Term Op args past si
     obtain ⟨value, first, remaining⟩ := execution
     have completeChild : ChildrenComplete m node children :=
       fun arm i o run => childIH arm i PUnit.unit o run
-    have headRun := head_steps m node children rest entry (full locals) completeChild
+    have headRun := head_steps m node children rest entry (full locals) (pending m rest) completeChild
       (node.inputs.read entry locals) value (read_full node.inputs entry locals) first
     obtain ⟨tail, steps, finishedTail⟩ := restIH entry (locals.snoc value) output remaining
     let completeHead (mark : Marking m rest) : Marking m (.bind node children rest) := (.done value, mark)

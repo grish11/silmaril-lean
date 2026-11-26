@@ -14,20 +14,36 @@ open Wasm.Lime1.Execution
 open CallContinuation.OuterCall (CallTarget)
 open CallContinuation.OuterCall.Ranked
 
-/-- The designated memory is allocated in the base store. Its live byte array
-may change, while its extent, declared limit and all other allocations stay fixed. -/
+/-- The host and callee share one allocated byte array. Growth is opt-in and
+requires a page-aligned initial allocation within its declared limits. -/
+inductive MemoryExtent (initial : MemInst) where
+  | fixed
+  | growing (admitted : MemoryGrow.SizeAllows initial 0)
+
+def MemoryExtent.growthEnabled {initial : MemInst} : MemoryExtent initial → Bool
+  | .fixed => false
+  | .growing _ => true
+
+/-- The designated memory keeps its allocation, maximum and the other store
+components when its live bytes are replaced. -/
 structure Memory32 {H : Type} (base : Store H) where
   address : MemAddr
   initial : MemInst
   allocated : base.memories[address.value]? = some initial
+  extent : MemoryExtent initial := .fixed
 
 namespace Memory32
 
+def current {H : Type} {base : Store H} (memory : Memory32 base) (bytes : ByteArray) : MemInst :=
+  { memory.initial with data := bytes }
+
 def store {H : Type} {base : Store H} (memory : Memory32 base) (bytes : ByteArray) : Store H :=
-  setMemory base memory.address { memory.initial with data := bytes }
+  setMemory base memory.address (memory.current bytes)
 
 def Live {H : Type} {base : Store H} (memory : Memory32 base) (bytes : ByteArray) : Prop :=
-  bytes.size = memory.initial.data.size
+  match memory.extent with
+  | .fixed => bytes.size = memory.initial.data.size
+  | .growing _ => Graph.Memory32.GrowthExtent memory.initial bytes
 
 end Memory32
 
@@ -81,18 +97,20 @@ def MemoryTarget.Allocated {H : Type} (callee : MemoryTarget) (base : Store H) :
   base.funcs[callee.address.value]? =
     some (.wasm callee.fn.declaration.type callee.fn.declaration.module callee.code)
 
-def MemoryTarget.supportedOp : Graph.Memory32.Op → Bool
-  | .ranked (.numeric (.get _)) | .load _ | .store _ => true
+def MemoryTarget.supportedOp (growthEnabled : Bool) : Graph.Memory32.Op → Bool
+  | .ranked (.numeric (.get _)) | .load _ | .store _ | .size => true
+  | .grow => growthEnabled
   | _ => false
 
-/-- Fixed-extent straight-line accesses and local reads. Reuse operand typing
+/-- Straight-line memory instructions and local reads under the selected
+extent policy. Reuse operand typing
 with the complete ordered result list, independent of the V1 scalar guard. -/
 structure MemoryTarget.Checked {H : Type} (callee : MemoryTarget) {base : Store H}
     (memory : Memory32 base) : Prop where
   slot : callee.fn.declaration.module.memories[0]? = some memory.address
   typeAt : callee.fn.declaration.module.types[callee.fn.declaration.typeIndex.toNat]? =
     some callee.fn.declaration.type
-  supported : callee.fn.code.all MemoryTarget.supportedOp = true
+  supported : callee.fn.code.all (MemoryTarget.supportedOp memory.extent.growthEnabled) = true
   body : callee.fn.WellTyped callee.fn.initial callee.fn.code
 
 structure WasmTarget where

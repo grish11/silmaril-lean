@@ -117,6 +117,22 @@ theorem lime_intStore_strip {H : Type} {s : Store H} {f : Frame} {arg : V1.MemAr
   Proofs.Lime1.intStore_strip move
 
 open Wasm.Lime1.Execution in
+theorem lime_memoryGrow_strip {H : Type} {s : Store H} {f : Frame}
+    {delta : BitVec 32} {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Step CallFrame.limeNoHost ⟨s, f, values (saved ++ [Value.int .i32 delta]) ++ .source .memoryGrow :: tail⟩ dst) :
+    ∃ mid, Step CallFrame.limeNoHost ⟨s, f, [value (Value.int .i32 delta), .source .memoryGrow]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ :=
+  Proofs.Lime1.memoryGrow_strip move
+
+open Wasm.Lime1.Execution in
+theorem lime_memorySize_strip {H : Type} {s : Store H} {f : Frame}
+    {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Step CallFrame.limeNoHost ⟨s, f, values saved ++ .source .memorySize :: tail⟩ dst) :
+    ∃ mid, Step CallFrame.limeNoHost ⟨s, f, [.source .memorySize]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ :=
+  Proofs.Lime1.memorySize_strip move
+
+open Wasm.Lime1.Execution in
 theorem lime_frame_context_inv {H : Type} {s : Store H} {f inside : Frame} {n : Nat}
     {saved : List Value} {code rest : List Admin} {dst : Config H}
     (step : Step CallFrame.limeNoHost ⟨s, f, values saved ++ .frame n inside code :: rest⟩ dst) :

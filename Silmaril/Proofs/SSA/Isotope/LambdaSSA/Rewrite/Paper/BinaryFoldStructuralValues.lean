@@ -87,6 +87,23 @@ noncomputable def ternaryStep {A : τ} {B : Q} (g : Obj A ⟶ B ⨿ Obj A) :
     Obj (A ⊕ₜ (A ⊕ₜ A)) ⟶ B ⨿ Obj (A ⊕ₜ (A ⊕ₜ A)) :=
   (ternarySplit pe A).hom ≫ ThreeCycle.step g ≫ coprod.map (𝟙 B) (ternarySplit pe A).inv
 
+theorem ternaryFold_arrow (A : τ) :
+    (inclusion S).map (ternaryFold pe A) =
+      exactCopair S (𝟙 (ofType S A)) (exactCopair S (𝟙 (ofType S A)) (𝟙 (ofType S A))) := by
+  unfold ternaryFold
+  rfl
+
+set_option backward.isDefEq.respectTransparency false in
+theorem ternaryStep_iterate_first {A : τ} {B : Q} (g : ofType S A ⟶ B ⨿ ofType S A) :
+    (sumCofan S A (Silmaril.coprod A A)).inl ≫ I (ternaryStep pe g) = I (ThreeCycle.triple g) := by
+  let e := ternarySplit (Φ := Φ) pe A
+  have coord : ternaryStep pe g ≫ coprod.map (𝟙 B) e.hom = e.hom ≫ ThreeCycle.step g := by
+    simp [ternaryStep, e, coprod.map_map]
+  have first : (sumCofan S A (Silmaril.coprod A A)).inl ≫ e.hom = coprod.inl := by
+    simp only [e, ternarySplit, Iso.trans_hom, coprod.mapIso_hom, Iso.refl_hom]
+    rw [← Category.assoc, sumCofan_inl_sumIso_hom, coprod.inl_map, Category.id_comp]
+  rw [uniformity_of_iso S e _ _ coord, ← Category.assoc, first, ThreeCycle.iterate_step_at_first]
+
 set_option backward.isDefEq.respectTransparency false in
 private theorem ternaryFold_eq (A : τ) :
     (ternarySplit pe A).hom ≫ ThreeCycle.fold (Obj A) = (inclusion S).map (ternaryFold pe A) := by

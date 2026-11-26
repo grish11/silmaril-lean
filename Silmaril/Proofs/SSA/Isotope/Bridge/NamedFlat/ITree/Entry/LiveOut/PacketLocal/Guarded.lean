@@ -71,22 +71,27 @@ theorem mutable_step (c : Corresponds a g caller query instr input result) (stat
     rfl
   | inr => rfl
 
-theorem observe_eq (c : Corresponds a g caller query instr input result) :
+omit [HasTy P.Instr Syntax.Ty] in
+theorem observe_eq_of_steps {C : Type 1}
+    (start : C) (next : C → Tree E (Transfer α ⊕ C)) (encode : C → K × Value α)
+    (entry : a.versioned.source.entry.evalJump (treeModel instr) input = pure (encode start))
+    (localStep : ∀ c,
+      (next c >>= liftPure (Sum.map id encode)) =
+        mapReturn (CFG.Cyclic.stepSSA (treeModel instr) a.versioned.source.blocks input)
+          (liftPure fun p => FiniteCFG.packedTreeOutput (treeExitNumber I.exits p)) (encode c)) :
     LiveOut.observeRaw instr I.exits (fun k => (fields k).map Prod.fst) source
-      (fun reg => input (reg, 0)) =
-      iter (step g caller query result) (atBlock ⟨g.entry, caller⟩) := by
+      (fun reg => input (reg, 0)) = iter next start := by
   let m := treeModel instr
   let number := fun (p : K × Value α) => FiniteCFG.packedTreeOutput (treeExitNumber I.exits p)
   let lexicalStep := CFG.Cyclic.stepSSA m a.versioned.source.blocks input
   let actual := mapReturn lexicalStep (liftPure number)
-  let start := atBlock (R := R) ⟨g.entry, caller⟩
-  have same := congrFun (iterate_uniformity (step g caller query result) actual c.encode
+  have same := congrFun (iterate_uniformity next actual encode
     (funext fun i => by
-      change (step g caller query result i >>= liftPure (Sum.map id c.encode)) =
-        (pure (c.encode i) >>= actual)
+      change (next i >>= liftPure (Sum.map id encode)) =
+        (pure (encode i) >>= actual)
       rw [pure_bind]
-      exact c.localStep i)) start
-  change iter (step g caller query result) start = (pure (c.encode start) >>= iter actual) at same
+      exact localStep i)) start
+  change iter next start = (pure (encode start) >>= iter actual) at same
   rw [pure_bind] at same
   have versioned := CFG.Cyclic.Versioning.runPacketLocal_commutes m ⟨fun _ _ => rfl⟩
     (CFG.Cyclic.LiveOut.attach (fun k => (fields k).map Prod.fst) source) a.closed input
@@ -95,11 +100,17 @@ theorem observe_eq (c : Corresponds a g caller query instr input result) :
       rw [a.compiled, ← versioned, CFG.Cyclic.LiveOut.run_project]
       simp only [LiveOut.observeRaw, bind_map_left]
       rfl
-    _ = iter lexicalStep (c.encode start) >>= liftPure number := by
-      simp only [CFG.Cyclic.runSSA, c.entry, pure_bind, start, lexicalStep, m]
-    _ = iter actual (c.encode start) :=
+    _ = iter lexicalStep (encode start) >>= liftPure number := by
+      simp only [CFG.Cyclic.runSSA, entry, pure_bind, lexicalStep, m]
+    _ = iter actual (encode start) :=
       congrFun (iterate_naturality lexicalStep (liftPure number)) _
     _ = _ := same.symm
+
+theorem observe_eq (c : Corresponds a g caller query instr input result) :
+    LiveOut.observeRaw instr I.exits (fun k => (fields k).map Prod.fst) source
+      (fun reg => input (reg, 0)) =
+      iter (step g caller query result) (atBlock ⟨g.entry, caller⟩) :=
+  observe_eq_of_steps _ _ c.encode c.entry c.localStep
 
 end Named
 

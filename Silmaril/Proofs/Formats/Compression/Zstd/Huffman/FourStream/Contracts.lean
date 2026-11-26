@@ -123,6 +123,34 @@ private theorem outputLength {table : SingleStream.Table} {parts : List Chunk} {
   | done => rfl
   | cons first _ ih => simp [List.flatten_cons, first.1, ih]
 
+private theorem decodedLength {table : SingleStream.Table} {parts : Split}
+    {out : List (List UInt8)} {regenerated : Nat}
+    (counts : CountsWire regenerated parts) (wire : ChunksWire table parts.chunks out) :
+    out.flatten.length = regenerated := by
+  obtain ⟨_, sufficient, first, second, third, fourth⟩ := counts
+  rw [outputLength wire]
+  simp only [Split.chunks, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
+    first, second, third, fourth]
+  omega
+
+theorem decodeTable_sound {limits : Limits} {table : SingleStream.Table}
+    {declared regenerated : Nat} {input out : List UInt8}
+    (success : FourStream.decodeTable limits table declared regenerated input = .ok out) :
+    input.length = declared ∧ declared ≤ limits.inputBytes ∧
+      out.length = regenerated ∧ regenerated ≤ limits.outputSymbols ∧
+      DecodedWire table declared regenerated input out := by
+  cases partition : FourStream.split limits declared regenerated input with
+  | error reason => simp [FourStream.decodeTable, partition, bind, Except.bind] at success
+  | ok parts =>
+    cases decoded : decodeChunks table 1 parts.chunks with
+    | error reason => simp [FourStream.decodeTable, partition, decoded, bind, Except.bind, Except.map] at success
+    | ok output =>
+      simp only [FourStream.decodeTable, partition, decoded, bind, Except.bind, Except.map] at success
+      cases success
+      obtain ⟨extent, inputFits, outputFits, bytes, counts⟩ := split_sound partition
+      have wire := chunks_sound decoded
+      exact ⟨extent, inputFits, decodedLength counts wire, outputFits, parts, output, bytes, counts, wire, rfl⟩
+
 theorem decode_sound {limits : Limits} {treeLimits : DirectWeights.Limits} {tree : DirectWeights.Tree}
     {declared regenerated : Nat} {input out : List UInt8}
     (success : FourStream.decode limits treeLimits tree declared regenerated input = .ok out) :
@@ -147,13 +175,7 @@ theorem decode_sound {limits : Limits} {treeLimits : DirectWeights.Limits} {tree
         obtain ⟨extent, inputFits, outputFits, bytes, counts⟩ := split_sound partition
         obtain ⟨valid, canonical⟩ := SingleStream.build_sound built
         have wire := chunks_sound decoded
-        have length : output.flatten.length = regenerated := by
-          obtain ⟨_, sufficient, first, second, third, fourth⟩ := counts
-          rw [outputLength wire]
-          simp only [Split.chunks, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
-            first, second, third, fourth]
-          omega
-        exact ⟨extent, inputFits, length, outputFits, valid, parts, table, output, bytes, counts,
+        exact ⟨extent, inputFits, decodedLength counts wire, outputFits, valid, parts, table, output, bytes, counts,
           canonical, wire, rfl⟩
 
 end Silmaril.Proofs.Formats.Compression.Zstd.Huffman.FourStream

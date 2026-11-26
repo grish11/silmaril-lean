@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Defs
+public import Silmaril.SSA.Isotope.LambdaSSA.InstructionMap.Thms
 public import Silmaril.Semantics.ITree.Signature.Execution.Thms
 
 public section
@@ -8,13 +9,41 @@ public section
 namespace Silmaril.Proofs.SSA.Isotope.LambdaSSA.Interaction
 
 open CategoryTheory
-open Silmaril.Elgot.ITree (Signature)
 open Silmaril.Isotope Silmaril.Isotope.LambdaSSA
 open Silmaril.Isotope.LambdaSSA.Semantics (Env extend)
 open Silmaril.Isotope.LambdaSSA.Semantics.Interaction
 
-universe u v w
-variable {S T : Signature.{u}} {Φ : Type v} {α : Type w}
+universe u v w a
+section Raw
+
+variable {Events : Type u → Type u} {Φ : Type v} {Ψ : Type w}
+
+private theorem term_mapInstr {α : Type a} (f : Φ → Ψ)
+    (instr : Primitive Events Ψ α) (env : Env α) (t : Tm Φ) :
+    term instr env (t.mapInstr f) = term (fun x => instr (f x)) env t := by
+  induction t generalizing env <;> simp [Tm.mapInstr, term, *]
+
+theorem region_mapInstr {α : Type a} (f : Φ → Ψ)
+    (instr : Primitive Events Ψ α) (env : Env α) (r : Region Φ) :
+    region instr env (r.mapInstr f) = region (fun x => instr (f x)) env r := by
+  induction r generalizing env with
+  | cfg entry arity blocks ihEntry ihBlocks =>
+    simp only [Region.mapInstr, region, ihEntry]
+    have steps :
+        (fun p : BlockInput α arity =>
+          region instr (extend env p.2) ((blocks p.1).mapInstr f) >>=
+            fun out => pure (splitTransfer arity out)) =
+        (fun p : BlockInput α arity =>
+          region (fun x => instr (f x)) (extend env p.2) (blocks p.1) >>=
+            fun out => pure (splitTransfer arity out)) := by
+      funext p
+      rw [ihBlocks]
+    rw [steps]
+  | br | let₁ | let₂ | case => simp [Region.mapInstr, region, term_mapInstr, *]
+
+end Raw
+
+variable {S T : Silmaril.Elgot.ITree.Signature.{u}} {Φ : Type v} {α : Type w}
   (f : S ⟶ T) (instr : Primitive S.Event Φ α)
 
 private theorem term_reindex (env : Env α) (a : Tm Φ) :

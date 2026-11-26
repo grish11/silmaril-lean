@@ -5,6 +5,7 @@ import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.Memory.Callee
 import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Memory.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryWrite.Native.Lime1Context.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryQuery.Thms
+import Silmaril.Wasm.Institution.Operational.MemoryGrow.Native.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryWrite.Thms
 import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Thms
 import Silmaril.Wasm.Institution.Operational.CallContinuation.Native.Thms
@@ -186,6 +187,76 @@ private theorem store_iff {args stack : List Value} {offset : Fin (2 ^ 32)} {ptr
   simpa [config, render, Graph.Memory32.Op.v1, Wasm.V1.Instr.toLime, MemoryWrite.limeActivationCode,
     MemoryWrite.limeConfigAt, value, Value.int, values, List.append_assoc, arg, Graph.Memory32.immediate] using access
 
+private theorem size_iff {args stack : List Value} {ops : List Graph.Memory32.Op}
+    (checked : callee.Checked mem) :
+    Step CallFrame.limeNoHost (cfg bytes (.body args stack (.size :: ops))) dst ↔
+      dst = cfg bytes (.body args (stack ++ [pages bytes]) ops) := by
+  rw [show cfg bytes (.body args stack (.size :: ops)) =
+      ⟨mem.store bytes, caller, MemoryWrite.limeActivationCode resultCount (callee.fn.declaration.frame args)
+        saved tail (values stack ++ .source .memorySize :: code ops)⟩ from by
+    simp only [config, render, code_cons, MemoryWrite.limeActivationCode, List.append_assoc, List.singleton_append]
+    rfl]
+  rw [body_iff (fun _ => lime_label_stays rfl (by simp) (by simp) (by simp))]
+  have slot := mem.frameMemory_store (bytes := bytes) (active := callee.fn.declaration.frame args) checked.slot
+  constructor
+  · rintro ⟨mid, step, rfl⟩
+    obtain ⟨head, size, rfl⟩ := CallContinuation.lime_memorySize_strip step
+    obtain ⟨out, edge, rfl⟩ := (MemoryQuery.lime_step_iff_at MemoryQuery.arg slot (query := .size)).mp size
+    cases MemoryQuery.invert edge
+    simp [config, render, MemoryWrite.limeActivationCode, MemoryQuery.limeConfigAt,
+      MemoryQuery.limeCodeAt, pages, values, value, Value.int, List.append_assoc]
+  · rintro rfl
+    have size := MemoryQuery.lime_sound (host := CallFrame.limeNoHost) slot (MemoryQuery.fact .size)
+    refine ⟨⟨mem.store bytes, callee.fn.declaration.frame args, values (stack ++ [pages bytes]) ++ code ops⟩,
+      ?_, by simp only [config, render, MemoryWrite.limeActivationCode, List.append_assoc, List.singleton_append]⟩
+    simpa [MemoryQuery.limeConfigAt, MemoryQuery.limeCodeAt, pages, values, value, Value.int, List.append_assoc] using
+      Step.context size stack (code ops)
+
+private theorem grow_iff {args stack : List Value} {delta : BitVec 32} {ops : List Graph.Memory32.Op}
+    (checked : callee.Checked mem) :
+    Step CallFrame.limeNoHost (cfg bytes (.body args (stack ++ [Value.int .i32 delta]) (.grow :: ops))) dst ↔
+      (∃ grown, MemoryGrow.Edge (mem.current bytes) (.request delta) (.grown grown) ∧
+        dst = cfg grown (.body args (stack ++ [pages bytes]) ops)) ∨
+      dst = cfg bytes (.body args (stack ++ [Value.int .i32 (-1)]) ops) := by
+  rw [show cfg bytes (.body args (stack ++ [Value.int .i32 delta]) (.grow :: ops)) =
+      ⟨mem.store bytes, caller, MemoryWrite.limeActivationCode resultCount (callee.fn.declaration.frame args)
+        saved tail (values (stack ++ [Value.int .i32 delta]) ++ .source .memoryGrow :: code ops)⟩ from by
+    simp only [config, render, code_cons, MemoryWrite.limeActivationCode, List.append_assoc, List.singleton_append]
+    rfl]
+  rw [body_iff (fun _ => lime_label_stays rfl (by simp) (by simp) (by simp))]
+  have slot : frameMemory (mem.store bytes) (callee.fn.declaration.frame args) =
+      some (mem.address, mem.current bytes) := mem.frameMemory_store checked.slot
+  have storeAgain (grown : ByteArray) :
+      setMemory (mem.store bytes) mem.address (mem.current grown) = mem.store grown := by
+    simp [Memory32.store, setMemory, List.set_set]
+  constructor
+  · rintro ⟨mid, step, rfl⟩
+    obtain ⟨head, grow, rfl⟩ := CallContinuation.lime_memoryGrow_strip step
+    obtain ⟨out, edge, rfl⟩ := (MemoryGrow.lime_step_iff slot (q := .request delta)).mp grow
+    cases out with
+    | request => cases MemoryGrow.invert edge
+    | grown grown =>
+      refine .inl ⟨grown, edge, ?_⟩
+      simp [config, render, MemoryWrite.limeActivationCode, MemoryGrow.limeConfig,
+        Memory32.current, pages, values, value, Value.int, List.append_assoc]
+      simpa only [Memory32.current] using storeAgain grown
+    | failed =>
+      exact .inr (by simp [config, render, MemoryWrite.limeActivationCode, MemoryGrow.limeConfig,
+        values, value, Value.int, List.append_assoc])
+  · rintro (⟨grown, edge, rfl⟩ | rfl)
+    · have grow := MemoryGrow.lime_sound (host := CallFrame.limeNoHost) slot edge
+      refine ⟨⟨mem.store grown, callee.fn.declaration.frame args, values (stack ++ [pages bytes]) ++ code ops⟩,
+        ?_, by simp only [config, render, MemoryWrite.limeActivationCode, List.append_assoc, List.singleton_append]⟩
+      simpa [MemoryGrow.limeConfig, Memory32.current, pages, values, value, Value.int, List.append_assoc,
+        show setMemory (mem.store bytes) mem.address { mem.initial with data := grown } = mem.store grown
+          from storeAgain grown] using Step.context grow stack (code ops)
+    · have grow := MemoryGrow.lime_sound (host := CallFrame.limeNoHost) slot (MemoryGrow.fact (.fail delta))
+      refine ⟨⟨mem.store bytes, callee.fn.declaration.frame args,
+        values (stack ++ [Value.int .i32 (-1)]) ++ code ops⟩, ?_,
+        by simp only [config, render, MemoryWrite.limeActivationCode, List.append_assoc, List.singleton_append]⟩
+      simpa [MemoryGrow.limeConfig, values, value, Value.int, List.append_assoc] using
+        Step.context grow stack (code ops)
+
 private theorem erase_iff {args stack : List Value} {rest : List Admin} (active : stack ≠ [] ∨ rest ≠ []) :
     Step CallFrame.limeNoHost (cfg bytes (.trapped args stack rest)) dst ↔
       ∃ kept removed cut after, stack = kept ++ removed ∧ rest = cut ++ after ∧
@@ -205,9 +276,9 @@ private theorem erase_iff {args stack : List Value} {rest : List Admin} (active 
       by simp [config, render, MemoryWrite.limeActivationCode, List.append_assoc]⟩
 
 private theorem read {phase : Phase} (checked : callee.Checked mem) (allocated : callee.Allocated base)
-    (ready : Ready callee phase) (live : mem.Live bytes) (notDone : ∀ out, phase ≠ .done out)
+    (ready : Ready callee mem.extent.growthEnabled phase) (live : mem.Live bytes) (notDone : ∀ out, phase ≠ .done out)
     (move : Step CallFrame.limeNoHost (cfg bytes phase) dst) :
-    ∃ nextBytes next, Edge callee bytes phase nextBytes next ∧ dst = cfg nextBytes next := by
+    ∃ nextBytes next, Edge mem callee bytes phase nextBytes next ∧ dst = cfg nextBytes next := by
   cases phase with
   | invoke args => exact ⟨_, _, .enter, (enter_iff allocated ready).mp move⟩
   | body args stack ops =>
@@ -230,6 +301,12 @@ private theorem read {phase : Phase} (checked : callee.Checked mem) (allocated :
         rcases (store_iff checked live).mp move with ⟨written, edge, _, eq⟩ | ⟨edge, eq⟩
         · exact ⟨_, _, .store edge, eq⟩
         · exact ⟨_, _, .storeTrap edge, eq⟩
+      | size => exact ⟨_, _, .size, (size_iff checked).mp move⟩
+      | grow =>
+        obtain ⟨stack, delta, rfl, _⟩ := Graph.Memory32.Function.grow_typed ready.2.2
+        rcases (grow_iff checked).mp move with ⟨grown, edge, eq⟩ | eq
+        · exact ⟨_, _, .grow supported edge, eq⟩
+        · exact ⟨_, _, .growFail, eq⟩
       | ranked op =>
         cases op with
         | numeric op =>
@@ -256,8 +333,8 @@ private theorem read {phase : Phase} (checked : callee.Checked mem) (allocated :
   | done out => exact (notDone out rfl).elim
 
 private theorem sound {phase next : Phase} {written : ByteArray} (checked : callee.Checked mem)
-    (allocated : callee.Allocated base) (ready : Ready callee phase) (live : mem.Live bytes)
-    (move : Edge callee bytes phase written next) : Step CallFrame.limeNoHost (cfg bytes phase) (cfg written next) := by
+    (allocated : callee.Allocated base) (ready : Ready callee mem.extent.growthEnabled phase) (live : mem.Live bytes)
+    (move : Edge mem callee bytes phase written next) : Step CallFrame.limeNoHost (cfg bytes phase) (cfg written next) := by
   cases move with
   | enter => exact (enter_iff allocated ready).mpr rfl
   | get found => exact (get_iff found).mpr rfl
@@ -265,8 +342,11 @@ private theorem sound {phase next : Phase} {written : ByteArray} (checked : call
   | loadTrap edge => exact (load_iff checked).mpr (.inr ⟨edge, rfl⟩)
   | store edge =>
     have size : written.size = bytes.size := MemoryWrite.closed_at edge
-    exact (store_iff checked live).mpr (.inl ⟨_, edge, size.trans live, rfl⟩)
+    exact (store_iff checked live).mpr (.inl ⟨_, edge, mem.live_same_size live size, rfl⟩)
   | storeTrap edge => exact (store_iff checked live).mpr (.inr ⟨edge, rfl⟩)
+  | size => exact (size_iff checked).mpr rfl
+  | grow _ edge => exact (grow_iff checked).mpr (.inl ⟨_, edge, rfl⟩)
+  | growFail => exact (grow_iff checked).mpr (.inr rfl)
   | @erase args stack kept removed before cut rest split suffix active =>
     have nonempty : stack ≠ [] ∨ before ≠ [] := by
       rcases active with removed | cut
@@ -284,9 +364,9 @@ private theorem sound {phase next : Phase} {written : ByteArray} (checked : call
   | frameDone => exact (leave_frame_iff ready.2).mpr rfl
 
 theorem step_iff {phase : Phase} (checked : callee.Checked mem) (allocated : callee.Allocated base)
-    (ready : Ready callee phase) (live : mem.Live bytes) (notDone : ∀ out, phase ≠ .done out) :
+    (ready : Ready callee mem.extent.growthEnabled phase) (live : mem.Live bytes) (notDone : ∀ out, phase ≠ .done out) :
     Step CallFrame.limeNoHost (cfg bytes phase) dst ↔
-      ∃ written next, Edge callee bytes phase written next ∧ dst = cfg written next :=
+      ∃ written next, Edge mem callee bytes phase written next ∧ dst = cfg written next :=
   ⟨read checked allocated ready live notDone, fun ⟨_, _, edge, eq⟩ => eq.symm ▸ sound checked allocated ready live edge⟩
 
 private theorem code_absent (s : Store H) (ops : List Graph.Memory32.Op) (stack : List Value) :

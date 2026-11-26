@@ -59,7 +59,7 @@ private def base : Store Nat :=
       .wasm declaration.type declaration.module wasmFn.limeFunc,
       .wasm declaration.type declaration.module trapFn.limeFunc] }
 
-private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
+private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl, .fixed⟩
 private def caller : Frame := ⟨[i32 9], {funcs := [⟨0⟩]}⟩
 private abbrev Check := Continuation.Checked base program.module [num64]
 private abbrev rootResults := [num32]

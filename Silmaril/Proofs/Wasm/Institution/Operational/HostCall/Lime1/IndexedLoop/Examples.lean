@@ -28,7 +28,7 @@ private def base : Store Nat :=
   { memories := [initial], funcs := [.wasm program.functionType program.module program.function,
       .host producerType 10, .host middle.type middle.code, .host last.type last.code] }
 
-private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
+private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl, .fixed⟩
 private def caller : Frame := ⟨[i32 99], { funcs := [⟨0⟩] }⟩
 
 private theorem checked : program.Checked memory caller ⟨0⟩ := by

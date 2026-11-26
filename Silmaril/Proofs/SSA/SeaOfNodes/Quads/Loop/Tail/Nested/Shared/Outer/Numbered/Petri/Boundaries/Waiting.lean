@@ -26,7 +26,7 @@ open Relation (ReflTransGen)
 
 universe u v w
 
-private theorem base_cut_wires {V S : Type u} {Φ : RVSDG.Dialect.{u, v} V S}
+theorem base_cut_wires {V S : Type u} {Φ : RVSDG.Dialect.{u, v} V S}
     {args bank outs : List (RVSDG.PortType V S)} {past frontSigs tailSigs : List (List (RVSDG.PortType V S))}
     (base : RVSDG.Term Φ args past frontSigs bank)
     (finish : Wires args (extend past frontSigs) bank → Term Φ args (extend past frontSigs) tailSigs outs) :
@@ -38,7 +38,7 @@ private theorem base_cut_wires {V S : Type u} {Φ : RVSDG.Dialect.{u, v} V S}
 variable {Data : Type u} {F : SeaOfNodes.Diamond.Ty Data → Type w}
 variable {args head : List (SeaOfNodes.Diamond.Ty Data)} {past : List (List (SeaOfNodes.Diamond.Ty Data))}
 
-private theorem last_colour {t : SeaOfNodes.Diamond.Ty Data} (port : Port head t)
+theorem last_colour {t : SeaOfNodes.Diamond.Ty Data} (port : Port head t)
     (tokens : Tokens F past) (values : Tuple F head) :
     ((tokens.snoc (values.map fun _ => some)).get (lastIndex head past)).get (lastPort port past) =
       some (values.get port) := by
@@ -73,38 +73,58 @@ private theorem header_run :
   erw [Join.Block.lowerFrom_eval, read_initial]
   rfl
 
-theorem waiting_reaches (arm : Fin 2)
+theorem waiting_reaches_with {results : List (SeaOfNodes.Diamond.Ty Width)} {suffix : List (List (SeaOfNodes.Diamond.Ty Width))}
+    (finish : Wires (dataPorts regs) (outerScope p) (dataPorts regs) →
+      Term (Join.Opcode Op) (dataPorts regs) (outerScope p) suffix results)
+    (arm : Fin 2)
     (chosen : (Prefix.outerChoice p.toRoutes).eval (headerBank p.toRoutes old) = arm)
     (child : Marking semantics (Prefix.outerArm p.toRoutes arm))
     (childSteps : ReflTransGen (Fire semantics (Prefix.outerArm p.toRoutes arm) (headerBank p.toRoutes old) PUnit.unit)
-      (pending semantics (Prefix.outerArm p.toRoutes arm)) child) : Waiting p old arm child := by
+      (pending semantics (Prefix.outerArm p.toRoutes arm)) child) :
+    let after := fun bank => Prefix.afterOuter p.toRoutes bank finish
+    let cut := baseCut (headerCode p) after
+    ∃ headerMark, ReflTransGen (Fire semantics (Prefix.afterHeader p.toRoutes finish) old PUnit.unit)
+      (pending semantics (Prefix.afterHeader p.toRoutes finish))
+      (cut.attach semantics headerMark
+        (.done (taggedHeader p old arm), .waiting arm (headerBank p.toRoutes old, child),
+          pending semantics (finish (lastBank _ _)))) := by
   let front := Term.ofBase (headerCode p)
-  let continuation := afterHeader p (endWires (headerCode p))
-  let cut := headerCut p
+  let after := fun bank => Prefix.afterOuter p.toRoutes bank finish
+  let continuation := after (endWires (headerCode p))
+  let cut := baseCut (headerCode p) after
   let header := headerBank p.toRoutes old
   have headerDone := (finishes_iff semantics front.toGraph old header).mpr ⟨0, header_run p old⟩
   obtain ⟨mark, reaches, readHeader⟩ := (finishes_term_iff semantics front old header).mp headerDone
   let tokens := cut.tokens semantics PUnit.unit mark
   have ready : RVSDG.Petri.read (endWires (headerCode p)) old tokens = some header := by
     have parts := cut.read_after semantics old PUnit.unit mark header readHeader
-    change RVSDG.Petri.read (baseCut (headerCode p) (afterHeader p)).wires old tokens = some header at parts
+    change RVSDG.Petri.read cut.wires old tokens = some header at parts
     rw [base_cut_wires] at parts
     exact parts
   let routed := taggedHeader p old arm
-  let rest := pending semantics (outerContinuation p (lastBank _ _))
+  let rest := pending semantics (finish (lastBank _ _))
   let markedRoute : Marking semantics continuation := (.done routed, .pending, rest)
+  let liveMark (mark : Marking semantics (Prefix.outerArm p.toRoutes arm)) : Marking semantics continuation :=
+    (.done routed, .waiting arm (header, mark), rest)
   have firesRoute : Fire semantics continuation old tokens (pending semantics continuation) markedRoute := by
     apply Fire.primitive ready
     have routedEq : taggedHeader p old ((Prefix.outerChoice p.toRoutes).eval header) = routed :=
       congrArg (taggedHeader p old) chosen
     exact congrArg some routedEq
   have entersArm : Fire semantics continuation old tokens markedRoute
-      (waitingMark p old arm (pending semantics (Prefix.outerArm p.toRoutes arm))) :=
+      (liveMark (pending semantics (Prefix.outerArm p.toRoutes arm))) :=
     .later (.enter (read_last old tokens routed) rfl)
   have advanceArm : ReflTransGen (Fire semantics continuation old tokens)
-      (waitingMark p old arm (pending semantics (Prefix.outerArm p.toRoutes arm))) (waitingMark p old arm child) :=
-    childSteps.lift (waitingMark p old arm) (fun _ _ firing => .later (.advance firing))
+      (liveMark (pending semantics (Prefix.outerArm p.toRoutes arm))) (liveMark child) :=
+    childSteps.lift (liveMark) (fun _ _ firing => .later (.advance firing))
   exact ⟨mark, (cut.prefix_reaches semantics old PUnit.unit reaches).trans
     (cut.tail_reaches semantics old PUnit.unit mark (((ReflTransGen.single firesRoute).tail entersArm).trans advanceArm))⟩
+
+theorem waiting_reaches (arm : Fin 2)
+    (chosen : (Prefix.outerChoice p.toRoutes).eval (headerBank p.toRoutes old) = arm)
+    (child : Marking semantics (Prefix.outerArm p.toRoutes arm))
+    (childSteps : ReflTransGen (Fire semantics (Prefix.outerArm p.toRoutes arm) (headerBank p.toRoutes old) PUnit.unit)
+      (pending semantics (Prefix.outerArm p.toRoutes arm)) child) : Waiting p old arm child := by
+  exact waiting_reaches_with p old (outerContinuation p) arm chosen child childSteps
 
 end Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Proofs
