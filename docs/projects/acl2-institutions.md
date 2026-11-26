@@ -40,12 +40,24 @@ obligations for names, definitions and recorded theorems. Given those obligation
 `Standard.Realizes.sound` and `Standard.Realizes.presentation_sound` transfer derivations to
 the supplied interpretation. The interface does not infer realization from certification alone.
 
-This fragment covers nonrecursive logic-mode definitions and checked theorem events. Recursive
-admission, induction, the full primitive suite, the ACL2 reader and macro system, guards, local
-events, encapsulation and the ACL2 prover are outside the Lean model. The native test uses stock
-ACL2 to prove the emitted statements independently of the Lean derivations.
-[ACL2 8.7 manual](https://www.cs.utexas.edu/users/moore/acl2/v8-7/combined-manual/index.html) ·
-[ACL2 8.7 source](https://github.com/acl2/acl2/tree/bc6f4f49e81a0711214a8d91f0d06e0e084d2204)
+`Silmaril.ProofFormats.ACL2.admitSource` uses the existing Common Lisp S-expression reader to
+match source to a supplied checked `Book W V`. It compares the ordered include paths, event
+names, formal arities and term structure. Definition parameters are matched by position and
+theorem variables by first occurrence, so renaming variables preserves a match while changing
+their sharing does not. The resulting `CheckedSource` carries the Lean book and the source
+match. The matcher accepts the `ACL2` package header, leading literal `include-book` forms,
+simple `defun` and `defthm` events, and the optional logic-mode declaration and
+`:rule-classes nil` used by the fixture.
+
+Formal admission uses the supplied Lean derivations. ACL2 certification is a separate run:
+stock ACL2 reads the authored files, admits their events and writes book certificates. The
+matcher compares include paths as data. The fixture checks the dependency file separately and
+composes the two Lean books at their common world; native ACL2 loads the actual dependency
+during certification. Package resolution beyond this profile, recursive admission, induction,
+guards, local events, encapsulation and arbitrary Community Books are outside the formal
+model. [ACL2 8.7 manual](https://www.cs.utexas.edu/users/moore/acl2/v8-7/combined-manual/index.html) ·
+[ACL2 8.7 source](https://github.com/acl2/acl2/tree/bc6f4f49e81a0711214a8d91f0d06e0e084d2204) ·
+[ACL2 8.7 Community Books](https://github.com/acl2/acl2/tree/bc6f4f49e81a0711214a8d91f0d06e0e084d2204/books)
 
 ## Typed graph declarations
 
@@ -60,25 +72,32 @@ Names in the table are relative to `Silmaril.Logic.ACL2`.
 | `forgetDefinitions` | Institution morphism from `presentedInst` to `inst`. Models forget the defining constraints. Sentence translation is the identity on each underlying signature. |
 | `piSound` | Forward diagram comorphism from `pi` to `Institution.semanticPi presentedInst`, with identity signature and sentence translations. |
 
+The graph supports ordinary institution, room and consequence-system records. The `pi`,
+`piIns` and `piSound` declarations are available as Lean diagrams. For a graph consequence
+pair, use `Consequence.presentationRoom` at `Examples.exampleWorld.presentation` and the
+monomorphic systems `Consequence.exampleDerives` and `Consequence.exampleEntails`.
+`Consequence.exampleSound` proves the soundness comparison. Registration is separate.
+
 ## Reproduce the example
 
-Build the public modules and emit the two checked example books, one for the definition and one
-for its theorems. This also runs the Lean checks for arity rejection, named theorem retention and
-existence of a model of the resulting book.
+Build the public modules and check the authored definition and theorem books against their
+Lean derivations. The regression also tests arity, variable sharing, formal parameters,
+dependency names and rejection of read-time evaluation.
+[Authored source fixtures](../../tests/acl2/books/)
 
 ```sh
-lake build --wfail +Silmaril.Logic.ACL2.Standard.Thms \
-  +Silmaril.Logic.ACL2.Equational.Thms +Silmaril.Logic.ACL2.Books.Examples
-acl2_example_dir=$(mktemp -d)
-lake env lean -DautoImplicit=false -DwarningAsError=true \
-  --run tests/acl2/BookSource.lean "$acl2_example_dir"
+lake build --wfail +Silmaril.ProofFormats.ACL2.Defs \
+  +Silmaril.Logic.ACL2.Consequence.Thms +Silmaril.Logic.ACL2.Equational.Thms
+lake env lean -DautoImplicit=false -DwarningAsError=true --run tests/acl2/CheckSource.lean
 ```
 
-Run the following from the generated directory with an ACL2 8.7 executable on the path. The
-theorem book's own `include-book` loads the certified definition book. ACL2 should certify both
-books and report a successful include of the theorem book.
+Copy the same sources into a temporary directory and run the following with an ACL2 8.7
+executable on the path. The theorem book's `include-book` loads the certified definition
+book. A fresh ACL2 session then includes the certified theorem book and evaluates the projection.
 
 ```sh
+acl2_example_dir=$(mktemp -d)
+cp tests/acl2/books/*.lisp "$acl2_example_dir/"
 cd "$acl2_example_dir"
 acl2 > certify.log 2>&1 <<'EOF_ACL2'
 (certify-book "acl2-definitions" 0 nil)
@@ -89,7 +108,9 @@ EOF_ACL2
 test -f acl2-definitions.cert && test -f acl2-theorems.cert
 acl2 > include.log 2>&1 <<'EOF_ACL2'
 (include-book "acl2-theorems")
+(value-triple (silmaril-first (cons 'checked nil)))
 (good-bye)
 EOF_ACL2
 ! grep -E 'ACL2 Error|HARD ACL2 ERROR|\*\*\*\*\*\*\*\* FAILED' certify.log include.log
+grep -q 'ACL2 !> CHECKED' include.log
 ```
