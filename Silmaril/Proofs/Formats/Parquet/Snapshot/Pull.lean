@@ -13,6 +13,20 @@ open Silmaril.Relational Silmaril.Formats.Arrow
 
 variable {Id Kind Failure : Type*} {Value : Kind → Type*} {schema : Scan.Schema Id Kind}
 
+theorem openSource_close (limits : Snapshot.Limits) (bind : Snapshot.Bind schema Value Failure)
+    (bytes : Bytes) {source : Reader.Source Nat schema Value (Snapshot.Error Failure)}
+    (opened : Snapshot.openSource limits bind bytes = .ok source) (rest : List Nat) :
+    source.close rest = .ok () := by
+  cases checked : Snapshot.check (Failure := Failure) limits bytes with
+  | error reason => simp [Snapshot.openSource, checked] at opened
+  | ok snapshot =>
+    cases bound : bind snapshot.metadata with
+    | error reason => simp [Snapshot.openSource, checked, bound] at opened
+    | ok decode =>
+      have hs : snapshot.source decode = source := by simpa [Snapshot.openSource, checked, bound] using opened
+      rw [← hs]
+      rfl
+
 /-- A checked byte snapshot has a successful close. Hitting the pull budget
 observes that close, and a read that reaches a failed group preserves its
 indexed error. A successful EOS still takes an additional pull. -/

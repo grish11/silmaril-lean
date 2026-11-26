@@ -11,6 +11,13 @@ open Silmaril.Relational Silmaril.Formats.Arrow
 
 variable {Id Kind Failure : Type*} {Value : Kind → Type*} {schema : Scan.Schema Id Kind}
 
+/-- An opened immutable snapshot closes successfully for every unread suffix. -/
+theorem openSource_close (limits : Limits) (bind : Bind schema Value Failure)
+    (bytes : Bytes) {source : Reader.Source Nat schema Value (Error Failure)}
+    (opened : openSource limits bind bytes = .ok source) (rest : List Nat) :
+    source.close rest = .ok () :=
+  Proofs.Formats.Parquet.Snapshot.openSource_close limits bind bytes opened rest
+
 /-- A checked byte snapshot has a successful close. Hitting the pull budget
 observes that close, and a read that reaches a failed group preserves its
 indexed error. A successful EOS still takes an additional pull. -/
