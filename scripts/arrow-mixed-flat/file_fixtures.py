@@ -66,6 +66,21 @@ def produce():
         block_slot = slot_at(footer, root, 3)
         vector, blocks = vector_at(footer, block_slot[1], "<qi4xq") if block_slot else (0, [])
         stream = data[8:footer_start]
+        with pa.ipc.open_stream(stream) as reader:
+            assert reader.schema.equals(schema, check_metadata=True)
+            streamed = list(reader)
+        row_counts = [batch.num_rows for batch in batches]
+        assert [batch.num_rows for batch in streamed] == row_counts
+        for indexed, sequential in zip(observed, streamed, strict=True):
+            indexed.validate(full=True)
+            sequential.validate(full=True)
+            for positions in ([3, 0, 3, 1], []):
+                projected = indexed.select(positions)
+                stream_projected = sequential.select(positions)
+                assert projected.num_rows == stream_projected.num_rows == indexed.num_rows
+                assert projected.equals(stream_projected, check_metadata=True)
+        print(f"indexed and embedded stream projections [3, 0, 3, 1] and [] preserve batch rows {row_counts}")
+
         messages = list(pa.ipc.MessageReader.open_stream(stream))
         assert [msg.type for msg in messages] == ["schema"] + ["record batch"] * len(batches)
         assert len(blocks) == len(batches)

@@ -303,3 +303,33 @@ lake build --wfail +Silmaril.Formats.Arrow.MixedFlat.File.Window.Projection.Exam
 python3 -I scripts/arrow-mixed-flat/window_fixtures.py --out /tmp/arrow-mixed-window.bin
 python3 -I scripts/arrow-mixed-flat/window_projection.py /tmp/arrow-mixed-window.bin
 ```
+
+### Agreement with strict file traversal
+
+For the full carrier window `[0, input.len)`,
+`Index.readProjectedAt_strict` compares both readers on the same immutable
+input and limits. Successful strict and window admission identify the same
+footer. After every strict record decodes in footer order, an indexed
+projection at ordinal `n` agrees with the strict observation at that
+ordinal. Each output position has the exact descriptor and column selected
+by the projection. The batch row count is explicit, so a four-row batch
+still has four rows at width zero, an empty batch stays present, and a
+missing ordinal returns `.ok none`.
+
+The proof assumes successful strict traversal. The damaged-prefix guard
+shows that a valid suffix batch can still be read by index when a prior
+record fails strict traversal. The event-scan comparison separately
+requires an alignment witness between strict observations and events.
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/File/Window/Projection/Strict/Thms.lean) ·
+[Lean guards](../../Silmaril/Formats/Arrow/MixedFlat/File/Window/Projection/Strict/Examples.lean)
+
+The pinned PyArrow 26.0.1 producer reproduces the original multi-batch and
+schema-only fixtures. Its file and embedded stream readers agree on ordered
+nullable columns at positions `[3, 0, 3, 1]`, including the repeated view
+column. With no projected columns the batch row counts are still
+`[4, 0, 2]`. The schema-only file has no batches.
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.File.Window.Projection.Strict.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Window.Projection.Strict.Axioms'
+python3 -I scripts/arrow-mixed-flat/file_fixtures.py
+```
