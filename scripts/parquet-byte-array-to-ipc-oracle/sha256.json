@@ -1,0 +1,8 @@
+{
+  "selected.parquet": "781db33bb6fadb3f714a2e0558d02d13ff61bddd041ee990001b6980b7429c40",
+  "late-length-error.parquet": "50f7c6f81f2caab0ec0af8c4865776da586ea5b5fee9a7f8c1bab9b4de700529",
+  "plain-byte-array-v1.parquet": "1e5bfe8a5e580a0368300b3d7809b2c4396ab814eb57b006775b4f849906fc29",
+  "schema-only.parquet": "b47e8ff35d9272c7d069f7a81a319b4db66d1b27448122bea7e483e47c527937",
+  "framed-zero-row-group.parquet": "955d97e0b93576dbcaf67cd5bd3c30be6067f1e468b2d8b98abff38154474f9b",
+  "zero-row-group.parquet": "68787435a7d28eed2c5186c76ee116308266ca96d2caf6d2202a87b39aa8f518"
+}
