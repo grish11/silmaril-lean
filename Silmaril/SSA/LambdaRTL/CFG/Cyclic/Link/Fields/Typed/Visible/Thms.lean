@@ -8,7 +8,7 @@ import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Named
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program
 
-open Silmaril.Elgot.ITree (TraceLE)
+open Silmaril.Elgot.ITree (TraceLE eq_iff_traceLE)
 open Silmaril.Elgot.ITree.Finite (evaluate)
 
 variable {F : Type} {signature : PrimitiveSignature F} {a b : Nat}
@@ -27,6 +27,15 @@ theorem refinementAt?_iff [DecidableEq F] (right : Program signature inputs outp
     program.refinementAt? right input packet = true ↔
       TraceLE (program.observe input packet) (right.observe input packet) :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.compare_at program right input packet
+
+/-- Mutual finite weak trace inclusion decides equality in the deterministic
+weak tree model of the named runner. Pending requests remain observable
+even when their reply type is empty. -/
+theorem weakEqAt?_iff [DecidableEq F] (right : Program signature inputs outputs)
+    (input : Fin a) (packet : Denote (inputs input)) :
+    program.weakEqAt? right input packet = true ↔
+      program.observe input packet = right.observe input packet := by
+  simp only [weakEqAt?, Bool.and_eq_true, refinementAt?_iff, eq_iff_traceLE]
 
 /-- Exact finite weak trace inclusion over every typed packet at every
 public input. The programs share their signature and ordered external

@@ -246,6 +246,11 @@ def refinementAt? [DecidableEq F] (right : Program signature inputs outputs)
 def refinement? [DecidableEq F] (right : Program signature inputs outputs) : Bool :=
   decide (∀ input (packet : Denote (inputs input)), program.refinementAt? right input packet = true)
 
+/-- Decide mutual finite weak trace inclusion at one typed input packet. -/
+def weakEqAt? [DecidableEq F] (right : Program signature inputs outputs)
+    (input : Fin a) (packet : Denote (inputs input)) : Bool :=
+  program.refinementAt? right input packet && right.refinementAt? program input packet
+
 end Program
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible

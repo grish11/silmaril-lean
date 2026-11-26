@@ -7,7 +7,7 @@ public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Pack
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program
 
-open Silmaril.Elgot.ITree (TraceLE)
+open Silmaril.Elgot.ITree (TraceLE eq_iff_traceLE)
 open Silmaril.Isotope.LambdaSSA (FiniteCFG)
 open Silmaril.Isotope.LambdaSSA.Semantics.Interaction (region)
 open Silmaril.Isotope.Bridge.NamedFlat
@@ -47,5 +47,14 @@ theorem refinementAt?_iff_packedOutput [DecidableEq F] (right : Program signatur
   (program.refinementAt?_iff right input packet).trans
     (TraceLE.bind_pure_iff
       Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Program.packedTreeOutput_injective).symm
+
+/-- Using `packed_observe` for each admitted execution gives a decision for
+equality of the actual packed weak trees. -/
+theorem weakEqAt?_iff_packedOutput [DecidableEq F] (right : Program signature inputs outputs)
+    (input : Fin a) (packet : Denote (inputs input)) :
+    program.weakEqAt? right input packet = true ↔
+      (program.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) =
+        (right.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) := by
+  simp only [weakEqAt?, Bool.and_eq_true, refinementAt?_iff_packedOutput, eq_iff_traceLE]
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program
