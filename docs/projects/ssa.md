@@ -146,6 +146,15 @@ change-of-signature law on equations. `comparisonIso` is a natural isomorphism
 of room functors over this signature category. Its sentence translations
 commute with renamings on observational classes, with identity on models.
 
+[Named cyclic refinement](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Institution/Refinement/Thms.lean)
+uses the same signatures and the inclusion order on `Part`. A sentence
+`lhs ≤ rhs` requires every terminating exit and payload of `lhs` to be
+returned by `rhs` at the same store. Divergence and failure both give the
+empty result, and the final store is projected out. Versioning and
+deversioning give an order isomorphism on the observational classes and a
+natural isomorphism of the two refinement institutions. The comparison
+transports semantic refinement between the named interfaces.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

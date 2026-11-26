@@ -10,9 +10,9 @@ import Silmaril.SSA.LambdaRTL.Thms
 Signatures are primitive alphabets with functions as renamings. Register,
 label and value types and the Elgot monad are fixed. The models at a signature
 form the discrete category of pair-lawful interpretations. A reduct
-precomposes the primitive interpretation with the renaming. Sentences are
-equations between observational program classes. Satisfaction compares the
-whole exit-label and payload computation at every common initial store.
+precomposes the primitive interpretation with the renaming. Sentences compare
+two observational program classes at every common initial store. The
+comparison relation acts on the whole exit-label and payload computations.
 -/
 
 @[expose] public section
@@ -49,16 +49,36 @@ abbrev RTLEquation (S : Sig) :=
 abbrev SSAEquation (S : Sig) :=
   SSAClass V K S.ops M α × SSAClass V K S.ops M α
 
-/-- Named mutable equations at a single alphabet. -/
-def rtlRoom (S : Sig) : Room.{0, 0, 0} where
+variable {V K M α}
+
+/-- Compare mutable observations at every common input in one model. -/
+def rtlRelSat {F : Type} (R : M (K × α) → M (K × α) → Prop)
+    (model : PairModel F M α) (lhs rhs : RTLClass V K F M α) : Prop :=
+  ∀ store, R (rtlClassObserve model lhs store) (rtlClassObserve model rhs store)
+
+/-- Compare lexical observations at every common input in one model. -/
+def ssaRelSat {F : Type} (R : M (K × α) → M (K × α) → Prop)
+    (model : PairModel F M α) (lhs rhs : SSAClass V K F M α) : Prop :=
+  ∀ store, R (ssaClassObserve model lhs store) (ssaClassObserve model rhs store)
+
+variable (V K M α)
+
+/-- Named mutable comparisons at a single alphabet. -/
+def rtlRelationRoom (R : M (K × α) → M (K × α) → Prop) (S : Sig) : Room.{0, 0, 0} where
   Sen := RTLEquation V K M α S
   Mod := Cat.of (Discrete (LawfulModel M α S.ops))
-  Sat model equation := rtlSat model.as equation.1 equation.2
+  Sat model comparison := rtlRelSat R model.as comparison.1 comparison.2
 
-/-- Named packet-scoped lexical equations at a single alphabet. -/
-def ssaRoom (S : Sig) : Room.{0, 0, 0} where
+/-- Named packet-scoped lexical comparisons at a single alphabet. -/
+def ssaRelationRoom (R : M (K × α) → M (K × α) → Prop) (S : Sig) : Room.{0, 0, 0} where
   Sen := SSAEquation V K M α S
   Mod := Cat.of (Discrete (LawfulModel M α S.ops))
-  Sat model equation := ssaSat model.as equation.1 equation.2
+  Sat model comparison := ssaRelSat R model.as comparison.1 comparison.2
+
+/-- Named mutable equations at a single alphabet. -/
+def rtlRoom (S : Sig) : Room.{0, 0, 0} := rtlRelationRoom V K M α Eq S
+
+/-- Named packet-scoped lexical equations at a single alphabet. -/
+def ssaRoom (S : Sig) : Room.{0, 0, 0} := ssaRelationRoom V K M α Eq S
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Institution

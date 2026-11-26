@@ -86,25 +86,37 @@ theorem ssaMapClass_comp (h : F → F') (k : F' → F'') (program : SSAClass V K
       ssaClassObserve (LawfulModel.reduct h model) program store :=
   Quotient.inductionOn program fun graph => ssaObserve_rename h model graph store
 
-/-- Satisfaction of a renamed mutable equation is satisfaction in the reduct. -/
-theorem rtlSat_map_iff (h : F → F') (model : PairModel F' M α) (lhs rhs : RTLClass V K F M α) :
-    rtlSat model (rtlMapClass h lhs) (rtlMapClass h rhs) ↔ rtlSat (LawfulModel.reduct h model) lhs rhs := by
-  simp only [rtlSat, rtlClassObserve_map]
+/-- Satisfaction of a renamed mutable comparison is satisfaction in the reduct. -/
+theorem rtlRelSat_map_iff (R : M (K × α) → M (K × α) → Prop)
+    (h : F → F') (model : PairModel F' M α) (lhs rhs : RTLClass V K F M α) :
+    rtlRelSat R model (rtlMapClass h lhs) (rtlMapClass h rhs) ↔
+      rtlRelSat R (LawfulModel.reduct h model) lhs rhs := by
+  simp only [rtlRelSat, rtlClassObserve_map]
 
-/-- Satisfaction of a renamed lexical equation is satisfaction in the reduct. -/
+/-- Satisfaction of a renamed lexical comparison is satisfaction in the reduct. -/
+theorem ssaRelSat_map_iff (R : M (K × α) → M (K × α) → Prop)
+    (h : F → F') (model : PairModel F' M α) (lhs rhs : SSAClass V K F M α) :
+    ssaRelSat R model (ssaMapClass h lhs) (ssaMapClass h rhs) ↔
+      ssaRelSat R (LawfulModel.reduct h model) lhs rhs := by
+  simp only [ssaRelSat, ssaClassObserve_map]
+
+theorem rtlSat_map_iff (h : F → F') (model : PairModel F' M α) (lhs rhs : RTLClass V K F M α) :
+    rtlSat model (rtlMapClass h lhs) (rtlMapClass h rhs) ↔ rtlSat (LawfulModel.reduct h model) lhs rhs :=
+  rtlRelSat_map_iff Eq h model lhs rhs
+
 theorem ssaSat_map_iff (h : F → F') (model : PairModel F' M α) (lhs rhs : SSAClass V K F M α) :
-    ssaSat model (ssaMapClass h lhs) (ssaMapClass h rhs) ↔ ssaSat (LawfulModel.reduct h model) lhs rhs := by
-  simp only [ssaSat, ssaClassObserve_map]
+    ssaSat model (ssaMapClass h lhs) (ssaMapClass h rhs) ↔ ssaSat (LawfulModel.reduct h model) lhs rhs :=
+  ssaRelSat_map_iff Eq h model lhs rhs
 
 variable (V K M α)
 
-/-- Mutable cyclic RTL equations under primitive-alphabet renamings. -/
-def rtl : Inst.{1, 0, 0, 0, 0} where
+/-- Mutable cyclic RTL comparisons under primitive-alphabet renamings. -/
+def rtlRelation (R : M (K × α) → M (K × α) → Prop) : Inst.{1, 0, 0, 0, 0} where
   Sign := Sig
   I :=
-    { obj := rtlRoom V K M α
-      map h := ⟨fun equation => (rtlMapClass h equation.1, rtlMapClass h equation.2),
-        lawfulReductFunctor h, fun model equation => rtlSat_map_iff h model.as equation.1 equation.2⟩
+    { obj := rtlRelationRoom V K M α R
+      map h := ⟨fun comparison => (rtlMapClass h comparison.1, rtlMapClass h comparison.2),
+        lawfulReductFunctor h, fun model comparison => rtlRelSat_map_iff R h model.as comparison.1 comparison.2⟩
       map_id S := Room.hom_ext
         (funext fun equation => Prod.ext (rtlMapClass_id equation.1) (rtlMapClass_id equation.2))
         (lawfulReductFunctor_id S.ops)
@@ -112,13 +124,13 @@ def rtl : Inst.{1, 0, 0, 0, 0} where
         (funext fun equation => Prod.ext (rtlMapClass_comp h k equation.1) (rtlMapClass_comp h k equation.2))
         (lawfulReductFunctor_comp h k) }
 
-/-- Packet-scoped cyclic SSA equations under primitive-alphabet renamings. -/
-def ssa : Inst.{1, 0, 0, 0, 0} where
+/-- Packet-scoped cyclic SSA comparisons under primitive-alphabet renamings. -/
+def ssaRelation (R : M (K × α) → M (K × α) → Prop) : Inst.{1, 0, 0, 0, 0} where
   Sign := Sig
   I :=
-    { obj := ssaRoom V K M α
-      map h := ⟨fun equation => (ssaMapClass h equation.1, ssaMapClass h equation.2),
-        lawfulReductFunctor h, fun model equation => ssaSat_map_iff h model.as equation.1 equation.2⟩
+    { obj := ssaRelationRoom V K M α R
+      map h := ⟨fun comparison => (ssaMapClass h comparison.1, ssaMapClass h comparison.2),
+        lawfulReductFunctor h, fun model comparison => ssaRelSat_map_iff R h model.as comparison.1 comparison.2⟩
       map_id S := Room.hom_ext
         (funext fun equation => Prod.ext (ssaMapClass_id equation.1) (ssaMapClass_id equation.2))
         (lawfulReductFunctor_id S.ops)
@@ -126,7 +138,19 @@ def ssa : Inst.{1, 0, 0, 0, 0} where
         (funext fun equation => Prod.ext (ssaMapClass_comp h k equation.1) (ssaMapClass_comp h k equation.2))
         (lawfulReductFunctor_comp h k) }
 
+/-- Mutable cyclic RTL equations under primitive-alphabet renamings. -/
+def rtl : Inst.{1, 0, 0, 0, 0} := rtlRelation V K M α Eq
+
+/-- Packet-scoped cyclic SSA equations under primitive-alphabet renamings. -/
+def ssa : Inst.{1, 0, 0, 0, 0} := ssaRelation V K M α Eq
+
 variable {V K M α} [LawfulElgotMonad M]
+
+/-- Versioning preserves and reflects any relation on the exact observations. -/
+theorem ssaRelSat_version_iff (R : M (K × α) → M (K × α) → Prop)
+    (model : PairModel F M α) (lhs rhs : RTLClass V K F M α) :
+    ssaRelSat R model (versionClass lhs) (versionClass rhs) ↔ rtlRelSat R model lhs rhs := by
+  simp only [ssaRelSat, rtlRelSat, classObserve_version]
 
 /-- Versioning is natural on observational classes. -/
 theorem versionClass_map (h : F → F') (program : RTLClass V K F M α) :
@@ -137,6 +161,11 @@ theorem versionClass_map (h : F → F') (program : RTLClass V K F M α) :
 
 variable [Infinite V]
 
+theorem rtlRelSat_deversion_iff (R : M (K × α) → M (K × α) → Prop)
+    (model : PairModel F M α) (lhs rhs : SSAClass V K F M α) :
+    rtlRelSat R model (deversionClass lhs) (deversionClass rhs) ↔ ssaRelSat R model lhs rhs := by
+  simp only [rtlRelSat, ssaRelSat, classObserve_deversion]
+
 /-- Deversioning is natural on observational classes, using the inverse
 of the versioning square. -/
 theorem deversionClass_map (h : F → F') (program : SSAClass V K F M α) :
@@ -146,12 +175,13 @@ theorem deversionClass_map (h : F → F') (program : SSAClass V K F M α) :
 
 variable (V K M α)
 
-/-- At one alphabet the two equation rooms are isomorphic, with identity on models. -/
-noncomputable def roomIso (S : Sig) : rtlRoom V K M α S ≅ ssaRoom V K M α S where
+/-- At one alphabet the two comparison rooms are isomorphic, with identity on models. -/
+noncomputable def relationRoomIso (R : M (K × α) → M (K × α) → Prop) (S : Sig) :
+    rtlRelationRoom V K M α R S ≅ ssaRelationRoom V K M α R S where
   hom := ⟨fun equation => (versionClass equation.1, versionClass equation.2),
-    𝟭 _, fun model equation => ssaSat_version_iff model.as equation.1 equation.2⟩
+    𝟭 _, fun model equation => ssaRelSat_version_iff R model.as equation.1 equation.2⟩
   inv := ⟨fun equation => (deversionClass equation.1, deversionClass equation.2),
-    𝟭 _, fun model equation => rtlSat_deversion_iff model.as equation.1 equation.2⟩
+    𝟭 _, fun model equation => rtlRelSat_deversion_iff R model.as equation.1 equation.2⟩
   hom_inv_id := Room.hom_ext
     (funext fun equation => Prod.ext (deversion_version_class equation.1) (deversion_version_class equation.2))
     rfl
@@ -159,12 +189,21 @@ noncomputable def roomIso (S : Sig) : rtlRoom V K M α S ≅ ssaRoom V K M α S 
     (funext fun equation => Prod.ext (version_deversion_class equation.1) (version_deversion_class equation.2))
     rfl
 
-/-- The cyclic equation institutions are naturally isomorphic over the
-common alphabet category. Naturality is equality on observational classes. -/
-noncomputable def comparisonIso : (rtl V K M α).I ≅ (ssa V K M α).I :=
-  NatIso.ofComponents (roomIso V K M α) fun {_ _} h => by
+/-- Observation comparisons are naturally isomorphic over the common alphabet category. -/
+noncomputable def relationComparisonIso (R : M (K × α) → M (K × α) → Prop) :
+    (rtlRelation V K M α R).I ≅ (ssaRelation V K M α R).I :=
+  NatIso.ofComponents (relationRoomIso V K M α R) fun {_ _} h => by
     apply Room.hom_ext
     · exact funext fun equation => Prod.ext (versionClass_map h equation.1) (versionClass_map h equation.2)
     · exact CategoryTheory.Functor.ext fun model => by cases model; rfl
+
+/-- At one alphabet the two equation rooms are isomorphic, with identity on models. -/
+noncomputable def roomIso (S : Sig) : rtlRoom V K M α S ≅ ssaRoom V K M α S :=
+  relationRoomIso V K M α Eq S
+
+/-- The cyclic equation institutions are naturally isomorphic over the
+common alphabet category. Naturality is equality on observational classes. -/
+noncomputable def comparisonIso : (rtl V K M α).I ≅ (ssa V K M α).I :=
+  relationComparisonIso V K M α Eq
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Institution
