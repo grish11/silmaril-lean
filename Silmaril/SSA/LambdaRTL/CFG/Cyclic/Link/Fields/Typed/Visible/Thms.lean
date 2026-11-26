@@ -64,6 +64,12 @@ theorem refinement?_iff [DecidableEq F] (right : Program signature inputs output
       ∀ input packet, TraceLE (program.observe input packet) (right.observe input packet) := by
   simp [refinement?, refinementAt?_iff]
 
+/-- The whole-interface weak equality verdict agrees with both directed
+refinement verdicts at the same typed interface. -/
+theorem weakEq?_iff_mutual_refinement [DecidableEq F] (right : Program signature inputs outputs) :
+    program.weakEq? right = true ↔ program.refinement? right = true ∧ right.refinement? program = true := by
+  simp only [weakEq?_iff, refinement?_iff, eq_iff_traceLE, forall_and]
+
 /-- A rejected oriented comparison returns a trace present in the first
 run and absent in the second. -/
 theorem explainRefinementAt?_spec [DecidableEq F] (right : Program signature inputs outputs)

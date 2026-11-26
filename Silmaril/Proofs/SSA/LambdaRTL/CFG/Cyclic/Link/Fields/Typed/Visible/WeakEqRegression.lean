@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Conservativity.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
@@ -90,12 +90,39 @@ private noncomputable def packedRun {target : FiniteCFG Unit 1 1 1}
   region signature.primitive (Silmaril.Isotope.LambdaSSA.Semantics.extend env (packEnv 1 env))
     ((FiniteCFG.packedExecutionRegion typed).packInputsDestructure captureTypes.toList)
 
-example : packedRun loopingTyped ≠ packedRun waitingTyped := by
+private theorem distinctPacked : packedRun loopingTyped ≠ packedRun waitingTyped := by
   intro equal
   have left := looping.packed_observe 0 packet captures rfl loopingTyped env env (fun _ => rfl)
   have right := waiting.packed_observe 0 packet captures rfl waitingTyped env env (fun _ => rfl)
   have tagged := left.symm.trans (equal.trans right)
   exact distinct ((looping.weakEqAt?_iff waiting 0 packet).mp
     ((looping.weakEqAt?_iff_packedOutput waiting 0 packet).mpr tagged))
+
+private def packedLoop : Program.PackedEntry looping 0 :=
+  ⟨1, captures, captureTypes, profile, profile, loopingTarget, rfl, loopingTyped⟩
+
+private def packedWait : Program.PackedEntry waiting 0 :=
+  ⟨1, captures, captureTypes, profile, profile, waitingTarget, rfl, waitingTyped⟩
+
+open Silmaril.Logic.ITree
+
+example (policy : Silmaril.Logic.ITree.Model.{0, 0} signature.traceSignature.toSignature) :
+    TraceInstitution.Sat policy (packedLoop.refinementSentence packedWait .leftToRight env env env env) :=
+  (Program.refinementAt?_iff_valid_traceSat packet packedLoop packedWait env env env env
+    (fun _ => rfl) (fun _ => rfl)).mp (by cbv) policy
+
+-- Denying every reply still exposes the pending request in the reverse comparison.
+example : ¬ TraceInstitution.Sat (signature.traceModelUnder (fun _ _ => false))
+    (packedLoop.refinementSentence packedWait .rightToLeft env env env env) := by
+  intro accepted
+  have decision := (Program.refinementAtUnder?_iff_traceSat (fun _ _ => false) packet packedWait packedLoop
+    env env env env (fun _ => rfl) (fun _ => rfl)).mpr accepted
+  have rejected : waiting.refinementAtUnder? (fun _ _ => false) looping 0 packet = false := by cbv
+  simp [rejected] at decision
+
+example : ¬ (∀ policy : Silmaril.Logic.ITree.Model.{0, 0} signature.traceSignature.toSignature,
+    TraceInstitution.Sat policy (packedLoop.refinementSentence packedWait .leftToRight env env env env) ∧
+    TraceInstitution.Sat policy (packedLoop.refinementSentence packedWait .rightToLeft env env env env)) :=
+  fun valid => distinctPacked ((packedLoop.observe_eq_iff_mutual_valid packedWait env env env env).mpr valid)
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible

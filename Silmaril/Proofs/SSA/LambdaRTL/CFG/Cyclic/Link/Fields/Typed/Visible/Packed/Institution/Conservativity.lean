@@ -6,7 +6,7 @@ public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed
 
 namespace Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution
 
-open Silmaril.Elgot.ITree (Tree HasTrace TraceLE)
+open Silmaril.Elgot.ITree (Tree HasTrace TraceLE eq_iff_traceLE)
 open Silmaril.Elgot.ITree.Finite (Event)
 open Silmaril.Logic.ITree
 open Silmaril.Isotope.LambdaSSA
@@ -36,6 +36,20 @@ theorem sat_all_iff (leftEntry : PackedEntry left input) (rightEntry : PackedEnt
       leftAmbient rightAmbient leftRecord rightRecord).mp unrestricted
     cases direction <;> exact sat_of_inclusion included policy
   · exact fun valid => valid signature.traceModel
+
+theorem observe_eq_iff_mutual_valid (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom) :
+    leftEntry.observe leftAmbient leftRecord = rightEntry.observe rightAmbient rightRecord ↔
+      ∀ policy : Silmaril.Logic.ITree.Model.{0, 0} signature.traceSignature.toSignature,
+        TraceInstitution.Sat policy
+          (leftEntry.refinementSentence rightEntry .leftToRight leftAmbient rightAmbient leftRecord rightRecord) ∧
+        TraceInstitution.Sat policy
+          (leftEntry.refinementSentence rightEntry .rightToLeft leftAmbient rightAmbient leftRecord rightRecord) := by
+  have directed (direction : MismatchDirection) :=
+    (sat_all_iff leftEntry rightEntry direction leftAmbient rightAmbient leftRecord rightRecord).symm.trans
+      (leftEntry.sat_refinementSentence_iff rightEntry direction leftAmbient rightAmbient leftRecord rightRecord)
+  rw [forall_and, directed .leftToRight, directed .rightToLeft]
+  exact eq_iff_traceLE
 
 private theorem unrestricted_model :
     signature.traceModelWithHandler (fun (_ : Unit) _ _ => some ()) (fun _ => true) = signature.traceModel := by

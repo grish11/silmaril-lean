@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Conservativity.Thms
 import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
@@ -112,6 +112,18 @@ example : ¬ (∀ input packet, (packed false input).observe ambient (record inp
   intro equal
   have accepted := (left.weakEq?_iff_packed right (packed false) (packed true) ambient ambient
     record record (agrees false) (agrees true)).mpr equal
+  simp [Program.weakEq?, found] at accepted
+
+open Silmaril.Logic.ITree
+
+example : ¬ (∀ input packet (policy : Silmaril.Logic.ITree.Model.{0, 0} signature.traceSignature.toSignature),
+    TraceInstitution.Sat policy ((packed false input).refinementSentence (packed true input) .leftToRight
+      ambient ambient (record input packet) (record input packet)) ∧
+    TraceInstitution.Sat policy ((packed false input).refinementSentence (packed true input) .rightToLeft
+      ambient ambient (record input packet) (record input packet))) := by
+  intro valid
+  have accepted := (left.weakEq?_iff_mutual_valid_traceSat right (packed false) (packed true) ambient ambient
+    record record (agrees false) (agrees true)).mpr valid
   simp [Program.weakEq?, found] at accepted
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
