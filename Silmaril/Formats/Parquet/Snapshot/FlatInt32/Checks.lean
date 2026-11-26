@@ -47,6 +47,37 @@ private def arrow (schema : Scan.Schema String Unit) (bytes : Bytes) :
 #guard arrow reversed v1 = .error (.schema (.schemaNames ["optional_i32", "required_i32"]
   ["required_i32", "optional_i32"]))
 
+private def repeatReordered (schema : Scan.Schema String Unit) : Scan.Projection schema :=
+  if bound : 1 < schema.width then
+    Scan.Projection.ofArray #[⟨1, bound⟩, ⟨0, Nat.lt_trans (by decide) bound⟩, ⟨1, bound⟩]
+  else Scan.Projection.id schema
+
+private def keepOptionalBelow (schema : Scan.Schema String Unit) : Scan.Predicate schema Cell :=
+  fun row => if bound : 1 < schema.width then (row ⟨1, bound⟩).map (· < -5) else none
+
+private def postReadMatches (projection : (schema : Scan.Schema String Unit) → Scan.Projection schema)
+    (bytes : Bytes) (names : List String) (count : Nat) (rows : List (List (Option Int32)))
+    (termination : Events.Termination (Snapshot.Error (Error Unit))) : Bool :=
+  match ((Snapshot.readAll {} (bind {} physical) bytes).scan projection keepOptionalBelow).collect with
+  | .error _ => false
+  | .ok result =>
+    (List.ofFn fun index => (result.table.schema.kind index).1) == names &&
+      result.table.rowCount == count && result.table.rows.map List.ofFn == rows &&
+      decide (result.termination = termination)
+
+private def kept (count : Nat) : List Nat :=
+  (List.range count).filter fun i => 2 ≤ i && i % 3 != 0
+
+private def logicalRows (count : Nat) : List (List (Option Int32)) :=
+  (kept count).map fun i => [optional i, required i, optional i]
+
+private def projectedNames : List String := ["optional_i32", "required_i32", "optional_i32"]
+
+#guard postReadMatches repeatReordered v2 projectedNames 15 (logicalRows 24) .eos
+#guard postReadMatches repeatReordered late projectedNames 7 (logicalRows 12) (.readError lateReason)
+#guard postReadMatches (fun _ => Scan.Projection.ofArray #[]) late [] 7
+  (List.replicate 7 []) (.readError lateReason)
+
 private def partitions : TypedPartitions.PartitionSchema Unit := ⟨#[⟨"year", (), .asNull⟩]⟩
 private def convert : TypedPartitions.Convert Cell String := fun _ text =>
   match text.toInt? with

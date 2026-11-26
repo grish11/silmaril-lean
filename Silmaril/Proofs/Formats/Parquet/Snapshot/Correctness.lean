@@ -126,4 +126,23 @@ theorem readAll_single {limits : Limits} {bytes : Bytes} {footer : Footer.Span}
     (readGroup_ok_iff snapshot decode 0 rows).2 ⟨group, groupAt, decoded snapshot rfl rfl, count⟩
   simp [readAll, opened, Except.map, Reader.readAll_opened, Checked.source, groups, Reader.denoteGroups, readGroup]
 
+/-- Logical scanning of the actual byte reader observes the projected ordered
+prefix, with EOS after all groups or the first indexed read error. The
+predicate and projection operate on decoded rows. -/
+theorem collect_scan_readAll_of_checked
+    (limits : Limits) (bind : Bind schema Value Failure) (bytes : Bytes)
+    {snapshot : Checked} {decode : DecodeGroup schema Value Failure}
+    (checked : check (Failure := Failure) limits bytes = .ok snapshot)
+    (bound : bind snapshot.metadata = .ok decode)
+    (projection : (s : Scan.Schema Id Kind) → Scan.Projection s)
+    (keep : (s : Scan.Schema Id Kind) → Scan.Predicate s Value) :
+    ((readAll limits bind bytes).scan projection keep).collect =
+      let source := snapshot.source decode
+      let groups := Reader.denoteGroups source.readGroup source.groups
+      .ok ⟨⟨(projection schema).schema,
+        (projection schema).scan (keep schema) groups.1.flatten⟩, groups.2⟩ := by
+  have opened : openSource limits bind bytes = .ok (snapshot.source decode) := by
+    simp [openSource, checked, bound]
+  simp [readAll, opened, Except.map, Reader.collect_scan_readAll, Reader.denote]
+
 end Silmaril.Proofs.Formats.Parquet.Snapshot
