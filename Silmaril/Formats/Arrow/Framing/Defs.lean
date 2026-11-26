@@ -12,6 +12,7 @@ namespace Silmaril.Formats.Arrow
 inductive Malformed where
   | source | alignment | truncated | continuation | metadataLength | bodyLength
   | flatbuffer | invalidUtf8 | schemaOrder | trailingBytes | batchLayout
+  | validityBitmap | bodyValues | stringOffsets
   deriving DecidableEq, Repr
 
 inductive Unsupported where
@@ -22,7 +23,7 @@ inductive Unsupported where
   deriving DecidableEq, Repr
 
 inductive Resource where
-  | metadataBytes | bodyBytes | fields | rows | batches
+  | metadataBytes | bodyBytes | fields | rows | batches | totalRows | totalCells
   deriving DecidableEq, Repr
 
 inductive Error where

@@ -1,6 +1,6 @@
 module
 
-import Silmaril.Formats.Arrow.Stream.Defs
+import Silmaril.Formats.Arrow.Body.Defs
 
 open Silmaril Silmaril.Formats.Arrow
 
@@ -38,6 +38,72 @@ private def patch (bytes : ByteArray) (offset width value : Nat) : KBytes :=
   packed <| ((KBytes.unpack width value).zipIdx).foldl
     (fun data (byte, index) => data.set! (offset + index) byte) bytes
 
+-- Ordered observations independently read back by PyArrow in fixture.py.
+private def expectedRows : List (List Row) :=
+  [[[some (.int32 (-2147483648)), some (.utf8 "é")],
+    [none, some (.utf8 "")],
+    [some (.int32 2147483647), none],
+    [some (.int32 0), some (.utf8 "雪")]],
+   [],
+   [[none, none]],
+   [[some (.int32 17), some (.utf8 "")]]]
+
+private def checkRows (input : KBytes) (label : String) : IO Unit := do
+  match readRows {} input with
+  | .ok stream =>
+    check (label ++ " schema and ordered rows") (stream.fields == schema && stream.batches == expectedRows)
+  | .error reason => throw (IO.userError s!"{label}: {repr reason}")
+
+private def expectBodyFailure (label : String) (input : KBytes) (expected : Error)
+    (limits : ObservationLimits := {}) : IO Unit := do
+  match readRows limits input with
+  | .ok _ => throw (IO.userError s!"{label}: unexpectedly accepted")
+  | .error actual => check s!"{label}: expected {repr expected}, got {repr actual}" (actual == expected)
+
+private def checkedFrame (fields : List Field) (metadata : RecordBatch) (body : KBytes) :
+    IO (BatchFrame fields) :=
+  match validateBatch fields metadata body with
+  | .ok frame => pure frame
+  | .error reason => throw (IO.userError s!"synthetic frame: {repr reason}")
+
+private def bodyRegressions (bytes : ByteArray) : IO Unit := do
+  let input := packed bytes
+  expectBodyFailure "bitmap null count" (patch bytes 384 1 255) (.malformed .validityBitmap)
+  expectBodyFailure "bitmap omitted with nulls" (patch bytes 272 8 0) (.malformed .validityBitmap)
+  expectBodyFailure "short int32 values" (patch bytes 288 8 12) (.malformed .bodyValues)
+  expectBodyFailure "short utf8 offsets" (patch bytes 320 8 16) (.malformed .stringOffsets)
+  expectBodyFailure "offset sign bit" (patch bytes 416 4 0x80000000) (.malformed .stringOffsets)
+  expectBodyFailure "decrease at a null slot" (patch bytes 428 4 1) (.malformed .stringOffsets)
+  expectBodyFailure "utf8 range exceeds data" (patch bytes 336 8 4) (.malformed .stringOffsets)
+  expectBodyFailure "invalid utf8 data" (patch bytes 440 1 0xff) (.malformed .invalidUtf8)
+  expectBodyFailure "invalid zero-row sentinel" (patch bytes 648 4 1) (.malformed .stringOffsets)
+  expectBodyFailure "per-batch row cap" input (.limit .rows) { ipc := { rows := 3 } }
+  expectBodyFailure "aggregate row cap" input (.limit .totalRows) { totalRows := 4 }
+  expectBodyFailure "aggregate cell cap" input (.limit .totalCells) { totalCells := 11 }
+  checkRows (patch bytes 384 1 0xfd) "unused bitmap bits"
+  checkRows (patch bytes 272 8 8) "bitmap descriptor padding"
+  let shortBitmap ← checkedFrame [⟨"n", true, .int32⟩]
+    ⟨9, [⟨9, 1⟩], [⟨0, 1⟩, ⟨8, 36⟩]⟩ (.leaf 48 0)
+  let .error (.malformed .validityBitmap) := decodeBatch {} shortBitmap
+    | throw (IO.userError "nine slots cannot fit in a one-byte bitmap")
+  let crossOctet ← checkedFrame [⟨"n", true, .int32⟩]
+    ⟨9, [⟨9, 8⟩], [⟨0, 2⟩, ⟨8, 36⟩]⟩ (.leaf 48 0x0100)
+  let .ok rows := decodeBatch {} crossOctet
+    | throw (IO.userError "bitmap did not cover the second octet")
+  check "second octet uses the low bit first"
+    (rows == List.replicate 8 [none] ++ [[some (.int32 0)]])
+  -- The bytes of a null string can be undefined, including invalid UTF-8.
+  let nullBytes := KBytes.leVal ([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0xff] : List UInt8)
+  let nullString ← checkedFrame [⟨"text", true, .utf8⟩]
+    ⟨1, [⟨1, 1⟩], [⟨0, 1⟩, ⟨8, 8⟩, ⟨16, 1⟩]⟩ (.leaf 24 nullBytes)
+  let .ok [[none]] := decodeBatch {} nullString
+    | throw (IO.userError "a null string may occupy undefined data bytes")
+  let noColumns ← checkedFrame [] ⟨2, [], []⟩ (.leaf 0 0)
+  let .ok [[], []] := decodeBatch {} noColumns
+    | throw (IO.userError "zero-column batch lost rows")
+  let .error (.limit .totalRows) := decodeBatch { totalRows := 1 } noColumns
+    | throw (IO.userError "zero-column rows must count toward the row budget")
+
 public def main : IO Unit := do
   let bytes ← IO.FS.readBinFile "tests/formats/arrow-ipc/nullable-int32-utf8.arrows"
   check "fixture length" (bytes.size == 1128)
@@ -46,6 +112,7 @@ public def main : IO Unit := do
     let left := packed (bytes.extract 0 split)
     let right := packed (bytes.extract split bytes.size)
     checkStream bytes (left ++ right) s!"split {split}"
+    checkRows (left ++ right) s!"body split {split}"
   for stop in [:bytes.size] do
     expectFailure s!"truncation at {stop}" (packed (bytes.extract 0 stop)) (.malformed .truncated)
   let eos := packed (bytes.extract 1120 1128)
@@ -87,3 +154,5 @@ public def main : IO Unit := do
     | throw (IO.userError "schema and EOS should fit a zero batch cap")
   check "schema-only stream" (zeroBatches.fields == schema && zeroBatches.batches.isEmpty)
   IO.println "Arrow IPC V5 metadata: 1129 split points, 1128 truncations, and malformed, unsupported and limit cases passed"
+  bodyRegressions bytes
+  IO.println "Arrow IPC V5 body: ordered PyArrow rows across 1129 split points and malformed-body and budget cases passed"
