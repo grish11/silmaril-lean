@@ -30,6 +30,12 @@ equivalences. Lower primitive interpretations are arbitrary relations. Effect
 annotations are preserved by relabeling, and the comparisons require no
 semantic purity, pairing laws, or iteration.
 
+Native lower observation compares the computations of the given endpoints.
+The ordered writer fixture derives a relabeled swap whose observation fails
+with ordered pairing, giving logs `[2, 7]` and `[7, 2]`. A semantics on a syntax
+quotient needs a separate proof that its model laws validate the generating
+equations on the relevant witnesses. [Ordered writer regression](https://github.com/hiloopai/silmaril-lean/blob/1aefb95777b0a1f261b6fdde490781ff708de141/tests/ssa/LetIterWeakTreeSoundness.lean#L420-L430)
+
 ## Upper tier
 
 `Silmaril.SSA.Isotope.Institution.Adapters.Iteration.Thms` gives two
@@ -61,12 +67,16 @@ interpretations. The comparison applies on the same visible environment
 coverage as the case reduct.
 
 The `UpperPowerset` institution bundles that profile over all native
-LetParIter sentences. It retains the pure interpretations across signature
-reducts. For a fixed pairing, its model arrows are precisely upper strict
-arrows with identity computation maps. `UpperPowerset.letIter` and
-`UpperPowerset.letParCase` use this shared target. Both model reducts
-commute with opcode relabeling and take membership of the same primitive
-computations.
+LetParIter sentences. Signature reducts retain the fixed monad, Elgot
+iteration, and pairing, and transport primitive computations and coherent
+pure interpretations using the source, target, and effect equalities. For
+a fixed pairing, its model arrows are precisely upper strict arrows with
+identity computation maps, preserving both primitive interpretations.
+`UpperPowerset.letIter` and `UpperPowerset.letParCase` use this shared target.
+The case comparison takes the underlying operation of the upper pairing as
+the lower profile's `ParOp`. The reduct squares `Model.toCase_reduct` and
+`Model.toRelational_reduct` commute on objects and arrows. Both paths take
+membership of the same primitive computations.
 
 `Silmaril.SSA.Isotope.Institution.Adapters.Thms` exposes the commuting
 sentence squares and outer rectangle, using equality of exact witnesses.

@@ -62,7 +62,8 @@ theorem room_sat_map {tier : Tier} [CaseTypes tier τ] (h : tier ≠ .iter)
     (room h C Γ pair T).Sat X (φ.map f) ↔ (room h C Γ pair S).Sat (X.reduct f) φ :=
   Proofs.room_sat_map h C pair f X φ
 
-/-- Restrict the native lower parallel institution to powerset models and identity computation maps. -/
+/-- Observe exact equations in the powerset profile with an arbitrary fixed pairing.
+Satisfaction compares the two stored derivations by equality of computations. -/
 def observation {tier : Tier} [CaseTypes tier τ] (h : tier ≠ .iter) (C : Control tier D Id)
     (Γ : Ctx ν τ) (pair : ParOp (SetM : Type v → Type v)) :
     InstrSig τ ε ⥤ Room.{u, 0, max u v} where
