@@ -46,7 +46,7 @@ public theorem readStructList_erase {ε : Type} (reader : Reader) (field : Field
           bind, Except.bind, pure, Except.pure, throw]
   · simp [readStructList, type, Except.map, Except.mapError, bind, Except.bind, throw]
 
-private theorem structList_sound {reader : Reader} {field : Field} {items : List Item}
+public theorem readStructList_wire {reader : Reader} {field : Field} {items : List Item}
     (h : readStructList reader field = .ok items) : StructListWire reader field items := by
   by_cases type : field.type = .payload .list
   · cases parsed : Traversal.readList reader Footer.ColumnOrder.Error.compact .struct (readItem reader) field.start with
@@ -113,7 +113,7 @@ public theorem readSelection_wire {limits : Footer.Limits} {snapshot : Snapshot.
                     simp [orderFound, pure, Except.pure] at h
                     subst result
                     exact ⟨Nat.le_of_not_gt cap, rfl, fields, schema, exactRoot,
-                      field?_some schemaFound, structList_sound schemaParsed, count, leafAt,
+                      field?_some schemaFound, readStructList_wire schemaParsed, count, leafAt,
                       field?_none orderFound⟩
                   | some orderField =>
                     simp only [orderFound] at h
@@ -129,8 +129,8 @@ public theorem readSelection_wire {limits : Footer.Limits} {snapshot : Snapshot.
                           simp [orderAt, pure, Except.pure] at h
                           subst result
                           exact ⟨Nat.le_of_not_gt cap, rfl, fields, schema, exactRoot,
-                            field?_some schemaFound, structList_sound schemaParsed, count, leafAt,
-                            orders, field?_some orderFound, structList_sound ordersParsed, orderCount, orderAt⟩
+                            field?_some schemaFound, readStructList_wire schemaParsed, count, leafAt,
+                            orders, field?_some orderFound, readStructList_wire ordersParsed, orderCount, orderAt⟩
                       · simp [orderCount, throw] at h
             · simp [count, throw] at h
     · simp [extent, throw] at h

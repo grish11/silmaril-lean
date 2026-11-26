@@ -20,6 +20,10 @@ theorem readStructList_erase {ε : Type} (reader : Reader) (field : Field) (fail
       pure items) :=
   Proofs.Formats.Parquet.Footer.ColumnOrder.readStructList_erase reader field fail
 
+theorem readStructList_wire {reader : Reader} {field : Field} {items : List Item}
+    (h : readStructList reader field = .ok items) : StructListWire reader field items :=
+  Proofs.Formats.Parquet.Footer.ColumnOrder.readStructList_wire h
+
 theorem readSelection_wire {limits : Footer.Limits} {snapshot : Snapshot.Checked}
     {column : Nat} {result : Selection}
     (h : readSelection limits snapshot column = .ok result) :
