@@ -4,8 +4,8 @@ public import Silmaril.Numeric.Ieee754.SignedRationalRounding
 
 /-! # Python finite binary64
 
-Round exact integer quotients and decimal literals once. The sign is
-separate so division and literal conversion can retain negative zero.
+Round exact integer quotients, decimal literals and finite sums. The sign
+is separate so arithmetic and literal conversion can retain negative zero.
 -/
 
 @[expose] public section
@@ -49,6 +49,33 @@ def NumericOperand.equal : NumericOperand → NumericOperand → Bool
   | .float64 left, .float64 right => Binary64.equal left right
   | .float64 left, .integer right => equalInt left right
   | .integer left, .float64 right => equalInt right left
+
+/-- CPython's mixed arithmetic first converts the exact integer to binary64. -/
+def intToFinite? (integer : Int) : Option F64.Finite :=
+  F64.Finite.ofRaw? (F64.ofBits (roundSigned (decide (integer < 0)) (integer.natAbs : ℚ)))
+
+/-- A zero sum is negative only for two negative zeros under nearest-even. -/
+def sumNegative (left right : F64.Finite) (sum : ℚ) : Bool :=
+  decide (sum < 0) || (decide (sum = 0) && (left.val.signBit && right.val.signBit))
+
+/-- Round the exact dyadic sum once. The finite profile excludes overflow. -/
+def addFinite? (left right : F64.Finite) : Option F64.Finite := do
+  let lhs ← left.val.toRat?
+  let rhs ← right.val.toRat?
+  let sum := lhs + rhs
+  F64.Finite.ofRaw? (F64.ofBits (roundSigned (sumNegative left right sum) |sum|))
+
+inductive MixedAddError where
+  | conversionOverflow
+  | nonfiniteResult
+  deriving DecidableEq, Repr
+
+/-- Coercion overflow is a defined exception. A nonfinite sum is outside
+the checked result profile. -/
+def mixedAdd (integer : Int) (floating : F64.Finite) : Except MixedAddError F64.Finite :=
+  match intToFinite? integer with
+  | none => .error .conversionOverflow
+  | some converted => (addFinite? converted floating).elim (.error .nonfiniteResult) .ok
 
 inductive DivisionError where
   | zeroDivisionError

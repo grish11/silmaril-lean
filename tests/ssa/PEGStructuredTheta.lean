@@ -5,10 +5,12 @@ import Silmaril.SSA.PEG.Bridge.Theta.Region.Tuple.Thms
 import Silmaril.SSA.Peggy.Bridge.Theta.LambdaSSA.Thms
 import Silmaril.SSA.PEG.Bridge.Theta.Region.LambdaSSA.Thms
 import Silmaril.SSA.PEG.Bridge.Theta.Region.MLIR.Thms
+import Silmaril.SSA.PEG.Bridge.Theta.Region.LambdaRTL.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Region.Hoist.Thms
 meta import Silmaril.SSA.PEG.Bridge.Theta.Region.LambdaSSA.Defs
 meta import Silmaril.SSA.PEG.Bridge.Theta.Region.LambdaSSA.Schedule.Defs
 meta import Silmaril.SSA.PEG.Bridge.Theta.Region.MLIR.Defs
+meta import Silmaril.SSA.PEG.Bridge.Theta.Region.LambdaRTL.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Hoist.Defs
 
 namespace Silmaril.SSA.PEG.Bridge.Theta.Tests
@@ -522,6 +524,73 @@ set_option interpreter.prefer_native false in
 #eval (scfShape, (wordLoop.run wordOps 3 (wordStore 2 10 1)).map unpackWords,
   (wordLoop.lower.run wordOps 7 (wordStore 2 10 1)).map unpackWords,
   (wordLoop.lower.run wordOps 3 (wordStore 0 10 1)).map unpackWords)
+
+
+section LambdaRTL
+
+open Silmaril.SSA.PEG.Bridge.Theta.Region.LambdaRTL (Label observe observeFuel mem_observe_iff)
+open Silmaril.SSA.LambdaRTL.CFG.Cyclic (runFuel)
+open ForwardCFG (Value)
+
+private abbrev rtlLoop := Region.LambdaRTL.lower bundle
+
+-- The two label entries carry one packet each. Inspect actual assignments
+-- and terminators, including the backward transfer to the first label.
+private def rtlShape : Bool :=
+  match rtlLoop.blocks with
+  | [(.before, ⟨.packet, beforeBody⟩), (.after, ⟨.packet, afterBody⟩)] =>
+    match beforeBody, afterBody with
+    | .let2 (.slot 0) _ _ (.let2 (.slot 1) _ _ (.let2 (.slot 2) _ _
+        (.let1 (.temp 0) (.app (.inl ⟨_, _, .primitive .nonzero⟩) _)
+          (.term (.case (.app (.inr ()) _) _ (.br .exit _) _ (.br .after _)))))),
+      .let2 (.slot 0) _ _ (.let2 (.slot 1) _ _ (.let2 (.slot 2) _ _
+        (.let1 (.temp 0) (.app (.inl ⟨_, _, .primitive .pred⟩) _)
+          (.let1 (.temp 1) (.app (.inl ⟨_, _, .primitive .add⟩) _)
+            (.term (.br .before _)))))) => true
+    | _, _ => false
+  | _ => false
+
+example : rtlShape = true := rfl
+
+-- Two backedges are needed. The sum must use the old left accumulator,
+-- even though the new left accumulator has already been chosen.
+example : observeFuel bundle total 5 (store 2 10 1) = none := rfl
+example : observeFuel bundle total 6 (store 2 10 1) =
+    some (.exit, Value.pack (store 0 11 12)) := rfl
+
+example : observeFuel bundle total 2 (store 0 10 1) =
+    some (.exit, Value.pack (store 0 10 1)) := rfl
+
+-- Only the after block writes temp 1 in this example. The zero-trip path
+-- leaves that register at its initial value, as well as returning the old tuple.
+example : (runFuel (Region.LambdaRTL.model total) rtlLoop 2
+    (Region.LambdaRTL.inputStore total (store 0 10 1))).map
+    (fun (_, _, final) => final (.temp 1)) = some .unit := rfl
+
+example (idx : Index 1) : bundledGraph.observe total.toPEG
+    (bundledGraph.denote total.toPEG (store 2 10 1) bundle.demandWellFounded) idx =
+      (store 0 11 12).map (fun _ => some) := by
+  exact (Region.LambdaRTL.returns_iff_observe bundle total (fun _ => rfl) _ _ idx).mp
+    ((mem_observe_iff bundle total (store 2 10 1) .exit (Value.pack (store 0 11 12))).mpr ⟨6, rfl⟩)
+
+example (idx : Index 1) :
+    (Label.exit, Value.pack (store 0 11 12)) ∈ observe bundle total (store 2 10 1) :=
+  (Region.LambdaRTL.returns_iff_observe bundle total (fun _ => rfl) _ _ idx).mpr (observedTuple idx)
+
+private def rtlPacket (fuel n a b : Nat) : Option (Nat × Nat × Nat) := do
+  let (label, result) ← observeFuel bundle total fuel (store n a b)
+  match label with
+  | .exit =>
+    let .cons count (.cons left (.cons right .nil)) ← result.unpack carried
+    return (count.down, left, right)
+  | _ => none
+
+set_option interpreter.prefer_native false in
+/-- info: (true, none, some (0, 11, 12), some (0, 10, 1)) -/
+#guard_msgs in
+#eval (rtlShape, rtlPacket 5 2 10 1, rtlPacket 6 2 10 1, rtlPacket 2 0 10 1)
+
+end LambdaRTL
 
 end Silmaril.SSA.PEG.Bridge.Theta.Region.Tests
 

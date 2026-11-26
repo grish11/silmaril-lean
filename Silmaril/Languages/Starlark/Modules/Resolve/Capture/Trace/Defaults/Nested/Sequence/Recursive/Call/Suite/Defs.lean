@@ -104,14 +104,18 @@ inductive Runs : LexicalBlock → State → Statement → Functions.Body → Out
       {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
     {site : Site block formals varargs kwargs} {callee destination : String} {arguments : List Expr} {codes : List Lowering.Expr}
       {keywords : List (String × Expr)} {compiled : List (String × Lowering.Expr)}
-      {star : Option (Named.Spread block)}
+      {star : Option (Named.Spread block)} {mapping : Option (Named.Mapping block)}
       {result : Outcome Lists.Value} {out : Outcome Flow} {bodyRuns : State → Outcome Flow → Prop} :
-      Named.RunsWith site bodyRuns block id callee arguments codes keywords compiled star state result →
+      Named.RunsWith site bodyRuns block id callee arguments codes keywords compiled star mapping state result →
       (∀ active childOut, bodyRuns active childOut → Runs site.block active site.source site.body.code childOut) →
       (∀ value returned, result = .ok value returned →
         Runs block (returned.write (fileSlot destination) value) rest tail out) →
-      Runs block state (.seq (.assign destination (.call (.scalar (.read callee)) arguments keywords (star.map Named.Spread.source) none)) rest)
-        (.seq (.assignExpr (fileSlot destination) (Named.expression callee codes compiled (star.map Named.Spread.code))) tail)
+      Runs block state
+        (.seq (.assign destination
+          (.call (.scalar (.read callee)) arguments keywords (star.map Named.Spread.source)
+            (mapping.map Named.Mapping.source))) rest)
+        (.seq (.assignExpr (fileSlot destination)
+          (Named.expression callee codes compiled (star.map Named.Spread.code) (mapping.map Named.Mapping.code))) tail)
         (result.resume fun _ _ => out)
 
 end Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Suite

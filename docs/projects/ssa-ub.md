@@ -979,6 +979,32 @@ observations equal. This equivalence quantifies over deterministic
 finite-state primitive interpretations at the supplied packet.
 [Open refinement theorems][ssa-ub-open-operand-refinement]
 
+### Executable refinement at a supplied caller packet
+
+`ReplyEnumeration` supplies a list for each opcode and a proof that it
+contains every typed packet in that opcode's dependent sum of reply
+positions and payloads. Duplicates are allowed. A key with no possible
+reply has an empty list. The comparison uses decidable opcode equality
+and the installed decidable equalities for evaluated constructor values
+(`Value Unit`) and terminal exits. It takes one typed caller packet,
+with no enumeration of the caller interface.
+
+`Table.checkRefinement?` uses the original exact re-emission and rank
+checks. Its Boolean verdict agrees with `Table.refines_iff` for
+successfully extracted endpoints under the deterministic shaped
+primitive interface. An absent verdict indicates failed extraction.
+`Table.compare?` also returns the first distinguishing prefix in the
+supplied reply order. The existing handler replays that prefix on the
+original typed endpoints. The proof certifies both paths and the same
+extraction rank bound, with one additional state for the final test.
+
+The native regression puts two payloads at tag zero. The first agrees.
+The second changes the evaluated next argument and produces a prefix
+with a fault on the source and divergence on the target. The checks
+also distinguish reached literal UB from an ordinary return and failed
+extraction from a rejected comparison.
+[Executable refinement checker][ssa-ub-open-operand-checker]
+
 ## Coverage and gaps
 
 | Language | Refinement and institutions in the repository | UB construction and remaining hypotheses |
@@ -1137,3 +1163,4 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-native-request-trees]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/Thms.lean
 [ssa-ub-open-operand-extraction]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Thms.lean
 [ssa-ub-open-operand-refinement]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Refinement/Thms.lean
+[ssa-ub-open-operand-checker]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Refinement/Checker/Thms.lean

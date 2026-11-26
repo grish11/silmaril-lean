@@ -258,8 +258,29 @@ example :
 
 private def swapCaptures : InputPermutation 3 := Equiv.swap 0 2
 private def swappedSource := reindexCaptures swapCaptures source
-private def swappedTargets : Checked.Phi.Targets := (lowerChecked swappedSource).get (by cbv)
+private theorem swappedHasTargets : (lowerChecked swappedSource).isSome := by
+  obtain ⟨_, found⟩ := lowerChecked_reindex swapCaptures accepted
+  rw [show lowerChecked swappedSource = some _ from found]
+  rfl
+
+private def swappedTargets : Checked.Phi.Targets := (lowerChecked swappedSource).get swappedHasTargets
 private theorem swappedAccepted : lowerChecked swappedSource = some swappedTargets := by cbv
+
+private def rawEntry : SourceWithEntry 3 Entry Header :=
+  { source with
+    phiInputs
+      | .entry => .cons (.arg (capture 0)) (.cons (.arg (capture 1)) (.cons (.arg (capture 2)) .nil))
+      | .backedge => source.phiInputs .backedge }
+
+private theorem rawRefused : lowerChecked rawEntry = none := by cbv
+
+example : lowerChecked (reindexCaptures swapCaptures rawEntry) = none := by
+  cases found : lowerChecked (reindexCaptures swapCaptures rawEntry) with
+  | none => rfl
+  | some targets =>
+    obtain ⟨_, wasAccepted⟩ := (lowerChecked_reindex_iff swapCaptures (g := rawEntry)).mp ⟨targets, found⟩
+    rw [rawRefused] at wasAccepted
+    cases wasAccepted
 
 example : (swappedTargets.1.block? 0 0).map (·.ops) =
     some [.binary .sub (.arg 6) (.arg 2) (.arg 0), .binary .add (.arg 7) (.arg 6) (.arg 1)] := by cbv
@@ -280,7 +301,10 @@ example :
     Behavior.diverges ∈ Institution.rtlBehaviors swappedSpin mem swappedTargets.1 ∧
       Observation.diverge mem ∈ ssaBeh 1
         (inputModel (P := Rows.wordSignature) model Memory swappedSpin) (Institution.scope swappedAccepted) := by
-  have agree := observations_reindex swapCaptures accepted swappedAccepted swappedSpin mem
+  obtain ⟨after, found, observes⟩ := reemit_observations swapCaptures accepted
+  have same : after = swappedTargets := Option.some.inj (found.symm.trans swappedAccepted)
+  subst after
+  have agree := observes swappedSpin mem
   rw [pullSpin] at agree
   have old := (Institution.room_diverges_iff accepted spin mem).mpr spinAbsent
   exact ⟨agree.1 ▸ ((Institution.rtl_room_observation_iff accepted spin (.diverge mem)).mp old),
@@ -303,5 +327,102 @@ example :
   have pulled := agrees.1.mp holds
   rw [pullSpin] at pulled
   exact differs pulled
+
+private def identify : InputMap 3 := fun slot => if slot = 2 then 0 else slot
+private def contracted := mapCaptures identify source
+
+private theorem contractedHasTargets : (lowerChecked contracted).isSome := by
+  obtain ⟨_, found⟩ := lowerChecked_mapCaptures identify accepted
+  rw [show lowerChecked contracted = some _ from found]
+  rfl
+
+private def contractedTargets : Checked.Phi.Targets := (lowerChecked contracted).get contractedHasTargets
+private theorem contractedAccepted : lowerChecked contracted = some contractedTargets := by cbv
+
+example : identify 0 = identify 2 := by cbv
+example : (contractedTargets.1.block? 0 0).map (·.ops) =
+    some [.binary .sub (.arg 6) (.arg 0) (.arg 0), .binary .add (.arg 7) (.arg 6) (.arg 1)] := by cbv
+example : (contractedTargets.1.block? 0 0).map (·.term) = some (.jump 1 [.arg 6, .arg 7, .arg 0]) := by cbv
+example : contractedTargets.1.block? 0 1 = targets.1.block? 0 1 := by cbv
+
+private def contractedInput := bank 5 2 6
+example : identify.pull contractedInput = bank 5 2 5 := by cbv
+example : contractedTargets.1.runMain 13 0 (words contractedInput) mem = .returned [6] mem := by cbv
+example : Generic.Fuel.run model (inputEnv model contractedInput) 3 contractedTargets.2 =
+    some (0, Generic.packResult model (out := word) (6 : Word)) := by cbv
+
+private def contractedSpin := bank 1 0 42
+private def equalCaptures := bank 1 0 1
+private def zeroBank := bank 0 0 1
+
+private theorem equalCapturesAbsent : source.denote model equalCaptures = Part.none := by
+  rw [Part.eq_none_iff', Part.dom_iff_mem]
+  rintro ⟨value, returned⟩
+  exact source.not_returns_of_backedge_invariant model equalCaptures value (· = zeroBank) (by cbv)
+    (fun old fixed => fixed.symm ▸ ⟨zeroBank, by cbv, rfl⟩)
+    ((source.returns_iff_mem_denote model _ _).mpr returned)
+
+example :
+    Behavior.diverges ∈ Institution.rtlBehaviors contractedSpin mem contractedTargets.1 ∧
+      Observation.diverge mem ∈ ssaBeh 1
+        (inputModel (P := Rows.wordSignature) model Memory contractedSpin) (Institution.scope contractedAccepted) := by
+  obtain ⟨after, found, observes⟩ := reemit_mapped_observations identify accepted
+  have same : after = contractedTargets := Option.some.inj (found.symm.trans contractedAccepted)
+  subst after
+  have agree := observes contractedSpin mem
+  have pulled : identify.pull contractedSpin = equalCaptures := by cbv
+  rw [pulled] at agree
+  have old := (Institution.room_diverges_iff accepted equalCaptures mem).mpr equalCapturesAbsent
+  exact ⟨agree.1 ▸ ((Institution.rtl_room_observation_iff accepted equalCaptures (.diverge mem)).mp old),
+    agree.2 ▸ old⟩
+
+private def aliasSubtraction : SourceWithEntry 3 Entry Header :=
+  { source with
+    preheader := .cons .sub (.cons (.arg (capture 2)) (.cons (.arg (capture 2)) .nil))
+      (.cons .add (.cons (.output (0 : Fin 1) .head) (.cons (.arg (capture 1)) .nil)) .nil) }
+
+private def aliasPlan : Plan 3 Entry := (recognize aliasSubtraction).get (by cbv)
+private theorem aliasRecognized : recognize aliasSubtraction = some aliasPlan := by cbv
+private def aliasTargets : Checked.Phi.Targets := (aliasPlan.rtl, Generic.lower aliasSubtraction)
+private theorem aliasAccepted : lowerChecked aliasSubtraction = some aliasTargets := by cbv
+
+private theorem comparedGraphs : mapCaptures identify source = mapCaptures identify aliasSubtraction := by cbv
+private theorem aliasMappedAccepted :
+    lowerChecked (mapCaptures identify aliasSubtraction) = some contractedTargets := by
+  rw [← comparedGraphs]
+  exact contractedAccepted
+
+private theorem differentAtInput : source.denote model input ≠ aliasSubtraction.denote model input := by
+  intro same
+  have lhs : source.denote model input = Part.some (7 : Word) :=
+    Part.eq_some_iff.mpr ((source.returns_iff_mem_denote model input (7 : Word)).mp ⟨1, counted⟩)
+  have rhs : aliasSubtraction.denote model input = Part.some (6 : Word) :=
+    Part.eq_some_iff.mpr ((aliasSubtraction.returns_iff_mem_denote model input (6 : Word)).mp
+      ((aliasSubtraction.returns_iff_evalBackedges model input (6 : Word)).mpr ⟨2, by cbv⟩))
+  rw [lhs, rhs] at same
+  exact (by decide : (7 : Word) ≠ 6) (Part.some_injective (α := Word) same)
+
+example : ¬ (Loop.Institution.Sentence.equation (Institution.equation source aliasSubtraction)).Holds model :=
+  fun holds => differentAtInput (holds input)
+
+private theorem agreeOnImage : ∀ old ∈ Set.range (fun args : WordTuple 3 => identify.pull args),
+    source.denote model old = aliasSubtraction.denote model old := by
+  rintro _ ⟨args, rfl⟩
+  exact (denote_mapCaptures identify recognized model args).symm.trans
+    ((congrArg (fun graph => graph.denote model args) comparedGraphs).trans
+      (denote_mapCaptures identify aliasRecognized model args))
+
+example : input ∉ Set.range (fun args : WordTuple 3 => identify.pull args) :=
+  fun pulled => differentAtInput (agreeOnImage input pulled)
+
+example :
+    (∀ args : WordTuple 3,
+      (Sentence.eq contractedTargets.1 contractedTargets.1).Holds (Institution.rtlBehaviors args mem)) ∧
+      (∀ args : WordTuple 3, (fiberRoom Rows.wordSignature (wordSorts 3).length).Sat
+        (Discrete.mk (inputModel (P := Rows.wordSignature) model Memory args))
+        (Sentence.eq (Institution.scope contractedAccepted) (Institution.scope aliasMappedAccepted))) := by
+  have laws := mapCaptures_equation_holds_iff identify accepted aliasAccepted
+    contractedAccepted aliasMappedAccepted mem
+  exact ⟨laws.1.mpr agreeOnImage, laws.2.mpr agreeOnImage⟩
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table

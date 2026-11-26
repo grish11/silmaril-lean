@@ -10,17 +10,17 @@ open Core.Closure (Heap Value)
 
 theorem identify_empty (heap : Heap) : identify heap (.tuple []) = some .empty := rfl
 
-theorem identify_allocation (heap : Heap) (head : Core.Module.Value) (tail : List Core.Module.Value) :
+theorem identify_allocation (heap : Heap) (head : Core.Module.TupleDispatch.Element) (tail : List Core.Module.TupleDispatch.Element) :
     let (cell, reached) := heap.allocate (.tuple (head :: tail))
     identify reached (.tupleObject ⟨some cell.address, head :: tail⟩) = some (.allocated cell.address) := by
   simp [identify, Heap.allocate, Heap.lookup, Heap.reserve]
 
-theorem identify_savedOrigin (heap : Heap) (head : Core.Module.Value) (tail : List Core.Module.Value) :
+theorem identify_savedOrigin (heap : Heap) (head : Core.Module.TupleDispatch.Element) (tail : List Core.Module.TupleDispatch.Element) :
     let (descriptor, reached) := heap.saveTupleOrigin head tail
     identify reached (.tupleObject descriptor) = some (.origin heap.next) := by
   simp [Heap.saveTupleOrigin, identify, Heap.allocate, Heap.lookup, Heap.reserve]
 
-theorem identify_missing {heap : Heap} {address : Nat} (head : Core.Module.Value) (tail : List Core.Module.Value)
+theorem identify_missing {heap : Heap} {address : Nat} (head : Core.Module.TupleDispatch.Element) (tail : List Core.Module.TupleDispatch.Element)
     (missing : heap.lookup ⟨address⟩ = none) :
     identify heap (.tupleObject ⟨some address, head :: tail⟩) = none := by
   simp [identify, missing]
@@ -56,7 +56,7 @@ theorem evaluate_right_failure {ε : Type} (test : Test) (heap : Heap)
   simp [Test.evaluate, read, failed]; rfl
 
 theorem evaluate_same_opaque_read {ε : Type} (heap : Heap) (lookup : String → Except ε (Option Value))
-    (unsupported : ε) {name : String} {head : Core.Module.Value} {tail : List Core.Module.Value}
+    (unsupported : ε) {name : String} {head : Core.Module.TupleDispatch.Element} {tail : List Core.Module.TupleDispatch.Element}
     (found : lookup name = .ok (some (.tuple (head :: tail)))) :
     (Test.mk (.global name) .is_ (.global name)).evaluate heap lookup unsupported = .ok true := by
   simp [Test.evaluate, Operand.read, found, Bind.bind, Except.bind, Test.compare, identify, sameOpaqueRead]

@@ -61,6 +61,10 @@ theorem direct_eq_list (heap : Heap) (receiver : Object) (argument : List Core.M
     (BoundMethod.mk .eq receiver).invoke heap (.list argument) = (.ok .notImplemented, heap) ∧
       equal receiver (.list argument) = false := ⟨rfl, rfl⟩
 
+theorem equalContents_text_cons (left right : Core.Text) (leftRest rightRest : List Element) :
+    equalContents (.text left :: leftRest) (.text right :: rightRest) =
+      (decide (left.points = right.points) && equalContents leftRest rightRest) := rfl
+
 theorem constructFromListDisplay_missing (heap : ListHeap) (contents : List Value) :
     constructFromListDisplay heap none contents = (.error .missingType, heap) := rfl
 

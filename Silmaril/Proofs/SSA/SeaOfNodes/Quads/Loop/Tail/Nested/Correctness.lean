@@ -61,7 +61,7 @@ theorem parallel_inner_merge (same : p.onInnerTrue = p.onInnerFalse) (old : Bank
   obtain ⟨falseBlocks, falseQuads, falsePred⟩ := segment_direct p.innerFalse (same ▸ atJoin)
     (fun mem => falseDisjoint _ mem _ (by simp) rfl) p.inner
   dsimp only
-  unfold Program.selected
+  unfold Program.selected Control.selected
   rw [ite_eq_left outerTaken]
   by_cases taken : (((src p.inner).body.eval m ((src p.header).body.eval m old)).get p.innerTest).down = true
   · rw [ite_eq_left taken, ite_eq_left taken, merge_bank]

@@ -38,6 +38,29 @@ theorem rewriteAt_substVars (root : Region Φ → Option (Region Φ))
       · simp only [hi, dite_false, Option.map_none]
     | _ => rfl
 
+theorem rewriteAt_undo (forward backward : Region Φ → Option (Region Φ))
+    (undo : ∀ {r s}, forward r = some s → backward s = some r)
+    (site : Site) {r s : Region Φ} (h : site.rewriteAt forward r = some s) :
+    site.rewriteAt backward s = some r := by
+  induction site generalizing r s with
+  | here => exact undo h
+  | unaryBody next ih | binaryBody next ih | leftArm next ih | rightArm next ih | entry next ih =>
+    cases r <;> simp only [Site.rewriteAt] at h
+    all_goals try contradiction
+    obtain ⟨body, hbody, rfl⟩ := Option.map_eq_some_iff.mp h
+    simp only [Site.rewriteAt, ih hbody, Option.map_some]
+  | block i next ih =>
+    cases r with
+    | cfg e n rows =>
+      simp only [Site.rewriteAt] at h
+      split at h
+      next hi =>
+        obtain ⟨body, hbody, rfl⟩ := Option.map_eq_some_iff.mp h
+        simp only [Site.rewriteAt, hi, dite_true, Function.update_self, ih hbody, Option.map_some,
+          Function.update_idem, Function.update_eq_self]
+      next _ => contradiction
+    | _ => contradiction
+
 variable {τ : Type u} [TypeFormers τ] [HasTy Φ τ]
   {Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
 

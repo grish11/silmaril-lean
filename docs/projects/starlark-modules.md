@@ -1118,9 +1118,9 @@ tuple and dictionary only after successful binding. The differential
 checks compare visible results and errors. Allocation order and the
 absence of packs in the residual Lean heap are properties of the Lean
 model. The earlier bare-star and nullary diagnostic differences still
-apply. The positional call-site spread profile composes with this
-binder as described below. Mapping spread, arbitrary dispatch and
-module publication remain outside this checked suite theorem.
+apply. The checked positional and mapping call-site spreads below
+compose with this binder. Arbitrary dispatch and module publication
+remain outside this checked suite theorem.
 [Binder and packing theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Named/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Suite/Provenance/KwargsChecks.lean) · [Pinned spec](https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#functions) · [Pinned Go binder](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/eval.go#L1418-L1512) · [Go controls](../../scripts/starlark/forwarded-default/check.go)
 
 ### Terminal positional spread in checked local suites
@@ -1145,8 +1145,9 @@ execution and denotation, including the retained heap and restored
 caller in the same guarded suite.
 
 A reached operand error skips the rest of the operand phase. Once
-all operands succeed, a noniterable spread fails before binding or
-packing, even if those arguments would conflict. A binding error
+all operands and any mapping key validation succeed, a noniterable
+positional spread fails before binding or packing, even if those
+arguments would conflict. A binding error
 after successful expansion retains the allocated display and prior
 effects. These errors skip the destination and suite tail. Pinned
 Go controls check order, alias identity, saved defaults, positional
@@ -1155,9 +1156,47 @@ residual private heap are Lean observations.
 
 An arbitrary spread expression yielding a list or tuple needs
 evidence of its reached carrier kind to enter this proof. Other
-iterable carriers, `**` mapping spread, general dispatch and
-module publication remain separate.
+iterable carriers, general dispatch and module publication remain
+separate.
 [Call theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Named/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Suite/Provenance/SpreadChecks.lean) · [Pinned spec](https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#functions) · [Go resolver](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/resolve/resolve.go#L737-L798) · [Go compiler](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/internal/compile/compile.go#L1650-L1727) · [Go call instruction](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/interp.go#L298-L380) · [Differential controls](../../scripts/starlark/forwarded-default/check.go)
+
+### Terminal mapping spread in checked local suites
+
+The normalized call has one optional `**` field after explicit
+positional and named arguments and any positional `*` field. The
+pinned prose describes argument evaluation in source order and dynamic
+errors for explicit names repeated by a mapping. The pinned Go resolver
+requires this terminal placement and rejects a repeated `**` field.
+The checked mapping operand is a direct dictionary display of checked
+body operands and string literals.
+
+The dictionary display allocates its own cell, then evaluates each key
+and value from left to right and checks that pair before the next. A
+reached operand or display error stops the call before expansion.
+After every operand succeeds, expansion reads the mapping entries in
+insertion order and validates that every key is a string. It keeps the
+original value references and appends the resulting pairs after
+explicit names. Mapping validation precedes positional expansion,
+even though the positional spread operand evaluates first.
+
+The ordinary binder runs after both expansions. It checks fixed-slot
+and collector conflicts, including duplicates between explicit names
+and spread entries. A duplicate dictionary display key fails earlier,
+during display insertion. The source, resolved operational and
+denotational paths agree on the exact error and retained heap. A
+binding error keeps the display but skips both collectors and the
+callee. A body error retains the display, reached packs and earlier
+body effects, restores the caller, and skips the destination and tail.
+
+The pinned Go comparisons cover empty and ordered mappings, alias
+identity, fixed and collected delivery, and reached error precedence
+with both spreads. Go's duplicate-display instruction checks uniqueness
+after setting the entry in its private temporary. Lean rejects without
+replacing the accepted prefix. The differential checks compare visible
+errors and effects, while the Lean checks inspect that private prefix and
+the exact retained state. Arbitrary carrier expressions, untracked
+dispatch and module publication remain separate.
+[Call and mapping theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Named/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Suite/Provenance/MappingChecks.lean) · [Pinned prose](https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#functions) · [Go resolver](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/resolve/resolve.go#L737-L798) · [Go call instruction](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/interp.go#L298-L380) · [Go dictionary insertion](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/interp.go#L469-L487) · [Differential controls](../../scripts/starlark/forwarded-default/check.go)
 
 ## Finite-manifest loader
 

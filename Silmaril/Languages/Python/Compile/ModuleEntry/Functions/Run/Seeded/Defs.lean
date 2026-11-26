@@ -92,6 +92,7 @@ def legacyTextSeed (placement : SeedPlacement) : Namespace :=
 def lowerCallOperand : Core.Module.Functions.Operand → Core.Module.SeededCall.Operand 0
   | .readGlobal name => .global name
   | .intTrueDiv numerator divisor => .intTrueDiv numerator divisor
+  | .mixedAdd integer floating => .mixedAdd integer floating
   | .tuple items => .tuple items
   | .literal (.int value) => .literal (.int value)
   | .literal (.bool value) => .literal (.bool value)
@@ -309,13 +310,22 @@ def invokeCallback (space : Namespace) (context : CallContext)
   let invocation := callbackInvocation space context.heap closure
   observeCallback space expectation (invocation.runPrefix context.table context.fuel).2.state
 
+/-- A stock text conversion materializes one tuple element per stored
+Python code point. Scalar helper dispatch keeps its existing receipts. -/
+def invokeDescriptor (heap : Heap) (callee : Value) (arguments : List Value) : CallObservation × Heap :=
+  match callee, arguments with
+  | .builtin .tuple, [.text text] =>
+    let (value, reached) := heap.materializeFreshTuple (text.singletons.map .text)
+    (⟨.ok (seededValue value), none⟩, reached)
+  | _, _ => (Core.Module.SeededCall.invokeObserved callee arguments, heap)
+
 def invokeCall (space : Namespace) (context : CallContext) (callee : Value) (arguments : List Value) :
     Except ModuleFailure CallObservation × Heap :=
   match Core.Module.SeededCall.Request.decode callee arguments with
   | .expect expectation (.function closure) [] _ =>
     if context.acceptsPublishedCall closure then invokeCallback space context expectation closure
     else (.ok ⟨.error .unsupported, none⟩, context.heap)
-  | _ => (.ok (Core.Module.SeededCall.invokeObserved callee arguments), context.heap)
+  | _ => let (result, heap) := invokeDescriptor context.heap callee arguments; (.ok result, heap)
 
 /-- Only a finished invocation issues a receipt. Faults and live prefixes
 carry the exact heap reached by ordinary execution. -/
@@ -483,7 +493,7 @@ def invokeArgumentIn (space : Namespace) (context : CallContext) (allowEscaped :
       observeDirectCall space (ordinaryCall space context closure [.literal (.int value)])
     else (.ok ⟨.error .unsupported, none⟩, context.heap)
   | .function closure, [.float64 value] => invokePublishedFloat space context closure [.float64 value]
-  | _, _ => (.ok (Core.Module.SeededCall.invokeObserved callee values), context.heap)
+  | _, _ => let (result, heap) := invokeDescriptor context.heap callee values; (.ok result, heap)
 
 /-- Attribute a settled argument call to the inner name. A fault or live
 prefix carries its reached heap without a settled receipt. -/
@@ -525,7 +535,7 @@ def invokeNestedTarget (space : Namespace) (context : CallContext)
     (callee : Value) (values : List Value) : Except ModuleFailure CallObservation × Heap :=
   match callee, values with
   | .function closure, [.float64 value] => invokePublishedFloat space context closure [.float64 value]
-  | _, _ => (.ok (Core.Module.SeededCall.invokeObserved callee values), context.heap)
+  | _, _ => let (result, heap) := invokeDescriptor context.heap callee values; (.ok result, heap)
 
 /-- The callee and any earlier argument values have already been resolved.
 Later arguments retain the closure heap reached by the existing executor. -/
@@ -705,7 +715,7 @@ def observeTupleFromListDisplay (space : Namespace) (heap : Heap) (lists : ListH
   let (result, reachedLists) := Core.Module.TupleDispatch.constructFromListDisplay lists (tupleBinding space) contents
   match result with
   | .ok snapshot =>
-    let (value, reached) := heap.materializeFreshTuple snapshot
+    let (value, reached) := heap.materializeFreshTuple (snapshot.map .scalar)
     ((⟨.ok (seededValue value), none⟩, reached), reachedLists)
   | .error error =>
     let failure := (TupleChain.runtimeError? error).elim Failure.unsupported (Failure.raised ∘ .runtime)

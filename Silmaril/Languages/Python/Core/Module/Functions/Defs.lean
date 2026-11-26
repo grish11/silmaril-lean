@@ -50,12 +50,14 @@ inductive Operand where
   | literal (value : Closure.Value)
   | readGlobal (name : GlobalName)
   | intTrueDiv (numerator divisor : Int)
+  | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite)
   | tuple (items : List GlobalTupleItem)
 
 def Operand.lower {layout : Layout} : Operand → Executor.Operand layout
   | .literal value => .literal value
   | .readGlobal name => .readGlobal name
   | .intTrueDiv numerator divisor => .intTrueDiv numerator divisor
+  | .mixedAdd integer floating => .mixedAdd integer floating
   | .tuple items => .tuple (items.map GlobalTupleItem.lower)
 
 inductive Destination where

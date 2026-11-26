@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.DependentRequestTree.Native.OpenOperands.Refinement.Thms
+import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.DependentRequestTree.Native.OpenOperands.Refinement.Checker.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands
 
@@ -172,6 +172,64 @@ example : ¬ sourceTree.Refines (otherExit.extract rfl left) := by
 
 example : sourceTree.Refines (.stop .ub) := trivial
 example : ¬ (Tree.stop .ub).Refines markedTree := not_false
+
+private def packets : (f : Op) → List (CFG.Dependent.Packet (sig.replies f))
+  | .flip => [⟨0, left⟩, ⟨0, right⟩]
+  | .test => [⟨0, unitPayload⟩]
+
+private def enumeration : ReplyEnumeration sig where
+  packets := packets
+  complete f packet := by
+    cases f
+    · obtain ⟨i, value, typed⟩ := packet
+      obtain rfl := Fin.eq_zero i
+      cases typed with
+      | inl typed =>
+        cases typed
+        exact List.Mem.head _
+      | inr typed =>
+        cases typed
+        exact List.Mem.tail _ (List.Mem.head _)
+    · obtain ⟨i, value, typed⟩ := packet
+      obtain rfl := Fin.eq_zero i
+      cases typed
+      exact List.Mem.head _
+
+private def checkFlipReply (p q : Tree sig) (a : Syntax.Payload Bit) : Bool :=
+  match p, q with
+  | .ask .flip _ arms, .ask .flip _ next => ((arms 0 a).compare enumeration (next 0 a)).accepted
+  | _, _ => false
+
+-- Both payloads occur at tag zero in this order. Only the later one fails.
+example : checkFlipReply sourceTree callerTree left = true := rfl
+example : checkFlipReply sourceTree callerTree right = false := rfl
+
+example : source.compare? readsCaller enumeration source.native readsCaller.native rfl left =
+    some (.counterexample 1 probe) := rfl
+
+example : source.checkRefinement? readsCaller enumeration source.native readsCaller.native rfl left =
+    some false := rfl
+
+example : source.checkRefinement? marked enumeration source.native marked.native rfl left = some true := rfl
+
+example : marked.checkRefinement? source enumeration marked.native source.native rfl left = some false := rfl
+
+example : source.checkRefinement? readsCaller enumeration readsCaller.native readsCaller.native rfl left =
+    none := rfl
+
+example : 1 ≤ 3 ∧ sourceTree.Follows probe ∧ callerTree.Follows probe ∧
+    ¬ Shape.denote (withExitUB source.native source.selected)
+        (Syntax.model (sig.primitives probe.handler) (source.bindings left)) 0 ≤
+      Shape.denote (withExitUB readsCaller.native readsCaller.selected)
+        (Syntax.model (sig.primitives probe.handler) (readsCaller.bindings left)) 0 :=
+  Table.compare_counterexample (g₀ := source) (g₁ := readsCaller) (replies := enumeration)
+    (raw₀ := source.native) (raw₁ := readsCaller.native) rfl rfl rfl rfl
+
+/-- info: 'Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.Table.checkRefinement_iff' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms Table.checkRefinement_iff
 
 /-- info: 'Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.Table.refines_iff' depends on axioms: [propext,
  Classical.choice,

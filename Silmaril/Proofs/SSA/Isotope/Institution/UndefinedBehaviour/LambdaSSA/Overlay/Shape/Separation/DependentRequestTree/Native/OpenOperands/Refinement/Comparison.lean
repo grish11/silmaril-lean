@@ -19,7 +19,7 @@ universe u
 
 variable {Φ : Type u} [HasTy Φ Syntax.Ty] {S : RequestSignature Φ}
 
-private theorem exit_order {n : Nat} (p q : Exit) (s : Fin n) :
+theorem exit_order {n : Nat} (p q : Exit) (s : Fin n) :
     (p.result s).refines (q.result s) ↔ p.Refines q := by
   cases p <;> cases q <;> simp [Exit.result, Exit.Refines, Result.refines]
 
@@ -49,7 +49,7 @@ theorem sound (p q : Tree S) (related : p.Refines q) {n : Nat}
         exact ih packet.1 packet.2 _ (branches packet.1 packet.2) t
       | fault | diverge => exact Or.inr rfl
 
-private theorem execute_ask {n : Nat} (f : Φ) (arg : Syntax.Payload (instrSrc f))
+theorem execute_ask {n : Nat} (f : Φ) (arg : Syntax.Payload (instrSrc f))
     (arms : (i : Fin (S.replies f).length) → Syntax.Payload ((S.replies f).get i) → Tree S)
     (h : Handler S.replies n) (s : Fin n) :
     (Tree.ask f arg arms).execute (S.primitives h) s =
@@ -107,6 +107,15 @@ private theorem execute_step {n : Nat} (f : Φ) (arg : Syntax.Payload (instrSrc 
   rw [execute_ask, entry]
   exact execute_succ (arms i a) rest f arg.val i a 0
 
+theorem prefix_step_order {n : Nat} (f : Φ) (arg : Syntax.Payload (instrSrc f))
+    (arms next : (i : Fin (S.replies f).length) → Syntax.Payload ((S.replies f).get i) → Tree S)
+    (i : Fin (S.replies f).length) (a : Syntax.Payload ((S.replies f).get i)) (rest : Prefix S.replies n) :
+    ((Tree.ask f arg arms).execute (S.primitives (Prefix.step f arg.val i a rest).handler) 0).refines
+      ((Tree.ask f arg next).execute (S.primitives (Prefix.step f arg.val i a rest).handler) 0) ↔
+      ((arms i a).execute (S.primitives rest.handler) 0).refines
+        ((next i a).execute (S.primitives rest.handler) 0) := by
+  rw [execute_step, execute_step, shift_order]
+
 theorem separate (p q : Tree S) (fails : ¬ p.Refines q) :
     ∃ (n : Nat) (probe : Prefix S.replies n), p.Follows probe ∧ q.Follows probe ∧
       ¬ (p.execute (S.primitives probe.handler) 0).refines (q.execute (S.primitives probe.handler) 0) := by
@@ -141,8 +150,7 @@ theorem separate (p q : Tree S) (fails : ¬ p.Refines q) :
         obtain ⟨i, a, bad⟩ := missing
         obtain ⟨n, rest, left, right, counterexample⟩ := ih i a (next i a) bad
         refine ⟨n + 1, .step f arg.val i a rest, .step left, .step right, ?_⟩
-        rw [execute_step, execute_step, shift_order]
-        exact counterexample
+        rwa [prefix_step_order]
       · refine ⟨0, .stop (some (f, arg.val)), .stop _ _, .stop _ _, ?_⟩
         have off : ¬ (f = g ∧ arg.val = arg'.val) := fun ⟨key, value⟩ => query (Prod.ext key value)
         rw [execute_ask, execute_ask]

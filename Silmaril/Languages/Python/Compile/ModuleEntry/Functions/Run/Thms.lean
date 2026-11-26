@@ -53,7 +53,7 @@ theorem assertOperand_scalarResult {scope : Source.Scope} (session : Core.Module
 
 theorem advance_bindTuple_ok {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
     {session : Core.Module.Functions.Session} {name : String} {items : List Core.Closure.GlobalTupleItem} {trackClosed : Bool}
-    {values : List Core.Module.Value} {rest : List (Instruction scope)}
+    {values : List Core.Module.TupleDispatch.Element} {rest : List (Instruction scope)}
     (evaluated : evaluateTuple session items = .ok values) :
     let (value, heap) := session.heap.materializeModuleTuple items values trackClosed
     advance table (.ready session (.bindTuple name items trackClosed :: rest)) =

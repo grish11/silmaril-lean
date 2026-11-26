@@ -54,7 +54,7 @@ private def tupleOutcome (source : Source.Module) (space : Namespace) (status : 
 
 private def tupleTrace (source : Source.Module) (space : Namespace) : Option
     (Except Core.Module.TupleDispatch.Failure Bool × List (Except Core.Module.TupleDispatch.Failure
-      TupleChain.Compared) × Array (List Core.Module.Value)) := do
+      TupleChain.Compared) × Array (List Core.Module.TupleDispatch.Element)) := do
   let compiled ← (Compile.ModuleEntry.Functions.Run.compile source).toOption
   let test ← compiled.instructions.findSome? fun
     | .assertTupleChain test => some test
@@ -318,7 +318,7 @@ def constructor_controls(source_path, lean_path):
     return {"exact_alias": True, "empty_singleton": True, "live_lookup": True}
 
 
-def replay_empty_constructor(checkout, source_path, lean_path):
+def replay_constructors(checkout, source_path, lean_path):
     source = SUITE["pinned_source"](checkout, CONSTRUCTORS_PIN, CONSTRUCTORS_SHA)
     first_statement = ast.Module(body=ast.parse(source).body[:1], type_ignores=[])
     empty_tuple = ()
@@ -342,24 +342,29 @@ private def firstConstructorStatement : Source.Module := ⟨pythonSource.body.ta
     | [.nestedCall .discard "___assertEqual" [.call "tuple" [], .scalar (.tuple [])]] => true
     | _ => false
   | _ => false)
-#guard (match Compile.ModuleEntry.Functions.Run.compile pythonSource with
-  | .error (.source (.scalar .expressionProfile)) => true
-  | _ => false)
+#guard (Compile.ModuleEntry.Functions.Run.compile pythonSource).isOk
+#guard ordinaryTuple pythonSource == some ("NameError:___assertEqual", "absent", "absent")
 #guard ordinaryTuple firstConstructorStatement == some ("NameError:___assertEqual", "absent", "absent")
 #guard Core.Module.SeededCall.invoke (.builtin .tuple) [.int 1] == .error .unsupported
 """, outcome("Namespace.empty", "NameError:___assertEqual", "[]", source=first)]
     for placement in ("builtin", "preamble"):
         base = f'(initial "legacy_{placement}")'
         stock = f"(legacyTupleSeed .{placement})"
+        missing_tuple = '[("tuple", .error (.raised (.runtime (.nameError "tuple"))))]'
         guards.extend((
-            outcome(base, "NameError:tuple", f"{base}.moduleGlobals",
-                    '[("tuple", .error (.raised (.runtime (.nameError "tuple"))))]', first),
+            outcome(base, "NameError:tuple", f"{base}.moduleGlobals", missing_tuple, first),
+            outcome(base, "NameError:tuple", f"{base}.moduleGlobals", missing_tuple),
             outcome(stock, "normal", f"{stock}.moduleGlobals",
                     '[("tuple", .ok (.returnedTuple [])), ("___assertEqual", .ok .none)]', first),
         ))
     mask = f'({STOCK}.bindGlobal "tuple" (.int 7))'
     guards.append(outcome(mask, "TypeError", f"{mask}.moduleGlobals",
                           '[("tuple", .error (.raised (.runtime .notCallable)))]', first))
+    guards.append(outcome("Namespace.empty", "NameError:___assertEqual", "[]"))
+    assert execute(source, {}, expected={}) == "NameError:___assertEqual"
+    assert execute(source, {"___assertEqual": assert_equal}, expected={}) == "NameError:tuple"
+    assert execute(source, {}, {"___assertEqual": assert_equal},
+                   {"___assertEqual": assert_equal}) == "NameError:tuple"
     check(source, source_path, lean_path, *guards)
 
     # Replay the raw prefix through the original fourth statement.
@@ -432,16 +437,15 @@ private def emptyListPrefix : Source.Module := ⟨pythonSource.body.take 5⟩
         guards.append(outcome(stock_helper, "normal", f"({bindings} ++ {stock_helper}.moduleGlobals)",
                               f"({calls} ++ {identity_call} ++ {list_calls})", "emptyListPrefix",
                               f"[{origin}]", "[[]]"))
-    # The next exact prefix converts a nonempty list. The following text call
-    # lowers through the ordinary nested-call path and stops during dispatch.
+    # Replay through the nonempty list, empty text, and nonempty text calls.
     statements = ast.parse(source).body
     lines = source.splitlines(keepends=True)
     flat_helpers = {"___assertEqual": assert_equal, **helper}
-    for index in (5, 6):
+    for index in (5, 6, 7):
         text = "".join(lines[:statements[index].end_lineno])
         assert execute(text, {"tuple": tuple, **flat_helpers}, expected=bound) == "normal"
         assert execute(text, {"tuple": tuple}, flat_helpers, {**flat_helpers, **bound}) == "normal"
-    assert len(seen) == 8 and all(value is True for value in seen)
+    assert len(seen) == 10 and all(value is True for value in seen)
     guards.append("""
 private def flatListPrefix : Source.Module := ⟨pythonSource.body.take 6⟩
 private def textTuplePrefix : Source.Module := ⟨pythonSource.body.take 7⟩
@@ -454,16 +458,21 @@ private def textTuplePrefix : Source.Module := ⟨pythonSource.body.take 7⟩
 """)
     fresh = f".tupleObject ⟨some 2, {items}⟩"
     flat_calls = f'[("tuple", .ok ({fresh})), ("___assertEqual", .ok .none)]'
-    text_call = '[("tuple", .error .unsupported)]'
+    text_items = "[.text ⟨[115], by decide⟩, .text ⟨[112], by decide⟩, " \
+                 ".text ⟨[97], by decide⟩, .text ⟨[109], by decide⟩]"
+    text_object = f".tupleObject ⟨some 3, {text_items}⟩"
+    text_calls = f'[("tuple", .ok ({text_object})), ("___assertEqual", .ok .none)]'
     for placement in ("builtin", "preamble"):
         stock_helper = f"(legacyTupleIdentitySeed .{placement})"
         events = f"{calls} ++ {identity_call} ++ {list_calls} ++ {flat_calls}"
-        for name, status, receipts in (
-            ("flatListPrefix", "normal", f"({events})"),
-            ("textTuplePrefix", "unsupported", f"({events} ++ {text_call})"),
+        for name, receipts, heap in (
+            ("flatListPrefix", events, f"[{origin}, .returnedTuple {items}]"),
+            ("textTuplePrefix", f"{events} ++ {list_calls}", f"[{origin}, .returnedTuple {items}]"),
+            ("pythonSource", f"{events} ++ {list_calls} ++ {text_calls}",
+             f"[{origin}, .returnedTuple {items}, .returnedTuple {text_items}]"),
         ):
-            guards.append(outcome(stock_helper, status, f"({bindings} ++ {stock_helper}.moduleGlobals)",
-                                  receipts, name, f"[{origin}, .returnedTuple {items}]", f"[[], {items}]"))
+            guards.append(outcome(stock_helper, "normal", f"({bindings} ++ {stock_helper}.moduleGlobals)",
+                                  f"({receipts})", name, heap, f"[[], {items}]"))
     check(source, source_path, lean_path, *guards)
 
     alias = "saved = tuple\ntuple = 7\nanswer = saved()\nbad = tuple()\n"
@@ -474,8 +483,8 @@ private def textTuplePrefix : Source.Module := ⟨pythonSource.body.take 7⟩
         '[("saved", .ok (.returnedTuple [])), ("tuple", .error (.raised (.runtime .notCallable)))]'))
     return {"sha256": CONSTRUCTORS_SHA, "inner": "canonical empty tuple",
             "stock_seeded_prefix": "normal", "identity_prefix": "normal with saved origin",
-            "empty_list_prefix": "normal", "flat_list_prefix": "normal",
-            "next_runtime": "tuple text on line 8", "whole_source": "rejected at text tuple elements on line 9"}
+            "empty_list_prefix": "normal", "flat_list_prefix": "normal", "empty_text_prefix": "normal",
+            "whole_source": "normal with stock tuple and helpers in both placements"}
 
 
 def replay_immutable_alias(checkout, source_path, lean_path):
@@ -817,6 +826,64 @@ def tuple_flat_list_controls(source_path, lean_path):
     return {"ordered_scalar_tags": True, "fresh_results": True, "reached_heaps_and_receipts": True}
 
 
+def tuple_text_controls(source_path, lean_path):
+    seed = "(legacyTupleIdentitySeed .builtin)"
+    python_seed = {"tuple": tuple, "___assertEqual": assert_equal, "___assertTrue": assert_true}
+    value = tuple("é😀e\u0301\ud800")
+    assert tuple(map(ord, value)) == (233, 128512, 101, 769, 55296)
+    literal = ascii("".join(value))
+    items = "[" + ", ".join(f".text ⟨[{ord(item)}], by decide⟩" for item in value) + "]"
+    first = f".tupleObject ⟨some 1, {items}⟩"
+    second = f".tupleObject ⟨some 2, {items}⟩"
+    source = (
+        f"first = tuple({literal})\nsaved = tuple\ntuple = None\nsecond = saved({literal})\n"
+        "empty = saved('')\n"
+        "___assertTrue(first is not second)\n___assertTrue(empty is ())\n"
+        f"___assertEqual(first, {ascii(value)})\n___assertEqual(first, second)\n"
+    )
+    expected = {"first": value, "second": value, "saved": tuple, "tuple": None, "empty": ()}
+    assert execute(source, python_seed, expected=expected, identity_warning=True) == "normal"
+    calls = (
+        f'[("tuple", .ok ({first})), ("saved", .ok ({second})), ("saved", .ok (.returnedTuple [])), '
+        '("___assertTrue", .ok .none), ("___assertTrue", .ok .none), '
+        '("___assertEqual", .ok .none), ("___assertEqual", .ok .none)]'
+    )
+    bindings = (f'[("empty", .returnedTuple []), ("second", {second}), ("tuple", .none), '
+                f'("saved", .builtin .tuple), ("first", {first})]')
+    check(source, source_path, lean_path, outcome(seed, "normal", bindings, calls,
+          allocated=f"[.returnedTuple {items}, .returnedTuple {items}]"))
+
+    source = f"___assertEqual(tuple({literal}), missing)\ntail = 9\n"
+    assert execute(source, python_seed, expected={}) == "NameError:missing"
+    check(source, source_path, lean_path, outcome(seed, "NameError:missing", "[]",
+          f'[("tuple", .ok ({first}))]', allocated=f"[.returnedTuple {items}]"))
+    masked = f'({seed}.bindGlobal "tuple" .none)'
+    assert execute(source, python_seed, {"tuple": None}, {"tuple": None}) == "TypeError"
+    check(source, source_path, lean_path, outcome(masked, "TypeError", f"{masked}.moduleGlobals",
+          '[("tuple", .error (.raised (.runtime .notCallable)))]'))
+    assert execute(source, {"___assertEqual": assert_equal}, expected={}) == "NameError:tuple"
+    check(source, source_path, lean_path, outcome('(initial "legacy_builtin")', "NameError:tuple", "[]",
+          '[("tuple", .error (.raised (.runtime (.nameError "tuple"))))]'))
+
+    assert tuple("é") != tuple("e\u0301")
+    assert ("1",) != (1,)
+    for source, left, right in (
+        ("___assertEqual(tuple('é'), ('e', '\\u0301'))", "[.text ⟨[233], by decide⟩]",
+         "[.text ⟨[101], by decide⟩, .text ⟨[769], by decide⟩]"),
+        ("___assertEqual(('1',), (1,))", "[.text ⟨[49], by decide⟩]", "[.int 1]"),
+    ):
+        assert execute(source, python_seed, expected={}).startswith("AssertionError:")
+        failure = f".assertionError (.tuplePair {left} {right})"
+        constructor = source.startswith("___assertEqual(tuple")
+        receipts = f'("tuple", .ok (.tupleObject ⟨some 1, {left}⟩)), ' if constructor else ""
+        allocated = f"[.returnedTuple {left}]" if constructor else "[]"
+        check(source, source_path, lean_path,
+              f'#guard tupleOutcome pythonSource {seed} (raised ({failure})) [] '
+              f'[{receipts}("___assertEqual", .error (.raised ({failure})))] {allocated}')
+    return {"ordered_code_points": list(map(ord, value)), "fresh_nonempty": True,
+            "canonical_empty": True, "ordered_errors_and_receipts": True}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream", type=Path, required=True)
@@ -828,12 +895,13 @@ if __name__ == "__main__":
         evidence = {"cpython": sys.version.split()[0], "pin": replay_pin(args.upstream, source, lean),
                     "methods": method_controls(), "chains": chain_controls(source, lean),
                     "constructors": constructor_controls(source, lean),
-                    "linked_empty_constructor": replay_empty_constructor(args.upstream, source, lean),
+                    "linked_constructors": replay_constructors(args.upstream, source, lean),
                     "immutable_alias": replay_immutable_alias(args.upstream, source, lean),
                     "tuple_helper": tuple_helper_controls(source, lean),
                     "live_comparison_pin": replay_live_tuple_comparison(args.upstream, source, lean),
                     "live_comparisons": live_comparison_controls(source, lean),
                     "tuple_identity": tuple_identity_controls(source, lean),
                     "empty_list_tuple": tuple_empty_list_controls(source, lean),
-                    "flat_list_tuple": tuple_flat_list_controls(source, lean)}
+                    "flat_list_tuple": tuple_flat_list_controls(source, lean),
+                    "text_tuple": tuple_text_controls(source, lean)}
     print(json.dumps(evidence))

@@ -20,6 +20,7 @@ namespace Silmaril.Languages.Python.Compile.ModuleEntry.Functions
 open Source (BlockPath Name Scope ScopeTree)
 open Compile.Closure (frameLayout)
 open Compile.Closure.Body (Code)
+open Silmaril.Numeric.Ieee754 (F64)
 
 inductive CallExpression : Source.Expr → Name → List (Source.ArgumentKind × Source.Expr) → Prop where
   | plain (name : Name) (arguments : List Source.Expr) :
@@ -114,8 +115,12 @@ def lowerArguments (scope : Scope) : (source : List (Source.ArgumentKind × Sour
     return ⟨operand.val :: tail.val, .cons operand.property tail.property⟩
   | _ => .error .argumentProfile
 
+def flatTupleElementLiteral? : Source.Expr → Option Core.Module.TupleDispatch.Element
+  | .text points => (Core.Text.ofPoints? points).map .text
+  | source => (tupleScalar? source).map .scalar
+
 inductive FlatTupleItem (scope : Scope) : Source.Expr → Core.Closure.GlobalTupleItem → Prop where
-  | literal {source value} (checked : tupleScalar? source = some value) :
+  | literal {source value} (checked : flatTupleElementLiteral? source = some value) :
       FlatTupleItem scope source (.literal value)
   | read (name : Name) (reference : GlobalReference scope name) :
       FlatTupleItem scope (.name name) (.global name)
@@ -126,7 +131,7 @@ def lowerFlatTupleItem (scope : Scope) : (source : Source.Expr) →
     let some reference := globalReference? scope name | throw (.unresolvedGlobal name)
     return ⟨.global name, .read name reference⟩
   | source =>
-    match checked : tupleScalar? source with
+    match checked : flatTupleElementLiteral? source with
     | some value => .ok ⟨.literal value, .literal checked⟩
     | none => .error (.scalar .expressionProfile)
 
@@ -148,7 +153,8 @@ def lowerFlatTupleItems (scope : Scope) : (elements : List Source.Expr) →
 inductive CallValue (scope : Scope) where
   | scalar (operand : Operand scope)
   | intTrueDiv (numerator divisor : Int)
-  | float64 (value : Silmaril.Numeric.Ieee754.F64.Finite)
+  | mixedAdd (integer : Int) (floating : F64.Finite)
+  | float64 (value : F64.Finite)
   | tuple (items : List Core.Closure.GlobalTupleItem)
   | text (value : Core.Text)
 
@@ -159,20 +165,42 @@ def decimalCallLiteral? : Source.Expr → Option (Bool × Nat × Int)
   | .unary .negative (.floatDecimal coefficient exponent) => some (true, coefficient, exponent)
   | _ => none
 
+inductive DecimalCallLiteral (source : Source.Expr) (value : F64.Finite) : Prop where
+  | rounded {negative coefficient exponent}
+      (shape : decimalCallLiteral? source = some (negative, coefficient, exponent))
+      (result : Core.Binary64.ofDecimal? negative coefficient exponent = some value)
+
+def lowerDecimalCallLiteral? (source : Source.Expr) : Option {value // DecimalCallLiteral source value} :=
+  match shape : decimalCallLiteral? source with
+  | some (negative, coefficient, exponent) =>
+    match rounded : Core.Binary64.ofDecimal? negative coefficient exponent with
+    | some value => some ⟨value, .rounded shape rounded⟩
+    | none => none
+  | none => none
+
 inductive CallValueTranslation (scope : Scope) : Source.Expr → CallValue scope → Prop where
   | scalar {source operand} (checked : ArgumentOperandTranslation scope source operand) :
       CallValueTranslation scope source (.scalar operand)
   | intTrueDiv {left right numerator divisor}
       (lhs : NumericArgument.integer? left = some numerator) (rhs : NumericArgument.integer? right = some divisor) :
       CallValueTranslation scope (.binary .trueDiv left right) (.intTrueDiv numerator divisor)
-  | float64 {source negative coefficient exponent value}
-      (literal : decimalCallLiteral? source = some (negative, coefficient, exponent))
-      (rounded : Core.Binary64.ofDecimal? negative coefficient exponent = some value) :
+  | intFloatAdd {left right integer floating}
+      (lhs : NumericArgument.integer? left = some integer) (rhs : DecimalCallLiteral right floating) :
+      CallValueTranslation scope (.binary .add left right) (.mixedAdd integer floating)
+  | floatIntAdd {left right integer floating}
+      (lhs : DecimalCallLiteral left floating) (rhs : NumericArgument.integer? right = some integer) :
+      CallValueTranslation scope (.binary .add left right) (.mixedAdd integer floating)
+  | float64 {source value} (literal : DecimalCallLiteral source value) :
       CallValueTranslation scope source (.float64 value)
   | tuple {elements items} (checked : FlatTupleItems scope elements items) :
       CallValueTranslation scope (.tuple elements) (.tuple items)
   | text {points value} (checked : Core.Text.ofPoints? points = some value) :
       CallValueTranslation scope (.text points) (.text value)
+
+def lowerScalarCallValue (scope : Scope) (source : Source.Expr) :
+    Except Error {value // CallValueTranslation scope source value} :=
+  ((lowerArgumentOperand scope source).mapError .scalar).map fun operand =>
+    ⟨.scalar operand.val, .scalar operand.property⟩
 
 def lowerCallValue (scope : Scope) : (source : Source.Expr) →
     Except Error {value // CallValueTranslation scope source value}
@@ -182,18 +210,21 @@ def lowerCallValue (scope : Scope) : (source : Source.Expr) →
     match lhs : NumericArgument.integer? left, rhs : NumericArgument.integer? right with
     | some numerator, some divisor => .ok ⟨.intTrueDiv numerator divisor, .intTrueDiv lhs rhs⟩
     | _, _ => .error (.scalar .expressionProfile)
+  | .binary .add left right =>
+    match lhs : NumericArgument.integer? left, lowerDecimalCallLiteral? right with
+    | some integer, some floating => .ok ⟨.mixedAdd integer floating.val, .intFloatAdd lhs floating.property⟩
+    | _, _ =>
+      match lowerDecimalCallLiteral? left, rhs : NumericArgument.integer? right with
+      | some floating, some integer => .ok ⟨.mixedAdd integer floating.val, .floatIntAdd floating.property rhs⟩
+      | _, _ => lowerScalarCallValue scope (.binary .add left right)
   | .text points =>
     match checked : Core.Text.ofPoints? points with
     | some value => .ok ⟨.text value, .text checked⟩
     | none => .error (.scalar .expressionProfile)
   | source =>
-    match literal : decimalCallLiteral? source with
-    | some (negative, coefficient, exponent) =>
-      match rounded : Core.Binary64.ofDecimal? negative coefficient exponent with
-      | some value => .ok ⟨.float64 value, .float64 literal rounded⟩
-      | none => .error (.scalar .expressionProfile)
-    | none => ((lowerArgumentOperand scope source).mapError .scalar).map fun operand =>
-      ⟨.scalar operand.val, .scalar operand.property⟩
+    match lowerDecimalCallLiteral? source with
+    | some literal => .ok ⟨.float64 literal.val, .float64 literal.property⟩
+    | none => lowerScalarCallValue scope source
 
 inductive PositionalValues (scope : Scope) :
     List (Source.ArgumentKind × Source.Expr) → List (CallValue scope) → Prop where

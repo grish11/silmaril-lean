@@ -141,10 +141,10 @@ theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordPa
     (callee : Body.Evaluates block state (.scalar (.read name)) (Leaf.readOperand (fileSlot name))
       (.ok (.function address) state))
     (record : ClosureAt site id defining state address)
-    (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star : Option Lowering.Expr)
+    (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star starStar : Option Lowering.Expr)
     (actuals : State → Outcome Actual → Prop)
     (reaches : ∀ state, ∃ out, actuals state out ∧
-      NativeActuals program available positional keywords star state out ∧
+      NativeActuals program available positional keywords star starStar state out ∧
       Body.Keeps state.heap.size state (finishState out))
     {Bound : Type} (binds : BindingRule Bound) (packs : PackRule Bound)
     (total : ∀ defaults actual, ∃ result, binds defaults actual result)
@@ -158,12 +158,12 @@ theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordPa
           prepareExpanded program available actual (.function address) reached =
             .ok (.closure ⟨id, permitted, site.declaration.body⟩)
               (activate packed site.declaration closure.captures assigned)) :
-    let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star none
+    let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star starStar
     ∃ out, RunsActual site bodyRuns block id name actuals binds packs state out ∧
       ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
       Body.Keeps state.heap.size state (finishState out) :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.runs_actual
-    site bodyRuns program id available permitted enterBody callee record positional keywords star
+    site bodyRuns program id available permitted enterBody callee record positional keywords star starStar
     actuals reaches binds packs total prepare
 
 theorem runs_packed {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}

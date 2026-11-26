@@ -4,6 +4,7 @@ public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded
 import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms
 import Silmaril.Languages.Python.Compile.ModuleEntry.Thms
 public import Silmaril.Languages.Python.Core.Module.Functions.Thms
+public import Silmaril.Languages.Python.Core.Text.Thms
 public import Silmaril.Languages.Python.Core.Module.SeededCall.Thms
 public import Silmaril.Languages.Python.Core.Module.SeededCall.Observation.Thms
 import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded
@@ -32,6 +33,17 @@ theorem intTrueDiv_operand_agrees {layout : Core.Closure.Layout} (space : Namesp
           | _ => .unsupported) :=
   Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.intTrueDiv_operand_agrees
     space globals heap frame numerator divisor
+
+theorem mixedAdd_operand_agrees {layout : Core.Closure.Layout} (space : Namespace)
+    (globals : Core.Closure.Executor.GlobalLookup) (heap : Heap) (frame : Core.Closure.Frame layout)
+    (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite) :
+    (lowerCallOperand (.mixedAdd integer floating)).eval space #v[] =
+      (((Core.Module.Functions.Operand.mixedAdd integer floating).lower.evalIn globals heap frame).map
+        seededValue).mapError (fun
+          | .defined error => .raised (.runtime error)
+          | _ => .unsupported) :=
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.mixedAdd_operand_agrees
+    space globals heap frame integer floating
 
 theorem observeArguments_iff {space : Namespace} {arguments : List Argument}
     {values : Except Failure (List Value)} {calls : List CallEvent} :
@@ -276,9 +288,20 @@ theorem observeTupleIdentityCall_helper (space : Namespace) (context : CallConte
   simp only [observeTupleIdentityCall, saved, evaluated]
   rfl
 
+theorem invokeDescriptor_tuple_text_empty (heap : Heap) {text : Core.Text} (empty : text.points = []) :
+    invokeDescriptor heap (.builtin .tuple) [.text text] = (⟨.ok (.returnedTuple []), none⟩, heap) := by
+  simp [invokeDescriptor, Core.Text.singletons_empty empty, Heap.materializeFreshTuple, seededValue]
+
+theorem invokeDescriptor_tuple_text_fresh (heap : Heap) {text first : Core.Text} {tail : List Core.Text}
+    (split : text.singletons = first :: tail) :
+    let items : List Core.Module.TupleDispatch.Element := .text first :: tail.map .text
+    invokeDescriptor heap (.builtin .tuple) [.text text] =
+      (⟨.ok (.tupleObject ⟨some heap.next, items⟩), none⟩, (heap.allocate (.tuple items)).2) := by
+  simp [invokeDescriptor, split, Heap.materializeFreshTuple, Heap.allocate, seededValue]
+
 theorem observeTupleFromListDisplay_stock (space : Namespace) (heap : Heap) (lists : ListHeap)
     (contents : List Core.Module.Value) (stock : space.lookupGlobal "tuple" = some (.builtin .tuple)) :
-    let (value, reached) := heap.materializeFreshTuple contents
+    let (value, reached) := heap.materializeFreshTuple (contents.map .scalar)
     observeTupleFromListDisplay space heap lists contents =
       ((⟨.ok (seededValue value), none⟩, reached), (lists.allocate contents).2) := by
   simp [observeTupleFromListDisplay, tupleBinding, stock, Core.Module.TupleDispatch.constructFromListDisplay_stock]
@@ -498,11 +521,11 @@ theorem invokeFlatCall_tuple_reference (space : Namespace) (context : CallContex
     (destination : Core.Module.Functions.Destination) (descriptor : Core.Module.TupleDispatch.Object) :
     invokeFlatCall space context destination (.builtin .tuple) [.tupleObject descriptor] =
       (.ok ⟨.ok (.tupleObject descriptor), none⟩, context.heap) := by
-  cases destination <;> simp [invokeFlatCall, invokeCall, Core.Module.SeededCall.Request.decode,
+  cases destination <;> simp [invokeFlatCall, invokeCall, invokeDescriptor, Core.Module.SeededCall.Request.decode,
     Core.Module.SeededCall.invokeObserved, Core.Module.SeededCall.invoke_tuple_reference]
 
 theorem run_bindTuple_ok {scope : Source.Scope} {space : Namespace} {context : CallContext}
-    {name : String} {items : List Core.Closure.GlobalTupleItem} {trackClosed : Bool} {values : List Core.Module.Value}
+    {name : String} {items : List Core.Closure.GlobalTupleItem} {trackClosed : Bool} {values : List Core.Module.TupleDispatch.Element}
     {rest : List (Instruction scope)} {lists : ListHeap}
     (evaluated : Core.Module.SeededCall.evalTupleContents space items = .ok values) :
     let (value, heap) := context.heap.materializeModuleTuple items values trackClosed
@@ -689,7 +712,7 @@ theorem observeArgumentIn_resolutionFailure {space : Namespace} {context : CallC
   simp [observeArgumentIn, failed, argumentObservation, Except.mapError]
 
 theorem argumentObservation_tuple (space : Namespace) (name : String) (heap : Heap)
-    (items : List Core.Module.Value) :
+    (items : List Core.Module.TupleDispatch.Element) :
     argumentObservation name (observeDirectCall space (.finished heap (.ok (.tuple items)))) =
       (.ok (.returnedTuple items), [⟨name, ⟨.ok (.returnedTuple items), none⟩⟩], heap) := rfl
 

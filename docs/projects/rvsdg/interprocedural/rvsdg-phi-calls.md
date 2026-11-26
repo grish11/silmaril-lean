@@ -967,6 +967,16 @@ closure. The lookup supplies the indices and exact import values. The demand
 certificate still supplies the summary, static dispatch and common-store
 evidence. These projections read stored link results.
 
+`matchNamedExport` checks that an existing demand receipt belongs to
+the selected closure and its original store on each side. Use those
+equalities to reindex the receipt as a `NamedDemand`. `NamedImports`
+combines the checked dispatches in typed import order and checks the
+materialized tuple with each name's `checkImports`. The allocating
+entry point takes a successful client initializer receipt at the
+assembly's common final store and returns the usual `ExportAnalysis`.
+The client still supplies static resolution for its checked imports.
+[Named provider demand API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Provider/Named/Thms.lean)
+
 `LookupReceipt.entry.traceL` and `traceR` are
 `AllocationHistory.Segment` witnesses with exact entry and exit stores.
 Use `AllocationHistory.Segment.reassemble` with the provider's own

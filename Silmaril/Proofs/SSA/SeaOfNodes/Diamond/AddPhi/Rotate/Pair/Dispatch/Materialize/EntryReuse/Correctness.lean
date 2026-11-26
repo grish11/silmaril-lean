@@ -28,6 +28,18 @@ private theorem same_wire {T : Type} {args : List T} {past : List (List T)} {t :
     (Silmaril.SSA.RVSDG.NestedTheta.Equality.addresses_injective (.cons lhs .nil) (.cons rhs .nil)
       (congrArg (fun addr => [addr]) same))
 
+private theorem forwards_exact {rhs : SharedWord inputs sigs} {slot : Slot}
+    (checked : forwards p rhs slot = true) :
+    (p.diamond.arms slot).outputs.get .head = keepOrigin (p.diamond.arms slot).dataflow rhs :=
+  same_wire _ _ (of_decide_eq_true checked)
+
+theorem matchesAt_exact {lhs rhs : SharedWord inputs sigs} {slot : Slot}
+    (checked : matchesAt p lhs rhs slot = true) :
+    lhs = .arg p.residual ∧
+      (p.diamond.arms slot).outputs.get .head = keepOrigin (p.diamond.arms slot).dataflow rhs := by
+  have ⟨capture, phi⟩ := Bool.and_eq_true_iff.mp checked
+  exact ⟨same_wire _ _ (of_decide_eq_true capture), forwards_exact phi⟩
+
 theorem check_provenance (accepted : check p rep = true) :
     ∃ rhs : SharedWord inputs sigs, rep.key = addKey (.arg p.residual) rhs ∧
       ∀ slot : Slot, ((p.diamond.arms slot).outputs.get .head) =
@@ -37,12 +49,12 @@ theorem check_provenance (accepted : check p rep = true) :
   | some key =>
     obtain ⟨⟨lhs, rhs⟩, keyEq⟩ := key
     simp only [check, found, Bool.and_eq_true] at accepted
-    have captureEq : lhs = .arg p.residual := same_wire _ _ (of_decide_eq_true accepted.1.1)
+    obtain ⟨captureEq, first⟩ := matchesAt_exact accepted.1
     refine ⟨rhs, keyEq.trans (congrArg (fun wire => addKey wire rhs) captureEq), ?_⟩
     intro slot
     cases slot
-    · exact same_wire _ _ (of_decide_eq_true accepted.1.2)
-    · exact same_wire _ _ (of_decide_eq_true accepted.2)
+    · exact first
+    · exact forwards_exact accepted.2
 
 theorem route_agrees (value x phi : BitVec 64) :
     let before : Tuple (Val model.value) OldArgs := .cons x (.cons phi .nil)
@@ -110,16 +122,22 @@ private theorem arm_read (p : Program inputs sigs [word]) (slot : Slot)
   cases wires with
   | cons wire tail => cases tail; rfl
 
-private theorem rep_value (accepted : check p rep = true)
+theorem read_forwarded {rhs : SharedWord inputs sigs}
     (entry : Tuple (Val model.value) (dataPorts inputs)) (slot : Slot) :
+    ((p.diamond.arms slot).outputs.get .head) = keepOrigin (p.diamond.arms slot).dataflow rhs →
     let shared := p.diamond.shared.eval model entry PUnit.unit
-    read model rep.origin entry shared =
-      BitVec.add (entry.get p.residual) (((p.diamond.arms slot).eval model entry shared).get .head) := by
+    ((p.diamond.arms slot).eval model entry shared).get .head = read model rhs entry shared := by
+  intro forwarded
+  dsimp only
+  erw [arm_read p slot entry, forwarded, read_keepOrigin]
+
+theorem check_agrees (accepted : check p rep = true) : RepresentativeAgrees p rep := by
+  intro entry slot
   obtain ⟨rhs, key, forwarded⟩ := check_provenance accepted
   have same := rep.read_key model entry PUnit.unit
   rw [key] at same
   dsimp only
-  erw [arm_read p slot entry, forwarded slot, read_keepOrigin]
+  rw [read_forwarded entry slot (forwarded slot)]
   exact same
 
 private theorem capture_eval (p : Program inputs sigs [word]) (rep : EntryAdd p)
@@ -137,7 +155,7 @@ private theorem singleton_eta (values : Tuple (Val model.value) [wordPort]) :
   cases values with
   | cons _ tail => cases tail; rfl
 
-theorem emit_agrees (certified : check p rep = true) (value : BitVec 64)
+theorem emit_agrees_of (agrees : RepresentativeAgrees p rep) (value : BitVec 64)
     (entry : Tuple (Val model.value) (dataPorts inputs)) (slot : Slot) :
     let before := slotArgs p entry slot
     let after := slotArgs (emit p rep value) entry slot
@@ -157,25 +175,31 @@ theorem emit_agrees (certified : check p rep = true) (value : BitVec 64)
     ((suffix .right value).dataflow.eval model before PUnit.unit)
     ((shortened value).dataflow.eval model after PUnit.unit)
   dsimp only [before, after]
-  rw [capture_eval, rep_value certified entry slot, row]
+  rw [capture_eval, agrees entry slot, row]
   exact route_agrees value x phi
+
+private theorem emit_slot_eq_of (agrees : RepresentativeAgrees p rep) {value : BitVec 64}
+    (shape : p.suffix = suffix .right value)
+    (entry : Tuple (Val model.value) (dataPorts inputs)) (slot : Slot) :
+    (emit p rep value).atSlot entry slot = p.atSlot entry slot := by
+  change (shortened value).eval model (slotArgs (emit p rep value) entry slot) =
+    p.suffix.eval model (slotArgs p entry slot)
+  rw [shape]
+  exact (emit_agrees_of agrees value entry slot _ (suffix .right value).result).symm
 
 theorem rewrite?_slot_eq (accepted : rewrite? p rep = some target)
     (entry : Tuple (Val model.value) (dataPorts inputs)) (slot : Slot) :
     target.atSlot entry slot = p.atSlot entry slot := by
   obtain ⟨value, shape, certified, rfl⟩ := rewrite?_eq_some_iff.mp accepted
-  change (shortened value).eval model (slotArgs (emit p rep value) entry slot) =
-    p.suffix.eval model (slotArgs p entry slot)
-  rw [shape]
-  exact (emit_agrees certified value entry slot _ (suffix .right value).result).symm
+  exact emit_slot_eq_of (check_agrees certified) shape entry slot
 
-theorem rewrite?_returns_iff (accepted : rewrite? p rep = some target)
+theorem emit_returns_iff_of (agrees : RepresentativeAgrees p rep) {value : BitVec 64}
+    (shape : p.suffix = suffix .right value)
     (entry : Tuple (Val model.value) (dataPorts inputs)) (returned : BitVec 64) :
-    target.Returns entry returned ↔ p.Returns entry returned := by
-  obtain ⟨value, shape, checked, rfl⟩ := rewrite?_eq_some_iff.mp accepted
+    (emit p rep value).Returns entry returned ↔ p.Returns entry returned := by
   let slot := p.diamond.merge.slot
     (.ofBool (read model p.diamond.predicate entry (p.diamond.shared.eval model entry PUnit.unit)).down)
   rw [Program.returns_iff_denote, Program.returns_iff_denote]
-  exact Iff.of_eq (congrArg (· = returned) (rewrite?_slot_eq accepted entry slot))
+  exact Iff.of_eq (congrArg (· = returned) (emit_slot_eq_of agrees shape entry slot))
 
 end Silmaril.Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse

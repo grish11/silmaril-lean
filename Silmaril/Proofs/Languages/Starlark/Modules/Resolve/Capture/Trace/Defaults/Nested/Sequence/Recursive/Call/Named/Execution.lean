@@ -37,14 +37,15 @@ theorem runs {parent block : LexicalBlock} {formals : List PlainKeywordParameter
     (record : ClosureAt site id defining state address)
     {arguments : List Lowering.Resolve.SourceExpr} {codes : List Lowering.Expr} {reads : List Binding}
     (related : Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Arguments
-      block arguments codes reads) (keywords : Operands block) (star : Option (Spread block) := none) :
-    ∃ out, RunsWith site bodyRuns block id name arguments codes keywords.source keywords.codes star state out ∧
-      ExecExpr resolved.program available state (expression name codes keywords.codes (star.map Spread.code)) out ∧
-      Lowering.denoteExpr resolved.program available (expression name codes keywords.codes (star.map Spread.code)) state = out ∧
+      block arguments codes reads) (keywords : Operands block) (star : Option (Spread block) := none) (mapping : Option (Mapping block) := none) :
+    ∃ out, RunsWith site bodyRuns block id name arguments codes keywords.source keywords.codes star mapping state out ∧
+      ExecExpr resolved.program available state (expression name codes keywords.codes (star.map Spread.code) (mapping.map Mapping.code)) out ∧
+      Lowering.denoteExpr resolved.program available (expression name codes keywords.codes (star.map Spread.code) (mapping.map Mapping.code)) state = out ∧
       Body.Keeps state.heap.size state (finishState out) :=
   Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.runs_actual
     site bodyRuns resolved.program id available permitted enterBody callee record codes keywords.codes
-    (star.map Spread.code) _ (actuals_total resolved.program available related keywords star)
+    (star.map Spread.code) (mapping.map Mapping.code) _
+    (actuals_total resolved.program available related keywords star mapping)
     (SiteBinding site) (Packs site.declaration.signature.varargs site.declaration.signature.kwargs)
     (fun _ _ => binds_total _ _ _ _ _ _) (by
       intro reached closure actual result _ binding

@@ -815,6 +815,46 @@ import Silmaril.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.PetriRoom.Thms
 lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.PetriRoom.Regression
 ```
 
+#### Permuting heap cells in the two-address profile
+
+`CellRelabel.heap σ` moves the old cell at `a` to `σ a` for a
+permutation `σ` of the in-bounds addresses at a fixed cell count.
+`CellRelabel.input σ` moves every address-valued capture and leaves words
+unchanged. The capture signature and the generated programs stay fixed.
+`read_heap`, `write_heap` and `denote_graph` transport the ordered memory
+body. [Load, store and body laws](../../../../Silmaril/SSA/SeaOfNodes/Memory/CellRelabel/Thms.lean)
+
+`Graph.feedback_relabel` moves both live address lanes computed from the
+same old bank. `Graph.evalWithin_relabel`, `Graph.returns_relabel` and
+`Graph.no_return_relabel` transport the returned word, every final cell
+and the absence of a finite return.
+[Native loop laws](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/TwoAddress/CellRelabel/Thms.lean)
+
+The generated numbered and coloured observers map their partial results
+through `relabelOutput`. The typed MemRef CFG has corresponding
+`returns_relabel` and `no_return_relabel` laws. The `holds_relabel`
+theorems preserve and reflect equations and universal finite termination
+over all initial heaps at the transported valuation. These laws use
+canonical initialized runtimes and keep CFG fuel and finite firing
+witnesses independent.
+[Observer and satisfaction laws](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/CellRelabel/Thms.lean)
+
+```lean
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.CellRelabel.Thms
+```
+
+The regression swaps cells 0 and 1 and keeps the two lanes distinct.
+With one backedge, the emitted MemRef CFG returns word 0 with final
+heap `[7, 0]` from lanes `(0, 1)` and heap `[7, 5]`, and word 0 with
+final heap `[0, 7]` from lanes `(1, 0)` and heap `[5, 7]`. It checks
+both executions with zero backedges and transports a heap-sensitive
+equation that the coloured observer rejects.
+[Runnable regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/CellRelabel/Regression.lean)
+
+```sh
+lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.CellRelabel.Regression
+```
+
 ### Equations for coloured Petri completion
 
 `petriHolds` compares the two emitted graphs' finite completions for

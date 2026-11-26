@@ -22,13 +22,7 @@ local instance : HasTy signature.Instr (Ty Empty) := signature.hasTy
 local notation "E" => Paper.Extension.Eqv Seed
 local notation "U" => (unit : Ty Empty)
 
-private def tag (b : Bool) (u : Tm signature.Instr) : Tm signature.Instr :=
-  if b then .inr u else .inl u
-
-private def bitBranch (i : Nat) (b : Bool) (j : Nat) : Tm signature.Instr :=
-  if j = i then tag b (.var 0) else .var (j + 1)
-
-private theorem bit_ext {Γ L : List (Ty Empty)} {p q : Region signature.Instr} {i : Nat}
+theorem bit_case_ext {Γ L : List (Ty Empty)} {p q : Region signature.Instr} {i : Nat}
     (hi : At Γ i Bit) (hp : HasType Γ p L) (hq : HasType Γ q L)
     (arms : ∀ b, E (U :: Γ) (p.substVars (bitBranch i b)) (q.substVars (bitBranch i b)) L) :
     E Γ p q L := by
@@ -51,7 +45,7 @@ private theorem bit_ext {Γ L : List (Ty Empty)} {p q : Region signature.Instr} 
       · simp [ρ, e, Tm.singleSubst, Tm.consSubst]
     rw [eq, substVars_var]
   have branch (r : Region signature.Instr) (b : Bool) :
-      (r.renameVars ρ).substVars (Tm.replaceNewest (tag b (.var 0))) =
+      (r.renameVars ρ).substVars (Tm.replaceNewest (replyBitTag b (.var 0))) =
         r.substVars (bitBranch i b) := by
     rw [substVars_renameVars]
     congr
@@ -66,16 +60,16 @@ private theorem bit_ext {Γ L : List (Ty Empty)} {p q : Region signature.Instr} 
     exact step
   exact (expand p hp).symm.trans ((Paper.Extension.Eqv.case (.var hi) (arms false) (arms true)).trans (expand q hq))
 
-private theorem product_ext {Γ L : List (Ty Empty)} {p q : Region signature.Instr} {i : Nat}
+theorem product_case_ext {Γ L : List (Ty Empty)} {p q : Region signature.Instr} {i : Nat}
     {A B : Ty Empty} (hi : At Γ i (product A B)) (hp : HasType Γ p L) (hq : HasType Γ q L)
     (pair : E (B :: A :: Γ) (p.substVars (splitProduct i)) (q.substVars (splitProduct i)) L) :
     E Γ p q L :=
   (Paper.Extension.Eqv.paper (product_variable_eta_context hi hp)).symm.trans
     ((Paper.Extension.Eqv.let₂ (.var hi) pair).trans (.paper (product_variable_eta_context hi hq)))
 
-private theorem typeSplit {Γ : List (Ty Empty)} {i : Nat} {A B : Ty Empty}
+theorem splitProduct_values {Γ : List (Ty Empty)} {i : Nat} {A B : Ty Empty}
     (hi : At Γ i (product A B)) :
-    Tm.Subst.HasType (Φ := signature.Instr) Γ (B :: A :: Γ) (splitProduct i) := by
+    ∀ ⦃j D⦄, At Γ j D → Tm.BranchValue (Φ := signature.Instr) (B :: A :: Γ) (splitProduct i j) D := by
   intro j D hj
   by_cases e : j = i
   · subst j
@@ -86,19 +80,28 @@ private theorem typeSplit {Γ : List (Ty Empty)} {i : Nat} {A B : Ty Empty}
   · simp only [splitProduct, e, ↓reduceIte]
     exact .var (by simpa [At] using hj)
 
-private theorem typeBranch {Γ : List (Ty Empty)} {i : Nat} (hi : At Γ i Bit) (b : Bool) :
-    Tm.Subst.HasType (Φ := signature.Instr) Γ (U :: Γ) (bitBranch i b) := by
+theorem bitBranch_values {Γ : List (Ty Empty)} {i : Nat} (hi : At Γ i Bit) (b : Bool) :
+    ∀ ⦃j D⦄, At Γ j D → Tm.BranchValue (U :: Γ) (bitBranch i b j) D := by
   intro j D hj
   by_cases e : j = i
   · subst j
     have t := Option.some.inj (hj.symm.trans hi)
     subst D
     simp only [bitBranch, ↓reduceIte]
-    cases b <;> simp only [tag, Bool.false_eq_true, ↓reduceIte]
+    cases b <;> simp only [replyBitTag, Bool.false_eq_true, ↓reduceIte]
     · exact .inl (.var (i := 0) rfl)
     · exact .inr (.var (i := 0) rfl)
   · simp only [bitBranch, e, ↓reduceIte]
     exact .var (by simpa [At] using hj)
+
+private theorem typeSplit {Γ : List (Ty Empty)} {i : Nat} {A B : Ty Empty}
+    (hi : At Γ i (product A B)) :
+    Tm.Subst.HasType (Φ := signature.Instr) Γ (B :: A :: Γ) (splitProduct i) :=
+  fun _ _ hj => (splitProduct_values hi hj).hasType
+
+private theorem typeBranch {Γ : List (Ty Empty)} {i : Nat} (hi : At Γ i Bit) (b : Bool) :
+    Tm.Subst.HasType (Φ := signature.Instr) Γ (U :: Γ) (bitBranch i b) :=
+  fun _ _ hj => (bitBranch_values hi b hj).hasType
 
 private def expandSubst : (n i : Nat) → Finite.Assignment n → Nat → Tm signature.Instr
   | 0, _, _ => Tm.var
@@ -120,7 +123,7 @@ private theorem expand_other (n i : Nat) (env : Finite.Assignment n)
     omega
 
 private theorem tag_subst (b : Bool) (u : Tm signature.Instr) (σ : Nat → Tm signature.Instr) :
-    (tag b u).subst σ = tag b (u.subst σ) := by
+    (replyBitTag b u).subst σ = replyBitTag b (u.subst σ) := by
   cases b <;> rfl
 
 private theorem expand_focused (n i : Nat) (env : Finite.Assignment n) :
@@ -134,9 +137,9 @@ private theorem expand_focused (n i : Nat) (env : Finite.Assignment n) :
     rw [ih 2 env.tail, expand_other n 2 env.tail 0 (by decide)]
     have base : packetBase n 2 = .var (2 : Nat) := by cases n <;> rfl
     change Tm.pair (replyPacket env.tail (packetPayload n) (packetBase n 2))
-      (tag (env 0) (.var (0 + 3 * n))) = _
+      (replyBitTag (env 0) (.var (0 + 3 * n))) = _
     rw [base]
-    cases h : env 0 <;> simp only [casePacket, replyPacket, packetBase, tag, h,
+    cases h : env 0 <;> simp only [casePacket, replyPacket, packetBase, replyBitTag, h,
       Bool.false_eq_true, ↓reduceIte, packetPayload, Fin.cases_zero, Fin.cases_succ, Nat.zero_add]
 
 private theorem packet_ext_at {Γ L : List (Ty Empty)} {p q : Region signature.Instr} {i n : Nat}
@@ -150,11 +153,11 @@ private theorem packet_ext_at {Γ L : List (Ty Empty)} {p q : Region signature.I
     have base := rows (Fin.elim0 : Finite.Assignment 0)
     simpa only [packetCaseCtx, expandSubst, substVars_var] using base
   | succ n ih =>
-    apply product_ext hi hp hq
+    apply product_case_ext hi hp hq
     let pp := hp.substVars (typeSplit hi)
     let qq := hq.substVars (typeSplit hi)
     have hBit : At (Bit :: replyContext n :: Γ) 0 Bit := rfl
-    apply bit_ext hBit pp qq
+    apply bit_case_ext hBit pp qq
     intro b
     have hOlder : At (U :: Bit :: replyContext n :: Γ) 2 (replyContext n) := rfl
     apply ih hOlder (pp.substVars (typeBranch hBit b)) (qq.substVars (typeBranch hBit b))

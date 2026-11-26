@@ -26,10 +26,8 @@ inductive Occurrence
   | outerFalse
   deriving DecidableEq, Repr
 
-/-- The checked shape admits disjoint linear arms. Direct edges to the merge
-have no arm blocks, and the two inner transfers may both be direct.
-The merge jumps to the distinct tested latch. -/
-structure Program (src : Source Op regs out size) (entry : Fin size) where
+/-- The original split and loop terminators, independent of arm overlap. -/
+structure Control (src : Source Op regs out size) (entry : Fin size) where
   header : Fin size
   inner : Fin size
   onInnerTrue : Fin size
@@ -44,19 +42,18 @@ structure Program (src : Source Op regs out size) (entry : Fin size) where
   entryEdge : (src entry).terminator = .transfer (.jump header)
   outerEdge : (src header).terminator = .branch outerTest (.jump inner) (.jump onOuterFalse)
   innerEdge : (src inner).terminator = .branch innerTest (.jump onInnerTrue) (.jump onInnerFalse)
+  joinEdge : (src join).terminator = .transfer (.jump latch)
+  latchEdge : (src latch).terminator = .branch again (.jump header) (.ret result)
+
+/-- The three paths found in the original table, before checking coverage. -/
+structure Routes (src : Source Op regs out size) (entry : Fin size) extends Control src entry where
   innerTrue : Chain.Segment src join onInnerTrue
   innerFalse : Chain.Segment src join onInnerFalse
   outerFalse : Chain.Segment src join onOuterFalse
-  joinEdge : (src join).terminator = .transfer (.jump latch)
-  latchEdge : (src latch).terminator = .branch again (.jump header) (.ret result)
-  distinct : ([entry, header, inner] ++ innerTrue.blocks ++ innerFalse.blocks ++
-    outerFalse.blocks ++ [join, latch]).Nodup
-  covers : ([entry, header, inner] ++ innerTrue.blocks ++ innerFalse.blocks ++
-    outerFalse.blocks ++ [join, latch]).length = size
 
-/-- Discover the merge from the outer false route, then require both inner
-routes to reach that same merge by following only checked jumps. -/
-def check (src : Source Op regs out size) (entry : Fin size) : Option (Program src entry) :=
+/-- Discover the merge from the outer false route and follow only checked
+jumps on each route. The caller must still validate overlap and coverage. -/
+def findRoutes (src : Source Op regs out size) (entry : Fin size) : Option (Routes src entry) :=
   match entryEdge : (src entry).terminator with
   | .transfer (.jump header) =>
     match outerEdge : (src header).terminator with
@@ -74,18 +71,39 @@ def check (src : Source Op regs out size) (entry : Fin size) : Option (Program s
         | .transfer (.jump latch) =>
           match latchEdge : (src latch).terminator with
           | .branch again (.jump target) (.ret result) =>
-            let order := [entry, header, inner] ++ innerTrue.blocks ++ innerFalse.blocks ++
-              outerFalse.blocks ++ [join, latch]
-            if shape : target = header ∧ order.Nodup ∧ order.length = size then
-              some ⟨header, inner, onInnerTrue, onInnerFalse, onOuterFalse, join, latch, outerTest, innerTest,
-                again, result, entryEdge, outerEdge, innerEdge, innerTrue, innerFalse, outerFalse, joinEdge,
-                shape.1 ▸ latchEdge, shape.2.1, shape.2.2⟩
+            if same : target = header then
+              some ⟨⟨header, inner, onInnerTrue, onInnerFalse, onOuterFalse, join, latch, outerTest,
+                innerTest, again, result, entryEdge, outerEdge, innerEdge, joinEdge, same ▸ latchEdge⟩,
+                innerTrue, innerFalse, outerFalse⟩
             else none
           | _ => none
         | _ => none
       | _ => none
     | _ => none
   | _ => none
+
+/-- The checked shape admits disjoint linear arms. Direct edges to the
+merge have no arm blocks, and the two inner transfers may both be direct. -/
+structure Program (src : Source Op regs out size) (entry : Fin size) extends Routes src entry where
+  distinct : ([entry, header, inner] ++ innerTrue.blocks ++ innerFalse.blocks ++
+    outerFalse.blocks ++ [join, latch]).Nodup
+  covers : ([entry, header, inner] ++ innerTrue.blocks ++ innerFalse.blocks ++
+    outerFalse.blocks ++ [join, latch]).length = size
+
+def check (src : Source Op regs out size) (entry : Fin size) : Option (Program src entry) := do
+  let p ← findRoutes src entry
+  let order := [entry, p.header, p.inner] ++ p.innerTrue.blocks ++ p.innerFalse.blocks ++
+    p.outerFalse.blocks ++ [p.join, p.latch]
+  if shape : order.Nodup ∧ order.length = size then some ⟨p, shape.1, shape.2⟩ else none
+
+/-- Both decisions use their own post-block bank. -/
+def Control.selected {src : Source Op regs out size} {entry : Fin size}
+    (p : Control src entry) (m : Model.{u, v, w} Op) (old : Bank (regs := regs) m) : Occurrence :=
+  let outer := (src p.header).body.eval m old
+  if (outer.get p.outerTest).down then
+    let inner := (src p.inner).body.eval m outer
+    if (inner.get p.innerTest).down then .innerTrue else .innerFalse
+  else .outerFalse
 
 variable {src : Source Op regs out size} {entry : Fin size} (p : Program src entry)
 
@@ -136,13 +154,8 @@ def Program.mergeBank (m : Model.{u, v, w} Op) (old : Bank (regs := regs) m)
   let compiled := p.incomingTransfer occurrence
   compiled.outgoing.read old (compiled.flow.eval m old PUnit.unit)
 
-/-- Both decisions use their own post-block bank. -/
 def Program.selected (m : Model.{u, v, w} Op) (old : Bank (regs := regs) m) : Occurrence :=
-  let outer := (src p.header).body.eval m old
-  if (outer.get p.outerTest).down then
-    let inner := (src p.inner).body.eval m outer
-    if (inner.get p.innerTest).down then .innerTrue else .innerFalse
-  else .outerFalse
+  p.toControl.selected m old
 
 /-- Count source visits from the header up to, but excluding, the merge. -/
 def Program.mergeVisits : Occurrence → Nat

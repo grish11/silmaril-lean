@@ -27,6 +27,21 @@ theorem rewriteAt?_eq_some_iff {address : RVSDG.Address} :
       ∃ rep, findEntry? p address = some rep ∧ rewrite? p rep = some target :=
   Option.bind_eq_some_iff
 
+/-- An ordered check gives the exact capture and incoming Phi wire. -/
+theorem matchesAt_exact {lhs rhs : SharedWord inputs sigs} {slot : Slot}
+    (checked : matchesAt p lhs rhs slot = true) :
+    lhs = .arg p.residual ∧
+      (p.diamond.arms slot).outputs.get .head = keepOrigin (p.diamond.arms slot).dataflow rhs :=
+  Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.matchesAt_exact checked
+
+/-- An incoming Phi operand from the entry reads that entry value. -/
+theorem read_forwarded {rhs : SharedWord inputs sigs}
+    (entry : Tuple (Val model.value) (dataPorts inputs)) (slot : Slot)
+    (forwarded : (p.diamond.arms slot).outputs.get .head = keepOrigin (p.diamond.arms slot).dataflow rhs) :
+    let shared := p.diamond.shared.eval model entry PUnit.unit
+    ((p.diamond.arms slot).eval model entry shared).get .head = read model rhs entry shared :=
+  Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.read_forwarded entry slot forwarded
+
 /-- The exact ordered entry key is linked to both original predecessor wires. -/
 theorem check_provenance (accepted : check p rep = true) :
     ∃ rhs : SharedWord inputs sigs, rep.key = addKey (.arg p.residual) rhs ∧
@@ -56,7 +71,20 @@ theorem emit_agrees (certified : check p rep = true) (value : BitVec 64)
     route.AgreesBetween model before after
       ((suffix .right value).dataflow.eval model before PUnit.unit)
       ((shortened value).dataflow.eval model after PUnit.unit) :=
-  Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.emit_agrees certified value entry slot
+  Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.emit_agrees_of
+    (Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.check_agrees certified) value entry slot
+
+/-- Every routed read of a complete packet is preserved by an agreeing representative. -/
+theorem emit_packet_eq_of {ports : List (Ty Unit)} (agrees : RepresentativeAgrees p rep) (value : BitVec 64)
+    (entry : Tuple (Val model.value) (dataPorts inputs)) (slot : Slot)
+    (packet : Wires OldArgs [Row, Row, Row] ports) :
+    let before := slotArgs p entry slot
+    let after := slotArgs (emit p rep value) entry slot
+    (Routing.wires route packet).read after ((shortened value).dataflow.eval model after PUnit.unit) =
+      packet.read before ((suffix .right value).dataflow.eval model before PUnit.unit) :=
+  (Routing.wires_read_between model _ _ _ _
+    (Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.emit_agrees_of
+      agrees value entry slot) packet).symm
 
 /-- Preserve an entire ordered outgoing packet, including any additional
 uses of the elided add or of the original Phi argument. -/
@@ -67,17 +95,30 @@ theorem emit_packet_eq {ports : List (Ty Unit)} (certified : check p rep = true)
     let after := slotArgs (emit p rep value) entry slot
     (Routing.wires route packet).read after ((shortened value).dataflow.eval model after PUnit.unit) =
       packet.read before ((suffix .right value).dataflow.eval model before PUnit.unit) :=
-  (Routing.wires_read_between model _ _ _ _ (emit_agrees certified value entry slot) packet).symm
+  emit_packet_eq_of
+    (Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.check_agrees certified)
+    value entry slot packet
 
 theorem rewrite?_slot_eq (accepted : rewrite? p rep = some target)
     (entry : Tuple (Val model.value) (dataPorts inputs)) (slot : Slot) :
     target.atSlot entry slot = p.atSlot entry slot :=
   Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.rewrite?_slot_eq accepted entry slot
 
+/-- The same emitter preserves finite returns for any agreeing representative of this suffix. -/
+theorem emit_returns_iff_of (agrees : RepresentativeAgrees p rep) {value : BitVec 64}
+    (shape : p.suffix = suffix .right value)
+    (entry : Tuple (Val model.value) (dataPorts inputs)) (returned : BitVec 64) :
+    (emit p rep value).Returns entry returned ↔ p.Returns entry returned :=
+  Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.emit_returns_iff_of
+    agrees shape entry returned
+
 theorem rewrite?_returns_iff (accepted : rewrite? p rep = some target)
     (entry : Tuple (Val model.value) (dataPorts inputs)) (returned : BitVec 64) :
     target.Returns entry returned ↔ p.Returns entry returned :=
-  Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.rewrite?_returns_iff accepted entry returned
+  let ⟨_, shape, checked, emitted⟩ := rewrite?_eq_some_iff.mp accepted
+  emitted.symm ▸ emit_returns_iff_of
+    (Proofs.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.check_agrees checked)
+    shape entry returned
 
 /-- Compose actual materialization and checked entry reuse for every typed input. -/
 theorem materialize_then_reuse_returns_iff {g : AddPhi.Pair.Source inputs sigs}

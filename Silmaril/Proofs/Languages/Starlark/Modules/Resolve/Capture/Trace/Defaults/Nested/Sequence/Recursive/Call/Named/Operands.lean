@@ -114,14 +114,85 @@ theorem spread_origins {block : LexicalBlock} (star : Option (Spread block)) :
     | list related | tuple related => exact origins related
     | integer => simp [spreadReads, Spread.reads]
 
+private theorem resolves_display_operand {block : LexicalBlock} {source code reads}
+    (operand : DisplayOperand block source code reads) (initial : List Binding) :
+    resolveExpr block.context source initial = .ok (code, reads.reverse ++ initial) := by
+  cases operand with
+  | plain plain => exact Body.resolves_at plain initial
+  | string text => rw [resolveExpr.eq_def]; rfl
+
+private theorem resolves_entries {block : LexicalBlock} {source codes reads}
+    (related : DisplayEntries block source codes reads) (initial : List Binding) :
+    (source.mapM fun pair : SourceExpr × SourceExpr =>
+      StateT.bind (resolveExpr block.context pair.1) fun key =>
+        StateT.bind (resolveExpr block.context pair.2) fun value => StateT.pure (key, value)) initial =
+      .ok (codes, reads.reverse ++ initial) := by
+  induction related generalizing initial with
+  | empty => rfl
+  | entry key value _ ih =>
+    simp [List.mapM_cons, resolves_display_operand key, resolves_display_operand value, ih,
+      bind, StateT.bind, Except.bind, pure, StateT.pure, Except.pure, List.reverse_append, List.append_assoc]
+
+private theorem mapping_resolves {block : LexicalBlock} (mapping : Mapping block) (initial : List Binding) :
+    resolveExpr block.context mapping.source initial = .ok (mapping.code, mapping.reads.reverse ++ initial) := by
+  have attached :
+      (mapping.entries.attach.mapM fun pair =>
+        StateT.bind (resolveExpr block.context pair.val.1) fun key =>
+          StateT.bind (resolveExpr block.context pair.val.2) fun value => StateT.pure (key, value)) =
+      (mapping.entries.mapM fun pair : SourceExpr × SourceExpr =>
+        StateT.bind (resolveExpr block.context pair.1) fun key =>
+          StateT.bind (resolveExpr block.context pair.2) fun value => StateT.pure (key, value)) := by
+    calc
+      _ = (mapping.entries.attach.map Subtype.val).mapM (fun pair : SourceExpr × SourceExpr =>
+        StateT.bind (resolveExpr block.context pair.1) fun key =>
+          StateT.bind (resolveExpr block.context pair.2) fun value => StateT.pure (key, value)) := by
+        simp only [List.mapM_map, Function.comp_def]
+      _ = _ := by rw [List.attach_map_subtype_val]
+  rw [Mapping.source, resolveExpr.eq_def]
+  simp only [bind, StateT.bind, pure, StateT.pure]
+  rw [attached, resolves_entries mapping.related]
+  rfl
+
+theorem mapping_origins {block : LexicalBlock} (mapping : Option (Mapping block)) :
+    ∀ binding ∈ mappingReads mapping, ∃ origin, ReadOrigin block binding origin := by
+  have operand_origins {source code reads} (operand : DisplayOperand block source code reads) :
+      ∀ binding ∈ reads, ∃ origin, ReadOrigin block binding origin := by
+    cases operand with
+    | plain plain => exact Body.operand_origins plain
+    | string => simp
+  have entries_origins {source codes reads} (related : DisplayEntries block source codes reads) :
+      ∀ binding ∈ reads, ∃ origin, ReadOrigin block binding origin := by
+    induction related with
+    | empty => simp
+    | entry key value _ ih =>
+      intro binding member
+      rcases List.mem_append.mp member with pair | tail
+      · exact (List.mem_append.mp pair).elim (operand_origins key binding) (operand_origins value binding)
+      · exact ih binding tail
+  cases mapping with
+  | none => simp [mappingReads]
+  | some mapping => exact entries_origins mapping.related
+
+private theorem optional_resolves {α : Type} {block : LexicalBlock}
+    (operand : Option α) (source : α → SourceExpr) (code : α → Lowering.Expr) (reads : α → List Binding)
+    (resolved : ∀ value initial, resolveExpr block.context (source value) initial =
+      .ok (code value, (reads value).reverse ++ initial)) (initial : List Binding) :
+    ((operand.map source).mapM (resolveExpr block.context)) initial =
+      .ok (operand.map code, ((operand.map reads).getD []).reverse ++ initial) := by
+  cases operand with
+  | none => rfl
+  | some value =>
+    simp [Option.mapM, Functor.map, StateT.map, Except.map, resolved]
+
 theorem resolves {block : LexicalBlock} {name : String}
     {positional : List SourceExpr} {posCodes : List Lowering.Expr} {posReads : List Binding}
     (legal : name.toList.head? ≠ some '$') (owned : name ∈ block.owned)
     (related : Positional block positional posCodes posReads) (keywords : Operands block)
-    (star : Option (Spread block) := none) :
-    resolveTracked block.context (.call (.scalar (.read name)) positional keywords.source (star.map Spread.source) none) =
-      .ok (expression name posCodes keywords.codes (star.map Spread.code),
-        fileSlot name :: ((posReads ++ keywords.reads) ++ spreadReads star)) := by
+    (star : Option (Spread block) := none) (mapping : Option (Mapping block) := none) :
+    resolveTracked block.context
+      (.call (.scalar (.read name)) positional keywords.source (star.map Spread.source) (mapping.map Mapping.source)) =
+      .ok (expression name posCodes keywords.codes (star.map Spread.code) (mapping.map Mapping.code),
+        fileSlot name :: ((posReads ++ keywords.reads) ++ spreadReads star ++ mappingReads mapping)) := by
   have callee : Body.Operand block (.scalar (.read name)) (Leaf.readOperand (fileSlot name)) [fileSlot name] :=
     .read legal (.owned owned) (.owned owned)
   have first : (positional.attach.mapM fun arg => resolveExpr block.context arg.val) =
@@ -140,17 +211,16 @@ theorem resolves {block : LexicalBlock} {name : String}
       StateT.bind (resolveExpr block.context arg.2) fun code => StateT.pure (arg.1, code)) := by
         simp only [List.mapM_map, Function.comp_def]
       _ = _ := by rw [List.attach_map_subtype_val]
-  cases star with
-  | none =>
-    rw [resolveTracked, resolveExpr.eq_def]
-    simp [first, second, Body.resolves_at callee, resolves_positional related, resolves_named keywords.related,
-    expression, bind, StateT.bind, Except.bind, pure, StateT.pure, Except.pure, Except.map,
-      List.reverse_append, spreadReads]
-  | some spread =>
-    rw [resolveTracked, resolveExpr.eq_def]
-    simp [first, second, Body.resolves_at callee, resolves_positional related, resolves_named keywords.related,
-      spread_resolves, Option.mapM, expression, bind, StateT.bind, Except.bind, Functor.map, StateT.map, pure, StateT.pure,
-      Except.pure, Except.map, List.reverse_append, List.append_assoc, spreadReads]
+  have starResolved (initial : List Binding) :
+      ((star.map Spread.source).mapM (resolveExpr block.context)) initial =
+        .ok (star.map Spread.code, (spreadReads star).reverse ++ initial) := by
+    have step := optional_resolves star Spread.source Spread.code Spread.reads spread_resolves initial
+    cases star <;> exact step
+  have mappingResolved := optional_resolves mapping Mapping.source Mapping.code Mapping.reads mapping_resolves
+  rw [resolveTracked, resolveExpr.eq_def]
+  simp [first, second, Body.resolves_at callee, resolves_positional related, resolves_named keywords.related,
+    starResolved, mappingResolved, expression, bind, StateT.bind, Except.bind, pure, StateT.pure,
+    Except.pure, Except.map, List.reverse_append, List.append_assoc, mappingReads]
 
 private theorem no_duplicate {names : List String} (distinct : names.Nodup) : firstDuplicate names = none := by
   induction names with
