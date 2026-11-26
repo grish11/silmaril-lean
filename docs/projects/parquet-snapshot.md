@@ -41,11 +41,12 @@ later groups. These laws concern the supplied decoder's observations.
 The regression embeds 353 bytes generated and independently read by [PyArrow
 26.0.1](https://pypi.org/project/pyarrow/26.0.1/). The SHA-256 is
 `9fee242f1ebc1b23b75e8fe11e2dc54d758b3859aa181ad86056fe9e722a4b50`.
-The test capability passes the exact V1 bodies `[23,37)`, `[56,70)` and
-`[89,99)` with the fixture's header fields to `ScalarPage.decode .int32`.
-Apache Thrift v0.25.0 independently checked the boundaries and fields.
-The production capability still needs a flat row-group assembler to derive
-those inputs from the snapshot. [Scalar page profile and tool pins](parquet-scalar-page.md)
+The test capability reads each single-page chunk with `Page.readChunk` and
+passes its V1 body and header fields to `ScalarPage.decode .int32`. The body
+spans `[23,37)`, `[56,70)` and `[89,99)` agree with Apache Thrift v0.25.0.
+Production assembly across pages and columns remains part of the supplied
+capability. [Page framing](parquet-page-framing.md) ·
+[Scalar page profile and tool pins](parquet-scalar-page.md)
 
 ```python
 import pyarrow as pa

@@ -1,9 +1,11 @@
 module
 
 import Silmaril.Formats.Parquet.Snapshot.Thms
+import Silmaril.Formats.Parquet.Page.Defs
 import Silmaril.Formats.Parquet.ScalarPage.Defs
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Defs
 meta import Silmaril.Formats.Parquet.Snapshot.Defs
+meta import Silmaril.Formats.Parquet.Page.Defs
 meta import Silmaril.Formats.Parquet.ScalarPage.Defs
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Defs
 
@@ -44,22 +46,31 @@ private def fixture : Bytes := Bytes.ofList [
 private abbrev Value (_ : Unit) := Int32
 private def schema : Scan.Schema String Unit := ⟨1, fun _ => ("value", ())⟩
 
--- The fixture supplies the exact V1 body spans and header fields. A production
--- capability must discover and check those boundaries for each group.
+-- This fixture has exactly one optional INT32 V1 page per row group.
 private def decodeFixture : DecodeGroup schema Value String := fun snapshot index group => do
-  let spans : Array (Nat × Nat) := #[(23, 37), (56, 70), (89, 99)]
-  let some (start, stop) := spans[index]? | throw "unexpected fixture index"
+  let spans : Array Footer.Span := #[⟨23, 37⟩, ⟨56, 70⟩, ⟨89, 99⟩]
+  let some expected := spans[index]? | throw "unexpected fixture index"
   if snapshot.bytes ≠ fixture || snapshot.footer.start ≠ 99 then throw "unexpected fixture bytes"
-  let some bytes := snapshot.bytes.slice? start (some stop) | throw "invalid fixture slice"
-  let size := stop - start
-  let params : ScalarPage.Parameters := ⟨⟨size, size⟩, ⟨0, 1⟩, group.numRows.toNat, 0, 0, .v1 3 3⟩
+  let [column] := group.columns | throw "expected one column"
+  let some chunk := Page.columnSpan snapshot.footer.start column.metadata | throw "invalid chunk span"
+  let [frame] ← (Page.readChunk { maxPages := 1 } snapshot.bytes chunk).mapError
+    (fun _ => "invalid fixture page framing") | throw "expected one page"
+  if frame.payload ≠ expected then throw "unexpected fixture body span"
+  let .dataV1 header := frame.value.kind | throw "expected a V1 page"
+  let some bytes := snapshot.bytes.slice? frame.payload.start (some frame.payload.stop) |
+    throw "invalid fixture slice"
+  let params : ScalarPage.Parameters :=
+    ⟨⟨frame.value.compressedSize, frame.value.uncompressedSize⟩, ⟨0, 1⟩,
+      header.numValues, column.metadata.codec, header.encoding,
+      .v1 header.definitionLevelEncoding header.repetitionLevelEncoding⟩
   let limits : ScalarPage.Limits := ⟨14, 14, ⟨2, 2⟩, 0⟩
   let values ← (ScalarPage.decode .int32 params limits bytes).mapError fun _ => "invalid INT32 page"
   pure (values.map fun value _ => value)
 
 private def bindFixture : Bind schema Value String := fun metadata => do
   let [_, column] := metadata.schema | throw "expected one column"
-  if column.name = "value" && column.physicalType = some .int32 then pure decodeFixture
+  if column.name = "value" && column.physicalType = some .int32 &&
+      column.repetition = some .optional then pure decodeFixture
   else throw "unexpected fixture schema"
 
 private def observe (limits : Limits) (bind : Bind schema Value String) (fuel : Nat) (bytes : Bytes) :
