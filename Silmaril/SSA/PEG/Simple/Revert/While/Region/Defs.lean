@@ -376,15 +376,20 @@ structure Certificate.Total (cert : Certificate g allowInvariant allowBranch) (m
   guard : ∀ store, ∃ tagged, cert.guard.lower.runLoopFree m store = some tagged
   update : ∀ store, ∃ next, cert.update.lower.runLoopFree m store = some next
 
-def Certificate.runFrom (cert : Certificate g allowInvariant allowBranch) (m : Interpretation.{u,v,w} P) :
-    Nat → Tuple m.Value (.bool :: carried) → Option (m.Value result)
+/-- Run the existing guarded loop and keep the completed carried store. -/
+def Certificate.runStore (cert : Certificate g allowInvariant allowBranch) (m : Interpretation.{u,v,w} P) :
+    Nat → Tuple m.Value (.bool :: carried) → Option (Tuple m.Value (.bool :: carried))
   | fuel, .cons flag store =>
     if flag.down then
       match fuel with
       | 0 => none
-      | k + 1 => (cert.body.runLoopFree m (.cons flag store)).bind (cert.runFrom m k)
-    else some (store.get cert.descriptor.returnSlot)
+      | k + 1 => (cert.body.runLoopFree m (.cons flag store)).bind (cert.runStore m k)
+    else some (.cons flag store)
 termination_by structural fuel _ => fuel
+
+def Certificate.runFrom (cert : Certificate g allowInvariant allowBranch) (m : Interpretation.{u,v,w} P)
+    (fuel : Nat) (store : Tuple m.Value (.bool :: carried)) : Option (m.Value result) :=
+  (cert.runStore m fuel store).map fun final => final.get (.tail cert.descriptor.returnSlot)
 
 /-- Run the emitted structured program with a bound on successful body steps. -/
 def Certificate.runFuel (cert : Certificate g allowInvariant allowBranch) (m : Interpretation.{u,v,w} P)

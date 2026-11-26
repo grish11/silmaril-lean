@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.SSA.PEG.Simple.Structured.Loop
+public import Silmaril.SSA.PEG.Simple.Structured.Completion.Defs
 
 public section
 
@@ -171,19 +172,22 @@ theorem programReturns (p : Program P true params t) (neg : P [.bool] .bool)
   change read (body.refs.get p.retvar) i = some (final.get p.retvar) at output
   rw [output, returned]
 
-theorem whileTraceOfDefined (test : Expr P params .bool) (stmt : Stmt P true params params)
+theorem whileTraceOfDefinedWith (test : Expr P params .bool) (stmt : Stmt P true params params)
     (ret : Port params t) (neg : P [.bool] .bool) (m : Interpretation.{u,v,w} P)
     (env : Tuple m.Value params)
     (negSem : ∀ b : Bool, m.run neg (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
-    (guardTotal : ∀ store : Tuple m.Value params, ∃ flag : Bool, test.eval m store = some ⟨flag⟩)
-    (stepTotal : ∀ store : Tuple m.Value params, test.eval m store = some ⟨true⟩ →
-      ∃ next, Exec m stmt store (some next))
+    {Ready : Nat → Tuple m.Value params → Prop}
+    (guardReady : ∀ {k store}, Ready k store → ∃ flag : Bool, test.eval m store = some ⟨flag⟩)
+    (stepReady : ∀ {k store}, Ready (k + 1) store → test.eval m store = some ⟨true⟩ →
+      ∃ next, Exec m stmt store (some next) ∧ Ready k next)
     {val : (translate (whileProgram test stmt ret) neg).Valuation m}
     (solves : (translate (whileProgram test stmt ret) neg).Solves m env val)
     (i : Index (program (whileProgram test stmt ret) neg).nodes.length)
+    (ready : ∀ k, readWhilePass test stmt ret neg m val i = some ⟨k⟩ → Ready k env)
     {value : m.Value t}
     (defined : (translate (whileProgram test stmt ret) neg).observe m val i = .cons (some value) .nil) :
-    ∃ k final, WhileTrace m test stmt k env final ∧ final.get ret = value := by
+    ∃ k final, WhileTrace m test stmt k env final ∧ final.get ret = value ∧
+      readWhilePass test stmt ret neg m val i = some ⟨k⟩ := by
   let compiled := program (whileProgram test stmt ret) neg
   let init := Build.straight (paramNodes (P := P) (params := params) (nodes := []) (ports params))
   let slots := (ports params).map (fun _ r => portLeft (right := init.nodes) r)
@@ -206,14 +210,35 @@ theorem whileTraceOfDefined (test : Expr P params .bool) (stmt : Stmt P true par
   change read (outputs.get ret) i = some value at selected
   unfold outputs at selected
   rw [Simple.Proofs.get_map, Simple.Proofs.ports_get] at selected
-  obtain ⟨k, final, trace, returned, _, _⟩ :=
-    loopTraceOfDefined v.right negSem i (test := test) (stmt := stmt)
+  obtain ⟨k, final, trace, returned, pass, _⟩ :=
+    loopTraceOfDefined v.right negSem i (test := test) (stmt := stmt) (Ready := Ready)
       (fun {k store flag} carries testEval j agree =>
         exprRead test slots v.right.inner.left store (carries _ (sampleAgrees v.right agree k)) testEval)
       (fun {k store next} carries step =>
         lowerCorrect neg negSem stmt (c.code.liftRefs slots) v.right.inner.right (i.set v.right.key k)
           (liftRefs c.code (fun r => v.right.inner.left.embed r) carries) step)
-      guardTotal stepTotal (agrees_self [] i) entry selected
+      guardReady (@stepReady) (agrees_self [] i) entry ready selected
+  exact ⟨k, final, trace, returned, pass⟩
+
+theorem whileTraceOfDefined (test : Expr P params .bool) (stmt : Stmt P true params params)
+    (ret : Port params t) (neg : P [.bool] .bool) (m : Interpretation.{u,v,w} P)
+    (env : Tuple m.Value params)
+    (negSem : ∀ b : Bool, m.run neg (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    (guardTotal : ∀ store : Tuple m.Value params, ∃ flag : Bool, test.eval m store = some ⟨flag⟩)
+    (stepTotal : ∀ store : Tuple m.Value params, test.eval m store = some ⟨true⟩ →
+      ∃ next, Exec m stmt store (some next))
+    {val : (translate (whileProgram test stmt ret) neg).Valuation m}
+    (solves : (translate (whileProgram test stmt ret) neg).Solves m env val)
+    (i : Index (program (whileProgram test stmt ret) neg).nodes.length)
+    {value : m.Value t}
+    (defined : (translate (whileProgram test stmt ret) neg).observe m val i = .cons (some value) .nil) :
+    ∃ k final, WhileTrace m test stmt k env final ∧ final.get ret = value := by
+  obtain ⟨k, final, trace, returned, _⟩ := whileTraceOfDefinedWith test stmt ret neg m env negSem
+    (Ready := fun _ _ => True) (fun {_ store} _ => guardTotal store)
+    (fun {_ store} _ flag => by
+      obtain ⟨next, run⟩ := stepTotal store flag
+      exact ⟨next, run, trivial⟩)
+    solves i (fun _ _ => trivial) defined
   exact ⟨k, final, trace, returned⟩
 
 end Silmaril.SSA.PEG.Simple.Structured.Proofs

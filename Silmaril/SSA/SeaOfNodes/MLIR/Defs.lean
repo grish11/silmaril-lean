@@ -29,8 +29,7 @@ def model : Diamond.Model Op where
   value := Word
   run
     | .constant value, .nil => value
-    | .binary .addi, .cons x (.cons y .nil) => BitVec.add x y
-    | .binary .muli, .cons x (.cons y .nil) => BitVec.mul x y
+    | .binary op, .cons x (.cons y .nil) => op.denote x y
 
 abbrev inputPorts (Γ : List Width) : List (Diamond.Ty Width) :=
   dataPorts (Γ.map Diamond.ValueSort.data)

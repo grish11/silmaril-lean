@@ -3,6 +3,7 @@ module
 public import Silmaril.Languages.Python.Core.Closure.Defs
 public import Silmaril.Languages.Python.Core.Module.ListObject.Defs
 public import Silmaril.Languages.Python.Core.Module.TupleDispatch.Defs
+public import Silmaril.Languages.Python.Core.Text.Slice.Defs
 
 /-! # Closed callables for explicitly seeded module entry -/
 
@@ -33,6 +34,8 @@ inductive AssertionArgument where
   | booleanPair (left right : Bool)
   | textPair (left right : Core.Text)
   | tuplePair (left right : List Core.Module.TupleDispatch.Element)
+  | emptyTuple
+  | listObject (object : Core.Module.ListObject)
   deriving DecidableEq, Repr
 
 inductive Raised where
@@ -151,11 +154,17 @@ def Namespace.bindGlobal (space : Namespace) (name : String) (value : Value) : N
 /-- Lexical resolution makes the local/global choice before execution. -/
 inductive Operand (slots : Nat) where
   | literal (value : Value)
+  | intDivMod (op : Core.Closure.IntDivModOp) (numerator divisor : Int)
   | intTrueDiv (numerator divisor : Int)
+  | floatDiv (operands : Core.Binary64.FloatOperands)
   | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite)
+  | floatAdd (left right : Silmaril.Numeric.Ieee754.F64.Finite)
+  | floatSub (operands : Core.Binary64.FloatOperands)
+  | floatMul (operands : Core.Binary64.FloatOperands)
   | local (slot : Fin slots)
   | global (name : String)
   | tuple (items : List Core.Closure.GlobalTupleItem)
+  | textSlice (receiver : Core.Text) (bounds : Core.SliceBounds)
   | unsupported
 
 abbrev Locals (slots : Nat) := Vector (Option Value) slots
@@ -170,20 +179,35 @@ def evalTupleContents (space : Namespace) (items : List Core.Closure.GlobalTuple
     Except Failure (List Core.Module.TupleDispatch.Element) :=
   Core.Closure.assembleFlatTuple (readTupleItem space) Value.tupleElement? .unsupported items
 
+def floatArithmeticResult
+    (result : Except Core.Binary64.FloatArithmeticError Silmaril.Numeric.Ieee754.F64.Finite) : Result :=
+  result.map Value.float64 |>.mapError fun
+    | .conversionOverflow => .raised (.runtime .overflowError)
+    | .nonfiniteResult => .unsupported
+
 def Operand.eval {slots : Nat} (space : Namespace) (locals : Locals slots) : Operand slots → Result
   | .literal value => .ok value
+  | .intDivMod op numerator divisor =>
+    (op.eval numerator divisor).map Value.int |>.mapError (Failure.raised ∘ .runtime)
   | .intTrueDiv numerator divisor =>
     (Core.Closure.trueDivideInt numerator divisor).map Value.float64 |>.mapError (Failure.raised ∘ .runtime)
-  | .mixedAdd integer floating =>
-    (Core.Binary64.mixedAdd integer floating).map Value.float64 |>.mapError fun
-      | .conversionOverflow => .raised (.runtime .overflowError)
-      | .nonfiniteResult => .unsupported
+  | .floatDiv operands =>
+    (Core.Closure.trueDivideFloat operands).map Value.float64 |>.mapError fun
+      | .defined error => .raised (.runtime error)
+      | _ => .unsupported
+  | .mixedAdd integer floating => floatArithmeticResult (Core.Binary64.mixedAdd integer floating)
+  | .floatAdd left right =>
+    (Core.Binary64.addFinite? left right).elim (.error .unsupported) (.ok ∘ Value.float64)
+  | .floatSub operands => floatArithmeticResult (Core.Binary64.subtract operands)
+  | .floatMul operands => floatArithmeticResult (Core.Binary64.multiply operands)
   | .local slot =>
     (locals.get slot).elim (.error (.raised (.runtime (.unboundLocal slot.val)))) .ok
   | .global name =>
     (space.lookupGlobal name).elim (.error (.raised (.runtime (.nameError name)))) .ok
   | .tuple items =>
     (evalTupleContents space items).map .returnedTuple
+  | .textSlice receiver bounds =>
+    (receiver.slice? bounds).elim (.error (.raised (.runtime .zeroSliceStep))) (fun result => .ok (.text result))
   | .unsupported => .error .unsupported
 
 structure Expectation where
@@ -242,6 +266,8 @@ def InstanceProbe.result : InstanceProbe → Bool
 calling an exception class would construct an object outside this profile. -/
 inductive Request (arity : Nat) where
   | assertBoolean (value : Bool)
+  | assertTuple (nonempty : Bool)
+  | assertList (object : Core.Module.ListObject)
   | compare (left right : Int)
   | compareNumeric (left right : NumericOperand)
   | compareText (left right : Core.Text)
@@ -264,6 +290,9 @@ inductive Request (arity : Nat) where
 def Request.decode (callee : Value) (arguments : List Value) : Request arguments.length :=
   match callee, arguments with
   | .helper .assertTrue, [.bool result] => .assertBoolean result
+  | .helper .assertTrue, [.listObject object] => .assertList object
+  | .helper .assertTrue, [.returnedTuple items]
+  | .helper .assertTrue, [.tupleObject ⟨_, items⟩] => .assertTuple (!items.isEmpty)
   | .helper .assertEqual, [.int left, .int right] => .compare left right
   | .helper .assertEqual, [.float64 left, .float64 right] => .compareNumeric (.float64 left) (.float64 right)
   | .helper .assertEqual, [.float64 left, .int right] => .compareNumeric (.float64 left) (.integer right)
@@ -306,6 +335,10 @@ def invoke (callee : Value) (arguments : List Value) : Result :=
   match Request.decode callee arguments with
   | .assertBoolean true => .ok .none
   | .assertBoolean false => .error (.raised (.assertionError (.boolean false)))
+  | .assertTuple true => .ok .none
+  | .assertTuple false => .error (.raised (.assertionError .emptyTuple))
+  | .assertList object =>
+    if object.contents.isEmpty then .error (.raised (.assertionError (.listObject object))) else .ok .none
   | .compare left right =>
     if left = right then .ok .none else .error (.raised (.assertionError (.integerPair left right)))
   | .compareNumeric left right =>
@@ -337,6 +370,13 @@ inductive Executes : {arity : Nat} → Request arity → Result → Prop where
   | asserted {arity : Nat} : Executes (arity := arity) (.assertBoolean true) (.ok .none)
   | assertionFailed {arity : Nat} :
       Executes (arity := arity) (.assertBoolean false) (.error (.raised (.assertionError (.boolean false))))
+  | tupleAsserted {arity : Nat} : Executes (arity := arity) (.assertTuple true) (.ok .none)
+  | tupleAssertionFailed {arity : Nat} :
+      Executes (arity := arity) (.assertTuple false) (.error (.raised (.assertionError .emptyTuple)))
+  | listAsserted {arity : Nat} (object : Core.Module.ListObject) (nonempty : object.contents.isEmpty ≠ true) :
+      Executes (arity := arity) (.assertList object) (.ok .none)
+  | listAssertionFailed {arity : Nat} (object : Core.Module.ListObject) (empty : object.contents.isEmpty = true) :
+      Executes (arity := arity) (.assertList object) (.error (.raised (.assertionError (.listObject object))))
   | equal {arity : Nat} (left right : Int) (same : left = right) :
       Executes (arity := arity) (.compare left right) (.ok .none)
   | unequal {arity : Nat} (left right : Int) (different : left ≠ right) :

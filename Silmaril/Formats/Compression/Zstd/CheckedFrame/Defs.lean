@@ -129,18 +129,24 @@ def finish (header : Header) (out trailer : List UInt8) : Except Error (List UIn
     if !trailer.isEmpty then throw .trailingInput
     return out
 
+/-- Open the common exact-frame envelope and check the input, window and
+    dictionary policy before dispatching to the block profile. -/
+def openFrame (limits : Limits) (input : List UInt8) : Except Error (Nat × Header × List UInt8) := do
+  let size := input.length
+  if limits.input < size then throw .inputLimit
+  let (signature, frameData) ← takeExact 4 input
+  if signature ≠ magic then throw .badMagic
+  let some (header, blocks) := parseHeader frameData | throw .badHeader
+  if header.dictionaryId ≠ 0 then throw (.unsupportedDictionary header.dictionaryId)
+  if limits.window < header.windowSize then throw .windowLimit
+  return (size, header, blocks)
+
 end Internal
 
 /-- Decode exactly one standard frame. Frame and window limits are checked before
     block decoding. Each block receives only the remaining output budget. -/
 def decode (limits : Limits) (input : List UInt8) : Except Error (List UInt8) := do
-  let size := input.length
-  if limits.input < size then throw .inputLimit
-  let (signature, frameData) ← Internal.takeExact 4 input
-  if signature ≠ magic then throw .badMagic
-  let some (header, blocks) := parseHeader frameData | throw .badHeader
-  if header.dictionaryId ≠ 0 then throw (.unsupportedDictionary header.dictionaryId)
-  if limits.window < header.windowSize then throw .windowLimit
+  let (size, header, blocks) ← Internal.openFrame limits input
   let (chunks, trailer) ← Internal.readBlocks header (size / 3) limits.output blocks []
   Internal.finish header chunks.flatten trailer
 

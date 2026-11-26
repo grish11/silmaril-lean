@@ -16,6 +16,7 @@ import Silmaril.SSA.Peggy.Optimizer.Contextual.Thms
 import Silmaril.SSA.Peggy.Worked.EvalScale.Thms
 import Silmaril.SSA.Peggy.Worked.StrengthReduction.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Automatic.Thms
+import Silmaril.SSA.PEG.Simple.Revert.While.Siblings.Thms
 import Silmaril.SSA.PEG.Simple.Thms
 import Silmaril.SSA.PEG.Projection.Defs
 meta import Silmaril.SSA.Peggy.Optimizer.Cyclic.Defs
@@ -37,6 +38,7 @@ meta import Silmaril.SSA.Peggy.Optimizer.Extension.Defs
 meta import Silmaril.SSA.Peggy.Worked.EvalScale.Defs
 meta import Silmaril.SSA.Peggy.Worked.StrengthReduction.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Automatic.Defs
+meta import Silmaril.SSA.PEG.Simple.Revert.While.Siblings.Defs
 meta import Silmaril.SSA.PEG.Projection.Defs
 meta import Mathlib.Tactic.FinCases
 
@@ -2041,3 +2043,169 @@ example : Law wrongAdd Op.five Op.mul ∧ ¬ Nonempty (StrengthReduction.Law wro
   omega
 
 end Silmaril.SSA.Peggy.Worked.EvalScale.Tests
+
+namespace Silmaril.SSA.PEG.Simple.Revert.While.Siblings.Tests
+
+open RVSDG (Port Tuple)
+open Simple.Revert.While.Region
+
+private inductive Op : InstructionSet Unit where
+  | zero : Op [] .count
+  | succ : Op [.count] .count
+  | atLeast : Op [.count, .count] .bool
+  | add : Op [.count, .count] .count
+  | not : Op [.bool] .bool
+  deriving DecidableEq
+
+private def model : Interpretation Op where
+  carrier _ := Unit
+  run
+    | .zero, .nil => some ⟨0⟩
+    | .succ, .cons n .nil => some ⟨n.down + 1⟩
+    | .atLeast, .cons a (.cons b .nil) => some ⟨decide (b.down ≤ a.down)⟩
+    | .add, .cons a (.cons b .nil) => some ⟨a.down + b.down⟩
+    | .not, .cons b .nil => some ⟨!b.down⟩
+
+private abbrev inputs := ([.count, .count] : List (Ty Unit))
+private abbrev outputs := ([.count, .count, .count, .count] : List (Ty Unit))
+
+private def pair {F : Ty Unit → Type} (a b : F .count) : Tuple F inputs :=
+  .cons a (.cons b .nil)
+
+private def four {F : Ty Unit → Type} (a b c d : F .count) : Tuple F outputs :=
+  .cons a (.cons b (pair c d))
+
+private def stageSort (i : Fin 9) : Ty Unit := if i = 3 then .bool else .count
+private def s (i : Fin 9) (h : stageSort i = .count) : Ref stageSort .count := ⟨i, h⟩
+
+-- The first stage returns succ(eval clock), the forwarded seed, the
+-- pass count, and a repeated first result. The second uses the first
+-- result as its limit and adds the seed to its own final counter.
+private def stage (second : Bool) : Graph Op inputs outputs 9 1 where
+  forest := ⟨fun _ => none⟩
+  sort := stageSort
+  node i := match i with
+    | 0 => .ofLabel (.theta 0) (pair (s 1 rfl) (s 2 rfl))
+    | 1 => .ofLabel (.op .zero) .nil
+    | 2 => .ofLabel (.op .succ) (.cons (s 0 rfl) .nil)
+    | 3 => .ofLabel (.op .atLeast) (pair (s 0 rfl) (s 6 rfl))
+    | 4 => .ofLabel (.pass 0) (.cons ⟨3, rfl⟩ .nil)
+    | 5 => .ofLabel (.eval 0) (pair (s 0 rfl) (s 4 rfl))
+    | 6 => .ofLabel (.param .head) .nil
+    | 7 => .ofLabel (.param (.tail .head)) .nil
+    | 8 =>
+      if second then .ofLabel (.op .add) (pair (s 5 rfl) (s 7 rfl))
+      else .ofLabel (.op .succ) (.cons (s 5 rfl) .nil)
+  roots := if second then four (s 8 rfl) (s 4 rfl) (s 6 rfl) (s 8 rfl)
+    else four (s 8 rfl) (s 7 rfl) (s 4 rfl) (s 8 rfl)
+
+private def sort (i : Fin 16) : Ty Unit := if i = 3 ∨ i = 12 then .bool else .count
+private def r (i : Fin 16) (h : sort i = .count) : Ref sort .count := ⟨i, h⟩
+
+-- These are the actual original wires. The second guard uses row 8,
+-- which is the first stage's computed exit observation. Row 7 is shared.
+private def graph : Graph Op inputs outputs 16 2 where
+  forest := ⟨fun _ => none⟩
+  sort := sort
+  node i := match i with
+    | 0 => .ofLabel (.theta 0) (pair (r 1 rfl) (r 2 rfl))
+    | 1 => .ofLabel (.op .zero) .nil
+    | 2 => .ofLabel (.op .succ) (.cons (r 0 rfl) .nil)
+    | 3 => .ofLabel (.op .atLeast) (pair (r 0 rfl) (r 6 rfl))
+    | 4 => .ofLabel (.pass 0) (.cons ⟨3, rfl⟩ .nil)
+    | 5 => .ofLabel (.eval 0) (pair (r 0 rfl) (r 4 rfl))
+    | 6 => .ofLabel (.param .head) .nil
+    | 7 => .ofLabel (.param (.tail .head)) .nil
+    | 8 => .ofLabel (.op .succ) (.cons (r 5 rfl) .nil)
+    | 9 => .ofLabel (.theta 1) (pair (r 10 rfl) (r 11 rfl))
+    | 10 => .ofLabel (.op .zero) .nil
+    | 11 => .ofLabel (.op .succ) (.cons (r 9 rfl) .nil)
+    | 12 => .ofLabel (.op .atLeast) (pair (r 9 rfl) (r 8 rfl))
+    | 13 => .ofLabel (.pass 1) (.cons ⟨12, rfl⟩ .nil)
+    | 14 => .ofLabel (.eval 1) (pair (r 9 rfl) (r 13 rfl))
+    | 15 => .ofLabel (.op .add) (pair (r 14 rfl) (r 7 rfl))
+    | ⟨k + 16, bound⟩ => False.elim (by omega)
+  roots := four (r 15 rfl) (r 13 rfl) (r 8 rfl) (r 15 rfl)
+
+private def layout : Layout graph (stage false) (stage true) where
+  first i := match i with
+    | 0 => r 0 rfl
+    | 1 => r 1 rfl
+    | 2 => r 2 rfl
+    | 3 => ⟨3, rfl⟩
+    | 4 => r 4 rfl
+    | 5 => r 5 rfl
+    | 6 => r 6 rfl
+    | 7 => r 7 rfl
+    | 8 => r 8 rfl
+  second i := match i with
+    | 0 => r 9 rfl
+    | 1 => r 10 rfl
+    | 2 => r 11 rfl
+    | 3 => ⟨12, rfl⟩
+    | 4 => r 13 rfl
+    | 5 => r 14 rfl
+    | 6 => r 8 rfl
+    | 7 => r 7 rfl
+    | 8 => r 15 rfl
+  inputs := pair (r 6 rfl) (r 7 rfl)
+  route := pair .head (.tail .head)
+
+private def rank : DemandRank 16 2 :=
+  [.phase (fun i => if 9 ≤ i.val then 1 else 0),
+   .phase (fun i => match i.val with
+      | 8 | 15 => 3 | 5 | 14 => 2 | 4 | 13 => 1 | _ => 0),
+   .counter 0, .counter 1,
+   .phase (fun i => match i.val with | 2 | 3 | 11 | 12 => 2 | 0 | 9 => 1 | _ => 0)]
+
+private def roles : Closed.Automatic.Roles Op := ⟨.zero, .succ, .not⟩
+private theorem laws : roles.Laws model := ⟨rfl, fun _ => rfl, fun _ => rfl⟩
+
+private structure Linked where
+  first : Closed.Automatic.Recovered (stage false) roles
+  second : Closed.Automatic.Recovered (stage true) roles
+  accepted : Accepted graph first.certificate second.certificate
+
+private def linked (d : Layout graph (stage false) (stage true)) : Option Linked := do
+  let first ← Closed.Automatic.extract (stage false) roles
+  let second ← Closed.Automatic.extract (stage true) roles
+  let accepted ← check graph first.certificate second.certificate d rank
+  return ⟨first, second, accepted⟩
+
+private def input (limit : Nat) : Tuple model.Value inputs := pair ⟨limit⟩ ⟨10⟩
+
+private def run (fuel₁ fuel₂ limit : Nat) : Option (List Nat) := do
+  let a ← linked layout
+  let .cons x (.cons y (.cons z (.cons w .nil))) ← a.accepted.runFuel model fuel₁ fuel₂ (input limit)
+  return [x.down, y.down, z.down, w.down]
+
+private def runFirst : Option (List Nat) := do
+  let a ← linked layout
+  let .cons x (.cons y (.cons z (.cons w .nil))) ← a.first.certificate.runFuel model 2 (input 2)
+  return [x.down, y.down, z.down, w.down]
+
+#guard runFirst == some [3, 10, 2, 3]
+#guard rank.check graph
+#guard run 2 3 2 == some [13, 3, 3, 13]
+#guard (run 1 3 2).isNone
+#guard (run 2 2 2).isNone
+#guard run 1 2 1 == some [12, 2, 2, 12]
+-- Both arguments are counts, so a type-only check would allow this swap.
+#guard (linked { layout with route := pair (.tail .head) .head }).isNone
+
+private def certifiedRun :
+    Option {a : Linked //
+      Exec model a.accepted.revert (input 2) (some (four ⟨13⟩ ⟨3⟩ ⟨3⟩ ⟨13⟩)) ∧
+      ∀ idx, ∃ mid, a.accepted.Observations model
+        (graph.denote model (input 2) a.accepted.demandWellFounded) idx mid (four ⟨13⟩ ⟨3⟩ ⟨3⟩ ⟨13⟩)} := do
+  let a ← linked layout
+  match result : a.accepted.runFuel model 2 3 (input 2) with
+  | some (.cons ⟨13⟩ (.cons ⟨3⟩ (.cons ⟨3⟩ (.cons ⟨13⟩ .nil)))) =>
+    have ran := a.accepted.exec_of_runFuel 2 3 (input 2) result
+    return ⟨a, ran, fun idx => a.accepted.observations_of_exec
+      (a.first.laws laws) (a.second.laws laws) (input 2) idx ran⟩
+  | _ => none
+
+#guard certifiedRun.isSome
+
+end Silmaril.SSA.PEG.Simple.Revert.While.Siblings.Tests

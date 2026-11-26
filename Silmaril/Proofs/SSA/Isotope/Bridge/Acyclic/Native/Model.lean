@@ -92,18 +92,18 @@ theorem Endpoint.denoteSingleton_eq_iff_proof {X A : τ}
 
 end Model
 
-section Finite
+section Trace
 
 open Silmaril.Elgot
 
-variable {Φ : Type} [LetCase.Structural.Finite.Signature Φ] {n : Nat} {β : Context n} {A : Types}
+variable {Φ : Type} [HasTy Φ Types]
 
-private def finiteSig : Isotope.Institution.InstrSig Types Bool where
+private def traceSig : Isotope.Institution.InstrSig Types Bool where
   Instr := Φ
   hasTy := inferInstance
   hasEff := inferInstance
 
-private theorem trace_region_coherent :
+theorem trace_region_coherent_proof :
     let := traceInstructions (α := Empty) (Φ := Φ)
     RegionTypingCoherent (Φ := Φ) (traceJ (α := Empty) (Φ := Φ)) (traceTypes Empty) := by
   have coherent (F : Empty → Type) (T : Isotope.Semantics.InstructionModel (Ty.denote F) Φ (Trace Empty Φ)) :
@@ -113,15 +113,21 @@ private theorem trace_region_coherent :
     subst F
     let bad : {B : Type} → Trace Empty Φ B := fun {_} =>
       Silmaril.Semantics.NondeterministicTrace.Finite.ofOutcomes ∅
-    exact Isotope.Institution.Acyclic.Captured.Rewrite.Kleisli.regionCoherent (m := Trace Empty Φ) (P := finiteSig) T
+    exact Isotope.Institution.Acyclic.Captured.Rewrite.Kleisli.regionCoherent (m := Trace Empty Φ) (P := traceSig) T
       (fun f hf => by cases hf) (fun {_} => bad)
   exact coherent (fun _ => Nat) model
+
+end Trace
+
+section Finite
+
+variable {Φ : Type} [LetCase.Structural.Finite.Signature Φ] {n : Nat} {β : Context n} {A : Types}
 
 private theorem trace_of_valid {p q : Endpoint Φ β A} (valid : p.Valid q) :
     traceArrow p.compile.2 = traceArrow q.compile.2 := by
   classical
   let := traceInstructions (α := Empty) (Φ := Φ)
-  let := trace_region_coherent (Φ := Φ)
+  let := trace_region_coherent_proof (Φ := Φ)
   let J := traceJ (α := Empty) (Φ := Φ)
   let M := traceTypes Empty
   have region := valid J M

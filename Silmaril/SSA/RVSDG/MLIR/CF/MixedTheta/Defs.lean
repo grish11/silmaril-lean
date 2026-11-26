@@ -85,6 +85,12 @@ def eval (codec : TyDen A ≃ BitVec w.val) (body : Body Φ ε A w Γ Δ) (env :
 
 def packet (codec : TyDen A ≃ BitVec w.val) (x : TyDen A) : Env [w] := .cons (codec x) .nil
 
+/-- The result of one activation before its typed conditional terminator. -/
+def activationPacket (codec : TyDen A ≃ BitVec w.val) (route : TyDen A ⊕ TyDen A) : Env [i1,w] :=
+  match route with
+  | .inl x => .cons (BitVec.ofBool false) (packet codec x)
+  | .inr x => .cons (BitVec.ofBool true) (packet codec x)
+
 end Semantics
 
 end Silmaril.SSA.RVSDG.MLIR.CF.MixedTheta

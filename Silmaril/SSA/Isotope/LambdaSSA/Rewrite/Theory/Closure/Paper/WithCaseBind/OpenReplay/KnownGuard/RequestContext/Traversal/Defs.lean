@@ -62,28 +62,37 @@ def retainPayload {X A : Ty Empty} (p : Term signature.Instr X unit) :
     Term signature.Instr (product X A) unit :=
   .seq (.fst X A) p
 
-/-- Compile the certificate with the original continuation interfaces. A
-pruned test forwards the prior unit into the original live guard frame. -/
-def pruned {L : List (Ty Empty)} {tag : Bool} :
+/-- Compile the certificate with a supplied rewrite of the kept source
+subtrees. Requests and pruned guards use their original continuation frames. -/
+def renderWith {L : List (Ty Empty)} {tag : Bool} (rewriteKept : ∀ {n}, ReadTree L n → ReadTree L n) :
     {X : Ty Empty} → {n : Nat} → {slots : Fin n → Term signature.Instr X Bit} →
     {known : Term signature.Instr X Bit} → {p : ReadTree L n} →
     KnownGuardTraversal L tag slots known p → Term signature.Instr X unit → Region signature.Instr
-  | _, _, slots, _, _, .keep p, _ => (p.selectedWith slots).elaborate.val
+  | _, _, slots, _, _, .keep p, _ => ((rewriteKept p).selectedWith slots).elaborate.val
   | X, _, _, _, _, .request emits label _ l r, payload =>
+    let carried := retainPayload (A := Bit) payload
     requestRegion (requestTerm (X := X) emits label)
-      (l.pruned (retainPayload (A := Bit) payload)) (r.pruned (retainPayload (A := Bit) payload))
+      (l.renderWith rewriteKept carried) (r.renderWith rewriteKept carried)
   | X, _ + 1, slots, _, _, .guard emits test low _ _ fl fr tl tr, payload =>
     let carried := retainPayload (A := Bit) (retainPayload (A := unit) payload)
-    let lowArm := requestRegion (requestTerm (X := product X unit) [] low) (fl.pruned carried) (fr.pruned carried)
-    let highArm := requestRegion (requestTerm (X := product X unit) [] (!low)) (tl.pruned carried) (tr.pruned carried)
+    let lowArm := requestRegion (requestTerm (X := product X unit) [] low)
+      (fl.renderWith rewriteKept carried) (fr.renderWith rewriteKept carried)
+    let highArm := requestRegion (requestTerm (X := product X unit) [] (!low))
+      (tl.renderWith rewriteKept carried) (tr.renderWith rewriteKept carried)
     .case (emitPrefix emits (slots test)).elaborate.val
       (Paper.PackedBody.applyPacked lowArm) (Paper.PackedBody.applyPacked highArm)
   | X, _ + 1, _, _, _, .prune emits _ low _ _ _ l r, payload =>
     let carried := retainPayload (A := Bit) (retainPayload (A := unit) payload)
     let live := requestRegion (requestTerm (X := product X unit) [] (if tag then !low else low))
-      (l.pruned carried) (r.pruned carried)
+      (l.renderWith rewriteKept carried) (r.renderWith rewriteKept carried)
     prependEmits emits (.let₁ payload.elaborate.val (Paper.PackedBody.applyPacked live))
 
+/-- Compile the selected pruning certificate, keeping its other subtrees verbatim. -/
+def pruned {L : List (Ty Empty)} {tag : Bool} {X : Ty Empty} {n : Nat}
+    {slots : Fin n → Term signature.Instr X Bit} {known : Term signature.Instr X Bit} {p : ReadTree L n}
+    (c : KnownGuardTraversal L tag slots known p) (payload : Term signature.Instr X unit) :
+    Region signature.Instr :=
+  c.renderWith (fun p => p) payload
 
 /-- A known projection survives the guard's slot deletion precisely when an
 untested logical slot still reads it. The fresh reply is a distinct projection. -/
@@ -139,13 +148,19 @@ structure GuardSplitTraversal {L : List (Ty Empty)} {X : Ty Empty} {n : Nat}
   onTrue : KnownGuardTraversal L true (fun j => retainSlot (A := unit) (terms j))
     (retainSlot (terms p.test)) p.onTrue
 
+def GuardSplitTraversal.renderWith {L : List (Ty Empty)} {X : Ty Empty} {n : Nat}
+    {p : SelectedGuardSplit L n} {terms : Fin n → Term signature.Instr X Bit}
+    (t : GuardSplitTraversal p terms)
+    (rewriteKept : ∀ {n}, ReadTree L n → ReadTree L n) : Region signature.Instr :=
+  let payload := Term.snd (Φ := signature.Instr) X unit
+  .case (emitPrefix p.emits (terms p.test)).elaborate.val
+    (Paper.PackedBody.applyPacked (t.onFalse.renderWith rewriteKept payload))
+    (Paper.PackedBody.applyPacked (t.onTrue.renderWith rewriteKept payload))
+
 def GuardSplitTraversal.pruned {L : List (Ty Empty)} {X : Ty Empty} {n : Nat}
     {p : SelectedGuardSplit L n} {terms : Fin n → Term signature.Instr X Bit}
     (t : GuardSplitTraversal p terms) : Region signature.Instr :=
-  let payload := Term.snd (Φ := signature.Instr) X unit
-  .case (emitPrefix p.emits (terms p.test)).elaborate.val
-    (Paper.PackedBody.applyPacked (t.onFalse.pruned payload))
-    (Paper.PackedBody.applyPacked (t.onTrue.pruned payload))
+  t.renderWith (fun p => p)
 
 /-- Discover on an exact structural slot map. It may present multiple logical
 slots reading the same field, and each guard removes only its tested slot. -/

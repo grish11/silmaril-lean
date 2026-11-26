@@ -21,6 +21,14 @@ theorem observe_eval (prim : Primitives Φ states) (body : Program Φ Γ A)
     Shape.denote body.region (model prim env) s = (body.eval prim env s).behaviour :=
   Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.Syntax.observe_eval prim body env s
 
+/-- Extending the raw environment by an exact typed payload agrees with
+extending the typed bindings used by the primitive interpreter. -/
+theorem denote_push (prim : Primitives Φ states) (env : Bindings Γ) (a : Payload A)
+    {L : List Ty} (body : Region Φ (A :: Γ) L) (s : Fin states) :
+    LambdaSSA.UB.Overlay.denote body (extendModel (model prim env).raw a.val) s =
+      LambdaSSA.UB.Overlay.denote body (model prim (env.push a)).raw s :=
+  Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.Syntax.denote_push prim env a body s
+
 /-- The generated rows certify the actual typed overlay step at all coded
 capture, seed and initial state combinations. -/
 theorem generate_certified (codes : Codes X A B captures seeds results) (prim : Primitives Φ states)

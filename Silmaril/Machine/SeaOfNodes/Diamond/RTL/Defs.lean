@@ -16,7 +16,7 @@ namespace Silmaril.Machine.SeaOfNodes.Diamond.RTL
 
 open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow Graph Model Projection Val ValueSort dataPorts)
 open Silmaril.SSA.RVSDG (Origin Port PortType Tuple Wires extend)
-open Silmaril.Machine.Lir (Word)
+open Silmaril.Machine.Lir (Word ofBool)
 open Silmaril.Machine.RTL.SSA (Block Func Label Op Prog)
 
 abbrev PortTy := Silmaril.SSA.SeaOfNodes.Diamond.Ty Unit
@@ -45,6 +45,14 @@ def model : Model WordOp where
     | .eq, .cons x (.cons y .nil) => ⟨BEq.beq (α := Word) x y⟩
     | .ne, .cons x (.cons y .nil) => ⟨!(BEq.beq (α := Word) x y)⟩
     | .slt, .cons x (.cons y .nil) => ⟨decide (x.toInt < y.toInt)⟩
+
+/-- The frame stores numeric predicates as the existing RTL comparison does.
+This encoding also types the register invariant for ordered producer tables. -/
+def encodeValue : (t : PortTy) → Val model.value t → Word
+  | .value .predicate, b => ofBool b.down
+  | .value (.data _), w => w
+  | .control _, n => BitVec.ofNat 64 n.down.val
+  | .state e, _ => nomatch e
 
 def entry (x y : Word) : Tuple (Val model.value) args := .cons x (.cons y .nil)
 

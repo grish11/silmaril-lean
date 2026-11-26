@@ -13,9 +13,9 @@ public section
 namespace Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader
 
 open Silmaril.SSA.SeaOfNodes
-open Diamond (Ty ValueSort sortValue)
+open Diamond (Ty ValueSort dataPorts sortValue)
 open GVN.Cyclic
-open GVN.Cyclic.Activation (Inputs)
+open GVN.Cyclic.Activation (Inputs inputSlot)
 open GVN.Cyclic.Builder (Built Vertex build?)
 open GVN.Cyclic.Builder.Preheader
 open GVN.Cyclic.Deletion (DeletedLoop)
@@ -26,6 +26,22 @@ open scoped Pure.WordNormalize
 variable {inputs carried : List (ValueSort Unit)} {entrySigs headerSigs : List (List (Ty Unit))}
 variable {out : ValueSort Unit} {loop : Native inputs carried entrySigs headerSigs out}
 variable {result : DeletedLoop Opcode inputs carried entrySigs out}
+
+private theorem entryWires_direct (lanes : List (ValueSort Unit))
+    (lift : ∀ {s}, Port lanes s → Port carried s)
+    {s : ValueSort Unit} (p : Port (dataPorts lanes) (.value s)) :
+    ∃ entry : Port (carried ++ inputs) s,
+      (entryWires loop (number loop) lanes lift).get p = .arg (inputSlot entry) := by
+  induction lanes with
+  | nil => cases p
+  | cons _ _ ih =>
+    cases p with
+    | head => exact ⟨frontPort (canonicalLane loop (number loop) (lift .head)), rfl⟩
+    | tail inner => exact ih (fun port => lift (.tail port)) inner
+
+theorem prepare_builds (loop : Native inputs carried entrySigs headerSigs out) :
+    ∃ built, build? (prepare loop) = some built :=
+  GVN.Cyclic.Builder.build_of_direct_entry (entryWires_direct (loop := loop) carried (fun port => port))
 
 theorem optimize_witness (accepted : optimize? loop = some result) :
     ∃ built : Built (prepare loop), ∃ edited, build? (prepare loop) = some built ∧

@@ -1,13 +1,14 @@
 module
 
 public import Silmaril.Formats.Parquet.Snapshot.Defs
+import all Silmaril.Formats.Parquet.Snapshot.Defs
 import Silmaril.Formats.Parquet.Reader.Thms
 
 public section
 
 namespace Silmaril.Proofs.Formats.Parquet.Snapshot
 
-open Silmaril.Relational Silmaril.Formats.Arrow Silmaril.Formats.Parquet
+open Silmaril.Relational Silmaril.Formats.Arrow Silmaril.Formats.Parquet Silmaril.Formats
 open Silmaril.Formats.Parquet.Snapshot
 
 variable {Id Kind Failure : Type*} {Value : Kind → Type*} {schema : Scan.Schema Id Kind}
@@ -99,5 +100,49 @@ theorem collect_readAll_first_error (snapshot : Checked) (decode : DecodeGroup s
     (snapshot.readAll decode).collect = .ok ⟨⟨schema, groups.flatten⟩, .readError error⟩ := by
   simp [Checked.readAll, Reader.collect_readAll, Reader.denote, Checked.source, Except.map, split,
     denoteGroups_append _ before (index :: after) groups earlier, Reader.denoteGroups, failed]
+
+/-- A checked singleton footer and a successful group read yield one batch
+followed by EOS, including when the decoded row list is empty. -/
+theorem readAll_single {limits : Limits} {bytes : Bytes} {footer : Footer.Span}
+    {metadata : Footer.Metadata} {group : Footer.RowGroup} {bind : Bind schema Value Failure}
+    {decode : DecodeGroup schema Value Failure} {rows : Reader.RowGroup schema Value}
+    (read : Footer.readFooter limits.footer bytes = .ok (footer, metadata))
+    (valid : Footer.validate footer.start limits.maxSchemaDepth metadata = .ok ())
+    (single : metadata.rowGroups = [group]) (bound : bind metadata = .ok decode)
+    (decoded : ∀ snapshot, snapshot.bytes = bytes → snapshot.footer = footer →
+      decode snapshot 0 group = .ok rows)
+    (count : rows.length = group.numRows.toNat) :
+    readAll limits bind bytes = .ok ⟨schema, ⟨[AlignedColumns.ofRows rows], .eos⟩⟩ := by
+  let snapshot : Checked := ⟨bytes, footer, metadata, metadata.rowGroups.toArray⟩
+  have checked : check (Failure := Failure) limits bytes = .ok snapshot := by
+    simp [check, read, valid, snapshot, Except.mapError, Bind.bind, Except.bind, Pure.pure, Except.pure]
+  have opened : openSource limits bind bytes = .ok (snapshot.source decode) := by
+    simp [openSource, checked, show snapshot.metadata = metadata from rfl, bound]
+  have groupAt : snapshot.groupAt 0 = some group := by
+    simp [Checked.groupAt, snapshot, single]
+  have groups : snapshot.groupCount = 1 := by
+    simp [Checked.groupCount, snapshot, single]
+  have readGroup : snapshot.readGroup decode 0 = .ok rows :=
+    (readGroup_ok_iff snapshot decode 0 rows).2 ⟨group, groupAt, decoded snapshot rfl rfl, count⟩
+  simp [readAll, opened, Except.map, Reader.readAll_opened, Checked.source, groups, Reader.denoteGroups, readGroup]
+
+/-- Logical scanning of the actual byte reader observes the projected ordered
+prefix, with EOS after all groups or the first indexed read error. The
+predicate and projection operate on decoded rows. -/
+theorem collect_scan_readAll_of_checked
+    (limits : Limits) (bind : Bind schema Value Failure) (bytes : Bytes)
+    {snapshot : Checked} {decode : DecodeGroup schema Value Failure}
+    (checked : check (Failure := Failure) limits bytes = .ok snapshot)
+    (bound : bind snapshot.metadata = .ok decode)
+    (projection : (s : Scan.Schema Id Kind) → Scan.Projection s)
+    (keep : (s : Scan.Schema Id Kind) → Scan.Predicate s Value) :
+    ((readAll limits bind bytes).scan projection keep).collect =
+      let source := snapshot.source decode
+      let groups := Reader.denoteGroups source.readGroup source.groups
+      .ok ⟨⟨(projection schema).schema,
+        (projection schema).scan (keep schema) groups.1.flatten⟩, groups.2⟩ := by
+  have opened : openSource limits bind bytes = .ok (snapshot.source decode) := by
+    simp [openSource, checked, bound]
+  simp [readAll, opened, Except.map, Reader.collect_scan_readAll, Reader.denote]
 
 end Silmaril.Proofs.Formats.Parquet.Snapshot

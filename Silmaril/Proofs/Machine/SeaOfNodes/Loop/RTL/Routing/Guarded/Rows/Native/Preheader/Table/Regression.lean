@@ -2,6 +2,10 @@ module
 
 import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Reindex.Thms
 import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Family.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Family.Phi.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Family.MLIR.Thms
 
 namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table
 
@@ -458,6 +462,13 @@ example : ∃ start latched, narrowTargets.1.start 0 (words narrowInput) mem = s
   exact ⟨_, latched, started, steps, initialized ▸ agreed⟩
 
 example : narrowTargets.1.runMain 13 0 (words narrowInput) mem = .returned [6] mem := by cbv
+example : narrowTargets.1.runMain (Width.rtlFuel Entry Header 2) 0 (words narrowInput) mem =
+    .returned [6] mem :=
+  (Width.rtl_runMain_backedges_iff narrowAccepted narrowInput mem mem [6] 2).mpr
+    ⟨6, by cbv, rfl, rfl⟩
+
+example : (narrowTargets.1.runMain 12 0 (words narrowInput) mem).returnedValues? = none := by cbv
+example : source.evalBackedges model 1 (removeCapture.pull narrowInput) = none := by cbv
 example : narrowTargets.1.runMain 13 0 [5, 2, 5] mem = .stuck := by cbv
 example : Generic.Fuel.run model (inputEnv model narrowInput) 3 narrowTargets.2 =
     some (0, Generic.packResult model (out := word) (6 : Word)) := by cbv
@@ -524,6 +535,11 @@ private theorem trace_of_cycle {program : Prog Reg} {s : State Reg} {n : Nat}
 example : narrowTargets.1.divOracle 0 (words narrowSpin) mem :=
   ⟨narrowStart, by cbv, InfiniteTrace.of_steps (steps_of_run reachesNarrowHeader) (trace_of_cycle narrowCycle)⟩
 
+example : ∀ returned final, ¬ narrowTargets.1.oracle 0 (words narrowSpin) mem returned final :=
+  (Width.rtl_no_finite_return_iff narrowAccepted narrowSpin mem).mpr
+    ((show removeCapture.pull narrowSpin = equalCaptures by cbv).symm ▸ equalCapturesAbsent)
+
+
 example : (∀ args : WordTuple 2,
     narrowGraph.denote model args = (Width.mapCaptures removeCapture aliasSubtraction).denote model args) :=
   (Width.equation_on_image removeCapture source aliasSubtraction).mpr (by
@@ -539,7 +555,7 @@ private def widenCaptures : InputMap 3 4 := fun slot => if slot = 2 then 3 else 
 private def wideGraph : Width.Source 4 3 Entry Header := Width.mapCaptures widenCaptures source
 private def wideTargets : Checked.Phi.Targets := (Width.lowerRTL wideGraph, Generic.lower wideGraph)
 
-example : Width.lowerChecked widenCaptures source = some wideTargets :=
+private theorem wideAccepted : Width.lowerChecked widenCaptures source = some wideTargets :=
   Width.lowerChecked_of_accepted widenCaptures accepted
 
 example : (wideTargets.1.func? 0).map (·.sig.params) = some 4 := by cbv
@@ -552,5 +568,361 @@ example : widenCaptures.pull wideInput = input := by cbv
 example : wideTargets.1.runMain 10 0 (words wideInput) mem = .returned [7] mem := by cbv
 example : Generic.Fuel.run model (inputEnv model wideInput) 2 wideTargets.2 =
     some (0, Generic.packResult model (out := word) (7 : Word)) := by cbv
+
+example : wideTargets.1.runMain (Width.rtlFuel Entry Header 1) 0 (words wideInput) mem =
+    .returned [7] mem :=
+  (Width.rtl_runMain_fuel_iff wideAccepted wideInput mem mem [7] _).mpr
+    ⟨1, (7 : Word), (show widenCaptures.pull wideInput = input by cbv).symm ▸ counted, le_rfl, rfl, rfl⟩
+
+private def wideImmediate : WordTuple 4 := .cons (9 : Word) (bank 2 99 5)
+
+example : wideTargets.1.runMain (Width.rtlFuel Entry Header 0) 0 (words wideImmediate) mem =
+    .returned [10] mem :=
+  (Width.rtl_runMain_backedges_iff wideAccepted wideImmediate mem mem [10] 0).mpr
+    ⟨10, by cbv, rfl, rfl⟩
+
+private def wideSpin : WordTuple 4 := .cons (0 : Word) (bank 1 99 1)
+
+example : wideTargets.1.divOracle 0 (words wideSpin) mem :=
+  (Width.rtl_divOracle_iff wideAccepted wideSpin mem).mpr
+    ((show widenCaptures.pull wideSpin = spin by cbv).symm ▸ spinAbsent)
+
+private def dispatchSource : Width.Dispatch.Source 3 3 Entry Header :=
+  ⟨source, .cons (.output (0 : Fin 2) .head)
+    (.cons (.arg (old 2)) (.cons (.arg (old 1)) .nil)), .arg (prefixPort (capture 2))⟩
+
+private def dispatchProg := Width.Dispatch.lowerRTL (Width.Dispatch.mapCaptures removeCapture dispatchSource)
+private def otherTarget : Checked.Phi.Targets :=
+  (Table.lowerChecked (dispatchSource.row false)).get (by cbv)
+
+private theorem dispatchAccepted : Width.Dispatch.lowerChecked removeCapture dispatchSource = some dispatchProg :=
+  Width.Dispatch.lowerChecked_of_accepted removeCapture dispatchSource
+    (left := targets) (right := otherTarget) accepted (by cbv)
+
+example : (dispatchProg.func? 0).map (·.sig.params) = some 2 :=
+  (Width.Dispatch.lowerChecked_sound removeCapture dispatchSource dispatchAccepted).2.2.2
+
+example : (dispatchProg.block? 0 3).map (·.term.args) =
+    some [(1, [.node 0, .arg 3, .arg 4]), (1, [.node 0, .arg 4, .arg 3])] := by cbv
+
+private def leftInput := narrowInput
+private def rightInput := pair 0 (-1)
+
+example : dispatchSource.step (removeCapture.pull leftInput) (bank 0 2 5) =
+    .inr (true, bank 2 2 5) := by cbv
+example : dispatchSource.step (removeCapture.pull rightInput) (bank 0 (-1) 0) =
+    .inr (false, bank (-1) 0 (-1)) := by cbv
+
+-- Observe the actual register bank after the first selected dispatcher transfer.
+private def firstFeedback (input : WordTuple 2) : Option (Nat × List Word × Memory) := do
+  let state ← runningState? (dispatchProg.runMain 7 0 (words input) mem)
+  let values ← state.frame.readAll (paramRegs 2 3)
+  pure (state.point.label, values, state.mem)
+
+example : firstFeedback leftInput = some (1, [2, 2, 5], mem) := by cbv
+example : firstFeedback rightInput = some (1, [-1, 0, -1], mem) := by cbv
+example : dispatchProg.runMain 15 0 (words leftInput) mem = .returned [6] mem := by cbv
+example : dispatchProg.runMain 11 0 (words rightInput) mem = .returned [-1] mem := by cbv
+example : dispatchProg.runMain 15 0 (words (removeCapture.pull leftInput)) mem = .stuck := by cbv
+
+private theorem rightCounted : dispatchSource.ReturnsAfter (removeCapture.pull rightInput) 1
+    (source.initial model (removeCapture.pull rightInput)) (-1) :=
+  .feedback (side := false) (next := bank (-1) 0 (-1)) (by cbv) (.exit (by cbv))
+
+example : dispatchProg.oracle 0 (words rightInput) mem [-1] mem :=
+  (Width.Dispatch.rtl_return_iff removeCapture dispatchSource dispatchAccepted rightInput mem mem [-1]).mpr
+    ⟨1, -1, rightCounted, rfl, rfl⟩
+
+example : (dispatchProg.runMain 10 0 (words rightInput) mem).returnedValues? = none := by cbv
+
+-- The alternate projection must pass the same ordinary source checker.
+example : Width.Dispatch.lowerChecked removeCapture { dispatchSource with
+    other := .cons (.output (0 : Fin 2) .head)
+      (.cons (.output (0 : Fin 2) .head) (.cons (.arg (old 1)) .nil)) } = none := by cbv
+
+private def familySource : Width.Dispatch.Family.Source 3 3 Entry Header 2 :=
+  ⟨source,
+    .test (.arg (prefixPort (capture 0))) (source.phiInputs .backedge)
+      (.test (.arg (prefixPort (capture 1))) dispatchSource.other
+        (.last (.cons (.output (0 : Fin 2) .head)
+          (.cons (.arg (old 2)) (.cons (.arg (old 0)) .nil)))))⟩
+
+private def familyProg :=
+  Width.Dispatch.Family.lowerRTL (Width.Dispatch.Family.mapCaptures widenCaptures familySource)
+
+private def lastPlan : Plan 3 Entry := (recognize (familySource.row (2 : Fin 3))).get (by cbv)
+private def lastTarget : Checked.Phi.Targets := (lastPlan.rtl, Generic.lower (familySource.row (2 : Fin 3)))
+private theorem lastAccepted : lowerChecked (familySource.row (2 : Fin 3)) = some lastTarget := by cbv
+
+private theorem familyAccepted :
+    Width.Dispatch.Family.lowerChecked widenCaptures familySource = some familyProg := by
+  apply Width.Dispatch.Family.lowerChecked_of_accepted
+  intro slot
+  refine Fin.cases ?_ (fun rest => ?_) slot
+  · exact ⟨targets, accepted⟩
+  · refine Fin.cases ?_ (fun last => ?_) rest
+    · exact ⟨otherTarget, by cbv⟩
+    · have eq : last = 0 := Fin.eq_zero last
+      subst last
+      exact ⟨lastTarget, lastAccepted⟩
+
+example : (familyProg.func? 0).map (·.sig.params) = some 4 :=
+  (Width.Dispatch.Family.lowerChecked_sound widenCaptures familySource familyAccepted).2.2.2
+
+private def middleInput : WordTuple 4 := .cons (0 : Word) (bank 1 99 5)
+private def defaultInput : WordTuple 4 := .cons (0 : Word) (bank 0 99 5)
+
+private def feedbackAt (fuel : Nat) (input : WordTuple 4) : Option (Nat × List Word × Memory) := do
+  let state ← runningState? (familyProg.runMain fuel 0 (words input) mem)
+  let packet ← state.frame.readAll (paramRegs 4 3)
+  pure (state.point.label, packet, state.mem)
+
+-- The extra tests consume real instructions and leave the old bank in place.
+example : feedbackAt 6 wideInput = some (3, [1, 3, 5], mem) := by cbv
+example : feedbackAt 7 wideInput = some (1, [4, 3, 5], mem) := by cbv
+example : feedbackAt 7 middleInput = some (4, [-5, -4, 5], mem) := by cbv
+example : feedbackAt 8 middleInput = some (1, [-9, 5, -4], mem) := by cbv
+example : feedbackAt 8 defaultInput = some (5, [-5, -5, 5], mem) := by cbv
+example : feedbackAt 9 defaultInput = some (1, [-10, 5, -5], mem) := by cbv
+
+example : familyProg.runMain 11 0 (words wideInput) mem = .returned [7] mem := by cbv
+example : familyProg.runMain 12 0 (words middleInput) mem = .returned [-4] mem := by cbv
+
+private theorem defaultReturns :
+    familySource.ReturnsAlong (widenCaptures.pull defaultInput) [2]
+      (source.initial model (widenCaptures.pull defaultInput)) (-5) :=
+  .feedback (next := bank (-10) 5 (-5)) (by cbv) (.exit (by cbv))
+
+example : familyProg.runMain 13 0 (words defaultInput) mem = .returned [-5] mem :=
+  (Width.Dispatch.Family.rtl_runMain_fuel_iff widenCaptures familySource familyAccepted
+    defaultInput mem mem [-5] 13).mpr ⟨[2], -5, defaultReturns, by decide, rfl, rfl⟩
+
+example : (familyProg.runMain 12 0 (words defaultInput) mem).returnedValues? = none := by cbv
+
+-- Duplicate the same computed result within the third column.
+example : Width.Dispatch.Family.lowerChecked widenCaptures { familySource with
+    rows := .test (.arg (prefixPort (capture 0))) (source.phiInputs .backedge)
+      (.test (.arg (prefixPort (capture 1))) dispatchSource.other
+        (.last (.cons (.output (0 : Fin 2) .head)
+          (.cons (.output (0 : Fin 2) .head) (.cons (.arg (old 0)) .nil))))) } = none := by cbv
+
+private def singletonSource : Width.Dispatch.Family.Source 3 3 Entry Header 0 :=
+  ⟨source, .last (source.phiInputs .backedge)⟩
+
+example : (Width.Dispatch.Family.lowerChecked widenCaptures singletonSource).map
+    (fun program => (program.runMain 11 0 (words wideInput) mem).returnedValues?) =
+    some (some [7]) := by cbv
+
+section ExtractedPhi
+
+open Silmaril.Machine.RTL (Opcode packValues)
+open Silmaril.Machine.RTL.SSA (toLambdaSSA)
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch
+open Silmaril.Isotope.LambdaSSA.Semantics (Env)
+open Silmaril.SSA.PhiView (latch)
+
+private def familyFunction := (familyProg.func? 0).get (by rfl)
+private def familyPhi : Family.Phi.Checked familyFunction 2 :=
+  ⟨by decide⟩
+
+example : Family.Phi.extract familyFunction 2 = some familyPhi := by
+  have wf : familyFunction.WellFormed := Family.lowerFunc_wellFormed _
+  simp [Family.Phi.extract, wf, familyPhi.present]
+
+-- Four original occurrences target the same three-word header.
+example : (List.finRange 4).map Family.Phi.key = [(0, 0), (3, 0), (4, 0), (5, 0)] := by decide
+
+example : (List.finRange 4).map familyPhi.reemit = [
+    some (1, [.arg 7, .arg 8, .arg 3]),
+    some (1, [.node 0, .arg 5, .arg 6]),
+    some (1, [.node 0, .arg 6, .arg 5]),
+    some (1, [.node 0, .arg 6, .arg 4])] := by
+  change [familyPhi.reemit 0, familyPhi.reemit 1, familyPhi.reemit 2, familyPhi.reemit 3] = _
+  simp only [← Family.Phi.reemit_roundTrip]
+  rfl
+
+example : (Family.Phi.extract familyFunction 3).isNone := by
+  unfold Family.Phi.extract
+  split
+  · split
+    · rename_i present
+      have absent : Family.Phi.readColumn familyFunction (Family.Phi.key (4 : Fin 5)) = none := rfl
+      have impossible := present (4 : Fin 5)
+      rw [absent] at impossible
+      cases impossible
+    · rfl
+  · rfl
+
+private def extractedAt (fuel : Nat) (input : WordTuple 4) (slot : Fin 3) := do
+  let state ← runningState? (familyProg.runMain fuel 0 (words input) mem)
+  let incoming := slot.succ
+  if state.point.label = (Family.Phi.key incoming).1 then
+    some (latch familyPhi.view (familyPhi.edge incoming) (Family.Phi.snapshot familyFunction.allDefs state.frame),
+      state.mem)
+  else none
+
+example : extractedAt 6 wideInput 0 = some (packValues [4, 3, 5], mem) := by cbv
+example : extractedAt 7 middleInput 1 = some (packValues [-9, 5, -4], mem) := by cbv
+example : extractedAt 8 defaultInput 2 = some (packValues [-10, 5, -5], mem) := by cbv
+example : extractedAt 7 middleInput 0 = none := by cbv
+
+private def machineEnv (input : WordTuple 4) : Env Word :=
+  fun _ => packValues (words input)
+
+example : Eval (Opcode.step (sigs := [⟨4, 1⟩]) familyProg.oracle) (machineEnv defaultInput)
+    (toLambdaSSA [⟨4, 1⟩] familyFunction) mem 0 (packValues [-5]) mem :=
+  (Family.Phi.region_return_iff widenCaptures familySource familyAccepted defaultInput _ rfl mem mem [-5]).mpr
+    ((Family.rtl_return_iff widenCaptures familySource familyAccepted defaultInput mem mem [-5]).mpr
+      ⟨[2], -5, defaultReturns, rfl, rfl⟩)
+
+private def fixedSource : Family.Source 3 3 Entry Header 2 :=
+  { familySource with
+    rows := .test (.arg (prefixPort (capture 1))) (familySource.rows.column 0)
+      (.test (.arg (prefixPort (capture 0))) (familySource.rows.column 1)
+        (.last (familySource.rows.column 2))) }
+
+private def fixedProg := Family.lowerRTL (Family.mapCaptures widenCaptures fixedSource)
+
+private theorem fixedAccepted : Family.lowerChecked widenCaptures fixedSource = some fixedProg :=
+  Family.lowerChecked_of_accepted widenCaptures fixedSource
+    (Family.lowerChecked_sound widenCaptures familySource familyAccepted).1
+
+private def familyFixedBank := source.initial model (widenCaptures.pull wideSpin)
+
+private theorem fixedStep : fixedSource.step (widenCaptures.pull wideSpin) familyFixedBank =
+    .inr (0, familyFixedBank) := by cbv
+
+private theorem fixedCannotReturn {slots : List (Fin 3)} {carried : WordTuple 3} {value : Word}
+    (trace : fixedSource.ReturnsAlong (widenCaptures.pull wideSpin) slots carried value)
+    (atFixed : carried = familyFixedBank) : False := by
+  induction trace with
+  | exit taken =>
+    rw [atFixed, fixedStep] at taken
+    cases taken
+  | feedback taken _ ih =>
+    rw [atFixed, fixedStep] at taken
+    exact ih (congrArg Prod.snd (Sum.inr.inj taken)).symm
+
+example : ¬ ∃ value final, Eval (Opcode.step (sigs := [⟨4, 1⟩]) fixedProg.oracle) (machineEnv wideSpin)
+    (toLambdaSSA [⟨4, 1⟩] (Family.lowerFunc (Family.mapCaptures widenCaptures fixedSource)))
+    mem 0 value final := by
+  apply (Family.Phi.region_no_return_iff widenCaptures fixedSource fixedAccepted wideSpin _ rfl mem).mpr
+  rintro ⟨returned, final, run⟩
+  obtain ⟨_, _, trace, _, _⟩ :=
+    (Family.rtl_return_iff widenCaptures fixedSource fixedAccepted wideSpin mem final returned).mp run
+  exact fixedCannotReturn trace rfl
+
+end ExtractedPhi
+
+section CFDispatch
+
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.MLIR.CF (i64)
+open Silmaril.MLIR.Arith (Env Width)
+open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF (evalOp)
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch
+
+private abbrev cfWord : Diamond.Ty Width := .value (.data i64)
+private abbrev cfPred : Diamond.Ty Width := .value .predicate
+private abbrev cfEntry : List (List (Diamond.Ty Width)) := [[cfWord], [cfWord]]
+private abbrev cfHeader : List (List (Diamond.Ty Width)) := [[cfWord], [cfPred]]
+
+-- The three-to-four RTL fixture has one unused capture at position 2.
+private def cfBank : Family.MLIR.Program 4 3 cfEntry cfHeader where
+  preheader :=
+    .cons (.arithmetic (.binary .subi))
+      (.cons (.arg .head) (.cons (.arg (.tail (.tail (.tail .head)))) .nil))
+      (.cons (.arithmetic (.binary .addi))
+        (.cons (.output (0 : Fin 1) .head) (.cons (.arg (.tail .head)) .nil)) .nil)
+  header :=
+    .cons (.arithmetic (.binary .addi))
+      (.cons (.arg (.tail (.tail (.tail (.tail .head)))))
+        (.cons (.arg (.tail (.tail (.tail (.tail (.tail .head)))))) .nil))
+      (.cons (.slt i64)
+        (.cons (.output (0 : Fin 1) .head)
+          (.cons (.arg (.tail (.tail (.tail (.tail (.tail (.tail .head))))))) .nil)) .nil)
+  phiInputs
+    | .entry => .cons (.output (0 : Fin 2) .head)
+        (.cons (.output (1 : Fin 2) .head) (.cons (.arg (.tail (.tail (.tail .head)))) .nil))
+    | .backedge => .cons (.output (0 : Fin 2) .head)
+        (.cons (.arg (.tail (.tail (.tail (.tail (.tail .head))))))
+          (.cons (.arg (.tail (.tail (.tail (.tail (.tail (.tail .head))))))) .nil))
+  predicate := .output (1 : Fin 2) .head
+  result := .output (0 : Fin 2) .head
+
+private def cfLive : Family.MLIR.Live 4 3 cfHeader :=
+  [.output (0 : Fin 2) .head,
+    .arg (.tail (.tail (.tail (.tail .head)))),
+    .arg (.tail (.tail (.tail (.tail (.tail .head))))),
+    .arg (.tail (.tail (.tail (.tail (.tail (.tail .head)))))),
+    .arg .head, .arg (.tail .head)]
+
+private def cfPlan : Family.MLIR.Plan familyFunction (Family.MLIR.liveRegs cfLive) 3 2 :=
+  ⟨by decide⟩
+
+example : Family.MLIR.check familyFunction (Family.MLIR.liveRegs cfLive) 3 2 = some cfPlan := by
+  simp [Family.MLIR.check, cfPlan.present]
+
+-- Leaving the producer temporary out of the live packet refuses admission.
+example : (Family.MLIR.check familyFunction (Family.MLIR.liveRegs cfLive.tail) 3 2).isNone := by decide
+
+example (slot : Fin 3) :
+    familyPhi.reemit slot.succ = some (1, (cfPlan.row slot).column.registers) :=
+  Family.MLIR.column_eq_phi cfPlan familyPhi slot
+
+private def cfTarget := Family.MLIR.lower cfBank cfLive cfPlan
+private def cfInput (x y : Word) : Env (Family.MLIR.wordsTy 4) := .cons x (.cons y (.cons 99 (.cons 5 .nil)))
+private def cfPacket (fresh x y c₀ c₁ : Word) : Env (Family.MLIR.wordsTy cfLive.length) :=
+  .cons fresh (.cons x (.cons y (.cons 5 (.cons c₀ (.cons c₁ .nil)))))
+
+-- The actual CF header passes its computed word and the pre-rebind bank.
+example : (cfTarget.block .header).eval evalOp (fun term env => term.eval env)
+    (.cons 1 (.cons 3 (.cons 5 (cfInput 6 2)))) =
+    .inl ⟨.dispatch 0, cfPacket 4 1 3 6 2⟩ :=
+  rfl
+
+example : (cfTarget.block .header).eval evalOp (fun term env => term.eval env)
+    (.cons (-5) (.cons (-4) (.cons 5 (cfInput 0 1)))) =
+    .inl ⟨.dispatch 0, cfPacket (-9) (-5) (-4) 0 1⟩ :=
+  rfl
+
+example : (cfTarget.block (.dispatch 0)).eval evalOp (fun term env => term.eval env)
+    ((cfPacket 4 1 3 6 2).append (cfInput 6 2)) =
+    .inl ⟨.header, .cons 4 (.cons 3 (.cons 5 .nil))⟩ :=
+  rfl
+
+example : (cfTarget.block (.dispatch 0)).eval evalOp (fun term env => term.eval env)
+    ((cfPacket (-9) (-5) (-4) 0 1).append (cfInput 0 1)) =
+    .inl ⟨.dispatch 1, cfPacket (-9) (-5) (-4) 0 1⟩ :=
+  rfl
+
+example : (cfTarget.block (.dispatch 1)).eval evalOp (fun term env => term.eval env)
+    ((cfPacket (-9) (-5) (-4) 0 1).append (cfInput 0 1)) =
+    .inl ⟨.header, .cons (-9) (.cons 5 (.cons (-4) .nil))⟩ :=
+  rfl
+
+example : (cfTarget.block (.dispatch 2)).eval evalOp (fun term env => term.eval env)
+    ((cfPacket (-10) (-5) (-5) 0 0).append (cfInput 0 0)) =
+    .inl ⟨.header, .cons (-10) (.cons 5 (.cons (-5) .nil))⟩ :=
+  rfl
+
+-- This run executes the dependent preheader and all three dispatchers.
+example : cfTarget.run evalOp 7 (cfInput 0 0) = some (.cons (-5) .nil) :=
+  rfl
+
+private def rtlAtMiddle := (runningState? (familyProg.runMain 7 0 (words middleInput) mem)).get (by cbv)
+
+private theorem middleSnapshot :
+    Family.MLIR.Snapshot (scope := Family.MLIR.liveRegs cfLive) (List.length_map ..)
+      ((cfPacket (-9) (-5) (-4) 0 1).append (cfInput 0 1)) rtlAtMiddle.frame := by
+  unfold Family.MLIR.Snapshot
+  decide
+
+example : Family.MLIR.StepAgreement (bank := 3) familyProg (1 : Fin 3) rtlAtMiddle.frame mem
+    (cfPacket (-9) (-5) (-4) 0 1)
+    (.inl ⟨.header, .cons (-9) (.cons 5 (.cons (-4) .nil))⟩) :=
+  Family.MLIR.checked_dispatch_step widenCaptures familySource familyAccepted cfBank cfLive cfPlan
+    1 (cfPacket (-9) (-5) (-4) 0 1) (cfInput 0 1) rtlAtMiddle.frame mem middleSnapshot
+
+end CFDispatch
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table

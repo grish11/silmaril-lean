@@ -18,6 +18,7 @@ open Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category (return_bind)
 
 universe u w x
 
+variable {σ : Type x}
 variable {Φ : Type u} [HasTy Φ (Silmaril.Ty Empty)] {states : Nat} {Γ : List (Silmaril.Ty Empty)}
 variable {X A B : Silmaril.Ty Empty} {captures seeds results : Nat}
 
@@ -26,11 +27,11 @@ private theorem push_values (env : Bindings Γ) (a : Payload A) :
   funext i
   exact Fin.cases rfl (fun _ => rfl) i
 
-theorem denote_push (prim : Primitives Φ states) (env : Bindings Γ) (a : Payload A)
-    {L : List (Silmaril.Ty Empty)} (body : Region Φ (A :: Γ) L) (s : Fin states) :
+theorem denote_push (prim : StatePrimitives Φ σ) (env : Bindings Γ) (a : Payload A)
+    {L : List (Silmaril.Ty Empty)} (body : Region Φ (A :: Γ) L) (s : σ) :
     denote body (extendModel (model prim env).raw a.val) s =
       denote body (model prim (env.push a)).raw s := by
-  let run (bound : Fin (Γ.length + 1) → Value Unit) : Behaviour L.length Unit (Fin states) :=
+  let run (bound : Fin (Γ.length + 1) → Value Unit) : Behaviour L.length Unit (σ) :=
     denote body (rawModel prim bound) s
   exact congrArg run (push_values env a)
 

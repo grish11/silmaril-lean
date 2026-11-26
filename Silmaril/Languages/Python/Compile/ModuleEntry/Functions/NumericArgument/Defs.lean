@@ -55,6 +55,8 @@ def power? (base exponent : Int) : Option Int :=
 def binary? (operator : BinaryOperator) (left right : Int) : Option Int :=
   match operator with
   | .add => some (left + right)
+  | .sub => some (left - right)
+  | .mul => some (left * right)
   | .pow => power? left right
   | .bitAnd => some (bitwise (· && ·) left right)
   | .bitOr => some (bitwise (· || ·) left right)

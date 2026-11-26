@@ -4,6 +4,7 @@ public import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Region.Defs
 public import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Thms
 public import Silmaril.SSA.PEG.Rules.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Region.Thms
+import Silmaril.SSA.PEG.Simple.Revert.While.Region.Total.Thms
 import Silmaril.SSA.PEG.Simple.Thms
 
 public section
@@ -154,18 +155,23 @@ private theorem tracePrefix (neg : ∀ b : Bool, m.run negate (.cons ⟨b⟩ .ni
     {body : Stmt P true (.bool :: vars) (.bool :: vars)}
     (At : Nat → Tuple m.Value (.bool :: vars) → Prop)
     (realize : ∀ {k store}, At k store → Schedule.Realizes m values (base.set key k) tagged store)
-    (step : ∀ {k old next}, At k old → Exec m body old (some next) → At (k + 1) next)
+    (Event : Nat → Prop)
+    (step : ∀ {k old next}, At k old → Exec m body old (some next) → At (k + 1) next ∧ Event k)
     {count : Nat} {store final : Tuple m.Value (.bool :: vars)}
     (trace : WhileTrace m (continueTest negate) body count store final)
-    (start : Nat) (entry : At start store) : Prefix (values := values) tagged base key start count final := by
+    (start : Nat) (entry : At start store) :
+    Prefix (values := values) tagged base key start count final ∧
+      ∀ j < count, Event (start + j) := by
   induction trace generalizing start with
   | stop test =>
-    exact ⟨realize entry, flagOfTest neg (realize entry) test,
-      fun j h => (Nat.not_lt_zero j h).elim, fun j h => (Nat.not_lt_zero j h).elim⟩
+    exact ⟨⟨realize entry, flagOfTest neg (realize entry) test,
+      fun j h => (Nat.not_lt_zero j h).elim, fun j h => (Nat.not_lt_zero j h).elim⟩,
+      fun j h => (Nat.not_lt_zero j h).elim⟩
   | @step k old next final test body rest ih =>
-    have tail := ih (start + 1) (step entry body)
+    obtain ⟨nextAt, event⟩ := step entry body
+    obtain ⟨tail, later⟩ := ih (start + 1) nextAt
     have offset (j : Nat) : start + (j + 1) = start + 1 + j := by omega
-    refine ⟨by rw [offset]; exact tail.last, by rw [offset]; exact tail.stop, ?_, ?_⟩
+    refine ⟨⟨by rw [offset]; exact tail.last, by rw [offset]; exact tail.stop, ?_, ?_⟩, ?_⟩
     · intro j lt
       cases j with
       | zero => exact flagOfTest neg (realize entry) test
@@ -177,6 +183,10 @@ private theorem tracePrefix (neg : ∀ b : Bool, m.run negate (.cons ⟨b⟩ .ni
         rw [realize entry s (.tail p)]
         rfl
       | succ j => rw [offset]; exact tail.defined j (by omega) s p
+    · intro j lt
+      cases j with
+      | zero => exact event
+      | succ j => rw [offset]; exact later j (by omega)
 
 private theorem passOfPrefix (solves : g.Solves m input values)
     {tagged : Tuple (Ref g.sort) (.bool :: vars)} {base : Index l} {key : Fin l}
@@ -222,15 +232,21 @@ variable (a : Accepted g inner)
 
 private abbrev ChildStore := Tuple m.Value (.bool :: (inner ++ outer))
 
-private theorem childInitial (solves : g.Solves m input values) (base : Index l)
+private theorem withoutFlag {flag : Ref g.sort .bool} {scope : Tuple (Ref g.sort) vars}
+    {idx : Index l} {store : Tuple m.Value (.bool :: vars)}
+    (entry : Schedule.Realizes m values idx (.cons flag scope) store) :
+    Schedule.Realizes m values idx scope (dropValue store) := by
+  intro t p
+  rw [getDrop]
+  exact entry t (.tail p)
+
+private theorem childInitialScope (solves : g.Solves m input values) (base : Index l)
     {old : Tuple m.Value outer} (captures : a.Captures m values base old)
-    {start : ChildStore (m := m) (inner := inner) (outer := outer)}
-    (ran : a.childStartCode.runLoopFree m old = some start) :
-    Schedule.Realizes m values (base.set a.descriptor.childKey 0) a.descriptor.childTagged start := by
-  let idx := base.set a.descriptor.childKey 0
-  obtain ⟨initialized, init, guard⟩ := Option.bind_eq_some_iff.mp ran
-  have valuesAt := Schedule.realizes_lower a.childStart solves (captures 0) init (idx := idx)
-  apply Schedule.realizes_lower a.childGuard solves _ guard
+    {initialized : Tuple m.Value (inner ++ outer)}
+    (ran : a.childStart.lower.runLoopFree m old = some initialized) :
+    Schedule.Realizes m values (base.set a.descriptor.childKey 0) a.descriptor.childScope initialized := by
+  have valuesAt := Schedule.realizes_lower a.childStart solves (captures 0) ran
+    (idx := base.set a.descriptor.childKey 0)
   apply realizeJoin
   · intro t p
     have initAt := valuesAt t (portLeft p)
@@ -240,6 +256,31 @@ private theorem childInitial (solves : g.Solves m input values) (base : Index l)
     have retained := valuesAt t (portRight inner p)
     rw [getRight] at retained
     exact retained
+
+private theorem childInitial (solves : g.Solves m input values) (base : Index l)
+    {old : Tuple m.Value outer} (captures : a.Captures m values base old)
+    {start : ChildStore (m := m) (inner := inner) (outer := outer)}
+    (ran : a.childStartCode.runLoopFree m old = some start) :
+    Schedule.Realizes m values (base.set a.descriptor.childKey 0) a.descriptor.childTagged start := by
+  obtain ⟨_, init, guard⟩ := Option.bind_eq_some_iff.mp ran
+  exact Schedule.realizes_lower a.childGuard solves (childInitialScope a solves base captures init) guard
+
+private theorem childNextScope (solves : g.Solves m input values) (base : Index l)
+    {old : Tuple m.Value outer} (captures : a.Captures m values base old) {k : Nat}
+    {store updated : Tuple m.Value (inner ++ outer)}
+    (current : Schedule.Realizes m values (base.set a.descriptor.childKey k) a.descriptor.childScope store)
+    (ran : a.childStep.lower.runLoopFree m store = some updated) :
+    Schedule.Realizes m values (base.set a.descriptor.childKey (k + 1)) a.descriptor.childScope updated := by
+  have computed := Schedule.realizes_lower a.childStep solves current ran
+  apply realizeJoin
+  · intro t p
+    have nextAt := computed t (portLeft p)
+    rw [getLeft] at nextAt
+    exact (thetaNext solves (a.boundary.childTheta t p) base k).trans nextAt
+  · intro t p
+    have retained := computed t (portRight inner p)
+    rw [getRight] at retained
+    exact (captures (k + 1) t p).trans ((captures k t p).symm.trans retained)
 
 private theorem childStep (solves : g.Solves m input values) (base : Index l)
     {old : Tuple m.Value outer} (captures : a.Captures m values base old) {k : Nat}
@@ -252,47 +293,27 @@ private theorem childStep (solves : g.Solves m input values) (base : Index l)
     (fun old => (a.childStep.lower.runLoopFree m old).bind (a.childGuard.lower.runLoopFree m))
     = some final at actual
   rw [dropRan, Option.bind_some] at actual
-  obtain ⟨updated, update, guard⟩ := Option.bind_eq_some_iff.mp actual
-  have oldScope : Schedule.Realizes m values (base.set a.descriptor.childKey k)
-      a.descriptor.childScope (dropValue store) := by
-    intro t p
-    rw [getDrop]
-    exact current t (.tail p)
-  have computed := Schedule.realizes_lower a.childStep solves oldScope update
-  apply Schedule.realizes_lower a.childGuard solves _ guard
-  apply realizeJoin
-  · intro t p
-    have nextAt := computed t (portLeft p)
-    rw [getLeft] at nextAt
-    exact (thetaNext solves (a.boundary.childTheta t p) base k).trans nextAt
-  · intro t p
-    have retained := computed t (portRight inner p)
-    rw [getRight] at retained
-    exact (captures (k + 1) t p).trans ((captures k t p).symm.trans retained)
+  obtain ⟨_, update, guard⟩ := Option.bind_eq_some_iff.mp actual
+  exact Schedule.realizes_lower a.childGuard solves
+    (childNextScope a solves base captures (withoutFlag current) update) guard
 
 variable (neg : ∀ b : Bool, m.run a.descriptor.negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
 
 include neg
 
-theorem activation (solves : g.Solves m input values) (base : Index l)
-    {old : Tuple m.Value outer} {out : Tuple m.Value (inner ++ outer)}
-    (captures : a.Captures m values base old)
-    (ran : Exec m a.activate old (some out)) :
-    ∃ k, a.ChildObservation m values base k out := by
-  obtain ⟨start, ranInit, rest⟩ := seqSome ran
-  obtain ⟨final, ranLoop, projected⟩ := seqSome rest
-  obtain ⟨k, trace⟩ := Exec.while_trace ranLoop
-  have facts := tracePrefix neg a.descriptor.childTagged base a.descriptor.childKey
+private theorem childTraceObservation (solves : g.Solves m input values) (base : Index l)
+    {old : Tuple m.Value outer} {store final : ChildStore (m := m) (inner := inner) (outer := outer)}
+    {k : Nat} (captures : a.Captures m values base old)
+    (ranInit : a.childStartCode.runLoopFree m old = some store)
+    (trace : WhileTrace m (continueTest a.descriptor.negate) a.childBody.enableWhile k store final) :
+    a.ChildObservation m values base k (dropValue final) := by
+  have facts := (tracePrefix neg a.descriptor.childTagged base a.descriptor.childKey
     (fun k store => Schedule.Realizes m values (base.set a.descriptor.childKey k) a.descriptor.childTagged store)
-    (fun h => h) (childStep a solves base captures) trace 0
-    (childInitial a solves base captures (Exec.deterministic
-      (a.childStartCode.runLoopFree_enableWhile old) ranInit))
+    (fun h => h) (fun _ => True)
+    (fun entry ran => ⟨childStep a solves base captures entry ran, trivial⟩) trace 0
+    (childInitial a solves base captures ranInit)).1
   have pass := passOfPrefix solves a.boundary.childPass facts
-  have eq := Exec.deterministic ((dropFlag (inner ++ outer)).runLoopFree_enableWhile final) projected
-  rw [dropRan] at eq
-  have same := Option.some.inj eq
-  subst out
-  refine ⟨k, pass, realizeJoin base a.descriptor.childExit a.descriptor.outerTheta _ ?_ ?_⟩
+  refine ⟨pass, realizeJoin base a.descriptor.childExit a.descriptor.outerTheta _ ?_ ?_⟩
   · intro t p
     rw [getDrop]
     apply evalOfPrefix solves (portLeft p) _ facts pass
@@ -310,27 +331,65 @@ theorem activation (solves : g.Solves m input values) (base : Index l)
     rw [setCurrent] at atBase
     exact atBase.trans ((captures k t p).symm.trans retained)
 
+theorem activation (solves : g.Solves m input values) (base : Index l)
+    {old : Tuple m.Value outer} {out : Tuple m.Value (inner ++ outer)}
+    (captures : a.Captures m values base old)
+    (ran : Exec m a.activate old (some out)) :
+    ∃ k, a.ChildObservation m values base k out := by
+  obtain ⟨_, ranInit, rest⟩ := seqSome ran
+  obtain ⟨final, ranLoop, projected⟩ := seqSome rest
+  obtain ⟨k, trace⟩ := Exec.while_trace ranLoop
+  have eq := Exec.deterministic ((dropFlag (inner ++ outer)).runLoopFree_enableWhile final) projected
+  rw [dropRan] at eq
+  have same := Option.some.inj eq
+  subst out
+  exact ⟨k, childTraceObservation a neg solves base captures
+    (Exec.deterministic (a.childStartCode.runLoopFree_enableWhile old) ranInit) trace⟩
+
 private abbrev OuterStore := Tuple m.Value (.bool :: outer)
 
 private def OuterAt (values : g.Valuation m) (k : Nat) (store : OuterStore (m := m) (outer := outer)) : Prop :=
   ∀ base : Index l, Schedule.Realizes m values (base.set a.descriptor.outerKey k) a.descriptor.outerTagged store
 
 omit neg in
-private theorem outerInitial (solves : g.Solves m input values)
-    {store : OuterStore (m := m) (outer := outer)}
-    (ran : Exec m a.outerGuard.lower.enableWhile input (some store)) : OuterAt a values 0 store := by
-  intro base
-  have tested := Exec.deterministic (a.outerGuard.lower.runLoopFree_enableWhile input) ran
-  apply Schedule.realizes_lower a.outerGuard solves _ tested
+private theorem outerInitialScope (solves : g.Solves m input values) (base : Index l) :
+    Schedule.Realizes m values (base.set a.descriptor.outerKey 0) a.descriptor.outerTheta input := by
   intro t p
   change read values (base.set a.descriptor.outerKey 0) (a.descriptor.outerTheta.get p) = _
   rw [thetaZero solves (a.boundary.outerTheta t p) base]
   exact Rules.at_label solves (hasNode (a.boundary.outerInit t p)) _
 
-private theorem outerStep (solves : g.Solves m input values) {k : Nat}
+omit neg in
+private theorem outerInitial (solves : g.Solves m input values)
+    {store : OuterStore (m := m) (outer := outer)}
+    (ran : Exec m a.outerGuard.lower.enableWhile input (some store)) : OuterAt a values 0 store :=
+  fun base => Schedule.realizes_lower a.outerGuard solves (outerInitialScope a solves base)
+    (Exec.deterministic (a.outerGuard.lower.runLoopFree_enableWhile input) ran)
+
+omit neg in
+private theorem outerCaptures {k : Nat} (base : Index l) {store : OuterStore (m := m) (outer := outer)}
+    (current : OuterAt a values k store) :
+    a.Captures m values (base.set a.descriptor.outerKey k) (dropValue store) := by
+  intro j s p
+  rw [getDrop, setComm base a.boundary.distinct.symm]
+  exact current (base.set a.descriptor.childKey j) s (.tail p)
+
+omit neg in
+private theorem outerNextScope (solves : g.Solves m input values) (base : Index l)
+    {k trips : Nat} {child : Tuple m.Value (inner ++ outer)} {updated : Tuple m.Value outer}
+    (seen : a.ChildObservation m values (base.set a.descriptor.outerKey k) trips child)
+    (ran : a.commit.lower.runLoopFree m child = some updated) :
+    Schedule.Realizes m values (base.set a.descriptor.outerKey (k + 1)) a.descriptor.outerTheta updated := by
+  have next := Schedule.realizes_lower a.commit solves seen.commit ran
+  intro s p
+  exact (thetaNext solves (a.boundary.outerTheta s p) base k).trans (next s p)
+
+private theorem outerStepFacts (solves : g.Solves m input values) {k : Nat}
     {store final : OuterStore (m := m) (outer := outer)}
     (current : OuterAt a values k store) (ran : Exec m a.body store (some final)) :
-    OuterAt a values (k + 1) final := by
+    OuterAt a values (k + 1) final ∧
+      ∀ base : Index l, ∃ trips, read values (base.set a.descriptor.outerKey k)
+        a.descriptor.childPass = some ⟨trips⟩ := by
   obtain ⟨old, dropped, rest⟩ := seqSome ran
   obtain ⟨child, ranChild, rest⟩ := seqSome rest
   obtain ⟨updated, committed, guarded⟩ := seqSome rest
@@ -338,27 +397,30 @@ private theorem outerStep (solves : g.Solves m input values) {k : Nat}
   rw [dropRan] at eq
   have same := Option.some.inj eq
   subst old
-  intro base
-  have captures : a.Captures m values (base.set a.descriptor.outerKey k) (dropValue store) := by
-    intro j s p
-    rw [getDrop, setComm base a.boundary.distinct.symm]
-    exact current (base.set a.descriptor.childKey j) s (.tail p)
-  obtain ⟨_, observed⟩ := activation a neg solves (base.set a.descriptor.outerKey k) captures ranChild
-  have next := Schedule.realizes_lower a.commit solves observed.commit
-    (Exec.deterministic (a.commit.lower.runLoopFree_enableWhile child) committed)
-  apply Schedule.realizes_lower a.outerGuard solves _
-    (Exec.deterministic (a.outerGuard.lower.runLoopFree_enableWhile updated) guarded)
-  intro s p
-  exact (thetaNext solves (a.boundary.outerTheta s p) base k).trans (next s p)
+  have atBase (base : Index l) :
+      Schedule.Realizes m values (base.set a.descriptor.outerKey (k + 1)) a.descriptor.outerTagged final ∧
+        ∃ trips, read values (base.set a.descriptor.outerKey k) a.descriptor.childPass = some ⟨trips⟩ := by
+    obtain ⟨trips, seen⟩ := activation a neg solves (base.set a.descriptor.outerKey k)
+      (outerCaptures a base current) ranChild
+    have next := outerNextScope a solves base seen
+      (Exec.deterministic (a.commit.lower.runLoopFree_enableWhile child) committed)
+    exact ⟨Schedule.realizes_lower a.outerGuard solves next
+      (Exec.deterministic (a.outerGuard.lower.runLoopFree_enableWhile updated) guarded), trips, seen.pass⟩
+  exact ⟨fun base => (atBase base).1, fun base => (atBase base).2⟩
 
-theorem observe_of_returns (solves : g.Solves m input values) (base : Index l)
+theorem exits_and_observe (solves : g.Solves m input values) (base : Index l)
     {value : m.Value result} (returned : a.revert.Returns m input value) :
-    g.observe m values base = .cons (some value) .nil := by
+    (∃ k, a.FirstExits m values base k) ∧ g.observe m values base = .cons (some value) .nil := by
   obtain ⟨final, ran, out⟩ := returned
   obtain ⟨_, ranInit, ranLoop⟩ := seqSome ran
   obtain ⟨k, trace⟩ := Exec.while_trace ranLoop
-  have facts := tracePrefix neg a.descriptor.outerTagged base a.descriptor.outerKey
-    (OuterAt a values) (fun h => h base) (outerStep a neg solves) trace 0 (outerInitial a solves ranInit)
+  obtain ⟨facts, each⟩ := tracePrefix neg a.descriptor.outerTagged base a.descriptor.outerKey
+    (OuterAt a values) (fun h => h base)
+    (fun j => ∃ trips, read values (base.set a.descriptor.outerKey j) a.descriptor.childPass = some ⟨trips⟩)
+    (fun entry step =>
+      let finished := outerStepFacts a neg solves entry step
+      ⟨finished.1, finished.2 base⟩)
+    trace 0 (outerInitial a solves ranInit)
   have pass := passOfPrefix solves a.boundary.outerPass facts
   have result := evalOfPrefix solves a.descriptor.returnSlot a.boundary.outerExit facts pass
   change final.get (.tail a.descriptor.returnSlot) = value at out
@@ -369,7 +431,9 @@ theorem observe_of_returns (solves : g.Solves m input values) (base : Index l)
     unfold Graph.observe
     rw [singleton]
     rfl
-  rw [observed, result, out]
+  refine ⟨⟨k, pass, fun j hj => ?_⟩, ?_⟩
+  · exact Nat.zero_add j ▸ each j hj
+  · rw [observed, result, out]
 
 omit neg
 
@@ -402,5 +466,144 @@ theorem returns_of_runFuel (outerFuel childFuel : Nat) {value : m.Value result}
   obtain ⟨start, started, ranLoop⟩ := Option.bind_eq_some_iff.mp loop
   exact ⟨final, .seq (started ▸ a.outerGuard.lower.runLoopFree_enableWhile input)
     (Nested.runWhile_exec (step_of_runFuel a childFuel) outerFuel ranLoop), returned⟩
+
+private theorem flagsOfPass (solves : g.Solves m input values)
+    {flag : Ref g.sort .bool} {base : Index l} {key : Fin l}
+    {pass : Ref g.sort .count} (wired : nodeAt g pass = .ofLabel (.pass key) (.cons flag .nil))
+    {count : Nat} (picked : read values base pass = some ⟨count⟩) :
+    (read values (base.set key count) flag).map ULift.down = some true ∧
+      ∀ j < count, (read values (base.set key j) flag).map ULift.down = some false := by
+  change Rules.readRef values pass base = _ at picked
+  rw [Rules.pass_at solves (hasNode wired)] at picked
+  apply (firstTrue_eq_some_iff_samples
+    (fun j => (read values (base.set key j) flag).map ULift.down) count).mp
+  have bare := congrArg (Option.map (ULift.down : ULift.{w} Nat → Nat)) picked
+  simpa [Option.map_map, Function.comp_def] using bare
+
+private theorem testOfFlag (neg : ∀ b : Bool, m.run negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    {idx : Index l} {tagged : Tuple (Ref g.sort) (.bool :: vars)}
+    {store : Tuple m.Value (.bool :: vars)} (entry : Schedule.Realizes m values idx tagged store)
+    {b : Bool} (flag : (read values idx (tagged.get .head)).map ULift.down = some (!b)) :
+    (continueTest negate).eval m store = some ⟨b⟩ := by
+  have evaluated := neg (store.get .head).down
+  change (continueTest negate).eval m store = _ at evaluated
+  have actual := flagOfTest neg entry evaluated
+  have eq : (!(store.get .head).down) = b := by
+    simpa only [Bool.not_not] using congrArg Bool.not (Option.some.inj (actual.symm.trans flag))
+  rw [eq] at evaluated
+  exact evaluated
+
+/-- Only continuing steps request a transition. The stopping test never
+requests a child invocation or a commit. -/
+private theorem traceFrom (neg : ∀ b : Bool, m.run negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    (tagged : Tuple (Ref g.sort) (.bool :: vars)) (base : Index l) (key : Fin l)
+    {body : Stmt P true (.bool :: vars) (.bool :: vars)}
+    (At : Nat → Tuple m.Value (.bool :: vars) → Prop)
+    (realize : ∀ {k store}, At k store → Schedule.Realizes m values (base.set key k) tagged store)
+    (stopAt : Nat) (stop : (read values (base.set key stopAt) (tagged.get .head)).map ULift.down = some true)
+    (prior : ∀ j < stopAt, (read values (base.set key j) (tagged.get .head)).map ULift.down = some false)
+    (step : ∀ {k old}, k < stopAt → At k old →
+      (read values (base.set key k) (tagged.get .head)).map ULift.down = some false →
+      ∃ next, Exec m body old (some next) ∧ At (k + 1) next)
+    (remaining start : Nat) {store : Tuple m.Value (.bool :: vars)}
+    (exactCount : start + remaining = stopAt) (entry : At start store) :
+    ∃ final, WhileTrace m (continueTest negate) body remaining store final ∧ At stopAt final := by
+  induction remaining generalizing start store with
+  | zero =>
+    have last : start = stopAt := by omega
+    subst start
+    exact ⟨store, .stop (testOfFlag neg (realize entry) (b := false) stop), entry⟩
+  | succ k ih =>
+    have continuing : start < stopAt := by omega
+    have flag := prior start continuing
+    obtain ⟨next, advanced, nextAt⟩ := step continuing entry flag
+    obtain ⟨final, tail, finalAt⟩ := ih (start + 1) (by omega) nextAt
+    exact ⟨final, .step (testOfFlag neg (realize entry) (b := true) flag) advanced tail, finalAt⟩
+
+theorem defined_of_total
+    (total : ∀ {ins out} (op : P ins out) args, ∃ val, m.run op args = some val) :
+    a.DefinedSlices m values :=
+  ⟨fun _ store _ => a.outerGuard.lower_total total store,
+   fun _ store _ => a.childStart.lower_total total store,
+   fun _ store _ => a.childGuard.lower_total total store,
+   fun _ store _ _ => a.childStep.lower_total total store,
+   fun _ _ store _ => a.commit.lower_total total store⟩
+
+include neg
+
+theorem activate_of_firstExit (solves : g.Solves m input values)
+    (slices : a.DefinedSlices m values) (base : Index l) (trips : Nat)
+    {old : Tuple m.Value outer} (captures : a.Captures m values base old)
+    (picked : Rules.readRef values a.descriptor.childPass base = some ⟨trips⟩) :
+    ∃ output, Exec m a.activate old (some output) ∧ a.ChildObservation m values base trips output := by
+  obtain ⟨stop, prior⟩ := flagsOfPass solves a.boundary.childPass picked
+  obtain ⟨initialized, init⟩ := slices.childStart base old captures
+  have initializedAt := childInitialScope a solves base captures init
+  obtain ⟨start, guard⟩ := slices.childGuard _ _ initializedAt
+  have startAt := Schedule.realizes_lower a.childGuard solves initializedAt guard
+  have ranInit : a.childStartCode.runLoopFree m old = some start := by
+    change (a.childStart.lower.runLoopFree m old).bind (a.childGuard.lower.runLoopFree m) = _
+    rw [init, Option.bind_some, guard]
+  let At (k : Nat) (store : ChildStore (m := m) (inner := inner) (outer := outer)) :=
+    Schedule.Realizes m values (base.set a.descriptor.childKey k) a.descriptor.childTagged store
+  have step {k : Nat} {store : ChildStore (m := m) (inner := inner) (outer := outer)}
+      (_ : k < trips) (entry : At k store)
+      (again : (read values (base.set a.descriptor.childKey k) a.descriptor.childFlag).map ULift.down =
+        some false) : ∃ next, Exec m a.childBody.enableWhile store (some next) ∧ At (k + 1) next := by
+    obtain ⟨⟨flag⟩, readFlag, h⟩ := Option.map_eq_some_iff.mp again
+    change flag = false at h
+    subst flag
+    obtain ⟨updated, update⟩ := slices.childStep _ _ (withoutFlag entry) readFlag
+    have ready := childNextScope a solves base captures (withoutFlag entry) update
+    obtain ⟨next, tested⟩ := slices.childGuard _ _ ready
+    exact ⟨next, .seq (dropRan store ▸ (dropFlag (inner ++ outer)).runLoopFree_enableWhile store)
+      (.seq (update ▸ a.childStep.lower.runLoopFree_enableWhile (dropValue store))
+        (tested ▸ a.childGuard.lower.runLoopFree_enableWhile updated)),
+      Schedule.realizes_lower a.childGuard solves ready tested⟩
+  obtain ⟨final, trace, _⟩ := traceFrom neg a.descriptor.childTagged base a.descriptor.childKey
+    At (fun h => h) trips stop prior step trips 0 (Nat.zero_add trips) startAt
+  exact ⟨dropValue final, .seq (ranInit ▸ a.childStartCode.runLoopFree_enableWhile old)
+    (.seq trace.exec (dropRan final ▸ (dropFlag (inner ++ outer)).runLoopFree_enableWhile final)),
+    childTraceObservation a neg solves base captures ranInit trace⟩
+
+theorem trace_of_exits (solves : g.Solves m input values)
+    (slices : a.DefinedSlices m values) (base : Index l) {count : Nat}
+    (exits : a.FirstExits m values base count) :
+    ∃ start final, Exec m a.outerGuard.lower.enableWhile input (some start) ∧
+      WhileTrace m (continueTest a.descriptor.negate) a.body count start final := by
+  obtain ⟨stop, prior⟩ := flagsOfPass solves a.boundary.outerPass exits.outer
+  obtain ⟨start, init⟩ := slices.outerGuard _ _ (outerInitialScope a solves base)
+  have ranInit := init ▸ a.outerGuard.lower.runLoopFree_enableWhile input
+  have step {k : Nat} {store : OuterStore (m := m) (outer := outer)}
+      (hk : k < count) (entry : OuterAt a values k store)
+      (_ : (read values (base.set a.descriptor.outerKey k) a.descriptor.outerFlag).map ULift.down =
+        some false) : ∃ next, Exec m a.body store (some next) ∧ OuterAt a values (k + 1) next := by
+    obtain ⟨trips, pass⟩ := exits.child k hk
+    obtain ⟨child, ranChild, seen⟩ := activate_of_firstExit a neg solves slices
+      (base.set a.descriptor.outerKey k) trips (outerCaptures a base entry) pass
+    obtain ⟨updated, commit⟩ := slices.commit _ _ _ seen
+    have ready := outerNextScope a solves base seen commit
+    obtain ⟨next, tested⟩ := slices.outerGuard _ _ ready
+    have ran : Exec m a.body store (some next) :=
+      .seq (dropRan store ▸ (dropFlag outer).runLoopFree_enableWhile store)
+        (.seq ranChild (.seq (commit ▸ a.commit.lower.runLoopFree_enableWhile child)
+          (tested ▸ a.outerGuard.lower.runLoopFree_enableWhile updated)))
+    exact ⟨next, ran, (outerStepFacts a neg solves entry ran).1⟩
+  obtain ⟨final, trace, _⟩ := traceFrom neg a.descriptor.outerTagged base a.descriptor.outerKey
+    (OuterAt a values) (fun h => h base) count stop prior step count 0 (Nat.zero_add count)
+    (outerInitial a solves ranInit)
+  exact ⟨start, final, ranInit, trace⟩
+
+theorem returns_of_exits (solves : g.Solves m input values)
+    (slices : a.DefinedSlices m values) (base : Index l) {count : Nat}
+    (exits : a.FirstExits m values base count) {value : m.Value result}
+    (observed : g.observe m values base = .cons (some value) .nil) :
+    a.revert.Returns m input value := by
+  obtain ⟨_, final, started, trace⟩ := trace_of_exits a neg solves slices base exits
+  have ran : a.revert.Returns m input (final.get (.tail a.descriptor.returnSlot)) :=
+    ⟨final, .seq started trace.exec, rfl⟩
+  have seen := (exits_and_observe a neg solves base ran).2.symm.trans observed
+  have picked := congrArg (fun xs : Tuple (fun t => Option (m.Value t)) [result] => xs.get .head) seen
+  exact ⟨final, .seq started trace.exec, Option.some.inj picked⟩
 
 end Silmaril.SSA.PEG.Simple.Revert.While.Nested.Region.Proofs

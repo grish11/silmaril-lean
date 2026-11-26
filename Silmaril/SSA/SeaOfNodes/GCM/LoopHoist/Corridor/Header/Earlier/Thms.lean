@@ -19,6 +19,16 @@ variable {index : Nat} {cut : Point (SourceLabel carried result)}
 variable {cfg out : Cfg TargetOp (SourceLabel carried result) Input [result]}
 variable {before after : Block TargetOp (SourceLabel carried result) Γ [result]}
 
+/-- A successful adjacent swap exchanges exactly two operations on any typed label family. -/
+theorem swapAt_typed_order {Labels : List Width → Type} {Result : List Width} {target : Nat}
+    {before after : Block TargetOp Labels Γ Result}
+    (swapped : Header.Typed.swapAt? target before = some after) :
+    ∃ (prefixOps : List Operation) (left right : Operation) (suffixOps : List Operation),
+      prefixOps.length = target ∧
+      operations before = prefixOps ++ (left :: right :: suffixOps) ∧
+      operations after = prefixOps ++ (right :: left :: suffixOps) :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Earlier.swapAt_typed_order swapped
+
 /-- A successful adjacent swap exchanges exactly two operation symbols. -/
 theorem swapAt?_order {target : Nat} (swapped : swapAt? target before = some after) :
     ∃ (prefixOps : List Operation) (left right : Operation) (suffixOps : List Operation),

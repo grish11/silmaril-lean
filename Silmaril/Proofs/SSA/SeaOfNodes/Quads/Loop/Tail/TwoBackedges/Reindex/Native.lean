@@ -24,7 +24,7 @@ theorem tuple_ext {T : Type u} {F : T → Type w} {ports : List T} {a b : Tuple 
   rw [← tabulate_get_eq a, ← tabulate_get_eq b]
   exact congrArg (tabulate ports) (funext (fun _ => funext h))
 
-private theorem slot_eq {T : Type u} {ports : List T} {s t : T}
+theorem slot_eq {T : Type u} {ports : List T} {s t : T}
     (p : Port ports s) (q : Port ports t) (h : slot p = slot q) :
     (⟨s, p⟩ : Sigma (Port ports)) = ⟨t, q⟩ := by
   induction p with

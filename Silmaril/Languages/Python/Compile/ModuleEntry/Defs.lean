@@ -94,6 +94,10 @@ def scalarLiteral? : Expr → Option Core.Module.Value
   | .boolean value => some (.bool value)
   | expression => (integerLiteral? expression).map .int
 
+def exactScalarLiteral? : Expr → Option Core.Module.Value
+  | .none_ => some .none
+  | source => scalarLiteral? source
+
 def numericLiteral? (source : Expr) : Option Int :=
   (scalarLiteral? source).bind Core.Module.Value.asInt?
 
@@ -509,7 +513,7 @@ inductive Translation (scope : Scope) : List Stmt → List (Action scope) → Pr
   | assign {statement name expression reference value rest next}
       (binding : Binding statement name expression)
       (operand : OperandTranslation scope expression value) (tail : Translation scope rest next) :
-      Translation scope (statement :: rest) (.assign name reference value :: next)
+      Translation scope (statement :: rest) (.assign name reference value.conditionalResult :: next)
   | assertion {expression test rest next}
       (operand : TestTranslation scope expression test) (tail : Translation scope rest next) :
       Translation scope (.assert_ expression none :: rest) (.assertion test :: next)
@@ -555,7 +559,7 @@ def lowerStatements (scope : Scope) : (body : List Stmt) →
     let some reference := globalReference? scope name | throw (.unresolvedGlobal name)
     let value ← lowerOperand scope expression
     let tail ← lowerStatements scope body
-    return ⟨.assign name reference value.val :: tail.val, .assign binding value.property tail.property⟩
+    return ⟨.assign name reference value.val.conditionalResult :: tail.val, .assign binding value.property tail.property⟩
 termination_by body => sizeOf body
 
 structure Checked (source : Source.Module) where

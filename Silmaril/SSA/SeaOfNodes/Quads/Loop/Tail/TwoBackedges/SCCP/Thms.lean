@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.SCCP.Defs
 import Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.SCCP.Correctness
+import Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.SCCP.BlockFacts
 
 /-! Least solution and native coverage for a pure quad loop with two backedges. -/
 
@@ -21,6 +22,12 @@ universe u v w
 variable {Data : Type u} {Op : Signature.{u, v} Data}
 variable {regs : List (ValueSort Data)} {out : ValueSort Data}
 variable {m : Model.{u, v, w} Op}
+
+/-- The compiled producer interpreter reads the same ordered flat writes. -/
+theorem blockFacts_fold (m : Model.{u, v, w} Op) (block : Block Op regs)
+    (entry : Tuple (Fact m.value) (dataPorts regs)) :
+    blockFacts m block entry = block.foldl (fun bank q => quadFacts m q bank) entry :=
+  Proofs.blockFacts_fold m block entry
 
 /-- The compiled abstract block covers the actual ordered source block. -/
 theorem blockFacts_cover (block : Block Op regs)

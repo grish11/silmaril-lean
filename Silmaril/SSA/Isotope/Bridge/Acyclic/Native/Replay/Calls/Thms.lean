@@ -27,6 +27,17 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 theorem CallSchedule.valueBranches (p : CallSchedule Γ r A fs) : ValueBranches Γ r [A] :=
   p.valueBranches_proof
 
+/-- Substituting constructor values keeps all requests in order. -/
+theorem CallSchedule.subst {Δ : VCtx τ} {θ : Nat → Tm Φ} (p : CallSchedule Γ r A fs)
+    (values : ∀ ⦃i T⦄, At Γ i T → Tm.BranchValue Δ (θ i) T) :
+    CallSchedule Δ (r.substVars θ) A fs :=
+  p.subst_proof values
+
+/-- Rename the captured variables without changing the call schedule. -/
+theorem CallSchedule.rename {Δ : VCtx τ} {ρ : Nat → Nat} (p : CallSchedule Γ r A fs)
+    (typed : Ren Γ Δ ρ) : CallSchedule Δ (r.renameVars ρ) A fs :=
+  p.rename_proof typed
+
 /-- Continuation composition preserves captures and concatenates call order. -/
 theorem CallSchedule.splice (p : CallSchedule Γ r A fs) (q : CallSchedule (A :: Γ) s B gs) :
     CallSchedule Γ (r.lsubst (fun _ => s)) B (fs ++ gs) :=

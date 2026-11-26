@@ -103,6 +103,25 @@ theorem initial_mapCaptures :
     (eval_mapFlow (fun p => mapping.port p) m g.preheader input PUnit.unit)).trans
     (mapping.read_column input column (g.preheader.eval m (mapping.pull input) PUnit.unit))
 
+theorem header_read_mapCaptures (carried : Tuple (Val m.value) (wordPorts bank))
+    {t : PortTy} (wire : Origin (wordPorts old ++ wordPorts bank) (Silmaril.SSA.RVSDG.extend [] sigs) t) :
+    Diamond.read m (mapOrigin (fun p => headerPort mapping p) wire) (appendTuple carried input)
+      ((mapCaptures mapping g).header.eval m (appendTuple carried input) PUnit.unit) =
+    Diamond.read m wire (appendTuple carried (mapping.pull input))
+      (g.header.eval m (appendTuple carried (mapping.pull input)) PUnit.unit) := by
+  let portMap := fun {t} (p : Port (wordPorts old ++ wordPorts bank) t) => headerPort mapping p
+  let newArgs := appendTuple carried input
+  let oldArgs := appendTuple carried (mapping.pull input)
+  have pulled : InputPermutation.pullTuple portMap newArgs = oldArgs :=
+    pull_header (fun p => mapping.port p) input carried
+  let locals := g.header.eval m oldArgs PUnit.unit
+  have eval : (mapFlow portMap g.header).eval m newArgs PUnit.unit = locals :=
+    (eval_mapFlow (fun p => portMap p) m g.header newArgs PUnit.unit).trans
+      (congrArg (fun args => g.header.eval m args PUnit.unit) pulled)
+  exact (congrArg (Diamond.read m (mapOrigin portMap wire) newArgs) eval).trans
+    ((read_mapOrigin portMap m wire newArgs locals).trans
+      (congrArg (fun args => Diamond.read m wire args locals) pulled))
+
 theorem step_mapCaptures (carried : Tuple (Val m.value) (wordPorts bank)) :
     (mapCaptures mapping g).step m input carried = g.step m (mapping.pull input) carried := by
   let portMap := fun {t} (p : Port (wordPorts old ++ wordPorts bank) t) => headerPort mapping p

@@ -5,7 +5,6 @@ import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Computed
 import Silmaril.Wasm.Institution.Operational.Blocks.Context.Thms
 import Silmaril.Wasm.Institution.Operational.Loops.Indexed.Thms
 import Silmaril.Wasm.Lime1.Execution.Callout.Properties
-import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Continuation.Conditional.Thms
 
 @[expose] public section
 
@@ -29,20 +28,20 @@ private theorem stay {f : Frame} {n : Nat} {cont : Wasm.Lime1.Expr}
   Computed.lime_label_stays nonvalue notBranch notReturn notFinalTrap
 
 private theorem function_context {s : Store H} {code : List Admin}
-    (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label 1 [] code] out) :
+    (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label p.functionResults.length [] code] out) :
     Internal ⟨s, outer, p.functionCode arg code⟩ dst ↔
       ∃ mid, Internal ⟨s, p.active arg, code⟩ mid ∧
-        dst = ⟨mid.store, outer, [.frame 1 mid.frame [.label 1 [] mid.code]]⟩ := by
+        dst = ⟨mid.store, outer, [.frame p.functionResults.length mid.frame [.label p.functionResults.length [] mid.code]]⟩ := by
   constructor
   · intro step
     rcases Computed.lime_body_step_cases step with inside | ⟨out, pop, _⟩
     · exact inside
     · exact (stays out pop).elim
   · rintro ⟨mid, step, rfl⟩
-    exact .frame (.label step 1 []) 1 outer
+    exact .frame (.label step p.functionResults.length []) p.functionResults.length outer
 
 private theorem function_iff {s : Store H} {code next : List Admin}
-    (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label 1 [] code] out)
+    (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label p.functionResults.length [] code] out)
     (localStep : ∀ {mid}, Internal ⟨s, p.active arg, code⟩ mid ↔ mid = ⟨s, p.active arg, next⟩) :
     Internal ⟨s, outer, p.functionCode arg code⟩ dst ↔ dst = ⟨s, outer, p.functionCode arg next⟩ := by
   rw [function_context stays]
@@ -57,9 +56,9 @@ private theorem loop_context {s : Store H} {code : List Admin}
     (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label 1 [p.loop.instr] code] out) :
     Internal ⟨s, outer, p.functionCode arg (p.loopCode code)⟩ dst ↔
       ∃ mid, Internal ⟨s, p.active arg, code⟩ mid ∧
-        dst = ⟨mid.store, outer, [.frame 1 mid.frame [.label 1 [] (p.loopCode mid.code)]]⟩ := by
+        dst = ⟨mid.store, outer, [.frame p.functionResults.length mid.frame [.label p.functionResults.length [] (p.loopCode mid.code)]]⟩ := by
   have fnStays (out : List Admin) :
-      ¬ PureStep (p.active arg).module.types [.label 1 [] (p.loopCode code)] out :=
+      ¬ PureStep (p.active arg).module.types [.label p.functionResults.length [] (p.loopCode code)] out :=
     stay (saved := [i64 p.saved]) rfl (by simp) (by simp) (by simp)
   rw [function_context fnStays]
   have invert {target : Config H} :=
@@ -116,7 +115,7 @@ theorem pending_producer {input : BitVec 64} (checked : p.Checked mem outer inde
       (p.producer.callout (p.producerContext arg) [i64 input]) :=
   ⟨rfl, checked.producer, rfl⟩
 
-theorem internal_iff (checked : p.Checked mem outer index) (a : Phase H) (beforeContinuation : ∀ q, a ≠ .continuation q) :
+theorem internal_iff (checked : p.Checked mem outer index) (a : Phase H) (beforeContinuation : ∀ q labels, a ≠ .continuation q labels) :
     Internal (p.render mem outer index arg ⟨bytes, a⟩) dst ↔
       ∃ next, Control arg p.saved p.continuation a next ∧ dst = p.render mem outer index arg ⟨bytes, next⟩ := by
   cases a with
@@ -176,9 +175,6 @@ theorem internal_iff (checked : p.Checked mem outer index) (a : Phase H) (before
     · exact Computed.lime_drop_iff (stack := [i32 res]) (v := i64 input) (rest := [])
   | loopResult res =>
     apply one ?_ (.loopResult res) (fun edge => by cases edge; rfl)
-    change Internal (p.render mem outer index arg ⟨bytes, .loopResult res⟩) dst ↔
-      dst = ⟨mem.store bytes, outer, (p.continuation.start [i64 p.saved] res).renderCode 1 (p.active arg)⟩
-    rw [Continuation.Conditional.Plan.start_code]
     apply function_iff (code := p.loopCode (values [i32 res]))
     · intro out
       exact stay (saved := [i64 p.saved]) rfl (by simp) (by simp) (by simp)
@@ -208,6 +204,6 @@ theorem internal_iff (checked : p.Checked mem outer index) (a : Phase H) (before
         | eraseLoop split active =>
           exact ⟨_, (Computed.lime_trap_front_iff (stack := []) (tail := instr :: tail)).mpr
             ⟨[], [], _, _, rfl, split, .inr active, rfl⟩, rfl⟩
-  | continuation q => exact (beforeContinuation q rfl).elim
+  | continuation q labels => exact (beforeContinuation q labels rfl).elim
 
 end Silmaril.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.Proofs

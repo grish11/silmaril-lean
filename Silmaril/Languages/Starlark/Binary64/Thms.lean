@@ -20,4 +20,14 @@ theorem truth_false_iff_signed_zero (input : UInt64) :
     truth input = false ↔ input = 0 ∨ input = 0x8000000000000000 :=
   Proofs.Languages.Starlark.Binary64.truth_false_iff_signed_zero input
 
+/-- The bit-field rules recover exactly the denotational numeric observation. -/
+theorem decodes_iff_decode (bits : UInt64) (value : Number) :
+    Decodes bits value ↔ decode bits = value :=
+  Proofs.Languages.Starlark.Binary64.decodes_iff_decode bits value
+
+/-- The numeric order rules agree on the exact three-way comparison. -/
+theorem orders_iff_compareNumbers (left right : Number) (order : Ordering) :
+    Orders left right order ↔ compareNumbers left right = order :=
+  Proofs.Languages.Starlark.Binary64.orders_iff_compareNumbers left right order
+
 end Silmaril.Languages.Starlark.Binary64

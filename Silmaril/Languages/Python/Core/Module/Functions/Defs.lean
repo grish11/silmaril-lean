@@ -49,16 +49,28 @@ def Session.publish (session : Session) (table : CodeTable) (name : GlobalName)
 inductive Operand where
   | literal (value : Closure.Value)
   | readGlobal (name : GlobalName)
+  | intDivMod (op : Core.Closure.IntDivModOp) (numerator divisor : Int)
   | intTrueDiv (numerator divisor : Int)
+  | floatDiv (operands : Core.Binary64.FloatOperands)
   | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite)
+  | floatAdd (left right : Silmaril.Numeric.Ieee754.F64.Finite)
+  | floatSub (operands : Core.Binary64.FloatOperands)
+  | floatMul (operands : Core.Binary64.FloatOperands)
   | tuple (items : List GlobalTupleItem)
+  | textSlice (receiver : Core.Text) (bounds : Core.SliceBounds)
 
 def Operand.lower {layout : Layout} : Operand → Executor.Operand layout
   | .literal value => .literal value
   | .readGlobal name => .readGlobal name
+  | .intDivMod op numerator divisor => .intDivMod op numerator divisor
   | .intTrueDiv numerator divisor => .intTrueDiv numerator divisor
+  | .floatDiv operands => .floatDiv operands
   | .mixedAdd integer floating => .mixedAdd integer floating
+  | .floatAdd left right => .floatAdd left right
+  | .floatSub operands => .floatSub operands
+  | .floatMul operands => .floatMul operands
   | .tuple items => .tuple (items.map GlobalTupleItem.lower)
+  | .textSlice receiver bounds => .textSlice receiver bounds
 
 inductive Destination where
   | discard

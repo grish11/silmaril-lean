@@ -7,6 +7,26 @@ public section
 
 namespace Silmaril.Languages.Python.Core.Closure
 
+/-- For a positive divisor, this interval uniquely specifies the floor quotient
+and the remainder, regardless of the numerator's sign. -/
+theorem intDivMod_pos {numerator divisor quotient remainder : Int} (positive : 0 < divisor) :
+    (IntDivModOp.floorDiv.eval numerator divisor = .ok quotient ∧
+      IntDivModOp.modulo.eval numerator divisor = .ok remainder) ↔
+    remainder + divisor * quotient = numerator ∧ 0 ≤ remainder ∧ remainder < divisor := by
+  simpa [IntDivModOp.eval, ne_of_gt positive] using
+    (Int.fdiv_fmod_unique (a := numerator) (q := quotient) (r := remainder) positive)
+
+/-- For a negative divisor, the remainder is zero or has the divisor's sign. -/
+theorem intDivMod_neg {numerator divisor quotient remainder : Int} (negative : divisor < 0) :
+    (IntDivModOp.floorDiv.eval numerator divisor = .ok quotient ∧
+      IntDivModOp.modulo.eval numerator divisor = .ok remainder) ↔
+    remainder + divisor * quotient = numerator ∧ divisor < remainder ∧ remainder ≤ 0 := by
+  simpa [IntDivModOp.eval, ne_of_lt negative] using
+    (Int.fdiv_fmod_unique' (a := numerator) (q := quotient) (r := remainder) negative)
+
+theorem IntDivModOp.eval_zero (op : IntDivModOp) (numerator : Int) :
+    op.eval numerator 0 = .error (.arithmetic .zeroDivisionError) := rfl
+
 theorem Heap.lookup_reserve_old (heap : Heap) (count : Nat) (identity : CellId)
     (live : identity.address < heap.next) :
     (heap.reserve count).lookup identity = heap.lookup identity :=

@@ -10,20 +10,21 @@ public section
 
 namespace Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.CFG.Dependent
 
-open Syntax (Expr Primitives emptyBindings Bindings.push model)
+open Syntax (Expr StatePrimitives Primitives emptyBindings Bindings.push model)
 
-universe u
+universe u x
 
+variable {σ : Type x}
 variable {Φ : Type u} [HasTy Φ Syntax.Ty] {X : Syntax.Ty}
 variable {R L : List Syntax.Ty} {states captures seeds results : Nat}
 
 /-- The selected packet keeps its payload and state at the destination
 chosen by the ordered reply tag. -/
-theorem observe_packedRequestTo {Γ : List Syntax.Ty} (prim : Primitives Φ states)
+theorem observe_packedRequestTo {Γ : List Syntax.Ty} (prim : StatePrimitives Φ σ)
     (env : Syntax.Bindings Γ) (f : Φ) (arg : Expr Γ (instrSrc f))
     (typed : instrTrg f = LambdaSSA.Region.packedExitType R)
     (target : Fin R.length → Fin L.length) (routed : ∀ i, L.get (target i) = R.get i)
-    (s : Fin states) :
+    (s : σ) :
     Shape.denote (packedRequestTo f arg typed target routed) (model prim env) s =
       match prim f (arg.eval env) s with
       | .ret a t =>

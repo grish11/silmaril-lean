@@ -19,14 +19,22 @@ variable {g : Graph P params results n 1} {m : Interpretation.{u,v,w} P}
 theorem Accepted.demandWellFounded (a : Accepted g carried) : WellFounded g.Demand :=
   g.demandWellFounded_of_check a.rank a.ranked
 
+/-- A successful run certifies the least pass and its ordered readouts,
+including when the pass count is absent from the returned tuple. -/
+theorem Accepted.firstExit_and_observe_of_exec (a : Accepted g carried) (laws : a.Laws m)
+    (input : Tuple m.Value params) (idx : Index 1) {output : Tuple m.Value results}
+    (ran : Exec m a.revert input (some output)) :
+    (∃ k, a.FirstExit m (g.denote m input a.demandWellFounded) idx k) ∧
+      g.observe m (g.denote m input a.demandWellFounded) idx = output.map (fun _ => some) :=
+  Proofs.firstExit_and_observe_of_exec a laws (g.denote_solves m input a.demandWellFounded) idx ran
+
 /-- Every finite successful emitted run gives the original ordered
 observation. The trace identifies one least pass count, and every eval
 uses the same exit and the defined prefix of its carried slot. -/
 theorem Accepted.observe_of_exec (a : Accepted g carried) (laws : a.Laws m) (input : Tuple m.Value params) (idx : Index 1)
     {output : Tuple m.Value results} (ran : Exec m a.revert input (some output)) :
     g.observe m (g.denote m input a.demandWellFounded) idx = output.map (fun _ => some) :=
-  (Proofs.firstExit_and_observe_of_exec a laws
-    (g.denote_solves m input a.demandWellFounded) idx ran).2
+  (a.firstExit_and_observe_of_exec laws input idx ran).2
 
 theorem Accepted.exec_of_runFuel (a : Accepted g carried) (fuel : Nat) (input : Tuple m.Value params)
     {output : Tuple m.Value results} (ran : a.runFuel m fuel input = some output) :

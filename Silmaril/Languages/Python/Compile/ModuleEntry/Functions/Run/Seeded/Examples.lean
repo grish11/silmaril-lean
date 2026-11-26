@@ -1,7 +1,10 @@
 module
 
 import Batteries.Data.Except
-import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms
+import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.NormalTry.Thms
+import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.ExceptionalTry.Thms
+meta import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ExceptionalTry.Defs
+meta import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.ExceptionalTry.Defs
 meta import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Defs
 meta import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Defs
 meta import Silmaril.Languages.Python.Core.Module.Functions.Defs
@@ -92,5 +95,72 @@ private def textSliceEvidence (placement : SeedPlacement) (zero : Bool) : Bool :
 #guard textSliceEvidence .builtin false
 #guard textSliceEvidence .preamble true
 #guard (Core.Module.SeededCall.Raised.runtime .zeroSliceStep).classify == .valueError
+
+private def textSliceOperandEvidence (placement : SeedPlacement) (zero : Bool) : Bool := Id.run do
+  let points := [65, 233, 128512, 769, 55296]
+  let step := if zero then Source.Expr.integer 0 else .unary .negative (.integer 2)
+  let first := Source.Expr.slice (.text points) none none (some step)
+  let second := if zero then Source.Expr.name "missing" else .text [55296, 128512, 65]
+  let call := Source.Stmt.expression (.call (.name "___assertEqual") [first, second])
+  let source : Source.Module := ⟨[call]⟩
+  let .ok compiled := Run.compile source | return false
+  let space := legacySeed placement
+  let result := run space compiled
+  let completion := if zero then .error (.raised (.runtime .zeroSliceStep)) else .ok ()
+  let receipts := if zero then [] else [("___assertEqual", .ok .none, none)]
+  return result.completion == completion && result.residual.moduleGlobals == space.moduleGlobals &&
+    result.residual.builtins == space.builtins && result.heap.next == 0 && result.lists.objects.isEmpty &&
+    result.calls.map (fun call => (call.callee, call.observation.result, call.observation.caught)) == receipts
+
+#guard textSliceOperandEvidence .builtin false
+#guard textSliceOperandEvidence .preamble true
+
+private def normalTryEvidence : Bool := Id.run do
+  let source : Source.Module := ⟨[.assign "flag" (.boolean false),
+    .try_ [.assign "flag" (.boolean true), .pass]
+      [⟨none, none, [.assign "unreachedHandler" (.integer 9)]⟩]
+      [.assign "phase" (.integer 2)]
+      [.assign "copied" (.name "phase"), .assign "stopped" (.name "missing")],
+    .assign "unreachedTail" (.integer 11)]⟩
+  let .ok compiled := Run.compile source | return false
+  let heap : Core.Closure.Heap := ⟨1, fun x => if x = 0 then some (.int 23) else none⟩
+  let lists : Core.Module.ListHeap := ⟨#[[.int 31]]⟩
+  let result := run .empty compiled heap (lists := lists)
+  let start := { Run.seed .empty heap with lists }
+  let (events, state) := Run.runPrefix compiled.table 1000 (.ready start compiled.instructions)
+  let .finished residual completion := state | return false
+  return result.completion == .error (.raised (.runtime (.nameError "missing"))) &&
+    result.residual.moduleGlobals == [("copied", .int 2), ("phase", .int 2), ("flag", .bool true)] &&
+    result.residual.builtins.isEmpty && result.calls.isEmpty &&
+    result.lists == lists && result.heap.next == heap.next && (result.heap.contents 0).map seededValue == some (.int 23) &&
+    events.isEmpty && completion == .raised (.nameError "missing") && residual.lists == lists &&
+    residual.heap.next == heap.next && (residual.heap.contents 0).map seededValue == some (.int 23) &&
+    (residual.globals "flag").map seededValue == some (.bool true) &&
+    (residual.globals "copied").map seededValue == some (.int 2) &&
+    (residual.globals "unreachedHandler").isNone && (residual.globals "unreachedTail").isNone
+
+#guard normalTryEvidence
+
+private def exceptionalCleanupEvidence : Bool := Id.run do
+  let statement := Source.Stmt.try_
+    [.assign "body" (.integer 7), .assign "afterFailure" (.name "bodyMissing")]
+    [] [] [.assign "copied" (.name "body")]
+  let .ok tree := Source.analyze ⟨[statement]⟩ | return false
+  let some plan := Functions.ExceptionalTry.check tree.scope statement | return false
+  let table : Core.Closure.Executor.CodeTable := fun _ => none
+  let heap : Core.Closure.Heap := ⟨1, fun slot => if slot = 0 then some (.int 23) else none⟩
+  let lists : Core.Module.ListHeap := ⟨#[[.int 31]]⟩
+  let ordinary := Run.ExceptionalTry.ordinary table { Run.seed .empty heap with lists } plan.val
+  let seeded := Run.ExceptionalTry.seeded { table, heap, fuel := 1000 } ⟨.empty, .ok (), [], heap, lists⟩ plan.val
+  return ordinary.completion == .error (.raised (.nameError "bodyMissing")) &&
+    (ordinary.reached.globals "copied").map seededValue == some (.int 7) &&
+    (ordinary.reached.globals "afterFailure").isNone && ordinary.reached.lists == lists &&
+    ordinary.reached.heap.next == heap.next && (ordinary.reached.heap.contents 0).map seededValue == some (.int 23) &&
+    seeded.completion == .error (.raised (.runtime (.nameError "bodyMissing"))) &&
+    seeded.residual.moduleGlobals == [("copied", .int 7), ("body", .int 7)] &&
+    seeded.residual.builtins.isEmpty && seeded.calls.isEmpty && seeded.lists == lists &&
+    seeded.heap.next == heap.next && (seeded.heap.contents 0).map seededValue == some (.int 23)
+
+#guard exceptionalCleanupEvidence
 
 end Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded

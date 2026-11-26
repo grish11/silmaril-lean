@@ -656,6 +656,351 @@ The overlap refusal still applies. This emitter uses the full carried
 bank of the checked pure nested profile.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Numbered/Regression.lean)
 
+### Outer reconvergence before the final join
+
+`Nested.Shared.Outer.check` recognizes an additional nonempty common
+tail on both outer routes. It cuts the two independently checked
+routes at their first shared block and verifies that each original
+block list is its ordered prefix followed by that same tail. The
+coverage check counts every source block once and requires a nonempty
+inner suffix exclusive to the outer true route. The original
+`Shared.check` keeps its original inner-only profile and dependent
+types. Both profiles reuse the routing and θ proofs.
+[Recognizer and coverage certificate](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Defs.lean) ·
+[Inner-only API regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Compatibility/Regression.lean)
+
+`Program.run_to_outer` identifies the selected outer predecessor's
+complete bank. `Program.run_outer_suffix` charges one visit per shared
+block and supplies the final merge bank. The numbered emitter reuses
+the inner γ and its continuation, then compiles the outer suffix once
+against the result wires of the outer γ. `outer_run` and `merge_run`
+give the full banks at both boundaries. The suffix's operands read
+the selected bank or its own earlier producers through the existing
+typed quad compiler. `activation_run` gives the exact feedback or
+exit packet. The existing finite-return, absence, and finite coloured
+completion laws apply to this graph with separate witnesses.
+[Source laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Thms.lean) ·
+[Numbered laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Numbered/Thms.lean)
+
+Build the two full imports below with `lake build --wfail` and a `+`
+before each module name. Paste into `QuadNestedOuterSuffix.lean` and
+run `lake env lean -DautoImplicit=false -DwarningAsError=true QuadNestedOuterSuffix.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Thms
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Example (input width)
+open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF (model)
+open Silmaril.SSA.SeaOfNodes.MLIR (Word)
+open Silmaril.SSA.RVSDG.NestedTheta.Petri (Finishes)
+
+#eval plan.outerSuffix.blocks.map Fin.val
+#eval layout
+#eval trace
+#eval (outerValues, mergeValues, packets)
+#eval [0, 1, 2, 3].map sourceBudget
+#eval (runSource 25, runNumbered 3, runSource 24, runNumbered 2)
+#eval (Outer.check crossesInnerPrefix 0).isNone
+
+example : Finishes (Silmaril.SSA.SeaOfNodes.Quads.Join.model model)
+    (lower plan) input (.cons (152 : Word width) .nil) :=
+  (petri_finishes_iff plan model input (152 : Word width)).mpr ⟨25, rfl⟩
+```
+
+The actual θ has six vertices after the outer γ. Two are the new
+suffix producers from blocks `10` and `11`. The final merge,
+latch and route tag account for the other four. The inner structure
+and outer false child have the same sizes as in the inner-only
+fixture. The selected routes are inner true, inner false and outer
+false, with pre-tail values `15, 73, 150` and post-tail values
+`17, 75, 152`. The two feedback packets carry counters `2` and
+`1`. Source and θ return `152` at `25/3` and exhaust at `24/2`.
+The near miss sends the outer false route into an exclusive inner
+prefix and is refused.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Numbered/Regression.lean)
+
+### Compare outer reconvergence in typed CF and numbered θ
+
+`Shared.Outer.MLIR.CF.lower` uses the existing typed CF compiler on the
+original checked table. `outer_arrival` gives the actual successor frame
+from the selected predecessor block. Both outer predecessors target the
+first original tail block with the full typed bank in register order.
+`outer_arrival_sites_distinct` distinguishes the original predecessor
+labels. CF frames carry the destination and its operands. The originating
+block and outgoing slot are available through `Program.outerEdgeOccurrence`.
+`from_header_eq_tail` connects these packets to execution from the header.
+[CF laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Thms.lean)
+
+`Comparison.outer_arrival` matches the frame against the actual outer γ
+output. `Comparison.latch_successor_at_activation` reads the numbered
+activation's control port and carried data to recover the CF feedback
+frame or typed exit frame.
+`cf_returns_iff` and `cf_finishes_iff` relate finite CF results to numbered
+returns and coloured completions with their own witnesses.
+`cf_noFiniteReturn_iff` and `cf_noCompletion_iff` quantify over all finite
+bounds or completions. CF uses one more visit than the source runner for
+its synthetic return block, θ counts activations, and coloured completion
+uses a finite firing sequence. The laws cover the admitted pure outer
+profile with full banks.
+[Comparison API](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Comparison/Thms.lean)
+
+Build the two imports with `lake build --wfail`, prefixing each module
+with `+`. Paste into `QuadNestedOuterCF.lean` and run
+`lake env lean -DautoImplicit=false -DwarningAsError=true QuadNestedOuterCF.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Comparison.Thms
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Example
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example
+  (runSource runNumbered)
+
+#eval arrivals
+#eval successors
+#eval (runSource 25, runCF 26, runNumbered 3)
+#eval (runSource 24, runCF 25, runNumbered 2)
+```
+
+The arrivals report `(predecessor, slot, target, result register)` as
+`(6, 0, 10, 15)`, `(6, 0, 10, 73)` and `(7, 0, 10, 150)` for inner true,
+inner false and outer false. The latch returns to header `1` twice,
+passing `(counter, result register)` pairs `(2, 17)` and `(1, 75)`, then
+exits with `152`. All three runners return `152` at `25/26/3` and exhaust
+at `24/25/2`. The regression also derives finite coloured completion
+from the actual CF result.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Regression.lean)
+
+### Read the explicit Φ at the outer tail
+
+`Shared.Outer.MLIR.CF.Phi.readRows` reads the terminal operands of the
+two emitted CF predecessor blocks at their original source successor
+slots. `readRows_exists` proves that the admitted plan supplies both rows.
+`Rows.view` uses `PhiView.ofBlockArgs` to transpose them into typed
+destination slots. A row keeps the local CF variable indices, so an
+index is interpreted in its own predecessor's post-body scope.
+The two inner routes share the outer-true occurrence after the exclusive
+inner suffix. An outer-false direct arrival uses slot 1 of the header's
+conditional terminator.
+[Φ view](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Phi/Defs.lean)
+
+`Rows.transfer_iff` uses the existing explicit-Φ latch law. The row reads
+all operands from one post-body environment. `Rows.first_tail` proves
+that the real first tail block sees the full bank, with the original
+external arguments still in scope. `Rows.numbered_latch` identifies the
+same packed bank in the actual numbered outer γ. The existing comparison
+laws cover finite returns and absence in CF and the numbered θ with
+independent budgets. This view covers the outer join of the admitted
+full-bank profile.
+[Correspondence laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Phi/Thms.lean)
+
+Build the two imports with `lake build --wfail`, prefixing each module
+with `+`. Paste into `QuadOuterPhi.lean` and run
+`lake env lean -DautoImplicit=false -DwarningAsError=true QuadOuterPhi.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Thms
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Example
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Example (runCF)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example
+  (runSource runNumbered)
+
+#eval columns
+#eval selected
+#eval directSelected
+#eval (runSource 25, runCF 26, runNumbered 3)
+#eval (runSource 24, runCF 25, runNumbered 2)
+```
+
+The rows are keyed by `(6, 0)` and `(7, 0)`. The three selected banks
+contain result-register values `15, 73, 150` and retain their other word
+and `i1` slots. In the direct-edge variant the outer-false bank arrives
+from `(1, 1)` with result-register value `75`. The original source, CF,
+and θ runners return `152` at `25/26/3` and exhaust at `24/25/2`.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Phi/Regression.lean)
+
+### Reconstruct and validate the two outer-tail CF packets
+
+The admitted outer join has two distinct predecessor blocks.
+`Readback.predecessor_key_injective` specializes the coverage certificate
+to those occurrences. `Readback.other_slot_excluded` inspects the raw
+emitted successor and shows that a second slot of either predecessor
+cannot enter the outer tail. In the direct-false fixture the header's
+true slot targets the inner split and its false slot targets the outer
+tail. The underlying pure quad CF emitter uses one final version map
+for both arms of a conditional, so a repeated destination in that
+emitter carries the same operand list on both arms.
+[CF terminator emitter](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Defs.lean)
+
+`Readback.edge` recovers each actual typed CF edge from
+`PhiView.toBlockArgs`. `edge_is_actual` gives equality of the whole
+successor, including the destination and the ordered scoped operands.
+`checkBanks_iff` characterizes validation of both complete value packets
+in their respective post-body environments. `numbered_readBank`
+identifies the reconstructed bank with the actual numbered outer γ
+on a reached occurrence. The existing CF and numbered θ comparison
+continues to provide finite-return and absence laws at independent bounds.
+[Readback laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Phi/Readback/Thms.lean)
+
+Build the two imports with `lake build --wfail`, prefixing each module
+with `+`. Paste into `QuadOuterPhiReadback.lean` and run
+`lake env lean -DautoImplicit=false -DwarningAsError=true QuadOuterPhiReadback.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Readback.Thms
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Readback.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Readback.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Readback.Example
+
+#eval rebuiltBanks
+#eval checks
+#eval gammaMatches
+#eval directTargets
+```
+
+The original 152 fixture gives result-register values `15` and `150`
+at predecessor slots `(6, 0)` and `(7, 0)`. The packet check returns
+`(true, false, false)` for the two source banks, the true bank with its
+first two word slots reordered, and the two banks swapped between
+predecessors. Both reconstructed banks match the actual γ output.
+The raw direct-false successors target blocks `2` and `7`, in that order.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Phi/Readback/Regression.lean)
+
+### Round-trip the inner shared-tail packets
+
+`Shared.MLIR.CF.InnerPhi.readRows` works on the routing certificate
+shared by the inner-only and outer-reconverging profiles. It reads each
+raw CF successor by its original block and outgoing slot, then checks
+the common inner destination. `Rows.edge_roundtrip` reconstructs the
+actual ordered, scoped operands through `PhiView.toBlockArgs`.
+`Rows.bank_eq` proves that all operands read the same post-body
+environment and reconstruct the full source prefix bank. `Rows.from_header`
+and `Rows.first_tail` connect that packet to the actual first tail block.
+[Inner-tail API](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/MLIR/CF/InnerPhi/Thms.lean)
+
+`Rows.numbered_bank` reads the existing numbered inner γ at its
+connection to the shared suffix. `inner_wiring` and `legacy_inner_wiring`
+show that restoring the original continuation gives the exact two
+existing emissions. The outer-profile finite-return and absence laws
+still apply at their independent bounds.
+[CF/θ comparison](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Comparison/Thms.lean)
+
+Build the two imports with `lake build --wfail`, prefixing each module
+with `+`. Paste into `QuadInnerTailPhi.lean` and run
+`lake env lean -DautoImplicit=false -DwarningAsError=true QuadInnerTailPhi.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.InnerPhi.Thms
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.InnerPhi.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.InnerPhi.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.InnerPhi.Example
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Example (runCF)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example
+  (runSource runNumbered)
+
+#eval trace
+#eval gammaMatches
+#eval parallelColumns
+#eval (runSource 25, runCF 26, runNumbered 3)
+#eval (runSource 24, runCF 25, runNumbered 2)
+```
+
+The first two activations read seven-slot inner banks at `(3, 0)`
+and `(4, 0)` with result values `7` and `36`. The outer bank then
+arrives at `(6, 0)` with `15` and `73`. The third activation
+bypasses the inner tail and arrives at `(7, 0)` with `150`.
+Both inner arrivals match γ. In the inner-only direct fixture,
+both CF slots of block `2` target the same inner-tail block.
+They retain separate occurrence keys and carry the same post-body
+operand list. The original run returns `152` at `25/26/3`
+source/CF/θ fuel and exhausts at `24/25/2`.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/MLIR/CF/InnerPhi/Regression.lean)
+
+### Observe the join packets in coloured markings
+
+`Outer.Numbered.Petri.Boundaries.Thms` adds observations to the actual
+numbered θ body. A typed `Cut` shares the emitted vertices and child
+terms, and its observer reads the colours at the existing result wires.
+The cut lifts legal prefix firings into the same continuation. The
+outer witness has the γ output places marked. The inner witness is
+inside the live selected outer-true child, with the outer γ still
+waiting. The outer-false witness enters the actual bypass child
+and reads `none` at the inner boundary.
+[Typed marking cut](../../Silmaril/SSA/RVSDG/NestedTheta/Petri/Cut/Thms.lean) ·
+[Quad boundary laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Numbered/Petri/Boundaries/Thms.lean)
+
+Both observations compare complete typed banks with the CF/Φ readback.
+The fixture uses separate finite firing witnesses for each activation
+boundary and for the whole θ's return. Source and CF bounds count block
+visits, the numbered bound counts activations, and each legal firing
+witness has its own length. The packets printed below come from the
+existing CF/Φ fixture. The Lean example proves their marking witnesses
+and the coloured completion with word `152`.
+
+Build both imports with `lake build --wfail`, prefixing each module
+with `+`. Paste into `QuadSharedPetriBoundaries.lean` and run
+`lake env lean -DautoImplicit=false -DwarningAsError=true QuadSharedPetriBoundaries.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Boundaries.Thms
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Boundaries.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.InnerPhi.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered (petri_finishes_iff)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Petri.Example
+  (activation completion)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example (plan)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Example (input width)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.InnerPhi.Example (rows)
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Phi.Example renaming rows → outerRows
+open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF (model)
+open Silmaril.SSA.SeaOfNodes.MLIR (Word)
+
+set_option maxHeartbeats 1000000 in
+example : completion := by
+  unfold completion
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · intro i
+    obtain ⟨bank, marked, _, packet⟩ := outer_packet plan input (activation i) outerRows
+    exact ⟨bank, marked, packet⟩
+  · exact inner_waiting_packet plan input (activation 0) rows (by rfl)
+  · exact inner_waiting_packet plan input (activation 1) rows (by rfl)
+  · exact bypass plan (activation 2) (by rfl)
+  · exact (petri_finishes_iff plan model input (152 : Word width)).mpr ⟨25, rfl⟩
+
+#eval Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.InnerPhi.Example.trace
+```
+
+The first two activations read inner result slots `7` and `36` and
+outer slots `15` and `73`. The third prints `none` at the inner
+boundary and `150` at the outer boundary.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Numbered/Petri/Boundaries/Regression.lean)
+
 ## Complete the emitted loop by coloured firing
 
 The `Backends/Petri/Thms` import adds completion laws for the numbered

@@ -9,7 +9,7 @@ public import Mathlib.Logic.Equiv.Fin.Basic
 
 namespace Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.Syntax
 
-universe u
+universe u x y
 
 abbrev Ty := Silmaril.Ty Empty
 abbrev atomType : Unit → Empty → Prop := fun _ _ => False
@@ -36,29 +36,50 @@ def Answer.behaviour {A : Ty} {states : Nat} : Answer A states → Behaviour 1 U
 
 /-- Native primitives have three ordinary outcomes. Only overlay syntax
 introduces fresh UB. -/
-inductive Reply (A : Ty) (states : Nat) where
-  | ret (value : Payload A) (final : Fin states)
-  | fault (final : Fin states)
+inductive StateReply (A : Ty) (σ : Type x) where
+  | ret (value : Payload A) (final : σ)
+  | fault (final : σ)
   | diverge
 
-variable {Φ : Type u} [HasTy Φ Ty] {states : Nat}
+def StateReply.mapState {A : Ty} {σ : Type x} {τ : Type y} (f : σ → τ) :
+    StateReply A σ → StateReply A τ
+  | .ret a s => .ret a (f s)
+  | .fault s => .fault (f s)
+  | .diverge => .diverge
 
-/-- A finite-state deterministic primitive interpreter at exact input and reply
-types. Each instruction is queried only with a typed constructor value. -/
-abbrev Primitives (Φ : Type u) [HasTy Φ Ty] (states : Nat) :=
-  (f : Φ) → Payload (instrSrc f) → Fin states → Reply (instrTrg f) states
+abbrev Reply (A : Ty) (states : Nat) := StateReply A (Fin states)
 
-def Reply.returns {A : Ty} (reply : Reply A states) (b : Value Unit) (t : Fin states) : Prop :=
+namespace Reply
+
+abbrev ret {A : Ty} {states : Nat} (a : Payload A) (s : Fin states) : Reply A states := StateReply.ret a s
+abbrev fault {A : Ty} {states : Nat} (s : Fin states) : Reply A states := StateReply.fault s
+abbrev diverge {A : Ty} {states : Nat} : Reply A states := StateReply.diverge
+
+end Reply
+
+variable {Φ : Type u} [HasTy Φ Ty] {states : Nat} {σ : Type x}
+
+/-- A deterministic primitive interpreter at exact input and reply types
+over an arbitrary state carrier. -/
+abbrev StatePrimitives (Φ : Type u) [HasTy Φ Ty] (σ : Type x) :=
+  (f : Φ) → Payload (instrSrc f) → σ → StateReply (instrTrg f) σ
+
+abbrev Primitives (Φ : Type u) [HasTy Φ Ty] (states : Nat) := StatePrimitives Φ (Fin states)
+
+def StateReply.returns {A : Ty} (reply : StateReply A σ) (b : Value Unit) (t : σ) : Prop :=
   match reply with
   | .ret a s => a.val = b ∧ s = t
   | .fault _ | .diverge => False
 
+abbrev Reply.returns {A : Ty} (reply : Reply A states) (b : Value Unit) (t : Fin states) : Prop :=
+  StateReply.returns reply b t
+
 /-- The observational model is the graph of the executable primitive
 interpreter. In particular, a fault or divergence has no successful reply. -/
-abbrev rawModel (prim : Primitives Φ states) {n : Nat} (bound : Fin n → Value Unit) :
+abbrev rawModel (prim : StatePrimitives Φ σ) {n : Nat} (bound : Fin n → Value Unit) :
     Institution.Observational.Model Φ n where
   α := Unit
-  σ := Fin states
+  σ := σ
   instr := fun f a s b t => ∃ h : Shape.ValueTyped atomType a (instrSrc f),
     (prim f ⟨a, h⟩ s).returns b t
   faults := fun f a s t => ∃ h : Shape.ValueTyped atomType a (instrSrc f),
@@ -67,7 +88,7 @@ abbrev rawModel (prim : Primitives Φ states) {n : Nat} (bound : Fin n → Value
     prim f ⟨a, h⟩ s = .diverge
   bound := bound
 
-abbrev model (prim : Primitives Φ states) {Γ : List Ty} (env : Bindings Γ) :
+abbrev model (prim : StatePrimitives Φ σ) {Γ : List Ty} (env : Bindings Γ) :
     Shape.Model Φ Γ where
   raw := rawModel prim fun i => (env i).val
   atomType := atomType

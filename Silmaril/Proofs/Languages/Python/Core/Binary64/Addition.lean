@@ -41,10 +41,51 @@ theorem intToFinite_nearestEven {integer : Int} {result : F64.Finite}
 theorem addFinite_none_iff {left right : F64.Finite} {lhs rhs : ℚ}
     (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
     addFinite? left right = none ↔ overflowThreshold ≤ |lhs + rhs| := by
-  have finite := rounded_finite_iff (sumNegative left right (lhs + rhs)) (abs_nonneg (lhs + rhs))
-  by_cases below : |lhs + rhs| < overflowThreshold
-  · simp [addFinite?, leftValue, rightValue, F64.Finite.ofRaw?, finite.mpr below, not_le_of_gt below]
-  · simp [addFinite?, leftValue, rightValue, F64.Finite.ofRaw?, mt finite.mp below, le_of_not_gt below]
+  simpa [addFinite?, leftValue, rightValue, roundSum?, sumNegative] using
+    roundExact_none_iff (sumNegative left right (lhs + rhs)) (lhs + rhs)
+
+theorem addFinite_ok_iff {left right result : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    addFinite? left right = some result ↔ |lhs + rhs| < overflowThreshold ∧
+      result.val = F64.ofBits (roundSigned (sumNegative left right (lhs + rhs)) |lhs + rhs|) := by
+  simpa [addFinite?, leftValue, rightValue, roundSum?, sumNegative] using
+    roundExact_ok_iff (sumNegative left right (lhs + rhs)) (lhs + rhs) result
+
+theorem subFinite_none_iff {left right : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    subFinite? left right = none ↔ overflowThreshold ≤ |lhs - rhs| := by
+  simpa [subFinite?, leftValue, rightValue, roundSum?] using
+    roundExact_none_iff (sumSign left.val.signBit (!right.val.signBit) (lhs - rhs)) (lhs - rhs)
+
+theorem subFinite_ok_iff {left right result : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    subFinite? left right = some result ↔ |lhs - rhs| < overflowThreshold ∧
+      result.val = F64.ofBits (roundSigned (sumSign left.val.signBit (!right.val.signBit) (lhs - rhs))
+        |lhs - rhs|) := by
+  simpa [subFinite?, leftValue, rightValue, roundSum?] using
+    roundExact_ok_iff (sumSign left.val.signBit (!right.val.signBit) (lhs - rhs)) (lhs - rhs) result
+
+theorem mulFinite_none_iff {left right : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    mulFinite? left right = none ↔ overflowThreshold ≤ |lhs * rhs| := by
+  simpa [mulFinite?, leftValue, rightValue] using
+    roundExact_none_iff (left.val.signBit != right.val.signBit) (lhs * rhs)
+
+theorem mulFinite_ok_iff {left right result : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    mulFinite? left right = some result ↔ |lhs * rhs| < overflowThreshold ∧
+      result.val = F64.ofBits (roundSigned (left.val.signBit != right.val.signBit) |lhs * rhs|) := by
+  simpa [mulFinite?, leftValue, rightValue] using
+    roundExact_ok_iff (left.val.signBit != right.val.signBit) (lhs * rhs) result
+
+theorem mulFinite_nearestEven {left right result : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
+    (multiplied : mulFinite? left right = some result) :
+    result.val.signBit = (left.val.signBit != right.val.signBit) ∧
+      NearestEven magnitude |lhs * rhs| (magnitudeBits result.val.bits).toNat := by
+  obtain ⟨below, bits⟩ := (mulFinite_ok_iff leftValue rightValue).mp multiplied
+  rw [bits]
+  exact ⟨signBit_roundSigned _ _, (roundSigned_nearestEven _ _ (abs_nonneg _) below).2⟩
 
 theorem addFinite_nearestEven {left right result : F64.Finite} {lhs rhs : ℚ}
     (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
@@ -65,15 +106,38 @@ theorem addFinite_nearestEven {left right result : F64.Finite} {lhs rhs : ℚ}
 
 theorem addFinite_comm (left right : F64.Finite) : addFinite? left right = addFinite? right left := by
   cases hl : left.val.toRat? <;> cases hr : right.val.toRat? <;>
-    simp [addFinite?, hl, hr, sumNegative, add_comm, Bool.and_comm]
+    simp [addFinite?, hl, hr, roundSum?, sumSign, add_comm, Bool.and_comm]
+
+private theorem roundExact_zero (negative : Bool) :
+    (roundExact? negative 0).map (fun result => result.val.bits) =
+      some (if negative then 0x8000000000000000 else 0) := by
+  cases negative <;> simp [roundExact?, F64.Finite.ofRaw?] <;> decide
+
+private theorem roundSum_zero (leftNegative rightNegative : Bool) :
+    (roundSum? leftNegative rightNegative 0).map (fun result => result.val.bits) =
+      some (if leftNegative && rightNegative then 0x8000000000000000 else 0) := by
+  simpa [roundSum?, sumSign] using roundExact_zero (leftNegative && rightNegative)
 
 theorem addFinite_zero {left right : F64.Finite} {lhs rhs : ℚ}
     (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
     (zero : lhs + rhs = 0) :
     (addFinite? left right).map (fun result => result.val.bits) =
       some (if left.val.signBit && right.val.signBit then 0x8000000000000000 else 0) := by
-  cases sign : (left.val.signBit && right.val.signBit) <;>
-    simp [addFinite?, leftValue, rightValue, zero, sumNegative, sign, F64.Finite.ofRaw?] <;> decide
+  simpa [addFinite?, leftValue, rightValue, zero] using roundSum_zero left.val.signBit right.val.signBit
+
+theorem subFinite_zero {left right : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
+    (zero : lhs - rhs = 0) :
+    (subFinite? left right).map (fun result => result.val.bits) =
+      some (if left.val.signBit && !right.val.signBit then 0x8000000000000000 else 0) := by
+  simpa [subFinite?, leftValue, rightValue, zero] using roundSum_zero left.val.signBit (!right.val.signBit)
+
+theorem mulFinite_zero {left right : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
+    (zero : lhs * rhs = 0) :
+    (mulFinite? left right).map (fun result => result.val.bits) =
+      some (if left.val.signBit != right.val.signBit then 0x8000000000000000 else 0) := by
+  simpa [mulFinite?, leftValue, rightValue, zero] using roundExact_zero (left.val.signBit != right.val.signBit)
 
 theorem addFinite_subnormal {left right : F64.Finite} {lhs rhs : ℚ} {index : Nat}
     (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
@@ -127,5 +191,66 @@ theorem mixedAdd_nonfinite_iff {integer : Int} {floating converted : F64.Finite}
   rw [← addFinite_none_iff leftValue rightValue]
   simp only [mixedAdd, coercion]
   cases addFinite? converted floating <;> simp
+
+private theorem evaluate_ok_iff (operands : FloatOperands)
+    (operation : F64.Finite → F64.Finite → Option F64.Finite) (result : F64.Finite) :
+    operands.evaluate operation = .ok result ↔ ∃ left right,
+      operands.convert? = some (left, right) ∧ operation left right = some result := by
+  constructor
+  · intro ok
+    cases converted : operands.convert? with
+    | none => simp [FloatOperands.evaluate, converted] at ok
+    | some pair =>
+      obtain ⟨left, right⟩ := pair
+      refine ⟨left, right, rfl, ?_⟩
+      cases computed : operation left right with
+      | none => simp [FloatOperands.evaluate, converted, computed] at ok
+      | some _ => simpa [FloatOperands.evaluate, converted, computed] using ok
+  · rintro ⟨left, right, converted, computed⟩
+    simp [FloatOperands.evaluate, converted, computed]
+
+private theorem evaluate_conversion_overflow_iff (operands : FloatOperands)
+    (operation : F64.Finite → F64.Finite → Option F64.Finite) :
+    operands.evaluate operation = .error .conversionOverflow ↔ operands.convert? = none := by
+  cases converted : operands.convert? with
+  | none => simp [FloatOperands.evaluate, converted]
+  | some pair =>
+    cases computed : operation pair.1 pair.2 <;> simp [FloatOperands.evaluate, converted, computed]
+
+private theorem evaluate_nonfinite_iff {operands : FloatOperands} {left right : F64.Finite}
+    (operation : F64.Finite → F64.Finite → Option F64.Finite)
+    (converted : operands.convert? = some (left, right)) :
+    operands.evaluate operation = .error .nonfiniteResult ↔ operation left right = none := by
+  cases computed : operation left right <;> simp [FloatOperands.evaluate, converted, computed]
+
+theorem subtract_ok_iff (operands : FloatOperands) (result : F64.Finite) :
+    subtract operands = .ok result ↔ ∃ left right,
+      operands.convert? = some (left, right) ∧ subFinite? left right = some result :=
+  evaluate_ok_iff operands subFinite? result
+
+theorem subtract_conversion_overflow_iff (operands : FloatOperands) :
+    subtract operands = .error .conversionOverflow ↔ operands.convert? = none :=
+  evaluate_conversion_overflow_iff operands subFinite?
+
+theorem subtract_nonfinite_iff {operands : FloatOperands} {left right : F64.Finite} {lhs rhs : ℚ}
+    (converted : operands.convert? = some (left, right))
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    subtract operands = .error .nonfiniteResult ↔ overflowThreshold ≤ |lhs - rhs| :=
+  (evaluate_nonfinite_iff subFinite? converted).trans (subFinite_none_iff leftValue rightValue)
+
+theorem multiply_ok_iff (operands : FloatOperands) (result : F64.Finite) :
+    multiply operands = .ok result ↔ ∃ left right,
+      operands.convert? = some (left, right) ∧ mulFinite? left right = some result :=
+  evaluate_ok_iff operands mulFinite? result
+
+theorem multiply_conversion_overflow_iff (operands : FloatOperands) :
+    multiply operands = .error .conversionOverflow ↔ operands.convert? = none :=
+  evaluate_conversion_overflow_iff operands mulFinite?
+
+theorem multiply_nonfinite_iff {operands : FloatOperands} {left right : F64.Finite} {lhs rhs : ℚ}
+    (converted : operands.convert? = some (left, right))
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    multiply operands = .error .nonfiniteResult ↔ overflowThreshold ≤ |lhs * rhs| :=
+  (evaluate_nonfinite_iff mulFinite? converted).trans (mulFinite_none_iff leftValue rightValue)
 
 end Silmaril.Proofs.Languages.Python.Core.Binary64

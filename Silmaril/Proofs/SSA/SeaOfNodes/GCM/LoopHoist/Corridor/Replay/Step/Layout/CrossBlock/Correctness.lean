@@ -99,16 +99,14 @@ theorem analyze?_spec (accepted : analyze? state request = some analysis) :
 private theorem supported_nodup (supported : Layout.Discovery.supported? state = true) :
     state.reference.origins.Nodup := (of_decide_eq_true (Bool.and_eq_true_iff.mp supported).1).2
 
-theorem analyze?_candidates (accepted : analyze? state request = some analysis) :
-    Legal state.cfg analysis.kept.sites.operands analysis.kept.sites.uses analysis.kept.point ∧
-    ∀ moved, analysis.preheader = some moved →
-      moved.append.index = analysis.kept.index ∧
-      analysis.kept.sites = ⟨(state.atLayout moved.append.candidate).operands, moved.append.candidate.uses⟩ ∧
-      Legal state.cfg analysis.kept.sites.operands analysis.kept.sites.uses ⟨none, request.cut⟩ := by
-  obtain ⟨supported, _, kept, _, proposed⟩ := analyze?_spec accepted
-  obtain ⟨located, scan, _, legal⟩ := keep?_spec kept
-  refine ⟨legal, fun moved tried => ?_⟩
-  obtain ⟨atIndex, found, available, _⟩ := Layout.emit?_placement (proposed.symm.trans tried)
+theorem emit?_sites {kept : Kept (Label saved carried result extra)} {moved : Layout.Move state}
+    (supported : Layout.Discovery.supported? state = true) (ready : keep? state request.origin = some kept)
+    (emitted : Layout.emit? state request = some moved) :
+    moved.append.index = kept.index ∧
+    kept.sites = ⟨(state.atLayout moved.append.candidate).operands, moved.append.candidate.uses⟩ ∧
+    Legal state.cfg kept.sites.operands kept.sites.uses ⟨none, request.cut⟩ := by
+  obtain ⟨located, scan, _, _⟩ := keep?_spec ready
+  obtain ⟨atIndex, found, available, _⟩ := Layout.emit?_placement emitted
   obtain ⟨bound, value, _⟩ := List.idxOf?_eq_some_iff.mp located
   have sameOrigin := (List.getElem?_eq_some_iff.mpr ⟨bound, value⟩).trans atIndex.symm
   have sameIndex := ((supported_nodup supported).eq_of_getElem?_eq bound sameOrigin).symm
@@ -116,6 +114,15 @@ theorem analyze?_candidates (accepted : analyze? state request = some analysis) 
   rw [sameIndex, scan] at sameSites
   have equal := Option.some.inj sameSites
   exact ⟨sameIndex, equal, by rw [equal]; exact available⟩
+
+theorem analyze?_candidates (accepted : analyze? state request = some analysis) :
+    Legal state.cfg analysis.kept.sites.operands analysis.kept.sites.uses analysis.kept.point ∧
+    ∀ moved, analysis.preheader = some moved →
+      moved.append.index = analysis.kept.index ∧
+      analysis.kept.sites = ⟨(state.atLayout moved.append.candidate).operands, moved.append.candidate.uses⟩ ∧
+      Legal state.cfg analysis.kept.sites.operands analysis.kept.sites.uses ⟨none, request.cut⟩ := by
+  obtain ⟨supported, _, kept, _, proposed⟩ := analyze?_spec accepted
+  exact ⟨(keep?_spec kept).2.2.2, fun _ tried => emit?_sites supported kept (proposed.symm.trans tried)⟩
 
 theorem analyze?_refuses_local (accepted : analyze? state request = some analysis)
     {operand : Point (Label saved carried result extra)} (read : operand ∈ analysis.kept.sites.operands)

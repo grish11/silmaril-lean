@@ -54,6 +54,10 @@ def numeric_operand(value):
         return f".integer ({value})"
     return lean_value(value)
 
+def numeric_tag(value):
+    assert type(value) in (int, bool, float)
+    return f"float64:{bits(value)}" if type(value) is float else f"{type(value).__name__}:{value}"
+
 
 def assertion_error(left, right):
     if type(left) is int and type(right) is int:
@@ -203,17 +207,17 @@ def instance_case(source, expected, probes, *, failed_call=None, probe_name="isi
     for placement in ("builtin", "preamble"):
         calls = []
         tested = []
+        compared = []
 
         def assert_equal(left, right):
             assert left == right and type(left) is type(right)
+            compared.append((numeric_tag(left), numeric_tag(right)))
             calls.append(success_receipt(HELPER, None))
 
         def probe(value, classinfo):
-            assert type(value) in (int, bool, float)
             result = isinstance(value, classinfo)
             assert any(classinfo is kind for kind in (int, bool, float))
-            tagged = f"float64:{bits(value)}" if type(value) is float else f"{type(value).__name__}:{value}"
-            tested.append((tagged, classinfo.__name__, result))
+            tested.append((numeric_tag(value), classinfo.__name__, result))
             calls.append(receipt(probe_name, f".ok (.bool {str(result).lower()})"))
             return result
 
@@ -264,7 +268,8 @@ def instance_case(source, expected, probes, *, failed_call=None, probe_name="isi
         seed = "Compile.ModuleEntry.Functions.Run.Seeded.legacyNumericIsinstanceSeed" if numeric else "integerTypeSeed"
         guards.append(TRANSPORT["seeded"](f"({seed} .{placement})", completion, bindings,
                                           "[]", literal_list(calls)))
-        observed[placement] = {"status": status, "probes": tested, "bindings": bindings, "receipts": calls}
+        observed[placement] = {"status": status, "probes": tested, "compared": compared,
+                               "bindings": bindings, "receipts": calls}
         if unsupported_class:
             observed[placement]["lean_status"] = "unsupported"
     return (source, "\n".join(guards)), observed
@@ -299,16 +304,25 @@ def instance_controls(lines):
         fixtures.append(fixture)
         observations[label] = observed
 
-    prefix = "".join(lines)
+    prefix = "".join(lines[:6])
+    addition_prefix = "".join(lines[:8])
+    subtraction_prefix = "".join(lines[:17])
+    multiplication_prefix = "".join(lines[:29])
+    division_prefix = "".join(lines[:35])
+    floor_prefix = "".join(lines[:38])
     fixed = (
         PROFILES[0],
         *((placement, f"(Compile.ModuleEntry.Functions.Run.Seeded.legacyTextSeed .{placement})")
           for placement in ("builtin", "preamble")),
     )
-    fixture, observed = observe(prefix, expect("NameError:___assertEqual", "NameError:___assertTrue"),
+    fixture, observed = observe(division_prefix, expect("NameError:___assertEqual", "NameError:___assertTrue"),
                                 {"empty": HELPER}, profiles=fixed)
     fixtures.append(fixture)
-    observations["six-line prefix in fixed profiles"] = observed
+    observations["thirty-five-line prefix in fixed profiles"] = observed
+    fixture, observed = observe(floor_prefix, expect("NameError:___assertEqual", "NameError:___assertTrue"),
+                                {"empty": HELPER}, profiles=fixed)
+    fixtures.append(fixture)
+    observations["thirty-eight-line prefix in fixed profiles"] = observed
 
     mixed = "float64:4018000000000000"
     for label, source, status, probes, options in (
@@ -340,6 +354,122 @@ def instance_controls(lines):
         fixture, observed = instance_case(source, status, probes, numeric=True, **options)
         fixtures.append(fixture)
         observations[label] = observed
+
+    (source, guards), observed = instance_case(addition_prefix, "normal",
+                                               successful + [(mixed, "float", True)] * 3, numeric=True)
+    assert all(profile["compared"] == [("int:6", "int:6")] + [(mixed, mixed)] * 3
+               for profile in observed.values())
+    guards += """
+#guard (match compile pythonSource with
+  | .ok compiled => match compiled.instructions.drop 6 with
+    | [.nestedCall .discard "___assertEqual"
+         [.scalar (.floatAdd left right), .scalar (.literal (.float64 expected))],
+       .nestedCall .discard "___assertTrue" [.call "isinstance" [.floatAdd first second, .readGlobal "float"]]] =>
+      left.val.bits == 0x4010000000000000 && right.val.bits == 0x4000000000000000 &&
+        first.val.bits == left.val.bits && second.val.bits == right.val.bits &&
+        expected.val.bits == 0x4018000000000000 &&
+        (Core.Binary64.addFinite? left right).map (fun result => result.val.bits) == some expected.val.bits
+    | _ => false
+  | _ => false)
+"""
+    fixtures.append((source, guards))
+    observations["unchanged eight-line numeric prefix"] = observed
+
+    difference = "float64:4000000000000000"
+    probes = successful + [(mixed, "float", True)] * 3
+    probes += [("int:2", "int", True)] + [(difference, "float", True)] * 3
+    (source, guards), observed = instance_case(subtraction_prefix, "normal", probes, numeric=True)
+    comparisons = [("int:6", "int:6")] + [(mixed, mixed)] * 3
+    comparisons += [("int:2", "int:2")] + [(difference, difference)] * 3
+    assert all(profile["compared"] == comparisons for profile in observed.values())
+    guards += """
+#guard (match compile pythonSource with
+  | .ok compiled => match compiled.instructions.drop 8 with
+    | [.call .discard "___assertEqual" [.literal (.int 2), .literal (.int 2)], _,
+       .nestedCall .discard "___assertEqual" [.scalar (.floatSub (.intFloat 4 rhs)), _], _,
+       .nestedCall .discard "___assertEqual" [.scalar (.floatSub (.floatInt lhs 2)), _], _,
+       .nestedCall .discard "___assertEqual" [.scalar (.floatSub (.floatFloat left right)), _], _] =>
+        lhs.val.bits == 0x4010000000000000 && rhs.val.bits == 0x4000000000000000 &&
+          left.val.bits == lhs.val.bits && right.val.bits == rhs.val.bits
+    | _ => false
+  | _ => false)
+"""
+    fixtures.append((source, guards))
+    observations["unchanged seventeen-line numeric prefix"] = observed
+
+    product = "float64:4020000000000000"
+    quotient = "float64:4004000000000000"
+    probes += [("int:8", "int", True)] + [(product, "float", True)] * 3 + [(quotient, "float", True)]
+    comparisons += [("int:8", "int:8")] + [(product, product)] * 3 + [(quotient, quotient)]
+    (source, guards), observed = instance_case(multiplication_prefix, "normal", probes, numeric=True)
+    assert all(profile["compared"] == comparisons for profile in observed.values())
+    guards += """
+#guard (match compile pythonSource with
+  | .ok compiled => match compiled.instructions.drop 16 with
+    | [.call .discard "___assertEqual" [.literal (.int 8), .literal (.int 8)], _,
+       .nestedCall .discard "___assertEqual" [.scalar (.floatMul (.intFloat 4 rhs)), _], _,
+       .nestedCall .discard "___assertEqual" [.scalar (.floatMul (.floatInt lhs 2)), _], _,
+       .nestedCall .discard "___assertEqual" [.scalar (.floatMul (.floatFloat left right)), _], _, _, _] =>
+        lhs.val.bits == 0x4010000000000000 && rhs.val.bits == 0x4000000000000000 &&
+          left.val.bits == lhs.val.bits && right.val.bits == rhs.val.bits
+    | _ => false
+  | _ => false)
+"""
+    fixtures.append((source, guards))
+    observations["unchanged twenty-nine-line numeric prefix"] = observed
+
+    probes += [(quotient, "float", True)] * 3
+    comparisons += [(quotient, quotient)] * 3
+    (source, guards), observed = instance_case(division_prefix, "normal", probes, numeric=True)
+    assert all(profile["compared"] == comparisons for profile in observed.values())
+    guards += """
+#guard (match compile pythonSource with
+  | .ok compiled => match compiled.instructions.drop 26 with
+    | [.nestedCall .discard "___assertEqual" [.scalar (.floatDiv (.intFloat 5 rhs)), _], _,
+       .nestedCall .discard "___assertEqual" [.scalar (.floatDiv (.floatInt lhs 2)), _], _,
+       .nestedCall .discard "___assertEqual" [.scalar (.floatDiv (.floatFloat left right)), _], _] =>
+        lhs.val.bits == 0x4014000000000000 && rhs.val.bits == 0x4000000000000000 &&
+          left.val.bits == lhs.val.bits && right.val.bits == rhs.val.bits
+    | _ => false
+  | _ => false)
+"""
+    fixtures.append((source, guards))
+    observations["unchanged thirty-five-line numeric prefix"] = observed
+    probes += [("int:2", "int", True)]
+    comparisons += [("int:2", "int:2")]
+    (source, guards), observed = instance_case(floor_prefix, "normal", probes, numeric=True)
+    assert all(profile["compared"] == comparisons and len(profile["receipts"]) == 51
+               for profile in observed.values())
+    guards += """
+#guard (match compile pythonSource with
+  | .ok compiled => match compiled.instructions.drop 32 with
+    | [.nestedCall .discard "___assertEqual" [.scalar (.intDivMod .floorDiv 5 2), .scalar (.literal (.int 2))],
+       .nestedCall .discard "___assertTrue" [.call "isinstance" [.intDivMod .floorDiv 5 2, .readGlobal "int"]]] => true
+    | _ => false
+  | _ => false)
+"""
+    fixtures.append((source, guards))
+    observations["unchanged thirty-eight-line numeric prefix"] = observed
+
+    source = ""
+    comparisons = []
+    for numerator, divisor, quotient, remainder in TRANSPORT["INT_DIVMOD_CASES"]:
+        for op, result in (("//", quotient), ("%", remainder)):
+            source += f"___assertEqual({numerator} {op} {divisor}, {result})\n"
+            comparisons.append((f"int:{result}", f"int:{result}"))
+    fixture, observed = instance_case(source, "normal", [], numeric=True)
+    assert all(profile["compared"] == comparisons and len(profile["receipts"]) == len(comparisons)
+               for profile in observed.values())
+    fixtures.append(fixture)
+    observations["seeded integer floor quotient and remainder"] = observed
+
+    source = ("kept = 7\n___assertEqual(-5 // 2, -3)\n"
+              "___assertEqual(isinstance(5 % 2, int), 1 // 0)\ntail = 9\n")
+    fixture, observed = instance_case(source, "ZeroDivisionError", [("int:1", "int", True)], numeric=True)
+    assert all(profile["compared"] == [("int:-3", "int:-3")] and len(profile["receipts"]) == 2
+               for profile in observed.values())
+    fixtures.append(fixture)
+    observations["integer divmod receipts before late argument error"] = observed
     return fixtures, observations
 
 
@@ -353,6 +483,38 @@ def controls(upstream):
         "___assertTrue(isinstance(4 + 2.0, float))\n",
         "___assertEqual(4.0 + 2, 6.0)\n",
         "___assertTrue(isinstance(4.0 + 2, float))\n",
+        "___assertEqual(4.0 + 2.0, 6.0)\n",
+        "___assertTrue(isinstance(4.0 + 2.0, float))\n",
+        "\n",
+        "___assertEqual(4 - 2, 2)\n",
+        "___assertTrue(isinstance(4 - 2, int))\n",
+        "___assertEqual(4 - 2.0, 2.0)\n",
+        "___assertTrue(isinstance(4 - 2.0, float))\n",
+        "___assertEqual(4.0 - 2, 2.0)\n",
+        "___assertTrue(isinstance(4.0 - 2, float))\n",
+        "___assertEqual(4.0 - 2.0, 2.0)\n",
+        "___assertTrue(isinstance(4.0 - 2.0, float))\n",
+        "\n",
+        "___assertEqual(4 * 2, 8)\n",
+        "___assertTrue(isinstance(4 * 2, int))\n",
+        "___assertEqual(4 * 2.0, 8.0)\n",
+        "___assertTrue(isinstance(4 * 2.0, float))\n",
+        "___assertEqual(4.0 * 2, 8.0)\n",
+        "___assertTrue(isinstance(4.0 * 2, float))\n",
+        "___assertEqual(4.0 * 2.0, 8.0)\n",
+        "___assertTrue(isinstance(4.0 * 2.0, float))\n",
+        "\n",
+        original,
+        "___assertTrue(isinstance(5 / 2, float))\n",
+        "___assertEqual(5 / 2.0, 2.5)\n",
+        "___assertTrue(isinstance(5 / 2.0, float))\n",
+        "___assertEqual(5.0 / 2, 2.5)\n",
+        "___assertTrue(isinstance(5.0 / 2, float))\n",
+        "___assertEqual(5.0 / 2.0, 2.5)\n",
+        "___assertTrue(isinstance(5.0 / 2.0, float))\n",
+        "\n",
+        "___assertEqual(5 // 2, 2)\n",
+        "___assertTrue(isinstance(5 // 2, int))\n",
     ]
     full = None
     if upstream is not None:
@@ -363,8 +525,8 @@ def controls(upstream):
         first_line = full.splitlines(keepends=True)[0]
         assert first_line == first
         first = first_line
-        assert full.splitlines(keepends=True)[:6] == instance_prefix
-        instance_prefix = full.splitlines(keepends=True)[:6]
+        assert full.splitlines(keepends=True)[:38] == instance_prefix
+        instance_prefix = full.splitlines(keepends=True)[:38]
     missing = "NameError:___assertEqual"
     through_literal = (
         "def relay(value):\n    return value\n"
@@ -423,13 +585,20 @@ def controls(upstream):
         lines = full.splitlines(keepends=True)
         fixtures.append((full, rejected))
         assert lines[2] == "___assertEqual(4 + 2.0, 6.0)\n"
-        assert lines[6] == "___assertEqual(4.0 + 2.0, 6.0)\n"
-        fixtures.append(("".join(lines[:6]), "#guard (compile pythonSource).isOk"))
-        fixtures.append(("".join(lines[:7]), rejected))
+        assert lines[38] == "___assertEqual(5.0 // 2, 2.0)\n"
+        fixtures.append(("".join(lines[:39]), rejected))
+        remainder = "".join(lines[45:47])
+        assert remainder == "___assertEqual(5 % 2, 1)\n___assertTrue(isinstance(5 % 2, int))\n"
+        fixture, observed = instance_case(remainder, "normal", [("int:1", "int", True)], numeric=True)
+        assert all(profile["compared"] == [("int:1", "int:1")] and len(profile["receipts"]) == 3
+                   for profile in observed.values())
+        fixtures.append(fixture)
+        observations["isolated unchanged integer remainder"] = observed
         observations["first prefix cutoffs"] = {
-            "first_rejected_compiler_prefix": 7,
-            "source": lines[6].rstrip("\n"),
-            "numeric_seed_completed_through": 6,
+            "first_rejected_compiler_prefix": 39,
+            "first_rejected_compiler_diagnostic": "source.scalar.expressionProfile",
+            "source": lines[38].rstrip("\n"),
+            "numeric_seed_completed_through": 38,
             "integer_seed_runtime_line": 4,
             "integer_seed_runtime_cutoff": "NameError:float",
         }

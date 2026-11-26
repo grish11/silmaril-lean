@@ -684,6 +684,160 @@ reruns admission of the renamed reply-carrying graph at the same
 profile.
 [Checked relabelling fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOutExamples.lean)
 
+### Structural captures under event relabelling
+
+The typed-entry room uses one `Interface` for both members of an RTL
+sentence. It supplies the same record of type `packedInputType I.context.toList`
+to both runners. Its primitive signature maps also preserve that interface.
+A structural capture comparison starts from a common named store, but its two
+public dispatchers can have different packet types and receive different
+decoded packets. Feeding those dispatchers directly to the typed-entry room
+would require changing its common-record interface. It would also require
+expressing the joint store restriction and exposing the selected live-outs
+in the result type.
+[Typed-entry sentences](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Institution/Defs.lean)
+
+The handled-trace institution compares the actual executions at the two
+independent checked packets, over a common primitive event signature and
+ordered output profile. Its existing signature arrows inject the complete
+typed request key and bijectively transport each key's replies. The packed
+execution square gives satisfaction in each target policy exactly when the
+original named comparison satisfies its reduct at the same store. The
+aggregate verdict decides validity across all target policies at every
+jointly typed store. The comparison fixes the exit list, payload types and
+ordered selected live-outs. Label and register renaming belongs to a
+different signature action.
+[Structural satisfaction and witness transport](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Refinement/Institution/Thms.lean)
+
+The regression repeats a capture at two compatible types. A completed
+request leads to the same ordered exit on both sides, with distinct
+selected live-outs. The extracted directed witness still separates the
+actual packed runs after embedding the request key in a larger signature.
+[Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
+
+### Renaming registers in structural capture comparisons
+
+Register renaming acts on the named entry, row operands, binders, and
+block parameters. Live-out attachment uses the corresponding register at
+each position in the original field list. The packet-closed cyclic run
+theorems then give equality of the numbered exit and selected payload
+trees at corresponding stores, using the same primitive interpretation.
+[Mutable run theorem](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/RegisterRename/Thms.lean)
+
+Exact named elaboration produces the same positional table after
+an injective register map. `StructuralEntry.rename` carries its admission
+certificate, the checked dispatcher, and the structural seed to the
+renamed graph. Under a register bijection, the joint store enumeration maps
+each representative by inverse lookup. Repeated occurrences keep their
+types and continue to share one register value. The decoder, empty-domain
+flag, directed verdict, and extracted trace agree. The witness store moves
+to the corresponding register names.
+[Elaboration theorem](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/RegisterRename/Thms.lean)
+· [Structural decision and witness theorems](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/RegisterRename/Thms.lean)
+
+At the two checked seeds, register renaming composes with the handled-trace
+satisfaction square for a faithful event relabelling. The regression moves
+both the repeated capture and the selected live-out register and exercises
+the renamed extractor after a completed primitive request. The same ordered
+exit and encoded payload still distinguish the two runs.
+[Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
+
+### Structural comparisons on the original named SSA translations
+
+The structural certificate computes its packed verdict at two independently
+decoded public packets. The original written graphs also have a separate
+named SSA translation. Attach the ordered live-out reads to each graph,
+then run the existing cyclic versioner. The returned `LexicalGraph` certifies
+the version-zero entry scope and each block's singleton parameter scope.
+`observeVersioned_eq` identifies the actual `runSSA` result with the
+original mutable observation at any corresponding store. It numbers the
+original exit and keeps the written payload and selected live-out values.
+
+At a decoded seed, `observeVersioned_eq_public` also identifies that tree
+with the checked public program's named SSA runner at its own packet type.
+The finite verdict decides the existing handled-trace sentence on the
+original versioned endpoints for every jointly typed store and shared
+reply policy. An extracted directed trace refutes that sentence in the
+all-replies model, including when the separation occurs in the selected
+live-out after a completed request.
+[Named SSA refinement and witness](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Refinement/NamedSSA/Thms.lean)
+
+The lexical certificate gives scoped named SSA. Exact typed admission for
+the independently supplied packets comes from the checked public entries.
+In the repeated-capture fixture, one written register supplies two
+different sum types with overlapping encodings. The ordinary open entry
+checker assigns one type to that slot and cannot type the pair at those
+two distinct types. Structural decoding establishes each packet from the
+same raw value instead.
+[Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
+
+### A typed named entry for individual capture occurrences
+
+The structural entry footprint already records each use in packet order.
+The occurrence adapter gives each variable use a distinct numbered name
+and its own declared type. A unit requires no slot, and products traverse
+their left and right operands in order. The existing shared-store decoder
+supplies the packet, and its structural assignment supplies the individual
+slots. Each slot is a typed encoding of the value of its source register,
+including when several slots read that same register.
+
+The adapter rebuilds only the public entry jump from these slots. It
+dispatches the same packet to the same label, and packet closure keeps
+the public rows independent of the entry store. Ordinary exact named
+elaboration and type checking admit the resulting graph at the public
+row and exit profiles. Successful admission relates the actual named
+runner to its exact flat code. With a checked source seed, that runner
+agrees with both the original mutable graph and its existing lexical SSA
+translation, with the same ordered exit, payload and selected live-outs.
+[Occurrence adapter and runner equations](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Thms.lean)
+
+Exact admission of the compiled public dispatcher and agreement between its
+selected capture slot type and the structural packet type suffice to admit
+the rebuilt graph. The generated jump elaborates over the numbered slots
+with the exact type of each occurrence and targets the same label. The
+checker reuses the admitted rows under the new capture context, preserving
+their erased code and the ordered exit profile. A well-typed initial store
+is needed to decode a runtime seed.
+[Derived occurrence admission](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Thms.lean)
+
+The existing directed verdict decides the handled-trace sentence on the
+two admitted occurrence-entry runners. Each side supplies its exact named
+admission, and each comparison uses both independently typed packets
+decoded from the same store. A failed decode yields no pointwise verdict.
+The aggregate quantifies over the jointly decoded domain and retains
+its separate empty-domain flag. The extracted representative and trace
+supply a counterexample in the all-replies model.
+[Occurrence-entry satisfaction and witness](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Refinement/Thms.lean)
+
+`StructuralEntry.checkOccurrenceComparison?` takes two structural RTL
+entries and checks both dispatcher packet types. On success it derives both
+occurrence admissions and exposes the pointwise and finite-domain verdicts
+and the original named counterexample. A failed compatibility check gives no
+comparison. A failed joint decode at a supplied store gives no pointwise
+verdict. A returned `false` rejects at a jointly decoded store, and the
+finite verdict reports an empty domain separately. Each verdict concerns the
+same ordered exits and selected live-outs in the admitted occurrence runners.
+Register renaming preserves compatibility and the sentence at the
+transported seeds.
+[Checked structural comparison](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/Thms.lean)
+
+The repeated-capture fixture admits two distinct slots at different sum
+types and initializes both from the same value. The first compatible
+capture assignment gives equal weak trees. The later compatible assignment
+changes the right live-out at the same ordered exit, and the extracted
+trace refutes the admitted comparison after a completed request. An
+injection accepted only by the wider type fails shared-store decoding.
+[Checked fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
+
+A bijection on the source registers also renames the selected live-outs.
+Rebuilding the occurrence adapter from the renamed structural certificate
+gives the same numbered graph and the same type at every slot. Exact admission
+agrees after erasing the scope indices from the checked code. Decoding the
+transported store gives the same packet, so the rebuilt named runner preserves
+ordered exits and live-out values. A directed trace witness keeps its trace
+and uses the transported initial store.
+[Occurrence adapter register-renaming laws](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/RegisterRename/Thms.lean)
+
 ### Reverse lowering of open flat SSA to mutable RTL
 
 `NamedFlat.Entry.Reverse.lowerChecked` generates an ordinary named mutable CFG
@@ -991,6 +1145,143 @@ named and packed results, and rejection by the existing LetCase rank gate.
 
 [Named typed admission and packed agreement](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/Thms.lean)
 · [Cyclic packet and live-out regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocalRegression.lean)
+
+### Request-guarded transport for named packet-local RTL
+
+`LiveOut.PacketLocal.Guarded.Corresponds` relates an admitted named table
+to an independently supplied `OpenOperands.Table`. The adapter encodes
+each exact typed block packet and pending exit. It checks an entry equation
+and a local weak-tree equation for every encoded state. Requests use one
+shared evaluator returning the typed reply position and payload. A
+terminal lookup keeps the original ordered tag and the payload
+`(unit, unit)`, the original unit paired with an empty live-out record.
+
+The fixture proves literal readback of the emitted entry and loop row.
+The named entry wraps the caller in an argument-plus-unit packet and the
+loop row begins with a product decoder. The guarded native entry forwards
+its caller directly and its row requests on the incoming value. The local
+equation accounts for that wrapper and decoder and for the named nested
+sum cases that route the replies. `Corresponds.mutable_step` composes it
+with the actual original mutable step and exit projection.
+`Corresponds.observe_eq` lifts through feedback, and
+`Corresponds.packed_eq` uses the same typed caller record and a compatible
+packed model to expose the dispatcher equation.
+
+`observe_eq_of_checkProduct` transports an accepted native certificate
+with ordinary target exits. Its matched query heads share the evaluator
+and each typed reply leads to a related pair. Iteration uniformity maps
+this coupled execution to both original named weak trees. The
+`observe_eq_of_searchProduct` corollary uses the existing positive search
+theorem, with the same exhaustive reply and configuration inventories.
+This transport concerns ordinary weak trees with ordered unit exits.
+The shaped model's designated UB exits require a separate observation
+bridge. A caller supplies the guarded table and the local proof.
+
+The hand-written loop polls on a constructor bit. Reply tag zero changes
+the bit and transfers back to the loop. The next query observes the
+changed bit, and reply tag two leads to the second ordered unit exit.
+Lean checks the two named register allocations, accepted certificate,
+successful search and the actual terminating weak trace.
+
+[Transport theorem](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/Guarded/Thms.lean)
+· [Exact cyclic regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/GuardedRegression.lean)
+
+### Exact readback recognition of the guarded request loop
+
+`Guarded.Recognize.recognizeAdapter` checks the admitted lexical code for
+one bit input, three internal rows and two ordered unit exits. The entry
+packs the caller bit with unit. The first row decodes that packet and
+queries the supplied opcode on the bit. `readRoutes` extracts the written
+destination for each occupied reply in `[bit, unit, unit]` and checks that
+the destination packet type equals the reply type. Tag zero therefore
+returns to the bit row, and either unit reply can select either unit row.
+The recognizer compares the exact readback with the reconstruction from
+these destinations, including the operand that forwards each reply, the
+empty-tail arm, and the fixed outward unit rows.
+
+The supplied bijection names the three blocks and the two ordered exits.
+The recognizer checks those five positions against the actual compiled
+table's first-match numbering. The proof uses `SSA.accepted` to obtain
+literal scoped readback, then applies `NamedFlat.entry_tree` and
+`NamedFlat.step_tree`. The checked numbering recovers the named transfers
+from their positional encodings. The caller supplies the version-zero bit
+equality and raw primitive agreement with the shared typed evaluator.
+The adapter returns the extracted routing and a correspondence for its
+generated guarded table.
+
+The cyclic regression still transports its positive certificate and
+changed-packet trace. The variant that redirects reply tag one now
+produces a distinct guarded table with a checked named correspondence.
+Product search reports the syntactic mismatch at row pair `(1, 2)`
+after reply tags `[0, 1]`. A variant with a second primitive that changes
+the bit before the poll passes ordinary typed admission and fails this
+one-request recognition.
+
+[Executable recognizer and checked adapter](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/Guarded/Recognize/Thms.lean)
+· [Extracted reply routes and exact search mismatch](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/GuardedRegression.lean)
+
+#### Fixed-carrier decision at the named endpoints
+
+For the same constructor-bit profile, `FixedCarrier.observeNamed` runs
+the original named weak tree with typed opcode and argument requests.
+A total deterministic interpreter supplies each typed reply and next
+machine state, retains the state on a primitive fault, or reports ordinary
+divergence. The observer reuses positional feedback with the residual
+tree as the internal packet. The proof matches each replay step against
+the existing guarded classifier, including successful typed replies and
+internal cycles. The outward packed tag decodes to the original ordered
+unit exit and retains the final machine state.
+
+Exact named recognition and native readback give the same decorated
+observation. The existing fixed-carrier checker therefore decides
+refinement of the original named endpoints at the supplied caller bit
+and all initial states of that carrier. The hypotheses include exhaustive
+typed configuration, reply and machine-state inventories. Each endpoint
+can supply its own selection over the two ordered unit exits. The named
+observer applies the native exit continuations after decoding the result.
+A selected tag yields fresh top. An unselected tag keeps its unit payload
+and final machine state. The default agrees with the unadorned native
+CFG. Selection leaves the exact emitted native syntax and its readback
+unchanged. The named live-out projection is empty.
+
+The reroute regression uses one total interpreter at both checked
+endpoints. It sends a new bit and changes the machine state at the
+backedge, then sends reply tag one. The original runner exits at position
+zero and the rerouted runner exits at position one, both in state one.
+Selecting position one makes the original refine the reroute for every
+interpreter and initial state on the same carrier. The shared interpreter
+witnesses failure in the reverse direction, with fresh top on the reroute
+and the ordinary exit at position zero in state one on the original.
+The forward proof uses the existing guarded product certificate. Separate
+runs check retained primitive faults and a state-changing cycle.
+[Named observation and decision](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/Guarded/FixedCarrier/Thms.lean)
+
+#### One assigned live-out bit
+
+The packet-local guarded profile can project one register of type
+`unit + unit` at either ordered exit. The admitted terminal row assigns
+it from a typed unit-to-bit instruction immediately before branching
+with the original unit. Exact readback checks the instruction and the
+use of its freshly assigned version in the attached exit packet. The
+shared pure interpretation assigns that instruction its constructor bit.
+Only the polling query consumes interpreter replies. The caller's
+version-zero seed agrees with the input bit, and the terminal assignment
+supplies the live-out value.
+
+The named observer decodes the actual projected value into a typed
+record. At exact native control readback, a generated typed native
+continuation emits the same `unit × (bit × unit)` payload on the original
+tag. Selection uses the established UB continuation before the payload
+is emitted. The fixed-carrier comparison uses the same exhaustive
+interpreter restrictions and accounts for the checked bit at each
+terminal tag. This applies to a bit fixed by the terminal assignment,
+with no additional state in the native carrier.
+
+The regression changes the bit packet at the backedge before both
+original named programs return unit at exit zero in machine state one.
+Their projected bits differ, yielding a negative verdict. Selecting
+that exit makes both observations fresh top under the same script.
+[Typed live-out decoder and decision](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/Guarded/FixedCarrier/LiveBit/Thms.lean)
 
 ### From the opt-in packet-local versioner to LetCase
 

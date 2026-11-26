@@ -6,6 +6,7 @@ public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.P
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Correctness
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.WellFormed
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Execution
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Loop
 
 /-! Source transport and the checked emissions at a different capture width. -/
 
@@ -16,7 +17,7 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Prehe
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.RTL (Frame)
 open Silmaril.Machine.RTL.SSA (State StepsNWithin step)
-open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp model word)
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp encodeValue model word)
 open Silmaril.SSA.SeaOfNodes.Loop (appendTuple)
 open Silmaril.SSA.RVSDG (Origin Port Tuple extend)
 open Silmaril.SSA.SeaOfNodes.Diamond (Model Val read)
@@ -123,6 +124,30 @@ theorem header_terminator {captures : Nat} (g : Source captures bank entrySigs s
       ArgsMatch (bindWords captures fr next) (appendTuple next input) :=
   Proofs.header_terminator g input old fr mem capturesMatch guard wordsMatch
 
+/-- Execute the real header producers and resolve every typed origin at the branch. -/
+theorem header_producers {captures : Nat} (g : Source captures bank entrySigs sigs) (input : WordTuple captures)
+    (old : WordTuple bank) (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
+    ∃ ready, StepsNWithin (lowerRTL g) [] sigs.length ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+      ⟨⟨0, 1, sigs.length⟩, ready, [], mem⟩ ∧
+      ∀ {t} (wire : Origin (wordPorts captures ++ wordPorts bank) (extend [] sigs) t),
+        ready.get (register wire.address) = some (encodeValue t
+          (read model wire (appendTuple old input) (g.header.eval model (appendTuple old input) PUnit.unit))) :=
+  Proofs.header_producers g input old fr mem agree
+
+/-- One instruction per header producer, then one terminator. The exit branch
+takes one further instruction to return. The feedback branch restores the bank invariant. -/
+theorem header_activation {captures : Nat} (g : Source captures bank entrySigs sigs) (input : WordTuple captures)
+    (old : WordTuple bank) (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
+    match g.step model input old with
+    | .inl value =>
+      ∃ ready, StepsNWithin (lowerRTL g) [] (sigs.length + 1) ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+        ⟨⟨0, 2, 0⟩, ready, [], mem⟩ ∧
+        step (lowerRTL g) ⟨⟨0, 2, 0⟩, ready, [], mem⟩ = .returned [value] mem
+    | .inr next =>
+      ∃ latched, StepsNWithin (lowerRTL g) [] (sigs.length + 1) ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+        ⟨⟨0, 1, 0⟩, latched, [], mem⟩ ∧ ArgsMatch latched (appendTuple next input) :=
+  Proofs.header_activation g input old fr mem agree
+
 variable {mapping : InputMap old new} {g : SourceWithEntry old entrySigs sigs} {targets : Checked.Phi.Targets}
 
 /-- A successful width check certifies the original table and the actual emitted function. -/
@@ -136,6 +161,43 @@ theorem lowerChecked_typed (accepted : lowerChecked mapping g = some targets) :
     targets.1.WellFormed ∧ targets.2.HasType (Generic.inputContext (wordSorts new))
       [Generic.packed [.value word]] :=
   Proofs.lowerChecked_typed accepted
+
+/-- Compare RTL instruction fuel to the source backedge count via the emitted schedule. -/
+theorem rtl_runMain_fuel_iff (accepted : lowerChecked mapping g = some targets)
+    (input : WordTuple new) (initial final : Memory) (returned : List Word) (fuel : Nat) :
+    targets.1.runMain fuel 0 (words input) initial = .returned returned final ↔
+      ∃ count value, g.ReturnsAfter model (mapping.pull input) count (g.initial model (mapping.pull input)) value ∧
+        rtlFuel entrySigs sigs count ≤ fuel ∧ returned = [value] ∧ final = initial :=
+  Proofs.rtl_runMain_fuel_iff mapping accepted input initial final returned fuel
+
+/-- The RTL instruction budget for a native backedge bound gives the same
+bounded return as the native evaluator, including the full memory frame. -/
+theorem rtl_runMain_backedges_iff (accepted : lowerChecked mapping g = some targets)
+    (input : WordTuple new) (initial final : Memory) (returned : List Word) (budget : Nat) :
+    targets.1.runMain (rtlFuel entrySigs sigs budget) 0 (words input) initial = .returned returned final ↔
+      ∃ value : Word, g.evalBackedges model budget (mapping.pull input) = some value ∧
+        returned = [value] ∧ final = initial :=
+  Proofs.rtl_runMain_backedges_iff mapping accepted input initial final returned budget
+
+/-- The actual RTL return is the pulled native word and unchanged whole memory. -/
+theorem rtl_return_iff (accepted : lowerChecked mapping g = some targets)
+    (input : WordTuple new) (initial final : Memory) (returned : List Word) :
+    targets.1.oracle 0 (words input) initial returned final ↔
+      ∃ value : Word, value ∈ g.denote model (mapping.pull input) ∧ returned = [value] ∧ final = initial :=
+  Proofs.rtl_return_iff mapping accepted input initial final returned
+
+/-- Undefinedness is absence of any finite RTL return, independently of fuel. -/
+theorem rtl_no_finite_return_iff (accepted : lowerChecked mapping g = some targets)
+    (input : WordTuple new) (initial : Memory) :
+    (∀ returned final, ¬ targets.1.oracle 0 (words input) initial returned final) ↔
+      g.denote model (mapping.pull input) = Part.none :=
+  Proofs.rtl_no_finite_return_iff mapping accepted input initial
+
+/-- Native absence produces an infinite sequence of actual RTL steps. -/
+theorem rtl_divOracle_iff (accepted : lowerChecked mapping g = some targets)
+    (input : WordTuple new) (initial : Memory) :
+    targets.1.divOracle 0 (words input) initial ↔ g.denote model (mapping.pull input) = Part.none :=
+  Proofs.rtl_divOracle_iff mapping accepted input initial
 
 /-- All λSSA returns pack the original word at exit zero and preserve the whole memory. -/
 theorem lambda_return_iff (accepted : lowerChecked mapping g = some targets) (input : WordTuple new)

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Defs
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ListDisplay.Thms
 public import Silmaril.Languages.Python.Core.Module.Functions.Thms
 public import Silmaril.Languages.Python.Core.Module.TupleDispatch.Thms
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.TupleIdentity.Thms
@@ -15,6 +16,33 @@ theorem callOperand_numericArgument (scope : Source.Scope) (result : NumericArgu
       | .integer value => .int value
       | .boolean value => .bool value)) := by
   cases result <;> rfl
+
+theorem callOperand_literalBooleanEquality {scope : Source.Scope}
+    (session : Core.Module.Functions.Session) (left right : Bool) :
+    let operand : Operand scope := .binary .equal (.boolean left) (.boolean right)
+    callOperand? operand = some (.literal (.bool (left == right))) ∧
+      evaluate session operand = .ok (.bool (left == right)) := by
+  refine ⟨rfl, ?_⟩
+  simp only [evaluate]
+  cases left <;> cases right <;> rfl
+
+theorem advanceListDisplayCall_missing {scope : Source.Scope}
+    (session : Core.Module.Functions.Session) (destination : Core.Module.Functions.Destination)
+    (display : ListDisplay.Display) (rest : List (Instruction scope)) {name : String}
+    (missing : session.globals name = none) :
+    advanceListDisplayCall session destination name display rest = .finished session (.raised (.nameError name)) := by
+  simp [advanceListDisplayCall, missing]
+
+theorem advanceListDisplayCall_negated {scope : Source.Scope}
+    (session : Core.Module.Functions.Session) (destination : Core.Module.Functions.Destination)
+    (items : List ListDisplay.Item) (rest : List (Instruction scope))
+    {name : String} {callee : Core.Closure.Value} {contents : List Core.Module.Value}
+    (resolved : session.globals name = some callee)
+    (evaluated : items.mapM (ListDisplay.Item.eval (readListItem session)) = .ok contents) :
+    advanceListDisplayCall session destination name ⟨items, true⟩ rest =
+      .calling ({ session with lists := (session.lists.allocate contents).2 }.prepareCall
+        destination (.literal callee) [.literal (.bool contents.isEmpty)]) rest := by
+  simp [advanceListDisplayCall, resolved, ListDisplay.Display.prepare, evaluated, Core.Module.ListHeap.allocate]
 
 theorem retainTupleOrigins_unobserved {scope : Source.Scope} (instructions : List (Instruction scope))
     (unobserved : instructions.any Instruction.observesTupleIdentity = false) :

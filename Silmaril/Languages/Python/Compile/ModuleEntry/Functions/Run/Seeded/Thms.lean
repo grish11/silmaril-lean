@@ -5,6 +5,7 @@ import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms
 import Silmaril.Languages.Python.Compile.ModuleEntry.Thms
 public import Silmaril.Languages.Python.Core.Module.Functions.Thms
 public import Silmaril.Languages.Python.Core.Text.Thms
+import Silmaril.Languages.Python.Core.Text.Slice.Thms
 public import Silmaril.Languages.Python.Core.Module.SeededCall.Thms
 public import Silmaril.Languages.Python.Core.Module.SeededCall.Observation.Thms
 import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded
@@ -74,6 +75,17 @@ theorem observeNestedCallIn_innerPreparationError {space : Namespace} {context :
   Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.observeNestedCallIn_innerPreparationError
     outerFound failed
 
+theorem intDivMod_operand_agrees {layout : Core.Closure.Layout} (space : Namespace)
+    (globals : Core.Closure.Executor.GlobalLookup) (heap : Core.Closure.Heap) (frame : Core.Closure.Frame layout)
+    (op : Core.Closure.IntDivModOp) (numerator divisor : Int) :
+    (lowerCallOperand (.intDivMod op numerator divisor)).eval space #v[] =
+      (((Core.Module.Functions.Operand.intDivMod op numerator divisor).lower.evalIn globals heap frame).map
+        seededValue).mapError (fun
+          | .defined error => .raised (.runtime error)
+          | _ => .unsupported) :=
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.intDivMod_operand_agrees
+    space globals heap frame op numerator divisor
+
 theorem intTrueDiv_operand_agrees {layout : Core.Closure.Layout} (space : Namespace)
     (globals : Core.Closure.Executor.GlobalLookup) (heap : Heap) (frame : Core.Closure.Frame layout)
     (numerator divisor : Int) :
@@ -85,6 +97,17 @@ theorem intTrueDiv_operand_agrees {layout : Core.Closure.Layout} (space : Namesp
   Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.intTrueDiv_operand_agrees
     space globals heap frame numerator divisor
 
+theorem floatDiv_operand_agrees {layout : Core.Closure.Layout} (space : Namespace)
+    (globals : Core.Closure.Executor.GlobalLookup) (heap : Heap) (frame : Core.Closure.Frame layout)
+    (operands : Core.Binary64.FloatOperands) :
+    (lowerCallOperand (.floatDiv operands)).eval space #v[] =
+      (((Core.Module.Functions.Operand.floatDiv operands).lower.evalIn globals heap frame).map
+        seededValue).mapError (fun
+          | .defined error => .raised (.runtime error)
+          | _ => .unsupported) :=
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.floatDiv_operand_agrees
+    space globals heap frame operands
+
 theorem mixedAdd_operand_agrees {layout : Core.Closure.Layout} (space : Namespace)
     (globals : Core.Closure.Executor.GlobalLookup) (heap : Heap) (frame : Core.Closure.Frame layout)
     (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite) :
@@ -95,6 +118,39 @@ theorem mixedAdd_operand_agrees {layout : Core.Closure.Layout} (space : Namespac
           | _ => .unsupported) :=
   Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.mixedAdd_operand_agrees
     space globals heap frame integer floating
+
+theorem floatAdd_operand_agrees {layout : Core.Closure.Layout} (space : Namespace)
+    (globals : Core.Closure.Executor.GlobalLookup) (heap : Heap) (frame : Core.Closure.Frame layout)
+    (left right : Silmaril.Numeric.Ieee754.F64.Finite) :
+    (lowerCallOperand (.floatAdd left right)).eval space #v[] =
+      (((Core.Module.Functions.Operand.floatAdd left right).lower.evalIn globals heap frame).map
+        seededValue).mapError (fun
+          | .defined error => .raised (.runtime error)
+          | _ => .unsupported) :=
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.floatAdd_operand_agrees
+    space globals heap frame left right
+
+theorem floatSub_operand_agrees {layout : Core.Closure.Layout} (space : Namespace)
+    (globals : Core.Closure.Executor.GlobalLookup) (heap : Heap) (frame : Core.Closure.Frame layout)
+    (operands : Core.Binary64.FloatOperands) :
+    (lowerCallOperand (.floatSub operands)).eval space #v[] =
+      (((Core.Module.Functions.Operand.floatSub operands).lower.evalIn globals heap frame).map
+        seededValue).mapError (fun
+          | .defined error => .raised (.runtime error)
+          | _ => .unsupported) :=
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.floatSub_operand_agrees
+    space globals heap frame operands
+
+theorem floatMul_operand_agrees {layout : Core.Closure.Layout} (space : Namespace)
+    (globals : Core.Closure.Executor.GlobalLookup) (heap : Heap) (frame : Core.Closure.Frame layout)
+    (operands : Core.Binary64.FloatOperands) :
+    (lowerCallOperand (.floatMul operands)).eval space #v[] =
+      (((Core.Module.Functions.Operand.floatMul operands).lower.evalIn globals heap frame).map
+        seededValue).mapError (fun
+          | .defined error => .raised (.runtime error)
+          | _ => .unsupported) :=
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.floatMul_operand_agrees
+    space globals heap frame operands
 
 theorem observeArguments_iff {space : Namespace} {arguments : List Argument}
     {values : Except Failure (List Value)} {calls : List CallEvent} :
@@ -197,6 +253,14 @@ theorem evaluate_closedSequenceComparison {scope : Source.Scope} (session : Core
   simp only [Except.map, Except.ok.injEq]
   exact ⟨Run.evaluate_scalarResult session (.bool value), evaluateScalar_booleanResult space context value⟩
 
+theorem literalBooleanEquality_call_agrees {scope : Source.Scope}
+    (space : Namespace) (context left right : Bool) :
+    let operand : Operand scope := .binary .equal (.boolean left) (.boolean right)
+    (callOperand? operand).map (fun value => (lowerCallOperand value).eval space #v[]) =
+      some (evaluateScalar space context operand) := by
+  simp only [evaluateScalar]
+  cases left <;> cases right <;> rfl
+
 theorem evaluateScalar_notEqual {scope : Source.Scope} (space : Namespace) (context : Bool)
     (left right : ModuleEntry.Operand scope) :
     evaluateScalar space context (.binary .notEqual left right) = (do
@@ -225,10 +289,11 @@ theorem assertOperand_scalarResult {scope : Source.Scope} (space : Namespace) (v
 
 theorem run_scalarResultAssign {scope : Source.Scope} (space : Namespace) (context : CallContext)
     (name : Source.Name) (reference : ModuleEntry.GlobalReference scope name) (value : Core.Module.Value)
-    (rest : List (Instruction scope)) :
-    runInstructionsIn space context (.scalar (.assign name reference (.scalarResult value)) :: rest) =
-      runInstructionsIn (space.bindGlobal name (seededValue (Run.embed value))) context rest := by
-  simp [runInstructionsIn, effectWithLists, effect_scalarResultAssign]
+    (rest : List (Instruction scope)) (lists : ListHeap := .empty) :
+    runInstructionsIn space context (.scalar (.assign name reference (.scalarResult value)) :: rest) lists =
+      runInstructionsIn (space.bindGlobal name (seededValue (Run.embed value))) context rest lists := by
+  simp [runInstructionsIn, effectWithLists, effect, evaluateScalar_scalarResult]
+  rfl
 
 theorem run_scalarResultAssert {scope : Source.Scope} (space : Namespace) (context : CallContext)
     (value : Core.Module.Value) (rest : List (Instruction scope)) :
@@ -370,6 +435,37 @@ theorem observeTupleFromListDisplay_mask (space : Namespace) (heap : Heap) (list
       ((⟨.error (.raised (.runtime .notCallable)), none⟩, heap), (lists.allocate contents).2) := by
   simp [observeTupleFromListDisplay, tupleBinding, masked,
     (Core.Module.TupleDispatch.constructFromListDisplay_mask lists contents).1, TupleChain.runtimeError?]
+
+theorem observeListDisplayCall_missing (space : Namespace) (context : CallContext)
+    (destination : Core.Module.Functions.Destination) (display : ListDisplay.Display) (lists : ListHeap)
+    {name : String} (missing : space.lookupGlobal name = none) :
+    observeListDisplayCall space context destination name display lists =
+      ((acceptObservation destination name ⟨.error (.raised (.runtime (.nameError name))), none⟩,
+        context.heap), lists) := by
+  simp [observeListDisplayCall, missing]
+
+theorem observeListDisplayCall_prepared (space : Namespace) (context : CallContext)
+    (destination : Core.Module.Functions.Destination) (display : ListDisplay.Display) (lists : ListHeap)
+    {name : String} {callee : Value} {contents : List Core.Module.Value}
+    (resolved : space.lookupGlobal name = some callee)
+    (evaluated : display.items.mapM (ListDisplay.Item.eval (readListItem space)) = .ok contents) :
+    observeListDisplayCall space context destination name display lists =
+      (observeRemainingCallIn space context destination name callee
+        [listDisplayArgument display (lists.allocate contents).1] [], (lists.allocate contents).2) := by
+  simp only [observeListDisplayCall, resolved, display.prepare_allocated _ _ _ evaluated]
+
+theorem observeListDisplayCall_assertTrue (space : Namespace) (context : CallContext)
+    (name : String) (items : List ListDisplay.Item) (lists : ListHeap) (contents : List Core.Module.Value)
+    (resolved : space.lookupGlobal name = some (.helper .assertTrue))
+    (evaluated : items.mapM (ListDisplay.Item.eval (readListItem space)) = .ok contents) :
+    let object := (lists.allocate contents).1
+    let result := if contents.isEmpty then .error (.raised (.assertionError (.listObject object))) else .ok .none
+    observeListDisplayCall space context .discard name ⟨items, false⟩ lists =
+      ((acceptObservation .discard name ⟨result, none⟩, context.heap), (lists.allocate contents).2) := by
+  rw [observeListDisplayCall_prepared space context .discard ⟨items, false⟩ lists resolved evaluated]
+  simp [observeRemainingCallIn, observeArgumentsIn, listDisplayArgument, invokeNestedTarget, invokeDescriptor,
+    Core.Module.SeededCall.invokeObserved, Core.Module.SeededCall.Request.decode,
+    Core.Module.SeededCall.invoke_assertTrue_listObject, Core.Module.ListHeap.allocate]
 
 theorem observeTupleFromListDisplayCall_outer_missing (space : Namespace) (context : CallContext)
     (destination : Core.Module.Functions.Destination) (lists : ListHeap) {name : String}
@@ -786,6 +882,32 @@ theorem observeArgumentIn_resolutionFailure {space : Namespace} {context : CallC
     observeArgumentIn space context (.call name arguments) allowClosureCalls =
       (.error (.ofCall error), [⟨name, ⟨.error error, none⟩⟩], context.heap) := by
   simp [observeArgumentIn, failed, argumentObservation, Except.mapError]
+
+theorem textSliceOperand_agrees {layout : Core.Closure.Layout} (space : Namespace)
+    (globals : Core.Closure.Executor.GlobalLookup) (heap : Heap) (frame : Core.Closure.Frame layout)
+    (receiver : Core.Text) (bounds : Core.SliceBounds) :
+    (lowerCallOperand (.textSlice receiver bounds)).eval space #v[] =
+      (((Core.Module.Functions.Operand.textSlice receiver bounds).lower.evalIn globals heap frame).map
+        seededValue).mapError (fun
+          | .defined error => .raised (.runtime error)
+          | _ => .unsupported) := by
+  cases sliced : receiver.slice? bounds <;>
+    simp [lowerCallOperand, Core.Module.SeededCall.Operand.eval, Core.Module.Functions.Operand.lower,
+      Core.Closure.Executor.Operand.evalIn, sliced, Except.map, Except.mapError, seededValue]
+
+theorem observeArgumentIn_textSlice {space : Namespace} {context : CallContext}
+    {receiver result : Core.Text} {bounds : Core.SliceBounds} (allowEscaped : Bool)
+    (sliced : receiver.slice? bounds = some result) :
+    observeArgumentIn space context (.scalar (.textSlice receiver bounds)) allowEscaped =
+      (.ok (.text result), [], context.heap) := by
+  simp [observeArgumentIn, lowerCallOperand, Core.Module.SeededCall.Operand.eval, sliced, Except.mapError]
+
+theorem observeArgumentIn_textSlice_zero {space : Namespace} {context : CallContext}
+    (receiver : Core.Text) {bounds : Core.SliceBounds} (allowEscaped : Bool) (zero : bounds.step = some 0) :
+    observeArgumentIn space context (.scalar (.textSlice receiver bounds)) allowEscaped =
+      (.error (.raised (.runtime .zeroSliceStep)), [], context.heap) := by
+  simp [observeArgumentIn, lowerCallOperand, Core.Module.SeededCall.Operand.eval,
+    Core.Text.slice_zero receiver bounds zero, Except.mapError, ModuleFailure.ofCall]
 
 theorem argumentObservation_tuple (space : Namespace) (name : String) (heap : Heap)
     (items : List Core.Module.TupleDispatch.Element) :

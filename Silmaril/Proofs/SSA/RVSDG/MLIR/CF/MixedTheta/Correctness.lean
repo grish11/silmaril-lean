@@ -28,12 +28,11 @@ private def successor : TyDen A ⊕ TyDen A → CF.Frame (Label w)
   | .inl out => ⟨.exit, packet codec out⟩
   | .inr next => ⟨.activate, packet codec next⟩
 
-private theorem activation_eval (input : Env [w]) (x : TyDen A) :
-    ((emit (w := w) s pureFirst).block .activate).eval (eval (σ := σ) codec)
-        ((packet codec x).append input) =
-      (s.step (σ := σ) x >>= fun route => pure (.inl (successor codec route))) := by
+theorem activation_result (input : Env [w]) (x : TyDen A) :
+    eval (σ := σ) codec (activation s pureFirst) ((packet codec x).append input) =
+      (s.step (σ := σ) x >>= fun route => pure (activationPacket codec route)) := by
   cases pureFirst <;>
-    simp only [emit, CF.Ordered.Block.eval, activation, Bool.false_eq_true, ite_false, ite_true,
+    simp only [activation, Bool.false_eq_true, ite_false, ite_true,
       eval, Body.eval, packet, Env.append, Env.get, Equiv.symm_apply_apply, PureTheta.Loop.step,
       bind_assoc, pure_bind]
   all_goals
@@ -42,17 +41,23 @@ private theorem activation_eval (input : Env [w]) (x : TyDen A) :
     have valueEq := congrArg (LambdaSSA.PureRow.pureCall (σ := σ) s.value s.bottom) (codec.symm_apply_apply x)
     cases route with
     | inl _ =>
-      simp [Env.get, Operands.eval, CF.Terminator.eval, CF.Edge.eval, successor, packet]
       first
       | rfl
-      | exact congrArg (fun y => (pure (.inl (successor codec (.inl y))) :
-          StateT σ Part (CF.Frame (Label w) ⊕ Env [w]))) valueEq
+      | exact congrArg (fun y => (pure (activationPacket codec (.inl y)) : StateT σ Part (Env [Pure.i1,w]))) valueEq
     | inr _ =>
-      simp [Env.get, Operands.eval, CF.Terminator.eval, CF.Edge.eval, successor, packet]
       first
       | rfl
-      | exact congrArg (fun y => (pure (.inl (successor codec (.inr y))) :
-          StateT σ Part (CF.Frame (Label w) ⊕ Env [w]))) valueEq
+      | exact congrArg (fun y => (pure (activationPacket codec (.inr y)) : StateT σ Part (Env [Pure.i1,w]))) valueEq
+
+private theorem activation_eval (input : Env [w]) (x : TyDen A) :
+    ((emit (w := w) s pureFirst).block .activate).eval (eval (σ := σ) codec)
+        ((packet codec x).append input) =
+      (s.step (σ := σ) x >>= fun route => pure (.inl (successor codec route))) := by
+  simp only [emit, CF.Ordered.Block.eval, activation_result, bind_assoc, pure_bind]
+  congr 1
+  funext route
+  cases route <;> simp [activationPacket, packet, CF.Terminator.eval, CF.Edge.eval, Operands.eval, Env.get, successor]
+  all_goals rfl
 
 private abbrev runFrom (input : Env [w]) (fuel : Nat) (x : TyDen A) :
     StateT σ Part (Option (Env [w])) :=

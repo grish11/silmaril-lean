@@ -35,7 +35,7 @@ def latchTests : List Bool × List Bool :=
 where
   compares : {ins : List (SeaOfNodes.Diamond.ValueSort Width)} →
       {out : SeaOfNodes.Diamond.ValueSort Width} → Op ins out → Bool
-    | _, _, .ult _ => true
+    | _, _, .ult _ | _, _, .slt _ => true
     | _, _, .arithmetic _ => false
 
   isTest : {ins outs : List FixturePort} → Kind (Opcode Op) ins outs → Option Bool

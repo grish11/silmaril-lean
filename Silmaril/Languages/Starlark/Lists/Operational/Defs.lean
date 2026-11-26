@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Starlark.Lists.Defs
+public import Silmaril.Languages.Starlark.Lists.Comparison.Operational.Defs
 
 public section
 
@@ -45,6 +46,14 @@ inductive Eval : {α : Type} → State → Code α → Outcome α → Prop where
       Eval s receiver (.error error t) → Eval s (.index receiver index) (.error error t)
   | slice {s : State} {operands : Code (List Value)} {out : Outcome (List Value)} :
       Eval s operands out → Eval s (.slice operands) (Outcome.resume out readSliceOperands)
+  | compare {s t u : State} {op : ComparisonOp} {left right : Expr} {a b : Value}
+      {out : Except Error Bool} :
+      Eval s left (.ok a t) → Eval t right (.ok b u) → Comparison.Tests u.heap a b op out →
+      Eval s (.compare op left right) (Comparison.finish out u)
+  | compareLeftError {s t : State} {op : ComparisonOp} {left right : Expr} {error : Error} :
+      Eval s left (.error error t) → Eval s (.compare op left right) (.error error t)
+  | compareRightError {s t u : State} {op : ComparisonOp} {left right : Expr} {a : Value} {error : Error} :
+      Eval s left (.ok a t) → Eval t right (.error error u) → Eval s (.compare op left right) (.error error u)
   | append {s t : State} {receiver argument : Expr} {address : Address} {out : Outcome Value} :
       Eval s receiver (.ok (.list address) t) → Eval t argument out →
       Eval s (.append receiver argument) (Outcome.resume out (appendAt address))

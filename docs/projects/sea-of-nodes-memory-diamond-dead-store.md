@@ -91,19 +91,255 @@ full straight-line paths, at a scalar valuation accepted by all the
 reader checks.
 [Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Thms.lean)
 
-The fixture reads the packet from the actual emitted MemRef blocks for
-each of three paths, reverses their predecessor order, and checks that
-a Load of the old cell on only the middle path refuses. The current
-MemRef diamond CFG emitter uses two Region slots and a Boolean entry
-branch. Multiway dispatch and serialization of the full MemRef join
-remain open. The fixture uses the existing straight-line MemRef emitter
-for each path.
+The native fixture reads the packet from the existing straight-line
+MemRef emitter for each of three paths, reverses their predecessor
+order, and checks that a Load of the old cell on only the middle path
+refuses. The same fixture exercises the whole switch CFG below.
 [Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean)
 
 ```sh
 lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.Regression
 lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean
 ```
+
+## Emit one MemRef switch and join
+
+`DeadStore.Finite.MemRef.CF.lower` checks the finite certificate and
+emits the original and edited typed CFGs. The entry uses the existing
+`cf.switch`, with one `i64` case for each incoming position. The
+`Fits` proof ensures every admitted `Fin` selector fits the width
+without truncation. `dispatch_selector` proves the emitted switch
+chooses its exact occurrence label. That label is keyed by position,
+so repeated predecessor IDs keep separate arm blocks. The switch
+default is unreachable at a typed selector.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/Defs.lean) ·
+[Typed switch operation](../../Silmaril/SSA/MLIR/CF/SwitchAssert/Defs.lean)
+
+The existing ordered scheduler executes the switch entry, one arm
+and the shared continuation. The original entry runs the common
+Store once. The arm passes its word as the join argument and threads
+the entire MemRef buffer as state. Both emitted CFGs send the same
+word and complete buffer to the join and return the same word and
+buffer at every CF budget for the checked input and any initial
+buffer. Three block ticks suffice.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/Thms.lean)
+
+The regression checks all three selected slots, the actual join
+packets and final buffers, and reversal with the selector transported
+to its new position. An observing Load in the middle path refuses
+emission. The continuation makes the selected word observable through
+a side-cell Store.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean)
+
+## Keep the typed entry prefix before the switch
+
+`DeadStore.Finite.MemRef.CF.FinalEntry.lower` takes a one-based Store
+nomination in the native entry table. It reuses `Static.Final.cut`,
+which admits original argument address and data operands on the
+nominated Store immediately before Return. The preceding typed
+Loads and Stores execute in their original order in both emitted
+CFGs. A retained Store can consume a loaded word or write the same
+concrete cell as the nominated Store.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/FinalEntry/Defs.lean) ·
+[Pinned Simple memory Phi](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/README.md#memory-is-an-ssa-variable)
+
+The entry keeps its scalar result and its exact switch occurrence.
+Reapplying the removed Store to the optimized entry buffer recovers
+the original entry buffer. The finite checker validates the overwrite
+and reader evidence at each occurrence. The selected emitted arms
+then send the same word and complete buffer to the join, and the
+two CFGs agree on the native return for every CF budget and every
+initialized buffer at the certified input.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/FinalEntry/Thms.lean)
+
+The fixture keeps a Load-fed side write and an aliasing prefix write.
+It reads the entry buffers, join packets and final buffers across all
+three occurrences, including repeated predecessor IDs. A read of
+the overwritten cell on the middle path refuses emission.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean)
+
+## Keep certified trailing Loads before the switch
+
+`DeadStore.Finite.MemRef.CF.LoadTail.lower` combines the typed
+`Final.cutWith` prefix traversal with `Static.Final.LoadTail.checkTail`.
+The nominated last Store takes its address and data from original
+argument ports. Its suffix consists of a nonempty chain of
+argument-addressed Loads and the original Return. The cut preserves
+the admitted typed Load/Store prefix, the suffix's read order, and
+the selected return wire. One concrete typed input validates every
+suffix separation fact and every finite route certificate.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/Defs.lean) ·
+[Pinned Simple memory Phi](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/README.md#memory-is-an-ssa-variable)
+
+The emitted entry word agrees for every initialized buffer. Reapplying
+the removed write to the optimized entry buffer recovers the entire
+original entry buffer. The shared switch emitter preserves the selected
+occurrence and the exact join frame, including its word and full
+buffer. Both CFGs return the same native word and buffer at every
+common CF budget.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/Thms.lean)
+
+The fixture returns a trailing Load from the actual compiled entry
+and checks every selected join packet and final buffer with duplicate
+predecessor IDs. It covers refusal for a missing separation fact, two
+distinct ports naming the same cell, and a middle route that reads the
+old cell before its overwrite.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean)
+
+### Use a retained prefix binding as Store data
+
+`DeadStore.Finite.MemRef.CF.LoadTail.PrefixWord.lower` admits a nominated
+Store with an original argument address and a typed data wire produced
+by the retained entry prefix. The cut also exposes the identical typed
+prefix ending in a Return of that wire, so its readback is the original
+pre-Store operand for each initial buffer. Both emitted CFGs retain the
+actual Load/Store prefix and the nonempty certified argument-addressed
+Load suffix, with their scalar wiring and Return unchanged. The original
+entry buffer is the retained entry buffer with that prefix-produced word
+written back at the nominated cell.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Defs.lean) ·
+[Pinned Simple memory Phi](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/README.md#memory-is-an-ssa-variable)
+
+The native interval checker verifies the overwrite and reader certificate
+on each original arm. Its proof works for any incoming word at the
+nominated cell, so both artifacts use the same original arms. The same
+typed invocation validates the suffix and every occurrence. For any
+initialized buffer and common CF budget, the emitted artifacts preserve
+the entry return word, exact selected slot, complete join packet, and
+final word and buffer. Address operands at the cut and in the checked
+suffix come from original arguments. The existing argument-data entry
+points remain available under `FinalEntry` and `LoadTail`.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Thms.lean)
+
+The runnable fixture checks duplicate predecessor IDs, a prefix Load
+whose value differs from the suffix result and every argument word,
+suffix alias refusal, and a pre-overwrite read that blocks only the
+middle occurrence. Run it with
+`lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean`.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean)
+
+### Address origins and ordered entry readbacks
+
+In this native `Memory.Graph`, Start has an empty local scope. A
+`Body.load` adds exactly one word binding, and `Body.store` advances
+the memory version while keeping the scalar scope. The same sorts are
+used in the emitted entry, where `memref.load` takes an index and returns
+an i64. `AddressProvenance.graph_operations_argument_addresses` proves
+that every actual Load and Store operand of address sort is an original
+argument, including in the trailing suffix. The address read law fixes
+that argument's cell across all local states at a given typed input. A
+prior Load result can supply a Store's data or the Return word. Address
+computations would require a new typed address-producing operation and
+a separation law for its result.
+[Native constructors](../../Silmaril/SSA/SeaOfNodes/Memory/Defs.lean) ·
+[Provenance theorems](../../Silmaril/SSA/SeaOfNodes/Memory/AddressProvenance/Thms.lean) ·
+[MemRef signatures](../../Silmaril/SSA/MLIR/MemRef/Defs.lean)
+
+`PrefixWord.lower_readbacks` extends the checked finite switch guarantee
+to every entry Load occurrence. It probes the original and retained
+native prefixes through the existing MemRef lowering and compares
+their words at the certified scalar input for every initialized buffer.
+The existing emitted switch theorem still gives the complete selected
+join frame and final word and buffer for all occurrences and CF budgets.
+The fixture checks the prefix Load, both trailing Loads, and an absent
+occurrence. When two address ports name the same cell, the trailing
+readbacks would differ and the existing checker refuses the cut.
+[Readback and switch theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Thms.lean) ·
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean) ·
+[Pinned Simple memory model](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/README.md#one-memory-value)
+
+### Check two entry cuts latest first
+
+`PrefixWord.lowerWithEntry` returns the checked native edit alongside the
+actual MemRef CFG pair. `PrefixWord.Sequence.lower` accepts two nominations
+and applies the second to the exact retained entry returned by the first.
+Each nomination uses its table's one-based Store version. The existing cut
+requires the nominated Store to be the last Store in that table, with a
+prefix-produced data word, an original argument address, and a nonempty
+Load-only suffix. The second check includes any retained Loads between the
+two Stores as well as the common suffix. Each step validates its own
+separation and overwrite evidence at the same typed input across all
+original predecessor occurrences.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Defs.lean) ·
+[Pinned Simple memory model](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/README.md#one-memory-value)
+
+A first refusal returns `none`. A second refusal returns the exact first
+emission with `second = none`. When both succeed, the second original
+CFG is exactly the first optimized CFG. At every common CF budget, the
+final pair selects the same occurrence, sends the same entire word and
+buffer packet to the join, and agrees on the returned word and full final
+buffer. The order theorem counts the actual deletions, and the emitted
+entry probes preserve the entry Return word and each retained Load word.
+This API checks two supplied nominations in the trailing-Load profile.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Thms.lean)
+
+The fixture runs both cuts on distinct cells with distinct data words,
+observes the intermediate entry buffer and all three selected join
+packets, and checks stale version, uncovered suffix and middle-route
+reader refusals. Run it with
+`lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Regression.lean`.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Regression.lean)
+
+### Replay a bounded plan on the finite switch
+
+`PrefixWord.Sequence.Replay.lower` extends the two-cut profile to a
+caller-supplied list of nominations. The list length bounds the work.
+Each request uses the current table's Store version and goes through
+`lowerWithEntry` with its own suffix and occurrence witnesses at the
+original typed input. The supported shape stays latest-first, with an
+argument address, prefix-produced data and a nonempty Load-only suffix.
+An intervening Load joins that suffix when a later Store is removed.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Replay/Defs.lean) ·
+[Pinned Simple memory model](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/README.md#one-memory-value)
+
+The trace certifies exact equality between each admitted source CFG and
+the preceding optimized CFG, and records each admission at the saved
+input. Replay stops at the first refusal with that request and the
+unattempted tail in `remaining`. The final artifact is the last admitted
+optimized CFG, or the original when no cut succeeds. The emitted
+endpoints agree at every common CF budget on the selected occurrence,
+full join packet, returned word and entire final buffer. The retained
+entry also preserves operation order, its return word and every Load
+readback. The number of admitted steps is the number of deleted Stores.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Replay/Thms.lean)
+
+The fixture runs three cuts on distinct cells and inspects each
+intermediate artifact. On a second entry table an intervening Load reads
+the oldest Store's cell, so the third cut refuses and replay returns the
+first two. A separate stale address witness also refuses. Run it with
+`lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Replay/Regression.lean`.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Replay/Regression.lean)
+
+### Discover the finite-switch plan on the retained entry
+
+`PrefixWord.Sequence.Replay.Search.lower` uses the same ascending
+`storeVersions` order as the static entry finder. It scans the
+current native table and continues past a refused candidate. For each
+version, it enumerates the actual trailing Load ports and discovers the
+first same-port overwrite and its ordered reader obligations within
+each original predecessor occurrence. The existing typed emitter then
+checks the proposal at the saved input, including concrete address
+separation. An accepted cut restarts the scan on its retained entry.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Replay/Search/Defs.lean) ·
+[Pinned Simple memory model](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/README.md#one-memory-value)
+
+Each accepted step deletes one Store, so the original Store count
+suffices for exhaustion. The terminal law covers every surviving Store
+version under this deterministic inference and the trailing-Load
+profile. The returned request list replays through `Replay.lower` to
+the exact emitted artifacts with no pending requests. Its existing
+laws give equal selected occurrences, full join packets, returned
+words and complete buffers at common CF budgets, and equal retained
+entry Load readbacks.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Replay/Search/Thms.lean)
+
+The fixture first refuses version one because a later Store is still
+present, admits version two, and then admits version one on the
+updated table. It also tests exhaustion with a surviving, observed
+Store and checks a concrete alias refusal on just the middle
+occurrence. Run it with
+`lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Replay/Search/Regression.lean`.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/PrefixWord/Sequence/Replay/Search/Regression.lean)
 
 ## Bypass a single-user Store inside one arm
 

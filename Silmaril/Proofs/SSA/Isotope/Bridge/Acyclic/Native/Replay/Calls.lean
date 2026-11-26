@@ -51,7 +51,7 @@ private theorem underValueBinder {Γ Δ : VCtx τ} {θ : Nat → Tm Φ}
     rw [Tm.rename_eq_subst]
     exact (values hi).subst (fun _ _ atSlot => .var (Ren.wk Δ B atSlot))
 
-private theorem CallSchedule.subst {Δ : VCtx τ} {θ : Nat → Tm Φ} (p : CallSchedule Γ r A fs)
+theorem CallSchedule.subst_proof {Δ : VCtx τ} {θ : Nat → Tm Φ} (p : CallSchedule Γ r A fs)
     (values : ∀ ⦃i T⦄, At Γ i T → Tm.BranchValue Δ (θ i) T) :
     CallSchedule Δ (r.substVars θ) A fs := by
   induction p generalizing Δ θ with
@@ -59,10 +59,10 @@ private theorem CallSchedule.subst {Δ : VCtx τ} {θ : Nat → Tm Φ} (p : Call
   | call value _ ih =>
     exact .call (value.subst (fun _ _ hi => values hi)) (ih (underValueBinder values _))
 
-private theorem CallSchedule.rename {Δ : VCtx τ} {ρ : Nat → Nat} (p : CallSchedule Γ r A fs)
+theorem CallSchedule.rename_proof {Δ : VCtx τ} {ρ : Nat → Nat} (p : CallSchedule Γ r A fs)
     (typed : Ren Γ Δ ρ) : CallSchedule Δ (r.renameVars ρ) A fs := by
   rw [Region.renameVars_eq_substVars]
-  exact p.subst (fun _ _ hi => .var (typed hi))
+  exact p.subst_proof (fun _ _ hi => .var (typed hi))
 
 /-- Native continuation substitution retains captures below each earlier reply
 binder and concatenates exactly the two call lists. -/
@@ -71,13 +71,13 @@ theorem CallSchedule.splice_proof {B : τ} {s : Region Φ} {gs : List Φ}
     CallSchedule Γ (r.lsubst (fun _ => s)) B (fs ++ gs) := by
   induction p generalizing s with
   | ret value =>
-    apply q.subst
+    apply q.subst_proof
     intro i T hi
     cases i with
     | zero => cases Option.some.inj hi; exact value
     | succ i => exact .var hi
   | @call Γ f a r A fs value cont ih =>
-    exact .call value (ih (q.rename ((Ren.wk Γ (instrTrg f)).lift A)))
+    exact .call value (ih (q.rename_proof ((Ren.wk Γ (instrTrg f)).lift A)))
 
 theorem CallSchedule.pair_proof {B : τ} {s : Region Φ} {gs : List Φ}
     (p : CallSchedule Γ r A fs) (q : CallSchedule Γ s B gs) :
@@ -87,7 +87,7 @@ theorem CallSchedule.pair_proof {B : τ} {s : Region Φ} {gs : List Φ}
   have parts : Tm.BranchValue (B :: A :: Γ) (.pair (.var 1) (.var 0) : Tm Φ) (product A B) :=
     .pair (.var (i := 1) rfl) (.var (i := 0) rfl)
   simpa only [List.append_nil] using p.splice_proof
-    ((q.rename (Ren.wk Γ A)).splice_proof (.ret parts))
+    ((q.rename_proof (Ren.wk Γ A)).splice_proof (.ret parts))
 
 end Schedule
 
@@ -141,7 +141,7 @@ private theorem replay_pair {Γ : VCtx τ} {A B : τ} {a b : Tm Φ} {r s : Regio
   let moved := hb.rename (Ren.wk Γ A)
   have er' := er.renameVars (Ren.wk Γ A)
   rw [← returnRegion_rename] at er'
-  have gr := right.rename (Ren.wk Γ A)
+  have gr := right.rename_proof (Ren.wk Γ A)
   have parts : Tm.BranchValue (B :: A :: Γ) (.pair (.var 1) (.var 0) : Tm Φ) (product A B) :=
     .pair (.var (i := 1) rfl) (.var (i := 0) rfl)
   have tail := spliceEq (UnaryReturn.returnOnce_valueBranches moved) gr.valueBranches_proof

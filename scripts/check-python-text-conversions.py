@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Check typed text transport and stock scalar conversion against CPython 3.13.5."""
+"""Check typed text operands and stock scalar conversion against CPython 3.13.5."""
 
 import argparse
 import ast
@@ -23,6 +23,8 @@ PINS = (
     ("scope/test-builtin-scope.py", "38c403e24659f7a308844c36be63f31c3fe69c92bea937d2b8d524c39ec62cc2",
      "___assertEqual", "str", "bool"),
 )
+SLICE_PIN = "tests/python/programs/original/lambda-py/python-reference/range/slice1.py"
+SLICE_SHA = "e5427b1ec27c809da19d152b88f97a61697287ee7c399333f8f24645fea05d2e"
 STOCK = "(legacyTextSeed .builtin)"
 
 LEAN = SUITE["LEAN"] + """
@@ -50,13 +52,25 @@ private def textOutcome (source : Source.Module) (space : Namespace)
 private def ordinaryText (source : Source.Module) (completion : Compile.ModuleEntry.Functions.Run.Completion)
     (bindings : List (String × Option Value)) : Bool := Id.run do
   let .ok compiled := Compile.ModuleEntry.Functions.Run.compile source | return false
-  let session := Compile.ModuleEntry.Functions.Run.seed .empty textHeap
+  let lists : Core.Module.ListHeap := ⟨#[[.int 31]]⟩
+  let session := { Compile.ModuleEntry.Functions.Run.seed .empty textHeap with lists := lists }
   let (_, final) := Compile.ModuleEntry.Functions.Run.runPrefix compiled.table 1000
     (.ready session compiled.instructions)
   let .finished residual observed := final | return false
-  return observed == completion && retainedTextHeap residual.heap &&
+  return observed == completion && retainedTextHeap residual.heap && residual.lists == lists &&
     bindings.all (fun (name, value) => (residual.globals name).map
       Compile.ModuleEntry.Functions.Run.Seeded.seededValue == value)
+private def sliceValues (source : Source.Module) (space : Namespace) : Option (List Value) := do
+  let compiled ← (Compile.ModuleEntry.Functions.Run.compile source).toOption
+  let context : Compile.ModuleEntry.Functions.Run.Seeded.CallContext :=
+    { table := compiled.table, heap := textHeap, fuel := 1000 }
+  compiled.instructions.mapM fun
+    | .nestedCall .discard "___assertEqual" arguments =>
+      match Compile.ModuleEntry.Functions.Run.Seeded.observeArgumentsIn space context arguments with
+      | (.ok [left, _], [], heap) => if retainedTextHeap heap then some left else none
+      | _ => none
+    | _ => none
+
 """
 
 
@@ -152,6 +166,101 @@ def replay(checkout, paths, helpers):
         pins[relative] = {"sha256": digest, "values": trace, "receipts": 2 * len(trace),
                           "empty_and_ordinary": f"NameError:{missing}"}
     return pins
+
+
+def replay_slice_operands(checkout, paths, helpers):
+    source = SUITE["pinned_source"](checkout, SLICE_PIN, SLICE_SHA)
+    assert len(ast.parse(source).body) == 7
+    assert cpython(source, {}) == ("NameError:___assertEqual", {}, None)
+    expected = ["foobar", "foobar", "foobar", "", "raboo", "raboo", "raboof"]
+    name = "___assertEqual"
+    missing = f".error (.raised ({named(name)}))"
+    guards = [ordinary(f'.raised (.nameError "{name}")'), outcome("Namespace.empty", missing, "[]", "[]")]
+    for placement in ("builtin", "preamble"):
+        trace = []
+
+        def observe(left, right):
+            result = helpers[name](left, right)
+            assert type(left) is type(right) is str and result is None
+            trace.append(left)
+
+        supplied = {name: observe}
+        builtins, initial = (supplied, {}) if placement == "builtin" else ({}, supplied)
+        assert cpython(source, builtins, initial) == ("normal", initial, None)
+        assert trace == expected
+        seed = f'(initial "legacy_{placement}")'
+        values = "[" + ", ".join(map(lean_value, trace)) + "]"
+        guards.extend((
+            f"#guard sliceValues pythonSource {seed} == some {values}",
+            outcome(seed, ".ok ()", f"{seed}.moduleGlobals", calls(*([(name, ".ok .none")] * len(trace)))),
+        ))
+    check(source, paths, *guards)
+    return {"sha256": SLICE_SHA, "results": expected, "receipts": len(expected),
+            "ordinary_and_empty": "NameError:___assertEqual"}
+
+
+def slice_operand_controls(paths, helpers):
+    name = "___assertEqual"
+    stock = {"str": str, **helpers}
+    value = "é😀e\u0301\ud800"
+    target = value[::-2]
+    literal = ascii(value)
+    error = ".error (.raised (.runtime .zeroSliceStep))"
+    residual = '[("keep", .int 7)]'
+    mask_residual = '[("___assertEqual", .int 0), ("keep", .int 7)]'
+    no_calls = "[]"
+
+    fixtures = []
+
+    def fixture(source, *guards):
+        fixtures.append((source, "\n".join(guards)))
+
+    source = f"saved = {name}\n{name} = 0\nsaved({literal}[None:None:-2], {ascii(target)})\n"
+    assert cpython(source, stock) == ("normal", {"saved": helpers[name], name: 0}, None)
+    fixture(source, outcome(STOCK, ".ok ()", '[("___assertEqual", .int 0), ("saved", .helper .assertEqual)]',
+                            calls(("saved", ".ok .none"))))
+
+    source = f"{name}({literal}[::-2], 'different')\n"
+    assert cpython(source, stock) == ("AssertionError", {}, (target, "different"))
+    mismatch = f".error (.raised (.assertionError (.textPair {lean_text(target)} {lean_text('different')})))"
+    fixture(source, outcome(STOCK, mismatch, "[]", calls((name, mismatch))))
+
+    body = f"{name}('x'[::0], missing_right)\ntail = 9\n"
+    source = "keep = 7\n" + body
+    assert cpython(source, {}) == ("NameError:___assertEqual", {"keep": 7}, None)
+    assert cpython(source, stock) == ("ValueError", {"keep": 7}, None)
+    fixture(source,
+            ordinary('.raised (.nameError "___assertEqual")', '[("keep", some (.int 7)), ("tail", none)]'),
+            outcome("Namespace.empty", f".error (.raised ({named(name)}))", residual, no_calls),
+            outcome(STOCK, error, residual, no_calls))
+
+    source = f"keep = 7\n{name} = 0\n" + body
+    assert cpython(source, stock) == ("ValueError", {"keep": 7, name: 0}, None)
+    fixture(source, ordinary(".raised .zeroSliceStep", '[("keep", some (.int 7)), ("tail", none)]'),
+            outcome(STOCK, error, mask_residual, no_calls))
+
+    source = f"keep = 7\n{name}(missing_left, 'x'[::0])\ntail = 9\n"
+    assert cpython(source, stock) == ("NameError:missing_left", {"keep": 7}, None)
+    fixture(source, outcome(STOCK, f".error (.raised ({named('missing_left')}))", residual, no_calls))
+
+    source = f"keep = 7\n{name}(str(False), 'x'[::0])\ntail = 9\n"
+    assert cpython(source, stock) == ("ValueError", {"keep": 7}, None)
+    fixture(source, outcome(STOCK, error, residual, calls(("str", f".ok ({lean_value('False')})"))))
+
+    source = f"keep = 7\n{name} = 0\n{name}('ab'[::-1], 'ba')\ntail = 9\n"
+    not_callable = ".error (.raised (.runtime .notCallable))"
+    assert cpython(source, stock) == ("TypeError", {"keep": 7, name: 0}, None)
+    fixture(source, ordinary(".raised .notCallable", '[("keep", some (.int 7)), ("tail", none)]'),
+            outcome(STOCK, not_callable, mask_residual, calls((name, not_callable))))
+
+    source = f"def consume(value):\n    assert value\nconsume({literal}[::-2])\n"
+    status, bindings, argument = cpython(source, {})
+    assert status == "normal" and list(bindings) == ["consume"] and argument is None
+    fixture(source, ordinary(".normal"))
+
+    INTAKE["check_lean_batch"](*paths, fixtures, LEAN, extra_imports=SUITE["IMPORTS"])
+    return {"fixtures": len(fixtures), "exact_code_points": list(map(ord, target)),
+            "precedence": True, "retained_inner_receipt": True}
 
 
 def controls(paths, helpers):
@@ -253,4 +362,7 @@ if __name__ == "__main__":
         paths = (source, source.with_suffix(".lean"))
         pins = replay(args.upstream, paths, helpers)
         controls(paths, helpers)
-    print(json.dumps({"cpython": "3.13.5", "upstream": revision, "pins": pins, "controls": "passed"}))
+        pins["range/slice1.py"] = replay_slice_operands(args.upstream, paths, helpers)
+        slices = slice_operand_controls(paths, helpers)
+    print(json.dumps({"cpython": "3.13.5", "upstream": revision, "pins": pins, "controls": "passed",
+                      "slice_operands": slices}))

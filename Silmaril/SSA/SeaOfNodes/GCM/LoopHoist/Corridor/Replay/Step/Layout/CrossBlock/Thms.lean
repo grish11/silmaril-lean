@@ -45,6 +45,16 @@ theorem analyze?_spec (accepted : analyze? state request = some analysis) :
       Control.check? state = some analysis.control ∧ analysis.preheader = Layout.emit? state request :=
   Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Layout.CrossBlock.analyze?_spec accepted
 
+/-- A checked physical splice resolves the same live binding and sites as
+    the retained header candidate. -/
+theorem emit?_sites {kept : Kept (Label saved carried result extra)} {moved : Layout.Move state}
+    (supported : Layout.Discovery.supported? state = true) (ready : keep? state request.origin = some kept)
+    (emitted : Layout.emit? state request = some moved) :
+    moved.append.index = kept.index ∧
+    kept.sites = ⟨(state.atLayout moved.append.candidate).operands, moved.append.candidate.uses⟩ ∧
+    Legal state.cfg kept.sites.operands kept.sites.uses ⟨none, request.cut⟩ :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Layout.CrossBlock.emit?_sites supported ready emitted
+
 /-- Both admitted candidates are legal for the same current binding and the same use occurrences. -/
 theorem analyze?_candidates (accepted : analyze? state request = some analysis) :
     Legal state.cfg analysis.kept.sites.operands analysis.kept.sites.uses analysis.kept.point ∧

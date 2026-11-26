@@ -15,9 +15,9 @@ open CFG.Dependent (Packet)
 open CFG.Dependent.Native (withExitUB)
 open TwoRequest (Exits resultBehaviour)
 
-universe u
+universe u x
 
-variable {Φ : Type u} [HasTy Φ Syntax.Ty] {S : RequestSignature Φ} {R : List Syntax.Ty} {states : Nat}
+variable {Φ : Type u} [HasTy Φ Syntax.Ty] {S : RequestSignature Φ} {R : List Syntax.Ty} {states : Nat} {σ : Type x}
 
 theorem Head.mem_request_successors (replies : ReplyEnumeration S) (f : Φ)
     (arg : Syntax.Payload (instrSrc f))
@@ -38,7 +38,7 @@ theorem Table.head_checked [DecidableEq Φ] {g : Table S R}
 /-- The computed row is the complete local native observation, before
 following an internal edge or applying a selected exit continuation. -/
 theorem Table.feedback_step (g : Table S R) (caller : Syntax.Payload (R.get g.entry))
-    (prim : Syntax.Primitives Φ states) (config : Packet R) (s : Fin states) :
+    (prim : Syntax.StatePrimitives Φ σ) (config : Packet R) (s : σ) :
     g.feedback caller prim (blockPoint config s) = ((g.head caller config).execute prim s).routed :=
   Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.raw_step
     g caller prim config s
@@ -46,13 +46,26 @@ theorem Table.feedback_step (g : Table S R) (caller : Syntax.Payload (R.get g.en
 /-- The only internal feedback edge is the computed successful reply, with
 the routed typed payload and the primitive's final machine state. -/
 theorem Table.feedback_step_iff (g : Table S R) (caller : Syntax.Payload (R.get g.entry))
-    (prim : Syntax.Primitives Φ states) (config : Packet R) (s : Fin states)
-    (q : Feedback.Point R.length Unit (Fin states)) :
+    (prim : Syntax.StatePrimitives Φ σ) (config : Packet R) (s : σ)
+    (q : Feedback.Point R.length Unit (σ)) :
     Feedback.Step (g.feedback caller prim) (blockPoint config s) q ↔
-      ∃ (next : Packet R) (t : Fin states),
+      ∃ (next : Packet R) (t : σ),
         (g.head caller config).execute prim s = .repeat next t ∧ q = blockPoint next t :=
   Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.step_iff
     g caller prim config s q
+
+/-- The one-step observation equation is independent of the state carrier.
+A terminal primitive divergence is already an ordinary singleton. -/
+theorem Table.observe_state_step (g : Table S R) (caller : Syntax.Payload (R.get g.entry))
+    (prim : Syntax.StatePrimitives Φ σ) (config : Packet R) (s : σ) :
+    g.observeAt caller prim config s =
+      match (g.head caller config).execute prim s with
+      | .exit i selected t => if selected then ⊤ else WithTop.some {Outcome.ret i .unit t}
+      | .repeat next t => g.observeAt caller prim next t
+      | .fault t => WithTop.some {Outcome.fault t}
+      | .diverge => WithTop.some {Outcome.diverge} :=
+  Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.observe_state_step
+    g caller prim config s
 
 /-- The installed closure follows the one computed edge. At an outward
 exit it applies literal UB exactly when that position is selected. -/
@@ -67,12 +80,21 @@ theorem Table.observe_step (g : Table S R) (caller : Syntax.Payload (R.get g.ent
   Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.observe_step
     g caller prim config s
 
+/-- A complete classification of native closure determines the decorated
+observation by applying the selected exit at the terminal store. -/
+theorem Table.observe_of_closed (g : Table S R) (caller : Syntax.Payload (R.get g.entry))
+    (prim : Syntax.Primitives Φ states) (config : Packet R) (s : Fin states) (outcome : Result 2 states)
+    (closed : Feedback.close (g.feedback caller prim) (blockPoint config s) = resultBehaviour outcome) :
+    g.observeAt caller prim config s = resultBehaviour (g.markExit outcome) :=
+  Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.observe_of_closed
+    g caller prim config s outcome closed
+
 /-- Exact re-emission connects the typed starting configuration to the
 original decorated native CFG. The entry is the typed caller-forwarding jump. -/
 theorem Table.observe_entry [DecidableEq Φ] (g : Table S R)
     (raw : CFG.Dependent.Native.Typed Φ [R.get g.entry] Exits)
     (checked : g.checkNative raw = true) (caller : Syntax.Payload (R.get g.entry))
-    (prim : Syntax.Primitives Φ states) (s : Fin states) :
+    (prim : Syntax.StatePrimitives Φ σ) (s : σ) :
     Shape.denote (withExitUB raw g.selected) (Syntax.model prim (g.bindings caller)) s =
       g.observeAt caller prim ⟨g.entry, caller⟩ s :=
   Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.observe_entry

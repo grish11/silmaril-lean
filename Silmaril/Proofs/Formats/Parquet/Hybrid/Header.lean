@@ -7,7 +7,7 @@ namespace Silmaril.Proofs.Formats.Parquet.Hybrid
 
 open Silmaril.Formats.Parquet.Hybrid
 
-private theorem readULEB_sound {fuel value : Nat} {input rest : List UInt8}
+public theorem readULEB_sound {fuel value : Nat} {input rest : List UInt8}
     (h : readULEB fuel input = .ok (value, rest)) : input = uleb value ++ rest := by
   induction fuel generalizing input value rest with
   | zero => simp [readULEB] at h

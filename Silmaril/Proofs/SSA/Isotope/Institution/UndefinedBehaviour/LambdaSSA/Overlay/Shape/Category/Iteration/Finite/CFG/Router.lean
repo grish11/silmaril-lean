@@ -17,22 +17,23 @@ open Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category (return_bind)
 open Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.Syntax
   (observe_branch observe_case denote_push fault_bind diverge_bind)
 
-universe u
+universe u x
 
+variable {σ : Type x}
 variable {Φ : Type u} [HasTy Φ (Silmaril.Ty Empty)] {states : Nat}
 variable {Γ L : List (Silmaril.Ty Empty)} {X A B : (Silmaril.Ty Empty)} {n : Nat}
 
-theorem observe_jump (prim : Primitives Φ states) (env : Bindings Γ) (i : Fin L.length)
-    (typed : L.get i = A) (a : Expr Γ A) (s : Fin states) :
+theorem observe_jump (prim : StatePrimitives Φ σ) (env : Bindings Γ) (i : Fin L.length)
+    (typed : L.get i = A) (a : Expr Γ A) (s : σ) :
     denote (jump (Φ := Φ) i typed a) (model prim env).raw s =
       WithTop.some {Outcome.ret i (a.eval env).val s} := by
   subst A
   exact observe_branch prim env i a s
 
-theorem observe_select (prim : Primitives Φ states) (env : Bindings Γ)
+theorem observe_select (prim : StatePrimitives Φ σ) (env : Bindings Γ)
     (p : Payload (.coprod A B))
     (left : Region Φ (A :: .coprod A B :: Γ) L) (right : Region Φ (B :: .coprod A B :: Γ) L)
-    (s : Fin states) :
+    (s : σ) :
     denote (select left right) (model prim (env.push p)).raw s =
       match splitPayload p with
       | .inl a => denote left (model prim ((env.push p).push a)).raw s

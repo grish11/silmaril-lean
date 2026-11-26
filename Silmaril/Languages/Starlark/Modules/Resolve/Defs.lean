@@ -791,6 +791,12 @@ def elaborateCommand (block : BlockContext) (command : Command) :
   | .load label imports =>
     if imports.isEmpty then throw (.emptyLoad label) else pure (.load label imports)
 
+theorem elaborateCommand_load (block : BlockContext) (label : String) (first : Modules.Import)
+    (rest : List Modules.Import) (program : Program) :
+    elaborateCommand block (.load label (first :: rest)) program =
+      .ok (.load label (first :: rest), program) := by
+  simp [elaborateCommand, pure, StateT.pure, Except.pure]
+
 theorem elaborateCommand_assign (block : BlockContext) (name : String) (value : Lowering.Resolve.SourceExpr)
     (program : Program) :
     elaborateCommand block (.assign name value) program =

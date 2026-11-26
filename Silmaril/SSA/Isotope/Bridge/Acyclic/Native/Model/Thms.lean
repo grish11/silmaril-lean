@@ -66,6 +66,15 @@ theorem Endpoint.valid_of_code_equiv {Φ : Type} [LetCase.Structural.Finite.Sign
       c.toLetCase.1 d.toLetCase.1 A) : p.Valid q :=
   valid_of_code_equiv_proof p q c d hc hd eq
 
+open LetSeq.StraightLine.Structural.Categorical (traceJ traceTypes traceInstructions)
+
+/-- The free structural ordered-trace interpretation has coherent native
+region witnesses at every exact input and exit interface. -/
+theorem trace_region_coherent {Φ : Type} [HasTy Φ Types] :
+    letI := traceInstructions (α := Empty) (Φ := Φ)
+    RegionTypingCoherent (Φ := Φ) (traceJ (α := Empty) (Φ := Φ)) (traceTypes Empty) :=
+  trace_region_coherent_proof
+
 /-- For independently admitted outward regions, categorical validity at the
 original exact arrows is equivalent to native derivability after LetCase
 compilation. The chosen ordered trace model satisfies both coherences. -/

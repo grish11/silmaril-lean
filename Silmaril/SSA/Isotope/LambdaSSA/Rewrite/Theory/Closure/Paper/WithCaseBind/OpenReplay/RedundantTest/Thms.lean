@@ -28,6 +28,12 @@ theorem prependEmits_congr {Γ L : List (Ty Empty)} {r s : Region signature.Inst
     (bits : List Bool) (h : E Γ r s L) : E Γ (prependEmits bits r) (prependEmits bits s) L :=
   RedundantSelectedTest.prependEmits_congr bits h
 
+/-- Substituting the terminal context leaves the closed emit prefix in place. -/
+theorem prependEmits_subst (emits : List Bool) (r : Region signature.Instr)
+    (σ : Nat → Tm signature.Instr) :
+    (prependEmits emits r).substVars σ = prependEmits emits (r.substVars σ) :=
+  RedundantSelectedTest.prependEmits_subst emits r σ
+
 /-- The selected terminal executes its emits before entering the terminal on
 the original input, in the order of the supplied list. -/
 theorem terminal_prefix {X : Ty Empty} {L : List (Ty Empty)} {n : Nat}
@@ -111,6 +117,20 @@ theorem quote_frameValue {Γ L : List (Ty Empty)} {n : Nat} {X : Ty Empty} {fram
 theorem prependEmits_typed {Γ L : List (Ty Empty)} {r : Region signature.Instr}
     (emits : List Bool) (hr : ValueBranches Γ r L) : ValueBranches Γ (prependEmits emits r) L :=
   RedundantSelectedTest.prependEmits_typed emits hr
+
+/-- A typed structural projection returns the packet's exact tag and payload. -/
+theorem frameSlot_returns_at {Γ : List (Ty Empty)} {X : Ty Empty} {frame : ReplyFrame X}
+    (slot : ReplyFrame.Slot frame) (v : ReplyFrame.Value Γ frame) :
+    ReturnsAt (Γ := Γ) slot.term v.elaborate.val (replyBitTag (slot.read v).1 (slot.read v).2.val) :=
+  RedundantSelectedTest.frameSlot_returns_at slot v
+
+/-- Select a native bit arm from an exact return proof at its discriminator. -/
+theorem case_choose_bit {Γ L : List (Ty Empty)} {a u : Tm signature.Instr} {l r : Region signature.Instr}
+    (b : Bool) (ha : Tm.HasType Γ a Bit) (hu : Tm.BranchValue Γ u unit)
+    (hl : ValueBranches (unit :: Γ) l L) (hr : ValueBranches (unit :: Γ) r L)
+    (value : E Γ (Paper.RetainedLet.returnOnce a) (.br 0 (replyBitTag b u)) [Bit]) :
+    E Γ (.case a l r) ((if b then r else l).substVars (Tm.singleSubst u)) L :=
+  RedundantSelectedTest.case_choose_bit b ha hu hl hr value
 
 /-- Select the actual framed branch at a constructor packet, preserving the prefix and its payload. -/
 theorem framed_case_at {Γ L : List (Ty Empty)} {X : Ty Empty} {frame : ReplyFrame X}

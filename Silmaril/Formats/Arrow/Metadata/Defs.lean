@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Arrow.Framing.Defs
+public import Init.Data.Vector.OfFn
 
 /-! Checked FlatBuffers access for the Arrow V5 Message, Schema, Field and
 RecordBatch IDLs. All offsets are relative to the padded metadata slice. -/
@@ -19,6 +20,72 @@ structure Field where
   type : FieldType
   deriving DecidableEq, Repr
 
+namespace SchemaReader
+
+/-- Byte order recorded in the Schema, independently of body decoder support. -/
+inductive Endianness where
+  | little | big
+  deriving DecidableEq, Repr
+
+def Endianness.code : Endianness → Nat
+  | .little => 0
+  | .big => 1
+
+inductive DateUnit where
+  | day | millisecond
+  deriving DecidableEq, Repr
+
+def DateUnit.code : DateUnit → Nat
+  | .day => 0
+  | .millisecond => 1
+
+/-- An omitted Date unit has the IDL default MILLISECOND. -/
+def DateUnit.normalize (encoded : Option Nat) : Except Error DateUnit :=
+  match encoded.getD 1 with
+  | 0 => .ok .day
+  | 1 => .ok .millisecond
+  | _ => .error (.malformed .flatbuffer)
+
+inductive TimestampUnit where
+  | second | millisecond | microsecond | nanosecond
+  deriving DecidableEq, Repr
+
+def TimestampUnit.code : TimestampUnit → Nat
+  | .second => 0
+  | .millisecond => 1
+  | .microsecond => 2
+  | .nanosecond => 3
+
+/-- An omitted Timestamp unit has the IDL default SECOND. -/
+def TimestampUnit.normalize (encoded : Option Nat) : Except Error TimestampUnit :=
+  match encoded.getD 0 with
+  | 0 => .ok .second
+  | 1 => .ok .millisecond
+  | 2 => .ok .microsecond
+  | 3 => .ok .nanosecond
+  | _ => .error (.malformed .flatbuffer)
+
+/-- Reader-only type payloads. The existing writer and stream AST use
+`Arrow.FieldType` independently. -/
+inductive FieldType where
+  | primitive (type : Arrow.FieldType)
+  | date (unit : DateUnit)
+  | timestamp (unit : TimestampUnit) (timezone : Option String)
+  deriving DecidableEq, Repr
+
+structure Field where
+  name : String
+  nullable : Bool
+  type : FieldType
+  deriving DecidableEq, Repr
+
+structure Schema where
+  endianness : Endianness
+  fields : List Field
+  deriving DecidableEq, Repr
+
+end SchemaReader
+
 structure FieldNode where
   length : Nat
   nullCount : Nat
@@ -34,6 +101,101 @@ structure RecordBatch where
   nodes : List FieldNode
   buffers : List Buffer
   deriving DecidableEq, Repr
+
+namespace BinaryView
+
+inductive MetadataError where
+  | metadata (cause : Arrow.Error)
+  | nodeCount (actual : Nat)
+  | countCardinality (actual : Nat)
+  | negativeCount
+  | dataBufferLimit
+  | descriptorCount (expected actual : Nat)
+  deriving DecidableEq, Repr
+
+/-- Metadata for one preselected view field. The declared variadic count
+determines the length and order of the data descriptor vector. -/
+structure BatchMetadata (source : KBytes) (maxDataBuffers : Nat) where
+  rowCount : Nat
+  bodyLength : Nat
+  node : FieldNode
+  validity : Buffer
+  views : Buffer
+  countOffset : Nat
+  dataCount : Nat
+  data : Vector Buffer dataCount
+  countWord : source.readLE countOffset 8 = some dataCount
+  signedCount : dataCount < 2^63
+  countWithin : dataCount ≤ maxDataBuffers
+
+namespace Schema
+
+inductive Kind where
+  | binary | utf8
+  deriving DecidableEq, Repr
+
+def Kind.tag : Kind → Nat
+  | .binary => 23
+  | .utf8 => 24
+
+def Kind.ofTag : Nat → Except Arrow.Error Kind
+  | 23 => .ok .binary
+  | 24 => .ok .utf8
+  | tag => .error (.unsupported (.fieldType tag))
+
+structure Field where
+  name : String
+  nullable : Bool
+  kind : Kind
+  deriving DecidableEq, Repr
+
+inductive MetadataError where
+  | metadata (cause : Arrow.Error)
+  | fieldCount (actual : Nat)
+  deriving DecidableEq, Repr
+
+end Schema
+
+end BinaryView
+
+namespace MixedFlat
+
+inductive Kind where
+  | primitive (type : Arrow.FieldType)
+  | view (type : BinaryView.Schema.Kind)
+  deriving DecidableEq, Repr
+
+def Kind.isView : Kind → Bool
+  | .primitive _ => false
+  | .view _ => true
+
+def Kind.baseBuffers : Kind → Nat
+  | .primitive .int32 | .view _ => 2
+  | .primitive .utf8 => 3
+
+structure Field where
+  name : String
+  nullable : Bool
+  kind : Kind
+  deriving DecidableEq, Repr
+
+structure Metadata where
+  batch : RecordBatch
+  bodyLength : Nat
+  counts : List Nat
+  deriving DecidableEq, Repr
+
+inductive MetadataError where
+  | metadata (cause : Arrow.Error)
+  | nodeCount (expected actual : Nat)
+  | countCardinality (expected actual : Nat)
+  | negativeCount (entry : Nat)
+  | dataBufferLimit (entry : Nat)
+  | totalDataBufferLimit
+  | descriptorCount (expected actual : Nat)
+  deriving DecidableEq, Repr
+
+end MixedFlat
 
 inductive MessageHeader where
   | schema (fields : List Field)
@@ -156,8 +318,7 @@ private def noTable (bytes : KBytes) (value : Table) (index : Nat)
     let _ ← table bytes pos
     throw (.unsupported reason)
 
-private def string (bytes : KBytes) (value : Table) (index : Nat) : Except Error String := do
-  let some pos ← reference bytes value index | return ""
+private def stringAt (bytes : KBytes) (pos : Nat) : Except Error String := do
   let count ← uint bytes pos 4
   let first := pos + 4
   check (pos % 4 == 0 && first + count < bytes.len)
@@ -166,7 +327,31 @@ private def string (bytes : KBytes) (value : Table) (index : Nat) : Except Error
     | throw (.malformed .invalidUtf8)
   return name
 
-private def field (bytes : KBytes) (pos : Nat) : Except Error Field := do
+private def optionalString (bytes : KBytes) (value : Table) (index : Nat) :
+    Except Error (Option String) := do
+  (← reference bytes value index).mapM (stringAt bytes)
+
+private def string (bytes : KBytes) (value : Table) (index : Nat) : Except Error String := do
+  return (← optionalString bytes value index).getD ""
+
+private def primitiveFieldType (bytes : KBytes) (tag : Nat) (payload : Table) :
+    Except Error FieldType := do
+  match tag with
+  | 2 => do
+    tableShape payload 2
+    let width ← scalar bytes payload 0 4
+    let signed ← bool bytes payload 1
+    check (width == 8 || width == 16 || width == 32 || width == 64)
+    if width != 32 || !signed then throw (.unsupported .fieldInteger)
+    return .int32
+  | 5 => do
+    tableShape payload 0
+    return .utf8
+  | _ => throw (.unsupported (.fieldType tag))
+
+private def fieldWith {α β : Type} (bytes : KBytes) (pos : Nat)
+    (typeOf : Nat → Table → Except Error α) (make : String → Bool → α → β) :
+    Except Error β := do
   let value ← table bytes pos
   tableShape value 7
   let name ← string bytes value 0
@@ -174,58 +359,90 @@ private def field (bytes : KBytes) (pos : Nat) : Except Error Field := do
   let tag ← scalar bytes value 2 1
   check (tag != 0)
   let payload ← table bytes (← require (← reference bytes value 3))
-  let type ← match tag with
-    | 2 => do
-      tableShape payload 2
-      let width ← scalar bytes payload 0 4
-      let signed ← bool bytes payload 1
-      check (width == 8 || width == 16 || width == 32 || width == 64)
-      if width != 32 || !signed then throw (.unsupported .fieldInteger)
-      pure FieldType.int32
-    | 5 => do
-      tableShape payload 0
-      pure FieldType.utf8
-    | _ => throw (.unsupported (.fieldType tag))
+  let type ← typeOf tag payload
   noTable bytes value 4 .dictionary
   emptyVector bytes value 5 4 4 .nested
   emptyVector bytes value 6 4 4 .customMetadata
-  return ⟨name, nullable, type⟩
+  return make name nullable type
 
-private def schema (limits : Limits) (bytes : KBytes) (value : Table) :
-    Except Error (List Field) := do
+private def field (bytes : KBytes) (pos : Nat) : Except Error Field :=
+  fieldWith bytes pos (primitiveFieldType bytes) Field.mk
+
+private def schemaWith {α β : Type} (limits : Limits) (bytes : KBytes) (value : Table)
+    (endianOf : Nat → Except Error α) (fieldAt : Nat → Except Error β) :
+    Except Error (α × List β) := do
   tableShape value 4
-  let endian ← scalar bytes value 0 2
-  if endian ≠ 0 then throw (.unsupported (.endianness endian))
+  let endian ← endianOf (← scalar bytes value 0 2)
   let (first, count) ← vector bytes value 1 4 4
   if count > limits.fields then throw (.limit .fields)
   emptyVector bytes value 2 4 4 .customMetadata
   emptyVector bytes value 3 8 8 .schemaFeatures
-  (List.range count).mapM fun index => do
-    field bytes (← target bytes (first + 4 * index))
+  let fields ← (List.range count).mapM fun index => do
+    fieldAt (← target bytes (first + 4 * index))
+  return (endian, fields)
 
-private def batch (limits : Limits) (bytes : KBytes) (value : Table) :
-    Except Error RecordBatch := do
+private def schema (limits : Limits) (bytes : KBytes) (value : Table) :
+    Except Error (List Field) :=
+  (schemaWith limits bytes value
+    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
+    (field bytes)).map Prod.snd
+
+private def readSchemaEndianness : Nat → Except Error SchemaReader.Endianness
+  | 0 => .ok .little
+  | 1 => .ok .big
+  | value => .error (.unsupported (.endianness value))
+
+private def readSchemaFieldType (bytes : KBytes) (tag : Nat) (payload : Table) :
+    Except Error SchemaReader.FieldType := do
+  if tag = 8 then
+    tableShape payload 1
+    let unit ← (← slot bytes payload 0 2).mapM (fun pos => uint bytes pos 2)
+    return .date (← SchemaReader.DateUnit.normalize unit)
+  else if tag = 10 then
+    tableShape payload 2
+    let unit ← (← slot bytes payload 0 2).mapM (fun pos => uint bytes pos 2)
+    return .timestamp (← SchemaReader.TimestampUnit.normalize unit) (← optionalString bytes payload 1)
+  else
+    return .primitive (← primitiveFieldType bytes tag payload)
+
+private structure BatchVectors where
+  rowCount : Nat
+  nodeFirst : Nat
+  nodeCount : Nat
+  bufferFirst : Nat
+  bufferCount : Nat
+
+private def batchVectors (limits : Limits) (bytes : KBytes) (value : Table) :
+    Except Error BatchVectors := do
   tableShape value 5
   let rowCount ← scalar bytes value 0 8
   check (rowCount < 2^63)
   if rowCount > limits.rows then throw (.limit .rows)
   let (nodeFirst, nodeCount) ← vector bytes value 1 16 8
   let (bufferFirst, bufferCount) ← vector bytes value 2 16 8
-  if nodeCount > limits.fields || bufferCount > 3 * limits.fields then
+  return ⟨rowCount, nodeFirst, nodeCount, bufferFirst, bufferCount⟩
+
+private def readNodeAt (bytes : KBytes) (first index : Nat) : Except Error FieldNode := do
+  let pos := first + 16 * index
+  return ⟨← natural64 bytes pos, ← natural64 bytes (pos + 8)⟩
+
+private def readBufferAt (bytes : KBytes) (first index : Nat) : Except Error Buffer := do
+  let pos := first + 16 * index
+  return ⟨← natural64 bytes pos, ← natural64 bytes (pos + 8)⟩
+
+private def batch (limits : Limits) (bytes : KBytes) (value : Table) :
+    Except Error RecordBatch := do
+  let vectors ← batchVectors limits bytes value
+  if vectors.nodeCount > limits.fields || vectors.bufferCount > 3 * limits.fields then
     throw (.limit .fields)
   noTable bytes value 3 .compression
   emptyVector bytes value 4 8 8 .variadicBuffers
-  let nodes ← (List.range nodeCount).mapM fun index => do
-    let pos := nodeFirst + 16 * index
-    pure (FieldNode.mk (← natural64 bytes pos) (← natural64 bytes (pos + 8)))
-  let buffers ← (List.range bufferCount).mapM fun index => do
-    let pos := bufferFirst + 16 * index
-    pure (Buffer.mk (← natural64 bytes pos) (← natural64 bytes (pos + 8)))
-  return ⟨rowCount, nodes, buffers⟩
+  let nodes ← (List.range vectors.nodeCount).mapM (readNodeAt bytes vectors.nodeFirst)
+  let buffers ← (List.range vectors.bufferCount).mapM (readBufferAt bytes vectors.bufferFirst)
+  return ⟨vectors.rowCount, nodes, buffers⟩
 
-/-- Decode only the metadata slice of a V5 Message. The stream reader checks
-the envelope, message order and batch layout against the schema and body. -/
-public def readMessage (limits : Limits) (bytes : KBytes) : Except Error Message := do
+private def messageParts (limits : Limits) (bytes : KBytes) :
+    Except Error (Nat × Table × Nat) := do
   if !bytes.wf then throw (.malformed .source)
   if bytes.len > limits.metadataBytes then throw (.limit .metadataBytes)
   let value ← table bytes (← target bytes 0)
@@ -238,6 +455,116 @@ public def readMessage (limits : Limits) (bytes : KBytes) : Except Error Message
   let bodyLength ← scalar bytes value 3 8
   if bodyLength ≥ 2^63 then throw (.malformed .bodyLength)
   emptyVector bytes value 4 4 4 .customMetadata
+  return (tag, payload, bodyLength)
+
+private def viewFieldKind (tag : Nat) (payload : Table) :
+    Except Error BinaryView.Schema.Kind := do
+  let kind ← BinaryView.Schema.Kind.ofTag tag
+  tableShape payload 0
+  return kind
+
+/-- Read the bodyless little-endian V5 Schema of a standalone one-field
+view batch. Its kind is independent of legacy and other Schema readers. -/
+public def BinaryView.Schema.readMessage (limits : Limits) (bytes : KBytes) :
+    Except BinaryView.Schema.MetadataError BinaryView.Schema.Field := do
+  let (tag, payload, bodyLength) ← (messageParts limits bytes).mapError .metadata
+  if tag ≠ 1 then throw (.metadata (.unsupported (.messageKind tag)))
+  if bodyLength ≠ 0 then throw (.metadata (.malformed .bodyLength))
+  let (_, fields) ← (schemaWith limits bytes payload
+    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
+    (fun pos => fieldWith bytes pos viewFieldKind BinaryView.Schema.Field.mk)).mapError .metadata
+  let [field] := fields | throw (.fieldCount fields.length)
+  return field
+
+/-- Read V5 RecordBatch metadata for one preselected BinaryView or Utf8View
+field. Validate the singleton count vector and descriptor cardinality
+before reading its individual descriptors. -/
+public def BinaryView.readBatchMetadata (limits : Limits) (maxDataBuffers : Nat) (bytes : KBytes) :
+    Except BinaryView.MetadataError (BinaryView.BatchMetadata bytes maxDataBuffers) := do
+  let (tag, payload, bodyLength) ← (messageParts limits bytes).mapError .metadata
+  if tag ≠ 3 then throw (.metadata (.unsupported (.messageKind tag)))
+  let vectors ← (batchVectors limits bytes payload).mapError .metadata
+  if vectors.nodeCount > limits.fields then throw (.metadata (.limit .fields))
+  if vectors.nodeCount ≠ 1 then throw (.nodeCount vectors.nodeCount)
+  (noTable bytes payload 3 .compression).mapError .metadata
+  let (first, entries) ← (vector bytes payload 4 8 8).mapError .metadata
+  if entries ≠ 1 then throw (.countCardinality entries)
+  match word : bytes.readLE first 8 with
+  | none => throw (.metadata (.malformed .flatbuffer))
+  | some count =>
+    if signed : count < 2^63 then
+      if within : count ≤ maxDataBuffers then
+        if vectors.bufferCount ≠ 2 + count then
+          throw (.descriptorCount (2 + count) vectors.bufferCount)
+        let node ← (readNodeAt bytes vectors.nodeFirst 0).mapError .metadata
+        let validity ← (readBufferAt bytes vectors.bufferFirst 0).mapError .metadata
+        let views ← (readBufferAt bytes vectors.bufferFirst 1).mapError .metadata
+        let data ← Vector.ofFnM
+          (fun index : Fin count => (readBufferAt bytes vectors.bufferFirst (2 + index.val)).mapError .metadata)
+        return ⟨vectors.rowCount, bodyLength, node, validity, views, first, count, data,
+          word, signed, within⟩
+      else throw .dataBufferLimit
+    else throw .negativeCount
+
+private def mixedFieldKind (bytes : KBytes) (tag : Nat) (payload : Table) :
+    Except Error MixedFlat.Kind := do
+  if tag == 23 || tag == 24 then
+    return .view (← viewFieldKind tag payload)
+  return .primitive (← primitiveFieldType bytes tag payload)
+
+/-- Admit the ordered fields of the bodyless little-endian mixed-flat Schema. -/
+public def MixedFlat.readSchema (limits : Limits) (bytes : KBytes) :
+    Except Error (List MixedFlat.Field) := do
+  let (tag, payload, bodyLength) ← messageParts limits bytes
+  if tag ≠ 1 then throw (.unsupported (.messageKind tag))
+  if bodyLength ≠ 0 then throw (.malformed .bodyLength)
+  let (_, fields) ← schemaWith limits bytes payload
+    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
+    (fun pos => fieldWith bytes pos (mixedFieldKind bytes) MixedFlat.Field.mk)
+  return fields
+
+/-- Bound count words and check the computed descriptor cardinality before
+enumerating the nodes and descriptors. Count positions are view ordinals. -/
+public def MixedFlat.readMetadata (limits : Limits) (perView totalData : Nat)
+    (fields : List MixedFlat.Field) (bytes : KBytes) : Except MixedFlat.MetadataError MixedFlat.Metadata := do
+  let (tag, payload, bodyLength) ← (messageParts limits bytes).mapError .metadata
+  if tag ≠ 3 then throw (.metadata (.unsupported (.messageKind tag)))
+  let vectors ← (batchVectors limits bytes payload).mapError .metadata
+  if fields.length > limits.fields || vectors.nodeCount > limits.fields then
+    throw (.metadata (.limit .fields))
+  if vectors.nodeCount ≠ fields.length then throw (.nodeCount fields.length vectors.nodeCount)
+  (noTable bytes payload 3 .compression).mapError .metadata
+  let (first, entries) ← (vector bytes payload 4 8 8).mapError .metadata
+  let expected := fields.countP (·.kind.isView)
+  if entries ≠ expected then throw (.countCardinality expected entries)
+  let counts ← (List.range entries).mapM fun entry => do
+    let count ← (uint bytes (first + 8 * entry) 8).mapError MixedFlat.MetadataError.metadata
+    if count ≥ 2^63 then throw (.negativeCount entry)
+    if count > perView then throw (.dataBufferLimit entry)
+    return count
+  let dataCount := counts.sum
+  if dataCount > totalData then throw .totalDataBufferLimit
+  let expected := (fields.map (·.kind.baseBuffers)).sum + dataCount
+  if vectors.bufferCount ≠ expected then throw (.descriptorCount expected vectors.bufferCount)
+  let nodes ← ((List.range vectors.nodeCount).mapM (readNodeAt bytes vectors.nodeFirst)).mapError .metadata
+  let buffers ← ((List.range vectors.bufferCount).mapM (readBufferAt bytes vectors.bufferFirst)).mapError .metadata
+  return ⟨⟨vectors.rowCount, nodes, buffers⟩, bodyLength, counts⟩
+
+/-- Read a standalone V5 Schema message. The normalized type payloads and
+schema byte order are available to readers without changing the existing IPC AST. -/
+public def SchemaReader.readMessage (limits : Limits) (bytes : KBytes) :
+    Except Error SchemaReader.Schema := do
+  let (tag, payload, bodyLength) ← messageParts limits bytes
+  if tag ≠ 1 then throw (.unsupported (.messageKind tag))
+  if bodyLength ≠ 0 then throw (.malformed .bodyLength)
+  let (endian, fields) ← schemaWith limits bytes payload readSchemaEndianness
+    (fun pos => fieldWith bytes pos (readSchemaFieldType bytes) SchemaReader.Field.mk)
+  return ⟨endian, fields⟩
+
+/-- Decode only the metadata slice of a V5 Message. The stream reader checks
+the envelope, message order and batch layout against the schema and body. -/
+public def readMessage (limits : Limits) (bytes : KBytes) : Except Error Message := do
+  let (tag, payload, bodyLength) ← messageParts limits bytes
   let header ← match tag with
     | 1 => MessageHeader.schema <$> schema limits bytes payload
     | 3 => MessageHeader.recordBatch <$> batch limits bytes payload

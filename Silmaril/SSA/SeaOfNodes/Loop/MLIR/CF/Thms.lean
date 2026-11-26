@@ -14,7 +14,7 @@ public section
 namespace Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF
 
 open SeaOfNodes.MLIR (Word sourceInputs)
-open SeaOfNodes.MLIR.Lowering (encodeValues valueBits)
+open SeaOfNodes.MLIR.Lowering (Scope.Agrees encodeValues valueBits)
 open Diamond (Val ValueSort dataPorts)
 open RVSDG (Tuple)
 open Silmaril.MLIR.Arith (Env Width)
@@ -29,6 +29,12 @@ theorem opcode_eval {ins : List (ValueSort Width)} {out : ValueSort Width}
 namespace Bank
 
 variable {Γ carried : List Width} {result : Width} {entrySigs headerSigs : List (List (Diamond.Ty Width))}
+/-- The ordinary header starts with the carried bank followed by the captures. -/
+theorem headerScope_agrees (input : Env Γ) (old : Values carried) :
+    (headerScope Γ carried).Agrees ((bankEnv old).append input)
+      (appendTuple old (sourceInputs input)) PUnit.unit :=
+  Proofs.headerScope_agrees input old
+
 variable (g : Program Γ carried result entrySigs headerSigs) (input : Env Γ)
 
 /-- Preserves every entry Φ operand in argument order. -/

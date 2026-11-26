@@ -208,15 +208,46 @@ abbrev Value.addInt := Value.binaryInt .add
 
 abbrev Result := Except RuntimeError Value
 
+/-- Exact integer floor division and its matching divisor-signed remainder. -/
+inductive IntDivModOp where
+  | floorDiv
+  | modulo
+
+def IntDivModOp.eval (op : IntDivModOp) (numerator divisor : Int) : Except RuntimeError Int :=
+  if divisor = 0 then .error (.arithmetic .zeroDivisionError)
+  else .ok (match op with
+    | .floorDiv => numerator.fdiv divisor
+    | .modulo => numerator.fmod divisor)
+
 def trueDivideInt (numerator divisor : Int) : Except RuntimeError Silmaril.Numeric.Ieee754.F64.Finite :=
   (Core.Binary64.trueDivide numerator divisor).mapError fun
     | .zeroDivisionError => .arithmetic .zeroDivisionError
     | .overflowError => .overflowError
 
-def mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite) : Except Failure Value :=
-  (Core.Binary64.mixedAdd integer floating).map .float64 |>.mapError fun
+def trueDivideFloat (operands : Core.Binary64.FloatOperands) : Except Failure Silmaril.Numeric.Ieee754.F64.Finite :=
+  (Core.Binary64.divideFloat operands).mapError fun
+    | .conversionOverflow => .defined .overflowError
+    | .zeroDivisionError => .defined (.arithmetic .zeroDivisionError)
+    | .nonfiniteResult => .unsupportedFloatOperand
+
+def floatArithmeticResult
+    (result : Except Core.Binary64.FloatArithmeticError Silmaril.Numeric.Ieee754.F64.Finite) :
+    Except Failure Value :=
+  result.map .float64 |>.mapError fun
     | .conversionOverflow => .defined .overflowError
     | .nonfiniteResult => .unsupportedFloatOperand
+
+def mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite) : Except Failure Value :=
+  floatArithmeticResult (Core.Binary64.mixedAdd integer floating)
+
+def floatAdd (left right : Silmaril.Numeric.Ieee754.F64.Finite) : Except Failure Value :=
+  (Core.Binary64.addFinite? left right).elim (.error .unsupportedFloatOperand) (.ok ∘ Value.float64)
+
+def floatSub (operands : Core.Binary64.FloatOperands) : Except Failure Value :=
+  floatArithmeticResult (Core.Binary64.subtract operands)
+
+def floatMul (operands : Core.Binary64.FloatOperands) : Except Failure Value :=
+  floatArithmeticResult (Core.Binary64.multiply operands)
 
 /-- A shared heap with monotone cell allocation. Only addresses below
 `next` denote allocated cells. An allocated cell may be unbound. -/

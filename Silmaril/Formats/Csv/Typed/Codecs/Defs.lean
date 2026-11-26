@@ -3,7 +3,7 @@ module
 public import Silmaril.Formats.Csv.Typed.Defs
 public import Silmaril.Formats.Spki.Defs
 
-/-! # Cell codecs for signed Int32 and CSV-representable UTF-8 text -/
+/-! # Cell codecs for signed Int32, signed Int64, and CSV-representable UTF-8 text -/
 
 @[expose] public section
 
@@ -16,12 +16,12 @@ def DecimalSpelling (field : Field) (n : Int) : Prop :=
       Spki.digitsValue magnitude = n.natAbs
   else Spki.IsDecimal field ∧ Spki.digitsValue field = n.natAbs
 
-/-- Canonical signed decimal, with a minus sign only on negative values. -/
-def int32Text (value : Int32) : Field :=
-  let digits := Spki.decimal value.toInt.natAbs
-  if value.toInt < 0 then 0x2D :: digits else digits
-
 namespace Internal
+
+/-- Canonical signed decimal, with a minus sign only on negative values. -/
+def signedText (value : Int) : Field :=
+  let digits := Spki.decimal value.natAbs
+  if value < 0 then 0x2D :: digits else digits
 
 /-- Evaluate the candidate before validating its canonical spelling. -/
 def signedValue : Field → Int
@@ -31,6 +31,10 @@ def signedValue : Field → Int
     else Int.ofNat (Spki.digitsValue (b :: bs))
 
 end Internal
+
+def int32Text (value : Int32) : Field := Internal.signedText value.toInt
+
+def int64Text (value : Int64) : Field := Internal.signedText value.toInt
 
 /-- Check the Int32 range before constructing the value, then check the exact
     spelling. At most eleven input bytes reach numeric evaluation. -/
@@ -45,6 +49,19 @@ def parseInt32 (field : Field) : Option Int32 :=
 
 /-- Total canonical decimal printing and checked parsing for signed Int32. -/
 def int32 : CellCodec Int32 := ⟨some ∘ int32Text, parseInt32⟩
+
+/-- Bound the width and signed range, then require the canonical spelling. -/
+def parseInt64 (field : Field) : Option Int64 :=
+  if field.length ≤ 20 then
+    let n := Internal.signedValue field
+    if h : Int64.minValue.toInt ≤ n ∧ n ≤ Int64.maxValue.toInt then
+      let value := Int64.ofIntLE n h.1 h.2
+      if int64Text value = field then some value else none
+    else none
+  else none
+
+/-- Total canonical decimal printing and checked parsing for signed Int64. -/
+def int64 : CellCodec Int64 := ⟨some ∘ int64Text, parseInt64⟩
 
 /-- Text bytes admitted by the RFC 4180 wire codec after CSV unquoting. -/
 def textBytesOK (field : Field) : Bool := field.all Csv.Internal.fieldData

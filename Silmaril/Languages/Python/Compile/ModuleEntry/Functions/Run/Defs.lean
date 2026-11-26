@@ -39,6 +39,8 @@ inductive Instruction (scope : Scope) where
   | callTupleIdentity (destination : Core.Module.Functions.Destination) (name : String) (test : TupleIdentity.Test)
   | callTupleFromListDisplay (destination : Core.Module.Functions.Destination) (contents : List Core.Module.Value)
       (outer : Option (String × List Argument))
+  | callListDisplay (destination : Core.Module.Functions.Destination) (name : String)
+      (display : ListDisplay.Display)
   /-- The source plan places this call immediately after the matching publication. -/
   | adjacentKeywordDiscard (name : String) (value : Int)
   | nestedCall (destination : Core.Module.Functions.Destination) (name : String) (arguments : List Argument)
@@ -57,15 +59,22 @@ def callOperand? {scope : Scope} : Operand scope → Option Core.Module.Function
   | .integer value => some (.literal (.int value))
   | .boolean value => some (.literal (.bool value))
   | .read name _ => some (.readGlobal name)
+  | .binary .equal (.boolean left) (.boolean right) => some (.literal (.bool (left == right)))
   | .none_ | .binary .. | .identityChain .. => none
 
 def callValue? {scope : Scope} : CallValue scope → Option Core.Module.Functions.Operand
   | .scalar operand => callOperand? operand
+  | .intDivMod op numerator divisor => some (.intDivMod op numerator divisor)
   | .intTrueDiv numerator divisor => some (.intTrueDiv numerator divisor)
+  | .floatDiv operands => some (.floatDiv operands)
   | .mixedAdd integer floating => some (.mixedAdd integer floating)
+  | .floatAdd left right => some (.floatAdd left right)
+  | .floatSub operands => some (.floatSub operands)
+  | .floatMul operands => some (.floatMul operands)
   | .float64 value => some (.literal (.float64 value))
   | .tuple items => some (.tuple items)
   | .text value => some (.literal (.text value))
+  | .textSlice receiver bounds => some (.textSlice receiver bounds)
 
 def callArgument? {scope : Scope} : CallArgument scope → Option Argument
   | .value operand => (callValue? operand).map .scalar
@@ -127,6 +136,9 @@ def lowerInstructions {scope : Scope} (tree : Source.ScopeTree) (next : Nat) : L
     let some outer := arguments.mapM (fun rest => (rest.mapM callArgument?).map (name, ·)) | throw .callOperand
     let (instructions, blocks) ← lowerInstructions tree next rest
     return (.callTupleFromListDisplay (destination target) contents outer :: instructions, blocks)
+  | .callListDisplay target name _ display :: rest => do
+    let (instructions, blocks) ← lowerInstructions tree next rest
+    return (.callListDisplay (destination target) name display :: instructions, blocks)
   | .adjacentKeywordDiscard name _ value :: rest => do
     let (instructions, blocks) ← lowerInstructions tree next rest
     return (.adjacentKeywordDiscard name value :: instructions, blocks)
@@ -366,6 +378,28 @@ where
       | .error error => (TupleChain.runtimeError? error).elim .scalarProfile .raised
     (completion, reached)
 
+def readListItem (session : Session) (name : String) : Except Completion Core.Module.Value := do
+  let some value := session.globals name | throw (.raised (.nameError name))
+  let some scalar := scalar? value | throw .scalarProfile
+  return scalar
+
+def advanceListDisplayCall {scope : Scope} (session : Session) (destination : Core.Module.Functions.Destination)
+    (name : String) (display : ListDisplay.Display) (rest : List (Instruction scope)) : State scope :=
+  match session.globals name with
+  | none => .finished session (.raised (.nameError name))
+  | some callee =>
+    let (result, lists) := display.prepare (readListItem session) session.lists
+    let reached := { session with lists }
+    match result with
+    | .error error => .finished reached error
+    | .ok object =>
+      if display.negated then
+        .calling (reached.prepareCall destination (.literal callee) [.literal (.bool object.contents.isEmpty)]) rest
+      else
+        .finished reached (match callee with
+          | .function _ => .scalarProfile
+          | _ => .raised .notCallable)
+
 def advance {scope : Scope} (table : CodeTable) : State scope → List Event × State scope
   | .finished session completion => ([], .finished session completion)
   | .ready session [] => ([], .finished session .normal)
@@ -409,6 +443,8 @@ def advance {scope : Scope} (table : CodeTable) : State scope → List Event × 
     | .callTupleFromListDisplay _ contents outer =>
       let (completion, lists) := tupleFromListDisplayCompletion session contents outer
       ([], .finished { session with lists } completion)
+    | .callListDisplay destination name display =>
+      ([], advanceListDisplayCall session destination name display rest)
     | .adjacentKeywordDiscard name value =>
       ([], .calling (session.prepareCall .discard (.readGlobal name) [.literal (.int value)]) rest)
     | .nestedCall destination name arguments =>

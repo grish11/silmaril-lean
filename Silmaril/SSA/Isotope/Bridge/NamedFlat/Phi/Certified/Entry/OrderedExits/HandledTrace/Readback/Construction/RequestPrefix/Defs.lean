@@ -124,6 +124,13 @@ def chainLabel (start : Fin blocks) (count : Nat) : Fin (count + 1) → Fin (blo
 def moveExit (blocks count label : Nat) : Nat :=
   if label < blocks then label else blocks + count + (label - blocks)
 
+/-- The public request forwards the unmodified frame and the new reply
+to the supplied continuation label. -/
+def Frame.requestCell {newBlocks : Nat} (frame : Frame Γ) (op : F) (arg : Expr Γ (sig.argument op))
+    (next : Fin newBlocks) : Region F :=
+  frame.unpack 0 (.let₁ (.op op (operand (frame.position 0) arg))
+    (.br next.val (.pair (.var (frame.shift + 1)) (.var 0))))
+
 /-- Emit one public row per request followed by the pure tail. A request
 forwards the entire frame paired with its reply to the next fresh row.
 Every tail leaf uses the old label embedding or the relocated exit. -/
@@ -138,8 +145,7 @@ def Row.cells {newBlocks : Nat} (old : Fin blocks → Fin newBlocks) :
     (frame.packet, frame.unpack 0 (CaseTail.erase old (frame.position 0) tail))
   | _, .request op arg tail, frame, labels, i =>
     Fin.cases
-      (frame.packet, frame.unpack 0 (.let₁ (.op op (operand (frame.position 0) arg))
-        (.br (labels (0 : Fin (tail.requests + 1)).succ).val (.pair (.var (frame.shift + 1)) (.var 0)))))
+      (frame.packet, frame.requestCell op arg (labels (0 : Fin (tail.requests + 1)).succ))
       (fun k => tail.cells old (.push (sig.reply op) frame) (labels ∘ Fin.succ) k) i
 
 /-- Exact provenance for the selected original row and the structural entry. -/

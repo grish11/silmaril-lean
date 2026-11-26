@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Defs
 import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.Preservation
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.Indirect
 
 @[expose] public section
 
@@ -29,5 +30,26 @@ theorem Site.step_iff (allocated : site.Allocated base) (contract : site.Contrac
       (host site.code (memory.store bytes) args .diverged ∧
         dst = site.pending (memory.store bytes) outer context args) :=
   Proofs.step_iff allocated contract live typed
+
+/-- Resolution consumes the selector in one internal step and preserves the
+current store, frame, operands and suffix. Success leaves a pending host or
+checked Wasm invocation. Bounds, null and signature failures leave a native trap. -/
+theorem IndirectSite.step_iff {indirect : IndirectSite} {active : Frame} {stack : List Value}
+    {selector : BitVec 32} {rest : List Admin} (linked : indirect.Linked base active.module) :
+    Internal ⟨memory.store bytes, active,
+      values (stack ++ [Value.int .i32 selector]) ++ .source (.callIndirect indirect.typeIndex) :: rest⟩ dst ↔
+      ∃ target, indirect.Lookup base selector target ∧
+        dst = ⟨memory.store bytes, active, values stack ++ IndirectSite.lookupHead target :: rest⟩ :=
+  Proofs.indirect_step_iff linked
+
+/-- Each witnessed lookup failure has only the trap successor, with the
+current store and remaining operands unchanged. -/
+theorem IndirectSite.trap_iff {indirect : IndirectSite} {active : Frame} {stack : List Value}
+    {selector : BitVec 32} {rest : List Admin} (linked : indirect.Linked base active.module)
+    (failure : indirect.Lookup base selector none) :
+    Internal ⟨memory.store bytes, active,
+      values (stack ++ [Value.int .i32 selector]) ++ .source (.callIndirect indirect.typeIndex) :: rest⟩ dst ↔
+      dst = ⟨memory.store bytes, active, values stack ++ .trap :: rest⟩ :=
+  Proofs.indirect_trap_iff linked failure
 
 end Silmaril.Wasm.Institution.Operational.HostCall.Lime1

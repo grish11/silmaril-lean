@@ -3,6 +3,7 @@
 
 import argparse
 import ast
+import dis
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import json
@@ -18,11 +19,13 @@ SUITE = runpy.run_path(str(DIRECTORY / "source-module-entry/check_seeded_run.py"
 INTAKE = runpy.run_path(str(DIRECTORY / "source-scope/check_intake.py"))
 PIN = "tests/python/programs/original/k-python/programs/testlists5.py"
 SHA = "99b7b4957c2a35594d048de003865f1f348ef835fed4e55c3d0bfb8aa88720e9"
+TRUTH_PIN = "tests/python/programs/original/lambda-py/python-reference/lists/test_list_truth.py"
+TRUTH_SHA = "ca8ec615b689ebbbac110c6ef35b6a79520f28a1a1a05d43cb25a4fde922bff4"
 
 LEAN = SUITE["LEAN"] + """
-open Compile.ModuleEntry.Functions.Run.Seeded (legacyListSeed)
-private def listState (source : Source.Module) (space : Namespace) (status : String)
-    (bindings : Bindings) (results : List Result) (allocated : Array (List Core.Module.Value)) : Bool := Id.run do
+open Compile.ModuleEntry.Functions.Run.Seeded (legacyListSeed legacyTupleIdentitySeed)
+private def listCallState (source : Source.Module) (space : Namespace) (status : String)
+    (bindings : Bindings) (calls : List (String × Result)) (allocated : Array (List Core.Module.Value)) : Bool := Id.run do
   let .ok compiled := Compile.ModuleEntry.Functions.Run.compile source | return false
   let cellHeap : Core.Closure.Heap := ⟨1, fun address => if address == 0 then some (.int 23) else none⟩
   let listHeap : Core.Module.ListHeap := ⟨#[[], [.bool true]]⟩
@@ -36,8 +39,27 @@ private def listState (source : Source.Module) (space : Namespace) (status : Str
     result.residual.builtins == space.builtins && result.lists.objects == listHeap.objects ++ allocated &&
     result.heap.next == 1 &&
     (result.heap.contents 0).map Compile.ModuleEntry.Functions.Run.Seeded.seededValue == some (.int 23) &&
-    result.calls.map (·.observation.result) == results &&
-    result.calls.all (fun item => item.callee == "list" && item.observation.caught.isNone)
+    result.calls.map (fun item => (item.callee, item.observation.result)) == calls &&
+    result.calls.all (·.observation.caught.isNone)
+
+private def listState (source : Source.Module) (space : Namespace) (status : String)
+    (bindings : Bindings) (results : List Result) (allocated : Array (List Core.Module.Value)) : Bool :=
+  listCallState source space status bindings (results.map ("list", ·)) allocated
+
+private def ordinaryListState (source : Source.Module)
+    (completion : Compile.ModuleEntry.Functions.Run.Completion)
+    (bindings : List (String × Option Value)) (allocated : Array (List Core.Module.Value)) : Bool := Id.run do
+  let .ok compiled := Compile.ModuleEntry.Functions.Run.compile source | return false
+  let heap : Core.Closure.Heap := ⟨1, fun address => if address == 0 then some (.int 23) else none⟩
+  let lists : Core.Module.ListHeap := ⟨#[[], [.bool true]]⟩
+  let start := { Compile.ModuleEntry.Functions.Run.seed .empty heap with lists }
+  let .finished residual actual := (Compile.ModuleEntry.Functions.Run.runPrefix compiled.table 1000
+    (.ready start compiled.instructions)).2 | return false
+  return actual == completion && residual.lists.objects == lists.objects ++ allocated &&
+    residual.heap.next == heap.next &&
+    (residual.heap.contents 0).map Compile.ModuleEntry.Functions.Run.Seeded.seededValue == some (.int 23) &&
+    bindings.all (fun (name, value) =>
+      (residual.globals name).map Compile.ModuleEntry.Functions.Run.Seeded.seededValue == value)
 """
 
 NAME_ERROR = '.error (.raised (.runtime (.nameError "list")))'
@@ -45,7 +67,7 @@ TYPE_ERROR = ".error (.raised (.runtime .notCallable))"
 STOCK = "(legacyListSeed .builtin)"
 
 
-def cpython(source, builtins, initial=None, delta=None):
+def cpython(source, builtins, initial=None, delta=None, *, failures=None):
     """Compare the terminal class, namespace, and quiet exec observation."""
     initial = initial or {}
     expected = initial | (delta or {})
@@ -59,6 +81,8 @@ def cpython(source, builtins, initial=None, delta=None):
             exec(unit, namespace)
         except (NameError, TypeError, AssertionError) as error:
             status = SUITE["exception_observation"](error)
+            if failures is not None:
+                failures.append(error)
     assert not emitted and not stdout.getvalue() and not stderr.getvalue()
     assert namespace.pop("__builtins__") is builtins
     assert namespace.keys() == expected.keys()
@@ -187,6 +211,146 @@ def profile_controls(source_path, lean_path):
     return {"fresh_objects": 4, "open_lookup_order": [error for _, _, error in order]}
 
 
+def truth_pin(checkout, source_path, lean_path):
+    source = SUITE["pinned_source"](checkout, TRUTH_PIN, TRUTH_SHA)
+    raw = (checkout / TRUTH_PIN).read_bytes()
+    assert source.encode() == raw
+    compiled = compile(raw, TRUTH_PIN, "exec", dont_inherit=True, optimize=0)
+    builds = [op.arg for op in dis.get_instructions(compiled) if op.opname == "BUILD_LIST"]
+    assert builds == [0, 1]
+    helper = SUITE["pinned_truth_helper"](checkout)
+    name = "___assertTrue"
+    missing = f"NameError:{name}"
+    assert cpython(raw, {}) == missing
+    guards = [f'#guard ordinaryListState pythonSource (.raised (.nameError "{name}")) [] #[]']
+    for profile in ("empty", "legacy_builtin", "legacy_preamble"):
+        assert SUITE["cpython"](raw, profile, expected_globals={}) == [missing, "absent", "absent"]
+        seed = f'(initial "{profile}")'
+        guards.append(f'#guard listCallState pythonSource {seed} "{missing}" {seed}.moduleGlobals '
+                      f'[("{name}", .error (.raised (.runtime (.nameError "{name}"))))] #[]')
+    for placement in ("builtin", "preamble"):
+        seen = []
+
+        def observe(value):
+            seen.append(value)
+            return helper(value)
+
+        bindings = {name: observe}
+        fallback, globals_ = (bindings, {}) if placement == "builtin" else ({}, bindings)
+        assert cpython(raw, fallback, globals_) == "normal"
+        assert len(seen) == 2 and seen[0] is True
+        assert type(seen[1]) is list and seen[1] == [42] and type(seen[1][0]) is int
+        seed = f"(legacyTupleIdentitySeed .{placement})"
+        guards.append(f'#guard listCallState pythonSource {seed} "normal" {seed}.moduleGlobals '
+                      f'[("{name}", .ok .none), ("{name}", .ok .none)] #[[], [.int 42]]')
+    check(source, source_path, lean_path, *guards)
+    return {"sha256": TRUTH_SHA, "build_list_sizes": builds, "arguments": [True, [42]],
+            "stock_helper_placements": "normal", "fixed_profiles": missing, "receipts": 2}
+
+
+def truth_controls(checkout, source_path, lean_path):
+    helper = SUITE["pinned_truth_helper"](checkout)
+    seen = []
+
+    def observe(value):
+        seen.append(value)
+        return helper(value)
+
+    truth = {"___assertTrue": observe}
+    stock = "(legacyTupleIdentitySeed .builtin)"
+    fixtures = []
+    source = "probe([first, second])\nafter = 9\n"
+    assert cpython(source, {}) == "NameError:probe"
+    fixtures.append((source, '''#guard ordinaryListState pythonSource (.raised (.nameError "probe")) [] #[]
+#guard listCallState pythonSource .empty "NameError:probe" []
+  [("probe", .error (.raised (.runtime (.nameError "probe"))))] #[]'''))
+
+    source = "probe = None\nprobe([True, first, second])\nafter = 9\n"
+    assert cpython(source, {}, delta={"probe": None}) == "NameError:first"
+    fixtures.append((source, '''#guard ordinaryListState pythonSource (.raised (.nameError "first"))
+  [("probe", some .none), ("after", none)] #[]
+#guard listCallState pythonSource .empty "NameError:first" [("probe", .none)]
+  [("probe", .error (.raised (.runtime (.nameError "first"))))] #[]'''))
+
+    source = "probe = None\nitem = -7\nprobe([item, True, None])\nafter = 9\n"
+    assert cpython(source, {}, delta={"probe": None, "item": -7}) == "TypeError"
+    fixtures.append((source, '''#guard ordinaryListState pythonSource (.raised .notCallable)
+  [("probe", some .none), ("item", some (.int (-7))), ("after", none)] #[[.int (-7), .bool true, .none]]
+#guard listCallState pythonSource .empty "TypeError" [("item", .int (-7)), ("probe", .none)]
+  [("probe", .error (.raised (.runtime .notCallable)))] #[[.int (-7), .bool true, .none]]'''))
+
+    source = "___assertTrue([1])\n___assertTrue = None\n___assertTrue([42])\nafter = 9\n"
+    assert cpython(source, truth, delta={"___assertTrue": None}) == "TypeError"
+    assert seen == [[1]]
+    seen.clear()
+    fixtures.append((source, f'''#guard listCallState pythonSource {stock} "TypeError" [("___assertTrue", .none)]
+  [("___assertTrue", .ok .none), ("___assertTrue", .error (.raised (.runtime .notCallable)))]
+  #[[.int 1], [.int 42]]'''))
+
+    source = """saved = ___assertTrue
+___assertTrue = None
+alias = original
+original = None
+item = 0
+saved([item, False, None])
+saved([item, False, None])
+item = 5
+saved([item])
+saved(alias)
+after = 9
+"""
+    original = [True]
+    assert cpython(source, truth, {"original": original},
+                   {"saved": observe, "___assertTrue": None, "alias": original,
+                    "original": None, "item": 5, "after": 9}) == "normal"
+    assert seen == [[0, False, None], [0, False, None], [5], original]
+    assert seen[0] is not seen[1] and seen[3] is original
+    assert tuple(map(type, seen[0])) == (int, bool, type(None))
+    space = f'({stock}.bindGlobal "original" (.listObject ⟨1, [.bool true]⟩))'
+    fixtures.append((source, f'''#guard listCallState pythonSource {space} "normal"
+  [("after", .int 9), ("item", .int 5), ("original", .none), ("alias", .listObject ⟨1, [.bool true]⟩),
+    ("___assertTrue", .none), ("saved", .helper .assertTrue)]
+  (List.replicate 4 ("saved", .ok .none)) #[[.int 0, .bool false, .none], [.int 0, .bool false, .none], [.int 5]]'''))
+
+    source = "___assertTrue([0])\n___assertTrue([])\nafter = 9\n"
+    errors = []
+    assert cpython(source, truth, failures=errors) == "AssertionError:list:[]"
+    assert len(errors[0].args) == 1 and errors[0].args[0] is seen[-1]
+    fixtures.append((source, f'''#guard listCallState pythonSource {stock} "AssertionError:list:[]" []
+  [("___assertTrue", .ok .none), ("___assertTrue", .error (.raised (.assertionError (.listObject ⟨3, []⟩))))]
+  #[[.int 0], []]'''))
+
+    source = "alias = original\noriginal = None\n___assertTrue(alias)\n"
+    original = []
+    errors = []
+    assert cpython(source, truth, {"original": original}, {"alias": original, "original": None},
+                   failures=errors) == "AssertionError:list:[]"
+    assert len(errors[0].args) == 1 and errors[0].args[0] is seen[-1] is original
+    space = f'({stock}.bindGlobal "original" (.listObject ⟨0, []⟩))'
+    fixtures.append((source, f'''#guard listCallState pythonSource {space} "AssertionError:list:[]"
+  [("original", .none), ("alias", .listObject ⟨0, []⟩)]
+  [("___assertTrue", .error (.raised (.assertionError (.listObject ⟨0, []⟩))))] #[]'''))
+
+    source = "___assertTrue(not [0])\nafter = 9\n"
+    assert cpython(source, truth) == "AssertionError:bool:False"
+    assert seen[-1] is False
+    fixtures.append((source, f'''#guard listCallState pythonSource {stock} "AssertionError:bool:False" []
+  [("___assertTrue", .error (.raised (.assertionError (.boolean false))))] #[[.int 0]]'''))
+
+    source = "def read(value): return value\nresult = read(not [0])\n"
+    namespace = {"__builtins__": {}}
+    exec(compile(source, "<negated list closure>", "exec", dont_inherit=True, optimize=0), namespace)
+    assert namespace["result"] is False
+    fixtures.append((source, '''#guard ordinaryListState pythonSource .normal [("result", some (.bool false))]
+  #[[.int 0]]'''))
+
+    for source in ("probe([[42]])", "probe([42], [])", "probe([item()])"):
+        fixtures.append((source, "#guard (Compile.ModuleEntry.Functions.Run.compile pythonSource).isOk == false"))
+    INTAKE["check_lean_batch"](source_path, lean_path, fixtures, LEAN, extra_imports=SUITE["IMPORTS"])
+    return {"fixtures": len(fixtures), "ordered_allocation": True, "list_alias_payload": True,
+            "live_helper_alias": True, "ordinary_negated_result": False}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream", type=Path, required=True, help="the pinned original checkout")
@@ -200,5 +364,7 @@ if __name__ == "__main__":
             "pin": replay_pin(args.upstream, source, lean),
             "controls": runtime_controls(source, lean),
             "profile": profile_controls(source, lean),
+            "truth_pin": truth_pin(args.upstream, source, lean),
+            "truth_controls": truth_controls(args.upstream, source, lean),
         }
     print(json.dumps(evidence))

@@ -40,6 +40,15 @@ theorem importCsv_schema_mismatch [DecidableEq Name] [DecidableEq Kind]
     importCsv db name expected declared codecs wire = .error .schemaMismatch :=
   Proofs.Formats.Csv.NamedTable.Utf8.importCsv_schema_mismatch vacant decoded different
 
+/-- At an observed name, export is exactly typed UTF-8 encoding at that schema. -/
+theorem exportCsv_of_observe {db : Packed Name Field Value} {name : Name}
+    {table : Scan.Observation Field Value} (found : Scan.observePacked db name = some table) :
+    exportCsv db name codecs =
+      ((Typed.Utf8.encode table.schema codecs table.rows).map
+        (fun wire => (table.schema, wire))).mapError ExportError.encodeError := by
+  cases encoded : Typed.Utf8.encode table.schema codecs table.rows <;>
+    simp [exportCsv, found, encoded, Except.map, Except.mapError]
+
 /-- The exported schema is the observed schema and decoding recovers its exact ordered rows. -/
 theorem decode_exportCsv (db : Packed Name Field Value) (name : Name)
     {table : Scan.Observation Field Value} (found : Scan.observePacked db name = some table)

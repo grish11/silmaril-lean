@@ -28,13 +28,17 @@ def readPorts :
 
 /-- Require a nonempty Load chain ending in Return. The certificate names
 the nominated Store and covers every reader. -/
-def checkTail (facts : Certificate args) (store : PrefixStore args)
+def checkTailAddress (facts : Certificate args) (address : Port args .address)
     {past : List (List ValueSort)} {live : Nat} (tail : Memory.Body args past live) : Bool :=
-  facts.matches (past := []) (.arg store.address) &&
+  facts.matches (past := []) (.arg address) &&
     match readPorts tail with
     | none => false
     | some readers => !readers.isEmpty && readers.all fun reader =>
         !facts.matches (past := []) (.arg reader) && facts.covers (past := []) (.arg reader)
+
+def checkTail (facts : Certificate args) (store : PrefixStore args)
+    {past : List (List ValueSort)} {live : Nat} (tail : Memory.Body args past live) : Bool :=
+  checkTailAddress facts store.address tail
 
 /-- Reconnect the final suffix after removing the designated Store from an
 argument-Store prefix. Scalar wires remain in their original scope. -/

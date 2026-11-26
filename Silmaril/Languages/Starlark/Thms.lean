@@ -8,6 +8,11 @@ public section
 
 namespace Silmaril.Languages.Starlark
 
+/-- The independent scalar comparison rules determine the exact result or type error. -/
+theorem compares_iff_applyBinary (op : BinaryOp) (lhs rhs : Value) (out : Result Value) :
+    Compares op lhs rhs out ↔ op.isComparison = true ∧ applyBinary op lhs rhs = out :=
+  Proofs.Languages.Starlark.compares_iff_applyBinary op lhs rhs out
+
 /-- The expression denotation is sound and complete for the big-step rules, including errors. -/
 theorem eval_iff_denoteExpr (expr : ResolvedExpr) (frame : Frame) (result : Result Value) :
     Eval frame expr result ↔ denoteExpr expr frame = result :=

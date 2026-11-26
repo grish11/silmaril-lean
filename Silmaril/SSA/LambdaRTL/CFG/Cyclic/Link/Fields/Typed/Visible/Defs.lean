@@ -281,13 +281,19 @@ def weakEq? [DecidableEq F] (right : Program signature inputs outputs) : Bool :=
 abbrev ObservationTrace (signature : PrimitiveSignature F) :=
   Trace (Event signature.Request signature.Reply) (Nat × Value Atom)
 
-/-- Explain failed inclusion from this program to the right program
-at a chosen entry and exact input packet. -/
-def explainRefinementAt? [DecidableEq F] (right : Program signature inputs outputs)
-    (input : Fin a) (packet : Denote (inputs input)) : Option (ObservationTrace signature) :=
+/-- Explain failed inclusion at the two independently typed starts. -/
+def explainRefinementBetween? [DecidableEq F] {c : Nat} {rightInputs : Fin c → PacketType}
+    (right : Program signature rightInputs outputs)
+    (leftInput : Fin a) (leftPacket : Denote (inputs leftInput))
+    (rightInput : Fin c) (rightPacket : Denote (rightInputs rightInput)) : Option (ObservationTrace signature) :=
   (Silmaril.Elgot.ITree.Finite.explain (fun (key : signature.Request) => (signature.reply key.1).enumerate)
     program.states right.states program.step right.step
-    (program.start input packet) (right.start input packet)).map (Trace.map renderResult)
+    (program.start leftInput leftPacket) (right.start rightInput rightPacket)).map (Trace.map renderResult)
+
+/-- Explain failed inclusion at a shared entry and packet. -/
+def explainRefinementAt? [DecidableEq F] (right : Program signature inputs outputs)
+    (input : Fin a) (packet : Denote (inputs input)) : Option (ObservationTrace signature) :=
+  program.explainRefinementBetween? right input packet input packet
 
 inductive MismatchDirection where
   | leftToRight

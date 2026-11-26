@@ -88,7 +88,7 @@ private theorem at_agrees (g : Table S R) (prim : Primitives Φ n) (i : Fin R.le
         (inContext arg) (S.target f) target type)) (model prim blockEnv) s = _
       rw [← CFG.Dependent.Native.packedRequestTo_agrees, CFG.Dependent.observe_packedRequestTo,
         inContext_eval]
-      rfl
+      cases prim f (arg.eval emptyBindings) s <;> rfl
     have outgoing (j : Fin (S.replies f).length) : next j ∈ g.targets i := by
       rw [Table.targets, rowEq, Row.targets]
       exact List.mem_ofFn.mpr ⟨j, rfl⟩

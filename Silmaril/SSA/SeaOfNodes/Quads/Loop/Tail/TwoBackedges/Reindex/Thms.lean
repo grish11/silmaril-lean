@@ -15,10 +15,15 @@ open SeaOfNodes.Diamond (Model Val ValueSort dataPorts)
 open SeaOfNodes.Diamond.SCCP (Fact TupleCovers)
 open SeaOfNodes.Loop.SCCP (BankDecidableEq)
 open Tail.Diamond.MLIR.CF.Pruned.Reindex (pull)
-open RVSDG (Tuple)
+open RVSDG (Port Tuple)
 open Blocks (Bank)
 
 universe u v w
+
+/-- A slot determines the sort and typed port in a fixed bank. -/
+theorem slot_eq {T : Type u} {ports : List T} {s t : T} (p : Port ports s) (q : Port ports t)
+    (same : slot p = slot q) : (⟨s, p⟩ : Sigma (Port ports)) = ⟨t, q⟩ :=
+  Proofs.slot_eq p q same
 
 variable {Data : Type u} {Op : SeaOfNodes.Diamond.Signature.{u, v} Data}
 variable {old new : List (ValueSort Data)} {out : ValueSort Data}

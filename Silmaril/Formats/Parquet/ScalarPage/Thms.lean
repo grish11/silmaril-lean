@@ -27,6 +27,22 @@ theorem prepare_sound {params : Parameters} {limits : Limits} {source : Bytes}
       PreparedWire params limits layout source page :=
   Proofs.Formats.Parquet.ScalarPage.prepare_sound h
 
+/-- The physical decoder selects the encoding and receives the same checked page layout. -/
+theorem prepareFor_sound {encoding : Int} {params : Parameters} {limits : Limits}
+    {source : Bytes} {page : Prepared} (h : prepareFor encoding params limits source = .ok page) :
+    ∃ layout, validateFor encoding params limits source = .ok layout ∧
+      PreparedWire params limits layout source page :=
+  Proofs.Formats.Parquet.ScalarPage.prepareFor_sound h
+
+/-- Check the slot count and the V2 header's present count for any selected physical encoding. -/
+theorem preparedFor_counts {encoding : Int} {params : Parameters} {limits : Limits}
+    {source : Bytes} {page : Prepared} (h : prepareFor encoding params limits source = .ok page) :
+    page.mask.length = params.numValues ∧
+      match params.version with
+      | .v1 _ _ => True
+      | .v2 nulls _ _ _ _ => page.mask.count true = params.numValues - nulls :=
+  Proofs.Formats.Parquet.ScalarPage.preparedFor_counts h
+
 /-- V1 expands the whole body, then accounts for all bytes in its required or optional layout. -/
 theorem prepared_v1_slices {params : Parameters} {limits : Limits} {source : Bytes}
     {page : Prepared} {definitionEncoding repetitionEncoding : Int}

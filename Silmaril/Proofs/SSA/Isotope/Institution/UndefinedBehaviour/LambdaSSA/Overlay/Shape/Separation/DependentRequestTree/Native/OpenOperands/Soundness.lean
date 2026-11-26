@@ -87,7 +87,7 @@ private theorem expand_agrees (g : Table S R) (input : Payload (R.get g.entry)) 
         change Shape.denote (.native (CFG.Dependent.Native.packedRequestTo f arg
           (S.target f) target type)) (model prim env) s = _
         rw [← CFG.Dependent.Native.packedRequestTo_agrees, CFG.Dependent.observe_packedRequestTo]
-        rfl
+        cases prim f (arg.eval env) s <;> rfl
       rw [Tree.execute]
       cases reply : prim f (arg.eval env) s with
       | ret b t =>

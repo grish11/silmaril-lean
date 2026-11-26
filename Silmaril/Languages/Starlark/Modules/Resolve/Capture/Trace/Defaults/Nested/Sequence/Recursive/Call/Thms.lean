@@ -132,6 +132,43 @@ theorem runs_installed_alias_preserving {parent : LexicalBlock} (site : Site par
     site profile checked table id found available permitted step receipts cells owned legal frame related
 
 /-- Continue from an independently reached argument result, including an expansion failure. -/
+theorem runs_actual_reached {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String} {scope : Scope}
+    (site : Site parent formals varargs kwargs scope)
+    (bodyRuns : State → Outcome Flow → Prop)
+    (program : Program) (id : DeclarationId) (available : List DeclarationId) (permitted : id ∈ available)
+    {name : String} (slot : Binding) {state defining : State} {address : Nat}
+    (callee : Body.Evaluates block state (.scalar (.read name)) (Leaf.readOperand slot)
+      (.ok (.function address) state))
+    (record : ClosureAt site id defining state address)
+    (enterReached : ∀ packed, Body.Keeps state.heap.size state packed →
+      ∀ assigned : List (Binding × Lists.Value),
+      let active := activate packed site.declaration record.captures assigned
+      ∃ out, bodyRuns active out ∧ Exec program (withoutDeclaration available id) active site.body.code out ∧
+        Body.Keeps packed.heap.size packed (finishState (Leaf.returnTo packed out)))
+    (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star starStar : Option Lowering.Expr)
+    (actuals : State → Outcome Actual → Prop)
+    (reaches : ∀ state, ∃ out, actuals state out ∧
+      NativeActuals program available positional keywords star starStar state out ∧
+      Body.Keeps state.heap.size state (finishState out))
+    {Bound : Type} (binds : BindingRule Bound) (packs : PackRule Bound)
+    (total : ∀ defaults actual, ∃ result, binds defaults actual result)
+    (prepare : ∀ {reached : State} (closure : ClosureAt site id defining reached address) actual result,
+      actuals state (.ok actual reached) → binds closure.defaults actual result →
+      match result with
+      | .error error => prepareExpanded program available actual (.function address) reached =
+          .error error reached
+      | .ok bound => ∃ assigned packed, packs reached bound assigned packed ∧
+          Body.Keeps reached.heap.size reached packed ∧ packed.bindings = reached.bindings ∧
+          prepareExpanded program available actual (.function address) reached =
+            .ok (.closure ⟨id, permitted, site.declaration.body⟩)
+              (activate packed site.declaration closure.captures assigned)) :
+    let code := Lowering.Expr.call (Leaf.readOperand slot) positional keywords star starStar
+    ∃ out, RunsActual site bodyRuns block id name slot actuals binds packs state out ∧
+      ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
+      Body.Keeps state.heap.size state (finishState out) :=
+  Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.runs_actual_reached
+    site bodyRuns program id available permitted slot callee record enterReached positional keywords star starStar actuals reaches binds packs total prepare
+
 theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String} {scope : Scope}
     (site : Site parent formals varargs kwargs scope)
     (bodyRuns : State → Outcome Flow → Prop)

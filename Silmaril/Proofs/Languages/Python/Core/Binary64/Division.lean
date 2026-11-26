@@ -31,6 +31,21 @@ theorem rounded_finite_iff (negative : Bool) {magnitude : ℚ} (nonnegative : 0 
   norm_num only [Nat.reducePow]
   omega
 
+theorem roundExact_none_iff (negative : Bool) (value : ℚ) :
+    roundExact? negative value = none ↔ overflowThreshold ≤ |value| := by
+  have finite := rounded_finite_iff negative (abs_nonneg value)
+  by_cases below : |value| < overflowThreshold
+  · simp [roundExact?, F64.Finite.ofRaw?, finite.mpr below, not_le_of_gt below]
+  · simp [roundExact?, F64.Finite.ofRaw?, mt finite.mp below, le_of_not_gt below]
+
+theorem roundExact_ok_iff (negative : Bool) (value : ℚ) (result : F64.Finite) :
+    roundExact? negative value = some result ↔ |value| < overflowThreshold ∧
+      result.val = F64.ofBits (roundSigned negative |value|) := by
+  have finite := rounded_finite_iff negative (abs_nonneg value)
+  by_cases below : |value| < overflowThreshold
+  · simp [roundExact?, F64.Finite.ofRaw?, finite.mpr below, below, Subtype.ext_iff, eq_comm]
+  · simp [roundExact?, F64.Finite.ofRaw?, mt finite.mp below, below]
+
 private theorem decimal_nonnegative (coefficient : Nat) (exponent : Int) :
     0 ≤ decimalMagnitude coefficient exponent := by
   unfold decimalMagnitude
@@ -92,5 +107,56 @@ theorem trueDivide_nearestEven {numerator divisor : Int} {result : F64.Finite}
   rw [bits, ← quotientMagnitude_eq_abs]
   exact ⟨signBit_roundSigned _ _,
     (roundSigned_nearestEven _ _ (quotient_nonnegative numerator divisor) below).2⟩
+
+theorem divideFloat_conversion_overflow (operands : FloatOperands) (failed : operands.convert? = none) :
+    divideFloat operands = .error .conversionOverflow := by
+  simp [divideFloat, failed]
+
+private theorem divideFloat_converted {operands : FloatOperands} {left right : F64.Finite} {lhs rhs : ℚ}
+    (converted : operands.convert? = some (left, right))
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    divideFloat operands = if rhs = 0 then .error .zeroDivisionError
+      else (roundExact? (left.val.signBit != right.val.signBit) (lhs / rhs)).elim (.error .nonfiniteResult) .ok := by
+  simp [divideFloat, converted, leftValue, rightValue]
+
+theorem divideFloat_zeroDivision_iff {operands : FloatOperands} {left right : F64.Finite} {lhs rhs : ℚ}
+    (converted : operands.convert? = some (left, right))
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    divideFloat operands = .error .zeroDivisionError ↔ rhs = 0 := by
+  rw [divideFloat_converted converted leftValue rightValue]
+  by_cases zero : rhs = 0
+  · simp [zero]
+  · cases roundExact? (left.val.signBit != right.val.signBit) (lhs / rhs) <;> simp [zero]
+
+theorem divideFloat_nonfinite_iff {operands : FloatOperands} {left right : F64.Finite} {lhs rhs : ℚ}
+    (converted : operands.convert? = some (left, right))
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    divideFloat operands = .error .nonfiniteResult ↔ rhs ≠ 0 ∧ overflowThreshold ≤ |lhs / rhs| := by
+  rw [divideFloat_converted converted leftValue rightValue]
+  by_cases zero : rhs = 0
+  · simp [zero]
+  · rw [← roundExact_none_iff (left.val.signBit != right.val.signBit)]
+    cases roundExact? (left.val.signBit != right.val.signBit) (lhs / rhs) <;> simp [zero]
+
+theorem divideFloat_ok_iff {operands : FloatOperands} {left right result : F64.Finite} {lhs rhs : ℚ}
+    (converted : operands.convert? = some (left, right))
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs) :
+    divideFloat operands = .ok result ↔ rhs ≠ 0 ∧ |lhs / rhs| < overflowThreshold ∧
+      result.val = F64.ofBits (roundSigned (left.val.signBit != right.val.signBit) |lhs / rhs|) := by
+  rw [divideFloat_converted converted leftValue rightValue]
+  by_cases zero : rhs = 0
+  · simp [zero]
+  · rw [← roundExact_ok_iff (left.val.signBit != right.val.signBit)]
+    cases roundExact? (left.val.signBit != right.val.signBit) (lhs / rhs) <;> simp [zero]
+
+theorem divideFloat_nearestEven {operands : FloatOperands} {left right result : F64.Finite} {lhs rhs : ℚ}
+    (converted : operands.convert? = some (left, right))
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
+    (divided : divideFloat operands = .ok result) :
+    result.val.signBit = (left.val.signBit != right.val.signBit) ∧
+      NearestEven magnitude |lhs / rhs| (magnitudeBits result.val.bits).toNat := by
+  obtain ⟨_, below, bits⟩ := (divideFloat_ok_iff converted leftValue rightValue).mp divided
+  rw [bits]
+  exact ⟨signBit_roundSigned _ _, (roundSigned_nearestEven _ _ (abs_nonneg _) below).2⟩
 
 end Silmaril.Proofs.Languages.Python.Core.Binary64

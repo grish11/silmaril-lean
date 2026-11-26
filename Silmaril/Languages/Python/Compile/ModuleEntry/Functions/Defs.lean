@@ -3,6 +3,8 @@ module
 public import Silmaril.Languages.Python.Compile.Closure.Body.Defs
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Defs
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ClosedGuard.Defs
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ListDisplay.Defs
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.NormalTry.Defs
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.NumericArgument.Defs
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.TextSlice.Defs
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.TupleChain.Defs
@@ -153,11 +155,17 @@ def lowerFlatTupleItems (scope : Scope) : (elements : List Source.Expr) →
 
 inductive CallValue (scope : Scope) where
   | scalar (operand : Operand scope)
+  | intDivMod (op : Core.Closure.IntDivModOp) (numerator divisor : Int)
   | intTrueDiv (numerator divisor : Int)
+  | floatDiv (operands : Core.Binary64.FloatOperands)
   | mixedAdd (integer : Int) (floating : F64.Finite)
+  | floatAdd (left right : F64.Finite)
+  | floatSub (operands : Core.Binary64.FloatOperands)
+  | floatMul (operands : Core.Binary64.FloatOperands)
   | float64 (value : F64.Finite)
   | tuple (items : List Core.Closure.GlobalTupleItem)
   | text (value : Core.Text)
+  | textSlice (receiver : Core.Text) (bounds : Core.SliceBounds)
 
 /-- Recognize a decimal token with at most one source unary sign. -/
 def decimalCallLiteral? : Source.Expr → Option (Bool × Nat × Int)
@@ -179,49 +187,120 @@ def lowerDecimalCallLiteral? (source : Source.Expr) : Option {value // DecimalCa
     | none => none
   | none => none
 
+inductive FloatOperandsTranslation : Source.Expr → Source.Expr → Core.Binary64.FloatOperands → Prop where
+  | intFloat {left right integer floating}
+      (lhs : NumericArgument.integer? left = some integer) (rhs : DecimalCallLiteral right floating) :
+      FloatOperandsTranslation left right (.intFloat integer floating)
+  | floatInt {left right integer floating}
+      (lhs : DecimalCallLiteral left floating) (rhs : NumericArgument.integer? right = some integer) :
+      FloatOperandsTranslation left right (.floatInt floating integer)
+  | floatFloat {left right first second}
+      (lhs : DecimalCallLiteral left first) (rhs : DecimalCallLiteral right second) :
+      FloatOperandsTranslation left right (.floatFloat first second)
+
+def lowerFloatOperands? (left right : Source.Expr) :
+    Option {operands // FloatOperandsTranslation left right operands} :=
+  match lhs : NumericArgument.integer? left, lowerDecimalCallLiteral? right with
+  | some integer, some floating =>
+    some ⟨.intFloat integer floating.val, .intFloat lhs floating.property⟩
+  | _, rightFloat =>
+    match lowerDecimalCallLiteral? left, rightFloat, rhs : NumericArgument.integer? right with
+    | some first, some second, _ =>
+      some ⟨.floatFloat first.val second.val, .floatFloat first.property second.property⟩
+    | some floating, none, some integer =>
+      some ⟨.floatInt floating.val integer, .floatInt floating.property rhs⟩
+    | _, _, _ => none
+
+def intDivModSourceOp : Core.Closure.IntDivModOp → Source.BinaryOperator
+  | .floorDiv => .floorDiv
+  | .modulo => .modulo
+
 inductive CallValueTranslation (scope : Scope) : Source.Expr → CallValue scope → Prop where
   | scalar {source operand} (checked : ArgumentOperandTranslation scope source operand) :
       CallValueTranslation scope source (.scalar operand)
+  | intDivMod {op left right numerator divisor}
+      (lhs : NumericArgument.integer? left = some numerator) (rhs : NumericArgument.integer? right = some divisor) :
+      CallValueTranslation scope (.binary (intDivModSourceOp op) left right) (.intDivMod op numerator divisor)
   | intTrueDiv {left right numerator divisor}
       (lhs : NumericArgument.integer? left = some numerator) (rhs : NumericArgument.integer? right = some divisor) :
       CallValueTranslation scope (.binary .trueDiv left right) (.intTrueDiv numerator divisor)
+  | floatDiv {left right operands} (checked : FloatOperandsTranslation left right operands) :
+      CallValueTranslation scope (.binary .trueDiv left right) (.floatDiv operands)
   | intFloatAdd {left right integer floating}
       (lhs : NumericArgument.integer? left = some integer) (rhs : DecimalCallLiteral right floating) :
       CallValueTranslation scope (.binary .add left right) (.mixedAdd integer floating)
   | floatIntAdd {left right integer floating}
       (lhs : DecimalCallLiteral left floating) (rhs : NumericArgument.integer? right = some integer) :
       CallValueTranslation scope (.binary .add left right) (.mixedAdd integer floating)
+  | floatAdd {left right first second}
+      (lhs : DecimalCallLiteral left first) (rhs : DecimalCallLiteral right second) :
+      CallValueTranslation scope (.binary .add left right) (.floatAdd first second)
+  | floatSub {left right operands} (checked : FloatOperandsTranslation left right operands) :
+      CallValueTranslation scope (.binary .sub left right) (.floatSub operands)
+  | floatMul {left right operands} (checked : FloatOperandsTranslation left right operands) :
+      CallValueTranslation scope (.binary .mul left right) (.floatMul operands)
   | float64 {source value} (literal : DecimalCallLiteral source value) :
       CallValueTranslation scope source (.float64 value)
   | tuple {elements items} (checked : FlatTupleItems scope elements items) :
       CallValueTranslation scope (.tuple elements) (.tuple items)
   | text {points value} (checked : Core.Text.ofPoints? points = some value) :
       CallValueTranslation scope (.text points) (.text value)
+  | textSlice {points start stop step receiver bounds}
+      (text : Core.Text.ofPoints? points = some receiver)
+      (bounded : TextSlice.bounds? start stop step = some bounds) :
+      CallValueTranslation scope (.slice (.text points) start stop step) (.textSlice receiver bounds)
 
 def lowerScalarCallValue (scope : Scope) (source : Source.Expr) :
     Except Error {value // CallValueTranslation scope source value} :=
   ((lowerArgumentOperand scope source).mapError .scalar).map fun operand =>
     ⟨.scalar operand.val, .scalar operand.property⟩
 
+def lowerIntDivMod (scope : Scope) (op : Core.Closure.IntDivModOp) (left right : Source.Expr) :
+    Except Error {value // CallValueTranslation scope (.binary (intDivModSourceOp op) left right) value} :=
+  match lhs : NumericArgument.integer? left, rhs : NumericArgument.integer? right with
+  | some numerator, some divisor => .ok ⟨.intDivMod op numerator divisor, .intDivMod lhs rhs⟩
+  | _, _ => lowerScalarCallValue scope (.binary (intDivModSourceOp op) left right)
+
 def lowerCallValue (scope : Scope) : (source : Source.Expr) →
     Except Error {value // CallValueTranslation scope source value}
   | .tuple elements =>
     (lowerFlatTupleItems scope elements).map fun items => ⟨.tuple items.val, .tuple items.property⟩
+  | .binary .floorDiv left right => lowerIntDivMod scope .floorDiv left right
+  | .binary .modulo left right => lowerIntDivMod scope .modulo left right
   | .binary .trueDiv left right =>
     match lhs : NumericArgument.integer? left, rhs : NumericArgument.integer? right with
     | some numerator, some divisor => .ok ⟨.intTrueDiv numerator divisor, .intTrueDiv lhs rhs⟩
-    | _, _ => .error (.scalar .expressionProfile)
+    | _, _ =>
+      match lowerFloatOperands? left right with
+      | some operands => .ok ⟨.floatDiv operands.val, .floatDiv operands.property⟩
+      | none => .error (.scalar .expressionProfile)
   | .binary .add left right =>
     match lhs : NumericArgument.integer? left, lowerDecimalCallLiteral? right with
     | some integer, some floating => .ok ⟨.mixedAdd integer floating.val, .intFloatAdd lhs floating.property⟩
-    | _, _ =>
-      match lowerDecimalCallLiteral? left, rhs : NumericArgument.integer? right with
-      | some floating, some integer => .ok ⟨.mixedAdd integer floating.val, .floatIntAdd floating.property rhs⟩
-      | _, _ => lowerScalarCallValue scope (.binary .add left right)
+    | _, rightFloat =>
+      match lowerDecimalCallLiteral? left, rightFloat, rhs : NumericArgument.integer? right with
+      | some first, some second, _ => .ok ⟨.floatAdd first.val second.val, .floatAdd first.property second.property⟩
+      | some floating, none, some integer => .ok ⟨.mixedAdd integer floating.val, .floatIntAdd floating.property rhs⟩
+      | _, _, _ => lowerScalarCallValue scope (.binary .add left right)
+  | .binary .sub left right =>
+    match lowerFloatOperands? left right with
+    | some operands => .ok ⟨.floatSub operands.val, .floatSub operands.property⟩
+    | none => lowerScalarCallValue scope (.binary .sub left right)
+  | .binary .mul left right =>
+    match lowerFloatOperands? left right with
+    | some operands => .ok ⟨.floatMul operands.val, .floatMul operands.property⟩
+    | none => lowerScalarCallValue scope (.binary .mul left right)
   | .text points =>
     match checked : Core.Text.ofPoints? points with
     | some value => .ok ⟨.text value, .text checked⟩
     | none => .error (.scalar .expressionProfile)
+  | .slice (.text points) start stop step =>
+    match text : Core.Text.ofPoints? points with
+    | none => .error (.scalar .expressionProfile)
+    | some receiver =>
+      match bounded : TextSlice.bounds? start stop step with
+      | some bounds => .ok ⟨.textSlice receiver bounds, .textSlice text bounded⟩
+      | none => .error (.scalar .expressionProfile)
   | source =>
     match lowerDecimalCallLiteral? source with
     | some literal => .ok ⟨.float64 literal.val, .float64 literal.property⟩
@@ -281,9 +360,7 @@ def lowerCallArguments (scope : Scope) : (source : List (Source.ArgumentKind × 
     return ⟨argument.val :: tail.val, .cons argument.property tail.property⟩
   | _ => .error .argumentProfile
 
-def tupleListDisplayScalar? : Source.Expr → Option Core.Module.Value
-  | .none_ => some .none
-  | source => scalarLiteral? source
+def tupleListDisplayScalar? : Source.Expr → Option Core.Module.Value := ListDisplay.literal?
 
 /-- A direct stock-tuple candidate or a first argument converting a
 closed flat scalar list display. -/
@@ -628,6 +705,8 @@ inductive Action (scope : Scope) where
       (test : TupleIdentity.Test)
   | callTupleFromListDisplay (destination : Destination scope) (name : Name) (reference : GlobalReference scope name)
       (contents : List Core.Module.Value) (remaining : Option (List (CallArgument scope)))
+  | callListDisplay (destination : Destination scope) (name : Name) (reference : GlobalReference scope name)
+      (display : ListDisplay.Display)
   | adjacentKeywordDiscard (name : Name) (reference : GlobalReference scope name) (value : Int)
   | nestedCall (destination : Destination scope) (name : Name) (reference : GlobalReference scope name)
       (arguments : List (CallArgument scope))
@@ -639,6 +718,10 @@ inductive Translation (tree : ScopeTree) : Nat → List Source.Stmt → List (Ac
   | done {index} (covered : index = tree.children.length) : Translation tree index [] []
   | scalar {index statement rest actions tail}
       (first : ModuleEntry.Translation tree.scope [statement] actions) (remaining : Translation tree index rest tail) :
+      Translation tree index (statement :: rest) (actions.map .scalar ++ tail)
+  | normalTry {index statement rest actions tail}
+      (selected : NormalTry.Translation tree.scope statement actions)
+      (remaining : Translation tree index rest tail) :
       Translation tree index (statement :: rest) (actions.map .scalar ++ tail)
   | bindText {index statement rest name points reference value tail}
       (binding : Binding statement name (.text points)) (checked : Core.Text.ofPoints? points = some value)
@@ -694,6 +777,11 @@ inductive Translation (tree : ScopeTree) : Nat → List Source.Stmt → List (Ac
       (checked : TupleListDisplayArguments tree.scope name arguments contents operands)
       (remaining : Translation tree index rest tail) :
       Translation tree index (statement :: rest) (.callTupleFromListDisplay destination name reference contents operands :: tail)
+  | callListDisplay {index statement rest target name arguments destination reference display tail}
+      (site : CallSite statement target name arguments) (result : destination.placement = target)
+      (checked : ListDisplay.Argument tree.scope arguments display)
+      (remaining : Translation tree index rest tail) :
+      Translation tree index (statement :: rest) (.callListDisplay destination name reference display :: tail)
   | nestedCall {index statement rest target name arguments destination reference values tail}
       (site : CallSite statement target name arguments) (result : destination.placement = target)
       (operandOrder : CallArguments tree.scope arguments values) (remaining : Translation tree index rest tail) :
@@ -777,6 +865,9 @@ def lowerPlan (tree : ScopeTree) (index : Nat) : (source : List Source.Stmt) →
     if let some checked := ClosedGuard.omitted? statement then
       let tail ← lowerPlan tree index rest
       return ⟨tail.val, .omittedIf checked.property tail.property⟩
+    else if let some selected := NormalTry.check tree.scope statement then
+      let tail ← lowerPlan tree index rest
+      return ⟨selected.val.map .scalar ++ tail.val, .normalTry selected.property tail.property⟩
     else if let some test := integerBuiltinTest? tree.scope statement then
       let tail ← lowerPlan tree index rest
       return ⟨.assertIntegerBuiltin test.val :: tail.val, .assertIntegerBuiltin test.property tail.property⟩
@@ -833,9 +924,19 @@ def lowerPlan (tree : ScopeTree) (index : Nat) : (source : List Source.Stmt) →
         let tail ← lowerPlan tree index rest
         return ⟨.callTupleFromListDisplay destination.val name reference operands.val.1 operands.val.2 :: tail.val,
           .callTupleFromListDisplay site destination.property operands.property tail.property⟩
+      if let some display := ListDisplay.argument? tree.scope arguments then
+        let tail ← lowerPlan tree index rest
+        return ⟨.callListDisplay destination.val name reference display.val :: tail.val,
+          .callListDisplay site destination.property display.property tail.property⟩
       match lowerArguments tree.scope arguments with
       | .ok operands =>
         let tail ← lowerPlan tree index rest
+        -- Scalar floor division already parses here. Use the deferred call
+        -- operand when the entire call can be checked by that path.
+        if operands.val.any (fun | .binary .floorDiv .. => true | _ => false) then
+          if let .ok deferred := lowerCallArguments tree.scope arguments then
+            return ⟨.nestedCall destination.val name reference deferred.val :: tail.val,
+              .nestedCall site destination.property deferred.property tail.property⟩
         return ⟨.call destination.val name reference operands.val :: tail.val,
           .call site destination.property operands.property tail.property⟩
       | .error flatError =>

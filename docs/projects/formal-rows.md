@@ -177,14 +177,13 @@ Its model reduct is the finite-tower restriction. A syntax bound alone gives nei
 bound on an arbitrary derivation nor a consistency result. The interpretation makes
 no claim about Lean kernel replay or compatibility with Lean's conversion rules.
 
-The π-institution is available as a library construction. For LogicGraph, specialize
-`budget` and `fixedBudget` to `Lean.Name` for ordinary institution records. At a chosen
-signature `S`, use `consequence S` and `fixedConsequence S n` for derivability records.
-Connect `fixedBudget Lean.Name n` to `logic.type_theory.extensional_mltt.finite.bundled`
-at the same budget with `toFiniteMLTT Lean.Name n`, attaching
-`toFiniteMLTT_modelExpansive` as the edge fact. An ordinary edge between fixed budgets
-can use the institution projection of `fixedInclusionLogic Lean.Name h`.
-`derives_iff_mltt` supplies the unbounded syntactic comparison on translated judgments.
+The logic graph registers `fixedBudget Lean.Name n` and its model-expansive comparison
+`toFiniteMLTT Lean.Name n`. For syntactic consequence over all signatures, use `pi Lean.Name`
+from `Silmaril.ProofFormats.LeanNDJSON.MLTT.Defs` and `derives_iff_mltt` from
+`Silmaril.ProofFormats.LeanNDJSON.MLTT.Thms`. The consequence coverage matrix links these
+declarations. At a chosen signature `S`, `consequence S` and `fixedConsequence S n` from
+`Silmaril.ProofFormats.LeanNDJSON.MLTT.Bounded.Defs` give the list-premise consequence systems.
+[Logic graph](logic-graph.md#lean-ndjson-declarations-in-extensional-mltt)
 
 `Silmaril.ProofFormats.LeanNDJSON.MLTT.Examples` tests the byte adapter against a real export
 and checks distinct structured names, malformed references, unsupported syntax, and finite

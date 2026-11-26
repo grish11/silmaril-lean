@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Starlark.Lists.Defs
+public import Silmaril.Languages.Starlark.Lists.Comparison.Defs
 
 @[expose] public section
 
@@ -33,6 +34,10 @@ def denote {α : Type} : Code α → Meaning α
     readIndex value (← denote index)
   | .slice operands => do
     readSliceOperands (← denote operands)
+  | .compare op left right => do
+    let a ← denote left
+    let b ← denote right
+    Comparison.apply op a b
   | .append receiver argument => do
     match ← denote receiver with
     | .list address => appendAt address (← denote argument)

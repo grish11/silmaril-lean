@@ -150,6 +150,31 @@ theorem rejects_duplicate (name : String) (positional : List Lowering.Expr)
     name positional keywords duplicate repeated
 
 /-- The reached closure uses its saved defaults and live captures under the same declaration guard. -/
+theorem runs_at_reached {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String} {scope : Scope}
+    (site : Site parent formals varargs kwargs scope)
+    (bodyRuns : State → Outcome Flow → Prop)
+    {commands : List Command} {linked : Program} {resolved : ResolvedModule}
+    (checked : resolve commands linked = .ok resolved) (id : DeclarationId)
+    (found : resolved.program[id]? = some site.declaration)
+    (available : List DeclarationId) (permitted : id ∈ available)
+    {name : String} (slot : Binding) {state defining : State} {address : Nat}
+    (callee : Body.Evaluates block state (.scalar (.read name)) (Leaf.readOperand slot)
+      (.ok (.function address) state))
+    (record : ClosureAt site id defining state address)
+    (enterReached : ∀ packed, Body.Keeps state.heap.size state packed →
+      ∀ assigned : List (Binding × Lists.Value),
+      let active := activate packed site.declaration record.captures assigned
+      ∃ out, bodyRuns active out ∧ Exec resolved.program (withoutDeclaration available id) active site.body.code out ∧
+        Body.Keeps packed.heap.size packed (finishState (Leaf.returnTo packed out)))
+    {arguments : List Lowering.Resolve.SourceExpr} {codes : List Lowering.Expr} {reads : List Binding}
+    (related : Positional block arguments codes reads) (keywords : Operands block) (star : Option (Spread block) := none) (mapping : Option (Mapping block) := none) :
+    ∃ out, RunsAt site bodyRuns block id name slot arguments codes keywords.source keywords.codes star mapping state out ∧
+      ExecExpr resolved.program available state (expressionAt slot codes keywords.codes (star.map Spread.code) (mapping.map Mapping.code)) out ∧
+      Lowering.denoteExpr resolved.program available (expressionAt slot codes keywords.codes (star.map Spread.code) (mapping.map Mapping.code)) state = out ∧
+      Body.Keeps state.heap.size state (finishState out) :=
+  Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.runs_at_reached
+    site bodyRuns checked id found available permitted slot callee record enterReached related keywords star mapping
+
 theorem runs_at {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String} {scope : Scope}
     (site : Site parent formals varargs kwargs scope)
     (bodyRuns : State → Outcome Flow → Prop)

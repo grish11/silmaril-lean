@@ -35,7 +35,8 @@ noncomputable def PackedEntry.observeReindexed (entry : PackedEntry left input)
 
 /-- The existing trace sentence comparing two reindexed packed executions. -/
 noncomputable def PackedEntry.refinementSentenceReindexed
-    (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    {c : Nat} {rightInputs : Fin c → PacketType} {right : Program signature rightInputs outputs}
+    {rightInput : Fin c} (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right rightInput)
     (f : signature.traceSignature ⟶ Target) (direction : MismatchDirection)
     (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom) :
     TraceInstitution.Sentence.{0, 1} Target :=

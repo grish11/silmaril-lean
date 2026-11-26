@@ -1,11 +1,12 @@
 # A pure Sea of Nodes loop in typed MLIR CF
 
 Import `Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Thms`. The input is an
-actual `Loop.Graph` with one word-valued Phi, word-valued captured inputs,
-and one word result. Its ranked producer tables use constants, flag-free
-addition and multiplication, and unsigned comparison. The lowering reuses
-the scalar Sea of Nodes producer-name table and the existing scalar MLIR
-`arith.cmpi ult` interpretation. A Boolean predicate becomes an `i1`.
+actual `Loop.Graph` with word-valued captures, carried values, and one word
+result. `Bank.lower` emits a typed bank and `lower` is its single-latch
+specialization. The ordered producer tables use scalar constants, flag-free
+addition, subtraction and multiplication, and signed and unsigned less-than.
+The lowering reuses the scalar producer-name table. A comparison produces an
+`i1` consumed by `cf.cond_br`.
 [Source and lowering](../../Silmaril/SSA/SeaOfNodes/Loop/MLIR/CF/Defs.lean) ·
 [Scalar producer bridge](sea-of-nodes-mlir.md)
 
@@ -59,13 +60,46 @@ and seed 2, the invariant keeps the latch at 3, so every finite budget is
 exhausted and the target's partial result is `Part.none`.
 [Checked example](../../Silmaril/Proofs/SSA/SeaOfNodes/Loop/MLIR/CF/Regression.lean)
 
-The scope is the repository's typed pure CF fragment with a single latch and
-fixed-width bit vectors. The proof concerns its executable CFG and partial
-semantics.
+The proof concerns the repository's typed pure CF fragment with fixed-width bit
+vectors, its executable CFG, and its partial semantics.
 [MLIR ControlFlow dialect](https://mlir.llvm.org/docs/Dialects/ControlFlowDialect/)
 
+## Signed i64 operations shared with RTL
+
+The bank emitter maps subtraction to flag-free `arith.subi` and signed
+less-than to `arith.cmpi slt`, preserving operand order. `subi_eq_rtl` compares
+the wrapped `i64` result directly. `cmpiSlt_eq_rtl` compares the `i1` result
+zero-extended to RTL's predicate word. `exec_subi` and `exec_cmpiSlt` use real
+RTL.SSA frame reads and preserve the entire memory. [RTL agreement][rtl-word-ops]
+· [Pinned Arith operation definitions][arith-ops]
+
+```lean
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.MLIR.CF.Thms
+
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.MLIR.CF
+open Silmaril.Machine.Lir (Binop Word)
+open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF (evalOp)
+
+example (lhs rhs : Word) :
+    (Binop.cmp .lts).eval lhs rhs =
+      some ((evalOp cmpiSlt (.cons lhs (.cons rhs .nil))).setWidth 64) :=
+  cmpiSlt_eq_rtl lhs rhs
+```
+
+The emitted two-field bank checks the exact header operands and branches.
+It continues on `-1 < 0`, passing the updated and old words, and exercises
+wrapping across the signed boundary in both directions. The resized feedback
+family uses this arithmetic together with typed dispatch arguments and
+a checked packet readback at each positional RTL edge.
+[Checked regression][signed-regression] · [Typed dispatch transport][cf-dispatch]
+
 ```sh
-make check CHECK_TARGETS='+Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Thms +Silmaril.Proofs.SSA.SeaOfNodes.Loop.MLIR.CF.Regression +Silmaril.Proofs.SSA.SeaOfNodes.MLIR.Regression'
+make check CHECK_TARGETS='+Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Thms +Silmaril.Proofs.SSA.SeaOfNodes.Loop.MLIR.CF.Regression +Silmaril.Proofs.SSA.SeaOfNodes.MLIR.Regression +Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.MLIR.CF.Regression'
 SILMARIL_REPLAY_MODULE=Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Thms \
   lake env lean tools/compiler-explorer/Replay.lean
 ```
+
+[rtl-word-ops]: ../../Silmaril/Machine/SeaOfNodes/Loop/RTL/MLIR/CF/Thms.lean
+[signed-regression]: ../../Silmaril/Proofs/Machine/SeaOfNodes/Loop/RTL/MLIR/CF/Regression.lean
+[cf-dispatch]: sea-of-nodes-guarded-feedback-rows-rtl.md#live-header-values-in-mlir-cf
+[arith-ops]: https://github.com/llvm/llvm-project/blob/4434dabb69916856b824f68a64b029c67175e532/mlir/include/mlir/Dialect/Arith/IR/ArithOps.td

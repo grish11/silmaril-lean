@@ -1129,13 +1129,231 @@ Search succeeds exactly when some accepted certificate exists.
 A rejection reports a reached pair, the failing local comparison and
 the shared reply path in forward order. The path records the opcode,
 reply position and typed payload at each edge. This is a syntactic
-certificate. A semantic completeness proof would have to realize the
-whole path in one deterministic interpreter, including repeated queries
-and their machine states. Exact native readback is the separate premise
+certificate. The scheduled feasibility result below gives conditions
+for realizing such a path in one deterministic interpreter. Exact native readback is the separate premise
 when applying the existing semantic soundness theorem to an accepted
 certificate. The regressions exercise a changed packet on a revisit and
 the later payload at the same reply tag.
 [Product search and correctness][ssa-ub-open-guarded-search]
+
+### Interpreter feasibility of a scheduled product path
+
+The installed `Syntax.Primitives` domain is the opcode, its exact typed
+argument and the current finite machine state. Its answers are a typed
+return at a final state, a fault at a final state, or ordinary
+divergence. The finite script compares the opcode, evaluated argument
+and incoming state together. Equal keys must agree on their entire
+typed answer, including the final state. `InterpreterScript.feasible_iff`
+proves necessity and sufficiency. Executable first-match lookup extends
+the consistent rows with any total typed fallback. Ordinary divergence
+provides a fallback even for an opcode with no inhabited reply type.
+
+`Table.schedule_rejection` records the synchronized queries of a reported
+path for a supplied initial state and one reply state per edge. It uses
+the actual typed reply packet at each edge. `ScheduledPath.feasible_iff`
+characterizes realization of that schedule by one interpreter. Under
+realization the installed observation on each side agrees with the
+observation at its reached configuration and final state.
+
+At two reached exits, a different ordinary return position or a source
+designated UB exit refutes refinement against an ordinary target exit.
+A pending-query mismatch uses a different test. Appending a source
+fault and target divergence must give a consistent script with the
+successful prefix. Query disagreement alone supplies no such script at
+the chosen final state. These directed rules use the actual native
+observations after exact readback. They cover specific semantic
+rejections of the guarded fragment.
+
+The regression schedules the search's later-payload rejection and
+reconstructs one interpreter that exposes fault versus divergence.
+A repeated query at the same state with two requested payloads is
+impossible. The same opcode and argument at different states can
+produce different replies. A separate fixture distinguishes two
+ordered exits carrying unit.
+[Scheduled interpreter feasibility][ssa-ub-open-guarded-replay]
+
+`Table.searchSchedule` takes a reported shared path, a fixed initial
+machine state and an exhaustive inventory of the states of a fixed
+`Fin n` carrier. Each branch assigns the next store and checks agreement
+on the whole typed reply, including the final store, before continuing.
+Optional terminal tests are chosen at the reached store and checked in
+the same script. The returned witness reconstructs one total typed
+interpreter for the successful replies and the tests. For a certified
+product path, success is equivalent to the existence of such a schedule.
+Failure establishes infeasibility for that path, initial store, carrier
+and tests. It gives no refinement verdict for the two programs.
+
+The repeated-key fixture needs two stores for the prefix and three when
+its final fault-versus-divergence test is included. When the carrier can
+grow, a finite prefix can always use a fresh store for each successful
+hop. This removes conflicts with prior keys, including at a fresh
+terminal store. A fault and divergence still conflict if the two terminal
+queries have the same opcode and argument at that store.
+[Fixed-carrier schedule search][ssa-ub-open-guarded-schedule]
+
+`Table.checkAllInterpreters?` decides the pointwise shaped refinement of
+two original exact-readback guarded CFGs at supplied typed caller packets,
+for all total deterministic primitive interpreters and all initial states
+of the same fixed `Fin n` carrier. A failed readback returns `none`.
+The support is the union of both programs' opcode, evaluated argument and
+incoming state keys over their exhaustive typed configuration and state
+inventories. At each distinct key the checker enumerates typed successful
+replies with their final state, faults with their final state, and ordinary
+divergence. The reply packet lists must be exhaustive at each opcode. The
+script extension uses ordinary divergence off this support.
+
+For each script the two runners execute independently. The existing
+positional feedback classifier bounds a run by the length of its
+configuration–state inventory. Exhausting the bound by internal transfers
+gives an actual infinite replay and ordinary divergence. A selected ordered
+exit produces fresh top. Ordinary singletons compare by exact outcome,
+including ordered exit and final state, and every result refines target
+top. The regression exercises a state-changing cycle and a failing
+comparison whose initial evaluated arguments already differ. Enumeration
+has worst-case exponential size in the number of keys. The result applies
+to the guarded grammar at fixed callers and the supplied carrier.
+[Fixed-carrier refinement][ssa-ub-open-guarded-fixed-carrier]
+
+The payload-aware endpoint uses the same guarded control and emits a
+typed constructor expression at each terminal row. The expression can
+read the incoming packet and the caller. Its finite result code indexes
+the complete typed exit packet, including the ordered tag. Exit selection
+runs after decoding that packet. It hides the payload at a selected
+exit and preserves the payload and final state at ordinary exits.
+The decision reuses the existing fixed-carrier interpreter scan.
+
+For the named weak-tree observer, agreement at each request and each
+typed reply continuation, plus exact decoding at returns, gives
+agreement with the exact native readback. The named regression reads
+one register assigned by the incoming block packet and compares it to a
+pure assignment of false. Two reconstructed interpreters produce
+different projected bits at ordered exit zero in final state one.
+The true reply rejects refinement into the fixed projection at those
+same endpoints.
+[Payload-aware native endpoint][ssa-ub-open-guarded-payload]
+[Named weak-tree transport][ssa-ub-named-guarded-payload]
+
+`Table.compareEntries?` lifts the fixed-carrier comparison to the
+existing exhaustive `CallerEnumeration` of a shared typed domain. Each
+caller is decoded separately into the exact entry type of each original
+CFG. The two entry types need no equality proof. A single deduplicated
+query support covers both decodings for every caller, and the checker
+enumerates the restrictions on that support once.
+
+A positive verdict is equivalent to exact readback at both endpoints and
+the shaped order for every caller, every initial store and every total
+deterministic interpreter on the supplied `Fin n` carrier. A negative
+verdict carries the representative, initial store, and a script whose
+reconstructed interpreter refutes that same order at the original
+endpoints. An empty domain accepts after both readbacks pass. A failed
+readback yields no verdict even there. The theorem fixes the carrier
+size. It supplies no completeness or cutoff across different sizes.
+[Shared-entry refinement][ssa-ub-open-guarded-entries]
+
+A concrete shared-entry refutation transports along any injection
+`Fin n ↪ Fin m`. Map the script's query states and the final states of
+successful replies and faults, then reconstruct the total interpreter
+with ordinary divergence as fallback. At the mapped initial state both
+original decorated observations are the images of their old observations.
+The existing bounded rows run inside the image of the injection, retaining
+divergence and fresh top. Injectivity reflects the ordinary subset order,
+so the refutation still has the same caller and direction.
+
+A rejected shared-entry check therefore rejects on the larger carrier
+with exhaustive inventories and the same exact-readback endpoints and
+caller domain. The proof supplies the transported witness. The larger
+enumeration can find a different witness first. The regression shifts a
+three-state script into five states and checks a return, fault, selected
+exit and infinite replay. This is an upward rejection law. It gives no
+finite cutoff or downward rejection guarantee.
+[Carrier embedding][ssa-ub-open-guarded-carrier-embedding]
+
+The guarded observation proof also accepts a deterministic interpreter
+on an arbitrary store type. Two finite external derivations of the
+installed native feedback graphs give typed query rows, including the
+whole reply at each query. `RunSupport.ofRows` takes the deduplicated union
+of the common start and the returned or fault stores. Every queried store
+and both terminal stores belong to that support. With (q_L) and (q_R)
+recorded queries, the carrier has at most (1 + q_L + q_R) states. One
+script replays both runs. Its decoded observations equal the original
+decorated observations, retaining ordered exits, store equality and
+distinction, faults, and fresh top. A refutation therefore yields a
+negative pointwise check at the same caller and a negative shared-entry
+verdict. The bound depends on these derivations.
+
+A primitive divergence reply is a finite terminal row. An infinite
+replay has no terminal row. Exact state coding of an infinite replay
+would require finite support containing the states at all its invocations
+and closed under their successful replies. The finite typed configuration
+inventory would then bound the query keys, and replay would still need to
+preserve the infinite internal path. A regression advances a natural
+number at every backedge, so no finite list covers that run. The
+compression theorem applies to the finite branch.
+[Finite refutation support][ssa-ub-open-guarded-finite-support]
+
+For a mixed finite and infinite pair, preserving the observation needs
+only the finite side's full typed query table. The infinite side follows
+every recorded reply up to its first unlisted key. That lookup gives
+primitive divergence, with no further replay. If every key is listed,
+the compressed runner has a genuine infinite path. All stores through the
+cut or along the retained path belong to the finite run's support, so the
+bound is one plus the finite run's query count. Both cases give the same
+ordinary divergence as the original infinite run, while the finite
+observation still decodes exactly. A mixed refutation in either direction
+therefore gives a negative pointwise check at the same caller and a
+negative shared-entry verdict. The bound is specific to the finite run.
+
+Ordinary divergence refines itself and a selected-exit top. Returns,
+faults and selected-exit top all fail to refine ordinary divergence.
+Two infinite guarded runs give the same singleton divergence and cannot
+refute each other in this order. The regression exercises a shared first
+reply of a Nat run, a first missing key at the changed store, and a retained
+one-state replay.
+[Mixed finite and infinite refutations][ssa-ub-open-guarded-mixed-support]
+
+The guarded runner has a finite typed derivation or an actual infinite
+feedback path at every typed start. This gives the finite-model property
+for independently exact-readback native endpoints and the exhaustive
+shared caller domain. `Table.finite_model_property` equates refinement
+over every deterministic store type in any chosen Lean universe with
+`some true` from every finite-carrier check. A finite checker counterexample
+can be lifted from `Fin n` into that universe using `ULift`. The observation
+map preserves ordered returns, stores, primitive and infinite divergence,
+and fresh top. Its injectivity reflects the order.
+
+`Table.finite_refutation_iff` gives the existential version. A refuting
+caller and initial store yield a positive carrier size, with the existing
+query-count bound from the finite derivations on each side. The pointwise
+check rejects at that caller and the shared check returns a rejection.
+The bound depends on the witnessed derivations and supplies no fixed
+cutoff. The Boolean projection returns `none` for unsupported readback,
+including at size zero or for an empty caller inventory. Those cases are
+vacuously positive after admission when there is no caller or no initial
+store. A regression proves arbitrary-store validity for two genuine
+request-guarded cycles with different entry labels by checking a closed
+product certificate on every finite carrier.
+[Finite-model property][ssa-ub-open-guarded-finite-model]
+
+The entry-ranked subclass has a single executable cutoff.
+`Table.checkRankedEntries?` checks both native readbacks and the existing
+entry-rank certificates, then compares on `Fin (min leftRank rightRank + 1)`.
+Every successful reply in a common distinguishing prefix takes a
+rank-decreasing local edge. The prefix therefore uses at most the smaller
+entry rank many transfers, and the extra store supplies its terminal
+test. This counts successful replies, so a pending request with no
+successful reply still fits the cutoff.
+
+An arbitrary-store refutation first gives a finite rejection at the same
+caller by the finite-model proof. Rank-certified extraction gives a
+bounded prefix countermodel at the two original endpoints. State
+embedding enlarges its rejecting carrier to the computed size. The
+single-size verdict is equivalent to arbitrary-store deterministic
+refinement under the two checks. Failed rank or readback produces
+`none`. A regression compares different entry labels and types, with
+one request on the left and two on the right. Size one accepts and the
+computed size two rejects when the second request sees the changed
+store. This cutoff applies to the entry-ranked subclass.
+[Ranked carrier cutoff][ssa-ub-open-guarded-ranked-cutoff]
 
 ## Coverage and gaps
 
@@ -1300,5 +1518,17 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-open-guarded-step]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/Thms.lean
 [ssa-ub-open-guarded-product]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/Product/Thms.lean
 [ssa-ub-open-guarded-search]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/Product/Search/Thms.lean
+[ssa-ub-open-guarded-replay]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/Product/Search/Replay/Thms.lean
+[ssa-ub-open-guarded-schedule]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/Product/Search/Replay/Schedule/Thms.lean
+[ssa-ub-open-guarded-fixed-carrier]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FixedCarrier/Thms.lean
+[ssa-ub-open-guarded-entries]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FixedCarrier/Entry/Thms.lean
+[ssa-ub-open-guarded-carrier-embedding]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FixedCarrier/Entry/State/Thms.lean
+[ssa-ub-open-guarded-finite-support]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FiniteSupport/Thms.lean
+[ssa-ub-open-guarded-mixed-support]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FiniteSupport/Infinite/Thms.lean
+[ssa-ub-open-guarded-finite-model]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FiniteSupport/Model/Thms.lean
+[ssa-ub-open-guarded-ranked-cutoff]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FiniteSupport/Model/Ranked/Thms.lean
 [ssa-ub-open-ranks]: ../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Rank/Thms.lean
 [ssa-ub-cyclic-native-checker]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Finite/CFG/Dependent/Native/Thms.lean
+
+[ssa-ub-open-guarded-payload]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FixedCarrier/Payload/Thms.lean
+[ssa-ub-named-guarded-payload]: ../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/PacketLocal/Guarded/FixedCarrier/Payload/Thms.lean

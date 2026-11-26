@@ -76,6 +76,13 @@ PROFILES = (
 )
 
 
+INT_DIVMOD_CASES = (
+    (5, 2, 2, 1), (-5, 2, -3, 1), (5, -2, -3, -1), (-5, -2, 2, -1),
+    (-6, 2, -3, 0), (6, -2, -3, 0), (0, -2, 0, 0),
+    (-(2**160 + 5), 2**80, -(2**80 + 1), 2**80 - 5),
+)
+
+
 def assertion_equal(left, right):
     assert left == right
 
@@ -199,6 +206,39 @@ def controls(upstream):
         fixtures.append(fixture)
         observed[label] = outcome
 
+    source = "kept = 7\n" + RELAY + "saved = relay\nrelay = 4\n"
+    expected = {}
+    for index, (numerator, divisor, quotient, remainder) in enumerate(INT_DIVMOD_CASES):
+        for field, op, result in (("quotient", "//", quotient), ("remainder", "%", remainder)):
+            name = f"{field}_{index}"
+            source += f"{name} = saved({numerator} {op} {divisor})\n"
+            expected[name] = result
+    # The ordinary runner supports this linked integer-returning call.
+    # The seeded differential checks the same operands through stock helpers.
+    status, namespace = cpython(source, "ordinary")
+    assert status == "normal"
+    assert {name: namespace[name] for name in expected} == expected
+    values, functions = state(namespace)
+    fixtures.append((source, ordinary(".normal", values, functions, "[]")))
+    observed["ordinary integer floor quotient and remainder"] = expected
+
+    for label, statement, status, error in (
+        ("floor division by zero", "bad = relay(1 // (2 - 2))",
+         "ZeroDivisionError", ".arithmetic .zeroDivisionError"),
+        ("modulo by zero", "bad = relay(1 % 0)", "ZeroDivisionError", ".arithmetic .zeroDivisionError"),
+        ("missing callee before floor division", "bad = missing(1 // 0)",
+         "NameError:missing", '.nameError "missing"'),
+        ("floor division before callability and right lookup", "relay = 0\nbad = relay(1 // 0, missing)",
+         "ZeroDivisionError", ".arithmetic .zeroDivisionError"),
+        ("left lookup before modulo", "bad = relay(missing, 1 % 0)",
+         "NameError:missing", '.nameError "missing"'),
+    ):
+        fixture, outcome = guards_for(PREFIX + statement + "\ntail = 9\n", status, error,
+                                      lambda ns: [success_receipt("relay", ns["result"])])
+        assert outcome["kept"] == 7 and outcome["result"] == "8000000000000000" and "tail" not in outcome
+        fixtures.append(fixture)
+        observed[label] = outcome
+
     for body in ("assert value == 1", "return value + 1"):
         source = PREFIX + f"def consume(value):\n    {body}\nconsume(3 / 3)\ntail = 9\n"
         status, namespace = cpython(source, "ordinary")
@@ -225,10 +265,17 @@ def controls(upstream):
                              literal_list(outer + [success_receipt("relay", 2.5)])))
     fixtures.append((source, "\n".join(guards)))
 
+    source = RELAY + "ratio = relay(1.0 / 2)\nrelay(1.0 / 2)\n"
+    fixture, outcome = guards_for(source, "normal", None,
+                                  lambda ns: [success_receipt("relay", ns["ratio"])] * 2)
+    assert outcome["ratio"] == "3fe0000000000000"
+    fixtures.append(fixture)
+    observed["mixed transport"] = outcome
+
     rejected = """#guard (match compile pythonSource with
   | .error (.source (.scalar .expressionProfile)) => true
   | _ => false)"""
-    fixtures.extend((RELAY + statement, rejected) for statement in ("relay(1.0 / 2)\n", "relay(value / 2)\n"))
+    fixtures.append((RELAY + "relay(value / 2)\n", rejected))
     if upstream is not None:
         raw = (upstream / QUOTIENT["PIN"]).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == QUOTIENT["SHA256"]

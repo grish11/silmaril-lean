@@ -19,6 +19,14 @@ variable {Events : Type u → Type u} {F : Type v} {α β : Type (u + 1)}
   {left : Primitive Events F α} {right : Primitive Events F β}
   {leftEnv : Env α} {rightEnv : Env β} {atom : α → β}
 
+/-- A structural seed evaluates purely to the value used in the public
+capture packet contract. -/
+theorem packet_term_tree (instr : Primitive Events F α) (env : Env α)
+    (packet : Silmaril.SSA.LambdaRTL.Val (Fin captures)) :
+    LambdaSSA.Semantics.Interaction.term instr env (packetTerm packet) = pure (packetValue env packet) :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.Provenance.packet_tree
+    instr env packet
+
 /-- The exact source jump and public capture read generate the same
 pending packet after encoding. -/
 theorem Provenance.entry_eq (p : Provenance source target)

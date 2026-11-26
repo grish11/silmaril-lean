@@ -16,25 +16,29 @@ variable {H : Type} {base : Store H} {mem : Memory32 base} {host : HostSemantics
 
 /-- Every edge preserves live memory and the typing of the remaining code or
 the returned results. The active frame is fixed until native restoration. -/
-theorem preserves (move : Edge mem host active a b)
-    (ready : Ready mem host active results a.phase) (live : mem.Live a.bytes) :
-    Ready mem host active results b.phase ∧ mem.Live b.bytes :=
+theorem preserves (move : Edge mem host active results a b)
+    (ready : Ready mem host active results a.phase a.labels) (live : mem.Live a.bytes) :
+    Ready mem host active results b.phase b.labels ∧ mem.Live b.bytes :=
   ⟨Proofs.ready_step move ready, Proofs.live_step move live⟩
 
-/-- Exact single-step correspondence for a checked continuation under its
-entered function label and frame. -/
-theorem step_iff (ready : Ready mem host active results a.phase) (live : mem.Live a.bytes) :
-    Step host (render mem outer active results.length a) dst ↔
-      ∃ next, Edge mem host active a next ∧ dst = render mem outer active results.length next :=
-  Proofs.step_iff (.inl rfl) ready live
-
-/-- The same body edges under an entered explicit label. Its completion exposes
-the saved operands and tail in the enclosing function label. -/
-theorem label_step_iff {context : LabelContext} (inside : a.phase.InLabel)
-    (ready : Ready mem host active results a.phase) (live : mem.Live a.bytes) :
-    Step host (renderIn mem outer active (some context) results.length a) dst ↔
-      ∃ next, Edge mem host active a next ∧
-        dst = renderIn mem outer active (some context) results.length next :=
-  Proofs.step_iff (.inr inside) ready live
+/-- Exact single-step correspondence for a checked continuation under any finite
+stack of entered labels and its function frame. The native i32 selection
+and the selected block's ordered parameter delivery are separate steps.
+Normal label exit delivers the declared result stack to the saved prefix.
+A direct or taken conditional branch crosses one intervening label per native
+step. The target transfer delivers the ordered results and discards the
+target's remaining instructions. A function-label target leaves a value-only
+frame for the subsequent native caller-restoration step. A checked branch
+table consumes its unsigned i32 selector and hands the chosen depth to the
+same native branch transfer. A loop-target transfer reinstates the source
+loop with its declared parameters. Normal loop exit delivers the declared
+results and discards the restart instruction. Indirect lookup reaches a
+pending host, direct graph callee, or fixed-extent Memory32 callee, or a trap.
+The memory callee keeps its current bytes through the native frame exit and
+resumes the checked suffix with its ordered results or a trap. -/
+theorem step_iff (ready : Ready mem host active results a.phase a.labels) (live : mem.Live a.bytes) :
+    Step host (render mem outer active results a) dst ↔
+      ∃ next, Edge mem host active results a next ∧ dst = render mem outer active results next :=
+  Proofs.step_iff ready live
 
 end Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Continuation

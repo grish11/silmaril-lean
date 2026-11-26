@@ -21,22 +21,22 @@ private def program : Program Nat where
   producerIndex := ⟨0⟩
   producerAddress := ⟨1⟩
   producerCode := 10
-  continuation := .straight (.call ⟨1⟩ middle :: postMiddle)
+  continuation := .call ⟨1⟩ middle :: postMiddle
   saved := 42
 
 private def base : Store Nat :=
-  { memories := [initial], funcs := [.wasm signature program.module program.function,
+  { memories := [initial], funcs := [.wasm program.functionType program.module program.function,
       .host producerType 10, .host middle.type middle.code, .host last.type last.code] }
 
 private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
 private def caller : Frame := ⟨[i32 99], { funcs := [⟨0⟩] }⟩
 
 private theorem checked : program.Checked memory caller ⟨0⟩ := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, rfl⟩
-  have lastChecked : Continuation.Checked base program.module [.int .i64] signature.results
+  refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, rfl, rfl⟩
+  have lastChecked : Continuation.Checked base program.module [.int .i64] [signature.results] signature.results
       [.int .i64, .int .i32, .int .i64] [.call ⟨2⟩ last] :=
     .call (base := base) (site := last) (index := ⟨2⟩) (saved := []) rfl rfl .nil
-  have middleTail : Continuation.Checked base program.module [.int .i64] signature.results
+  have middleTail : Continuation.Checked base program.module [.int .i64] [signature.results] signature.results
       [.int .i64, .int .i32, .int .i64] postMiddle :=
     .drop (type := .int .i64) (.get (stack := [.int .i64, .int .i32]) (index := ⟨0⟩)
       (type := .int .i64) rfl lastChecked)
@@ -70,21 +70,15 @@ private theorem contract : program.Contract memory host := by
       exact ⟨bytes 2, rfl, rfl, rfl⟩
     · cases eq
       exact ⟨bytes 3, rfl, rfl, trivial⟩
-  · intro index site inCode
-    have sites : Continuation.Op.call index site = .call ⟨1⟩ middle ∨
-        Continuation.Op.call index site = .call ⟨2⟩ last := by
-      simpa only [program, postMiddle, List.mem_cons, List.not_mem_nil, reduceCtorEq, false_or, or_false] using inCode
-    rcases sites with siteEq | siteEq
-    · cases siteEq
-      intro liveBytes args returned outcome _ _ answer
+  · refine .call ?_ (.drop (.get (.call ?_ .nil)))
+    · intro liveBytes args returned outcome _ _ answer
       change host 11 (memory.store liveBytes) args (.returned returned outcome) at answer
       obtain ⟨_, _, eq | eq⟩ := answer
       · cases eq
         exact ⟨bytes 4, rfl, rfl, rfl⟩
       · cases eq
         exact ⟨bytes 5, rfl, rfl, trivial⟩
-    · cases siteEq
-      intro liveBytes args returned outcome _ _ answer
+    · intro liveBytes args returned outcome _ _ answer
       change host 12 (memory.store liveBytes) args (.returned returned outcome) at answer
       obtain ⟨_, _, eq⟩ := answer
       cases eq
@@ -116,11 +110,11 @@ example : Steps host launch ⟨memory.store (bytes 1), caller, [.frame 1 ⟨[i64
       [value (i64 12), .invoke ⟨1⟩, .source (.brIf ⟨0⟩), .source .drop] :: program.afterLoop)]]⟩ :=
   (call_run_iff (arg := 7) checked contract).mpr ⟨_, secondInvoke, rfl, rfl⟩
 
-private theorem reachesMiddle : Path ⟨bytes 2, .continuation (.tail (.invoke [i64 42] middle [i32 23] postMiddle))⟩ := by
+private theorem reachesMiddle : Path ⟨bytes 2, .continuation (.invoke [i64 42] middle [i32 23] postMiddle) []⟩ := by
   have returns : Edge program memory host 7 ⟨bytes 1, .producerInvoke 12⟩ ⟨bytes 2, .test 23 88 0⟩ :=
     .producerReturns rfl (.inr ⟨rfl, rfl, .inl rfl⟩)
   exact ((((secondInvoke.tail returns).tail (.control (.test 23 88 0))).tail
-    (.control (.dropInput 23 88))).tail (.control (.loopResult 23))).tail (.continuation (.tail (.resolve (site := middle) (args := [i32 23]) (saved := [i64 42]) rfl)))
+    (.control (.dropInput 23 88))).tail (.control (.loopResult 23))).tail (.continuation (.resolve (site := middle) (args := [i32 23]) (saved := [i64 42]) rfl))
 
 -- The first continuation site consumes the loop's i32 while the i64 stays
 -- immediately below its callout operands.
@@ -129,12 +123,12 @@ example : Steps host launch ⟨memory.store (bytes 2), caller, [.frame 1 ⟨[i64
       .source (.localGet ⟨0⟩), .source (.call ⟨2⟩)]]]⟩ :=
   (call_run_iff (arg := 7) checked contract).mpr ⟨_, reachesMiddle, rfl, rfl⟩
 
-private theorem reachesLast : Path ⟨bytes 4, .continuation (.tail (.invoke [] last [i64 42, i32 31, i64 7] []))⟩ := by
-  have returns : Edge program memory host 7 ⟨bytes 2, .continuation (.tail (.invoke [i64 42] middle [i32 23] postMiddle))⟩
-      ⟨bytes 4, .continuation (.tail (.source [i64 42, i32 31, i64 77] postMiddle))⟩ :=
-    .continuation (.tail (.returned rfl rfl ⟨rfl, rfl, .inl rfl⟩))
-  exact (((reachesMiddle.tail returns).tail (.continuation (.tail (.drop (stack := [i64 42, i32 31]))))).tail
-    (.continuation (.tail (.get rfl)))).tail (.continuation (.tail (.resolve (site := last) (args := [i64 42, i32 31, i64 7]) (saved := []) rfl)))
+private theorem reachesLast : Path ⟨bytes 4, .continuation (.invoke [] last [i64 42, i32 31, i64 7] []) []⟩ := by
+  have returns : Edge program memory host 7 ⟨bytes 2, .continuation (.invoke [i64 42] middle [i32 23] postMiddle) []⟩
+      ⟨bytes 4, .continuation (.source [i64 42, i32 31, i64 77] postMiddle) []⟩ :=
+    .continuation (.returned rfl rfl ⟨rfl, rfl, .inl rfl⟩)
+  exact (((reachesMiddle.tail returns).tail (.continuation (.drop (stack := [i64 42, i32 31])))).tail
+    (.continuation (.get rfl))).tail (.continuation (.resolve (site := last) (args := [i64 42, i32 31, i64 7]) (saved := []) rfl))
 
 -- The second site observes the saved i64, the first site's i32 result, the
 -- read of local zero, and the first site's new bytes.
@@ -143,16 +137,16 @@ example : Steps host launch ⟨memory.store (bytes 4), caller, [.frame 1 ⟨[i64
   (call_run_iff (arg := 7) checked contract).mpr ⟨_, reachesLast, rfl, rfl⟩
 
 example : Steps host launch ⟨memory.store (bytes 6), caller, values [i32 5]⟩ := by
-  have returns : Edge program memory host 7 ⟨bytes 4, .continuation (.tail (.invoke [] last [i64 42, i32 31, i64 7] []))⟩
-      ⟨bytes 6, .continuation (.tail (.source [i32 5] []))⟩ :=
-    .continuation (.tail (.returned rfl rfl ⟨rfl, rfl, rfl⟩))
-  have trace := ((reachesLast.tail returns).tail (.continuation (.tail .labelResult))).tail (.continuation (.tail .frameDone))
+  have returns : Edge program memory host 7 ⟨bytes 4, .continuation (.invoke [] last [i64 42, i32 31, i64 7] []) []⟩
+      ⟨bytes 6, .continuation (.source [i32 5] []) []⟩ :=
+    .continuation (.returned rfl rfl ⟨rfl, rfl, rfl⟩)
+  have trace := ((reachesLast.tail returns).tail (.continuation .labelResult)).tail (.continuation .frameDone)
   exact (call_run_iff (arg := 7) checked contract).mpr ⟨_, trace, rfl, rfl⟩
 
 private theorem trapInLoop : Path ⟨bytes 3, .loopTrap Program.afterProducer⟩ :=
   secondInvoke.tail (.producerTraps rfl (.inr ⟨rfl, rfl, .inr rfl⟩))
 
-private theorem trapFromLoop : Path ⟨bytes 3, .continuation (.tail (.trapped [i64 42] program.afterLoop))⟩ :=
+private theorem trapFromLoop : Path ⟨bytes 3, .continuation (.trapped [i64 42] program.afterLoop) []⟩ :=
   (trapInLoop.tail (.control (.eraseLoop (cut := Program.afterProducer) (tail := []) rfl (by decide)))).tail
     (.control .exitLoop)
 
@@ -160,20 +154,20 @@ example : Steps host launch ⟨memory.store (bytes 3), caller, [.frame 1 ⟨[i64
     [.label 1 [] (value (i64 42) :: .trap :: program.afterLoop)]]⟩ :=
   (call_run_iff (arg := 7) checked contract).mpr ⟨_, trapFromLoop, rfl, rfl⟩
 
-private theorem trapFromMiddle : Path ⟨bytes 5, .continuation (.tail (.trapped [i64 42] (Continuation.code postMiddle)))⟩ :=
-  reachesMiddle.tail (.continuation (.tail (.trapped rfl ⟨rfl, rfl, .inr rfl⟩)))
+private theorem trapFromMiddle : Path ⟨bytes 5, .continuation (.trapped [i64 42] (Continuation.code postMiddle)) []⟩ :=
+  reachesMiddle.tail (.continuation (.trapped rfl ⟨rfl, rfl, .inr rfl⟩))
 
 example : Steps host launch ⟨memory.store (bytes 5), caller, [.frame 1 ⟨[i64 7], program.module⟩
     [.label 1 [] [value (i64 42), .trap, .source .drop, .source (.localGet ⟨0⟩), .source (.call ⟨2⟩)]]]⟩ :=
   (call_run_iff (arg := 7) checked contract).mpr ⟨_, trapFromMiddle, rfl, rfl⟩
 
 private theorem unwind {live : ByteArray} {rest : List Admin}
-    (trapped : Path ⟨live, .continuation (.tail (.trapped [i64 42] rest))⟩) :
-    Path ⟨live, .continuation (.tail (.done .trap))⟩ := by
-  have erase : Edge program memory host 7 ⟨live, .continuation (.tail (.trapped [i64 42] rest))⟩
-       ⟨live, .continuation (.tail (.trapped [] []))⟩ :=
-    .continuation (.tail (.erase (removed := [i64 42]) (cut := rest) rfl (List.append_nil _).symm (.inl (by decide))))
-  exact ((trapped.tail erase).tail (.continuation (.tail .labelTrap))).tail (.continuation (.tail .frameDone))
+    (trapped : Path ⟨live, .continuation (.trapped [i64 42] rest) []⟩) :
+    Path ⟨live, .continuation (.done .trap) []⟩ := by
+  have erase : Edge program memory host 7 ⟨live, .continuation (.trapped [i64 42] rest) []⟩
+       ⟨live, .continuation (.trapped [] []) []⟩ :=
+    .continuation (.erase (removed := [i64 42]) (cut := rest) rfl (List.append_nil _).symm (.inl (by decide)))
+  exact ((trapped.tail erase).tail (.continuation .labelTrap)).tail (.continuation .frameDone)
 
 example : Steps host launch ⟨memory.store (bytes 3), caller, [.trap]⟩ :=
   (call_run_iff (arg := 7) checked contract).mpr ⟨_, unwind trapFromLoop, rfl, rfl⟩
@@ -197,14 +191,14 @@ example : ¬ ({ program with loopIndex := ⟨1⟩ }).Checked memory caller ⟨0�
   have impossible : none = some signature := bad.loopIndex
   cases impossible
 
-example : ¬ Continuation.Checked base program.module [.int .i64] signature.results
+example : ¬ Continuation.Checked base program.module [.int .i64] [signature.results] signature.results
     [.int .i64, .int .i32] [.get ⟨1⟩] := by
   intro typed
   generalize ([.int .i64, .int .i32] : List NumType) = stack at typed
   cases typed with
   | get lookup _ => cases lookup
 
-example : ¬ Continuation.Checked base program.module [.int .i64] signature.results
+example : ¬ Continuation.Checked base program.module [.int .i64] [signature.results] signature.results
     [.int .i32, .int .i64] [.call ⟨1⟩ middle] := by
   intro typed
   generalize bad : ([.int .i32, .int .i64] : List NumType) = stack at typed

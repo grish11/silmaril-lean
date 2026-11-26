@@ -17,14 +17,7 @@ variable [BankDecidableEq Word (dataPorts old)] [BankDecidableEq Word (dataPorts
 variable (order : Registers old new)
 
 theorem admit_reindex (p : Admitted old result) :
-    admit (program order p.source) (push order p.facts) = .ok (reindex order p) := by
-  unfold admit
-  split
-  next cert h =>
-    have eq : cert = (reindex order p).checked := Except.ok.inj (h.symm.trans (reindex order p).admitted)
-    cases eq
-    rfl
-  next reason h =>
-    cases h.symm.trans (reindex order p).admitted
+    admit (program order p.source) (push order p.facts) = .ok (reindex order p) :=
+  (reindex order p).admit_self
 
 end Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.Reindex.Guarded.Proofs

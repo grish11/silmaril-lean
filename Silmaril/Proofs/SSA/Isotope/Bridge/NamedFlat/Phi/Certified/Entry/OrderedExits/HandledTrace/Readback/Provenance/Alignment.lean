@@ -22,7 +22,7 @@ variable {Events : Type u → Type u} {F : Type v} {α β : Type (u + 1)}
   {left : Primitive Events F α} {right : Primitive Events F β}
   {leftEnv : Env α} {rightEnv : Env β} {atom : α → β}
 
-private theorem packet_tree (instr : Primitive Events F α) (env : Env α) (packet : Val (Fin captures)) :
+theorem packet_tree (instr : Primitive Events F α) (env : Env α) (packet : Val (Fin captures)) :
     term instr env (packetTerm packet) = pure (packetValue env packet) := by
   induction packet <;> simp [packetTerm, packetValue, term, *]
 

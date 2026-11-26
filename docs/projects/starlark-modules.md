@@ -1270,13 +1270,105 @@ freeze.
 The checked profile still starts from a load-free normalized module.
 Only a terminal return of a tracked local transfers callable
 provenance, and the returned declaration's body uses the existing suite
-profile. The loader bridge must carry the published name, declaration
-link and reachable closure record through cache lookup and import
-binding in the shared heap. It must resolve the imported file-local
-callee while preserving the original captured and defining-module
-addresses. General carriers, untracked dispatch and broader command
-and body forms remain open.
+profile. The [checked import profile](#checked-callable-imports) carries an
+escaped closure through a single producer-to-consumer load. General
+carriers, untracked dispatch and broader command and body forms remain
+open.
 [Return theorem](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Suite/Provenance/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Published/ReturnChecks.lean) · [Pinned Go controls](../../scripts/starlark/escaped-checked/check.go)
+
+## Checked callable imports
+
+The checked graph has a load-free normalized producer and one
+normalized consumer. The consumer renames a single public import and
+executes a finite suite of ordinary name assignments and calls through
+tracked names. The producer emits the shared declaration table. The
+consumer's checked elaboration preserves that table and derives its
+imported slot and ordered module globals from the source commands.
+
+Cold loading derives publication from the producer's independent
+source trace. The producer restores the consumer's frame and retains
+the original cell contents, with freezing allowed to update cell flags.
+The import binds the actual exported function address. The warm
+theorem first derives the producer load and cache entry, then transports
+the same record through allocation of the consumer's frame.
+
+The suite invariant relates each tracked name to the closure stored in
+its reached file-local or global slot. A name copy transfers the
+closure's link, and a checked call updates its destination using the
+actual return and reached heap. Successive calls use the closure's
+original defining environment, captured addresses and saved defaults.
+The reusable suite theorem retains the invariant at the end of a
+successful suite and stops at the first reached error.
+
+The independent source rules and loader denotation agree on exact
+exports, heap, cache and errors. A missing export stops before any
+consumer work. A later call error retains the earlier calls and writes,
+as well as the producer publication, and skips consumer publication.
+The Lean and pinned Go controls call an imported factory through an
+alias, copy the new child and call it with named arguments and both
+spreads. The returned function and the child result are distinct
+observations. The child shares the producer's global cell with an
+earlier closure and owns a different captured local. A second-call
+error leaves the earlier factory and ordinary assignment effects.
+
+The same suite now admits any finite number of parameterless consumer
+definitions whose return calls the file-local import. Elaboration appends
+each declaration at the current table size, in source order, and retains
+every earlier lookup. The reached-prefix proof carries the extended table
+and live provenance across definitions, copies, assignments and calls.
+Installing a wrapper captures the actual import cell. Every subsequent
+invocation reads that cell, and the reduced call guard retains the
+producer's declaration IDs. A tracked closure returned through the wrapper
+keeps its address and defining record when the caller frame is restored.
+The operands support the existing explicit named arguments and checked
+tuple/list and dict-display spreads.
+
+The cold and preloaded source rules agree with loader denotation on
+publication and freezing, first error, residual heap, caller restoration
+and cache. The two-definition control calls an alias copied before the
+second definition, then calls the second wrapper with an explicit default
+override. A failing override retains the first result and skips the final
+assignment. Another control invokes a fresh producer closure returned
+through the consumer wrapper.
+
+The UTF-8 adapter compiles normalized modules in manifest order and feeds
+the final linked table to the loader. The source theorem starts at
+normalized commands. Consumer parameters, defaults and other wrapper
+bodies, multiple imports, general graphs, and arbitrary cache histories
+remain open. Calls in textual function bodies belong to the frontend
+profile.
+[Suite theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Published/Imports/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Published/ReturnChecks.lean) · [Pinned Go controls](../../scripts/starlark/imported-checked/check.go)
+
+### Composing checked imports
+
+A topologically numbered graph may contain checked load-free roots and
+consumers with one leading renamed import. Each consumer supplies its
+normalized suite and checked link into the common declaration table.
+The import edge consumes the dependency's actual publication and cache
+entry, then derives the reached file-local binding and runs the finite
+suite. The edge theorem is independent of the graph induction, so a
+larger scheduler can reuse it for an individual dependency.
+
+The graph theorem follows strictly earlier dependencies. It preserves
+earlier cache entries, the original closure records and their capture
+addresses, and the caller's slots, bindings and iterator context.
+Its source trace agrees with the loader on exact publication and heap,
+or on the first reached error and residual session. Requests from an
+empty cache establish the same invariant for later mixed cold and
+cached loads.
+
+The chain currently transports regular closures, including direct
+re-exports and checked factory results. A module may define and call
+its own wrappers during initialization. Deriving a downstream call to
+a re-exported wrapper requires a provenance judgment that retains the
+imported callable behind the wrapper's captured file slot, together
+with a decreasing declaration guard across wrapper activations.
+The resolved loader and pinned Go control already exercise that call.
+The checked three-module control calls the original closure through a
+middle re-export and distinguishes cold, root-preloaded and
+middle-preloaded sessions. Multiple dependency order, broader bodies,
+and arbitrary incoming caches remain separate.
+[Chain theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Published/Imports/Chain/Thms.lean)
 
 ## Finite-manifest loader
 

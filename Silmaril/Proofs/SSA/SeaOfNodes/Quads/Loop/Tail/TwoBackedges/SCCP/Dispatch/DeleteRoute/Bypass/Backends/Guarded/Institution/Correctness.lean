@@ -18,6 +18,18 @@ open RVSDG (Tuple)
 
 variable {regs : List (ValueSort Width)} {result : Width}
 
+theorem admit_self [BankDecidableEq Word (dataPorts regs)] (p : Admitted regs result) :
+    admit p.source p.facts = .ok p := by
+  unfold admit
+  split
+  next cert h =>
+    have eq : cert = p.checked := Except.ok.inj (h.symm.trans p.admitted)
+    cases p
+    cases eq
+    rfl
+  next reason h =>
+    cases h.symm.trans p.admitted
+
 theorem emitted [BankDecidableEq Word (dataPorts regs)] (p : Admitted regs result) :
     Bypass.MLIR.CF.EntryGuard.compile p.source p.facts = .ok p.emit.cf ∧
       Bypass.Numbered.EntryGuard.compile p.source p.facts = .ok p.emit.numbered :=

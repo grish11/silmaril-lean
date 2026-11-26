@@ -236,10 +236,10 @@ private theorem request_finite {n : Nat} (h : Handler n) (env : Syntax.Bindings 
       actionBehaviour (h f s) := by
   rw [request_denote]
   cases reply : h f s <;> apply congrArg WithTop.some <;> ext o <;> cases o <;>
-    simp [Syntax.rawModel, Handler.primitives, Action.toReply, Syntax.Reply.returns,
+    simp [Syntax.rawModel, Handler.primitives, Action.toReply, Syntax.StateReply.returns,
       reply, bitPayload_val, bitValue_injective.eq_iff, Outcome.ret.injEq, eq_comm, and_comm, and_left_comm, and_assoc, show Shape.ValueTyped Syntax.atomType
         (Value.unit : Value Unit) (instrSrc f) from .unit]
-  · exact ⟨Syntax.Reply.fault.inj, congrArg Syntax.Reply.fault⟩
+  · exact ⟨Syntax.StateReply.fault.inj, congrArg Syntax.Reply.fault⟩
   · rfl
 
 theorem request_bind_finite {n : Nat} (h : Handler n) (env : Syntax.Bindings Γ)

@@ -22,22 +22,22 @@ open Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.TwoRequest (Exits exit_type res
 open Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration
 open CFG.Dependent (Packet internal_type external_type exitLabel unpack)
 open CFG.Dependent.Native (withExitUB)
-open Syntax (Payload Primitives model)
+open Syntax (Payload StatePrimitives Primitives model)
 open Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category (return_bind)
 open Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.Syntax
   (denote_push fault_bind diverge_bind)
 
-universe u
+universe u x
 
-variable {Φ : Type u} [HasTy Φ Syntax.Ty] {S : RequestSignature Φ} {R : List Syntax.Ty} {states : Nat}
+variable {Φ : Type u} [HasTy Φ Syntax.Ty] {S : RequestSignature Φ} {R : List Syntax.Ty} {states : Nat} {σ : Type x}
 
 private theorem cast_value {A B : Syntax.Ty} (h : A = B) (p : Payload A) :
     (cast (congrArg Payload h) p).val = p.val := by
   cases h
   rfl
 
-theorem raw_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : Primitives Φ states)
-    (config : Packet R) (s : Fin states) :
+theorem raw_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : StatePrimitives Φ σ)
+    (config : Packet R) (s : σ) :
     g.feedback caller prim (blockPoint config s) = ((g.head caller config).execute prim s).routed := by
   obtain ⟨i, incoming⟩ := config
   rw [Table.head]
@@ -65,10 +65,10 @@ theorem raw_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : Prim
         (cast_value (typed reply.1).symm reply.2).symm
     | fault | diverge => rfl
 
-theorem step_iff (g : Table S R) (caller : Payload (R.get g.entry)) (prim : Primitives Φ states)
-    (config : Packet R) (s : Fin states) (q : Feedback.Point R.length Unit (Fin states)) :
+theorem step_iff (g : Table S R) (caller : Payload (R.get g.entry)) (prim : StatePrimitives Φ σ)
+    (config : Packet R) (s : σ) (q : Feedback.Point R.length Unit (σ)) :
     Feedback.Step (g.feedback caller prim) (blockPoint config s) q ↔
-      ∃ (next : Packet R) (t : Fin states),
+      ∃ (next : Packet R) (t : σ),
         (g.head caller config).execute prim s = .repeat next t ∧ q = blockPoint next t := by
   have run := raw_step g caller prim config s
   cases current : (g.head caller config).execute prim s with
@@ -86,14 +86,14 @@ theorem step_iff (g : Table S R) (caller : Payload (R.get g.entry)) (prim : Prim
     rw [current] at run
     simpa using no_step_of_terminal (o := .diverge) (q := q) run
 
-theorem observe_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : Primitives Φ states)
-    (config : Packet R) (s : Fin states) :
+theorem observe_state_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : StatePrimitives Φ σ)
+    (config : Packet R) (s : σ) :
     g.observeAt caller prim config s =
       match (g.head caller config).execute prim s with
-      | .exit i selected t => resultBehaviour (if selected then .ub else .ret i t)
+      | .exit i selected t => if selected then ⊤ else WithTop.some {Outcome.ret i .unit t}
       | .repeat next t => g.observeAt caller prim next t
-      | .fault t => resultBehaviour (.fault t)
-      | .diverge => resultBehaviour .diverge := by
+      | .fault t => WithTop.some {Outcome.fault t}
+      | .diverge => WithTop.some {Outcome.diverge} := by
   have run := raw_step g caller prim config s
   cases current : (g.head caller config).execute prim s with
   | exit j selected t =>
@@ -104,13 +104,12 @@ theorem observe_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : 
       unfold Table.head
       split
       · intro eq
-        obtain ⟨rfl, rfl, _⟩ := Transition.exit.inj eq
+        obtain ⟨rfl, rfl, _⟩ := StateTransition.exit.inj eq
         rfl
       · rename_i f arg next typed _
         rw [Head.execute]
         split <;> simp
     rw [marked]
-    cases g.selected j <;> rfl
   | «repeat» next t =>
     rw [current] at run
     rw [Table.observeAt, close_branch run]
@@ -124,10 +123,36 @@ theorem observe_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : 
     rw [Table.observeAt, close_terminal (o := .diverge) run]
     exact diverge_bind _
 
+theorem observe_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : Primitives Φ states)
+    (config : Packet R) (s : Fin states) :
+    g.observeAt caller prim config s =
+      match (g.head caller config).execute prim s with
+      | .exit i selected t => resultBehaviour (if selected then .ub else .ret i t)
+      | .repeat next t => g.observeAt caller prim next t
+      | .fault t => resultBehaviour (.fault t)
+      | .diverge => resultBehaviour .diverge := by
+  rw [observe_state_step]
+  cases (g.head caller config).execute prim s with
+  | exit i selected t => cases selected <;> rfl
+  | «repeat» | fault | diverge => rfl
+
+theorem observe_of_closed (g : Table S R) (caller : Payload (R.get g.entry))
+    (prim : Primitives Φ states) (config : Packet R) (s : Fin states) (outcome : Result 2 states)
+    (closed : Feedback.close (g.feedback caller prim) (blockPoint config s) = resultBehaviour outcome) :
+    g.observeAt caller prim config s = resultBehaviour (g.markExit outcome) := by
+  rw [Table.observeAt, closed]
+  cases outcome with
+  | ret i t =>
+    rw [resultBehaviour, return_bind, CFG.Dependent.Native.denote_exitContinuation]
+    cases selected : g.selected i <;> simp [Table.markExit, selected, resultBehaviour]
+  | fault t => exact fault_bind t _
+  | diverge => exact diverge_bind _
+  | ub => exact Behaviour.top_bind _
+
 theorem observe_entry [DecidableEq Φ] (g : Table S R)
     (raw : CFG.Dependent.Native.Typed Φ [R.get g.entry] Exits)
-    (checked : g.checkNative raw = true) (caller : Payload (R.get g.entry)) (prim : Primitives Φ states)
-    (s : Fin states) :
+    (checked : g.checkNative raw = true) (caller : Payload (R.get g.entry)) (prim : StatePrimitives Φ σ)
+    (s : σ) :
     Shape.denote (withExitUB raw g.selected) (model prim (g.bindings caller)) s =
       g.observeAt caller prim ⟨g.entry, caller⟩ s := by
   rw [g.checked_reemission checked]

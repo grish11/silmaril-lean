@@ -99,22 +99,40 @@ def applyUnary : UnaryOp → Value → Result Value
   | .negative, .int n => .ok (.int (-n))
   | op, _ => .error (.unaryType op)
 
-/-- Values support ordering only within the integer and Boolean types. -/
+/-- Numbers share one exact order. Booleans order only against Booleans. -/
 def Value.orderedCompare : Value → Value → Option Ordering
   | .int lhs, .int rhs => some (compare lhs rhs)
+  | .int lhs, .float rhs => some (Binary64.compareNumbers (.ofInt lhs) (Binary64.decode rhs))
+  | .float lhs, .int rhs => some (Binary64.compareNumbers (Binary64.decode lhs) (.ofInt rhs))
+  | .float lhs, .float rhs => some (Binary64.compareNumbers (Binary64.decode lhs) (Binary64.decode rhs))
   | .bool lhs, .bool rhs => some (compare lhs rhs)
   | _, _ => Option.none
 
-/-- Float comparisons fail until the language equality and ordering laws are available. -/
+def BinaryOp.isComparison : BinaryOp → Bool
+  | .eq | .ne | .lt | .le | .gt | .ge => true
+  | _ => false
+
+/-- `None` supports equality only. Unordered different types compare unequal. -/
+def Value.isNone : Value → Bool
+  | .none => true
+  | _ => false
+
+def comparisonResult (op : BinaryOp) (lhs rhs : Value) (order : Option Ordering) : Result Value :=
+  match op, order with
+  | .eq, some order => .ok (.bool (order == .eq))
+  | .ne, some order => .ok (.bool (order != .eq))
+  | .eq, none => .ok (.bool (lhs.isNone && rhs.isNone))
+  | .ne, none => .ok (.bool (!(lhs.isNone && rhs.isNone)))
+  | .lt, some order => .ok (.bool (order == .lt))
+  | .le, some order => .ok (.bool (order != .gt))
+  | .gt, some order => .ok (.bool (order == .gt))
+  | .ge, some order => .ok (.bool (order != .lt))
+  | _, _ => .error (.binaryType op)
+
 def applyBinary : BinaryOp → Value → Value → Result Value
-  | .eq, .float _, _ | .eq, _, .float _ => .error (.binaryType .eq)
-  | .ne, .float _, _ | .ne, _, .float _ => .error (.binaryType .ne)
-  | .eq, lhs, rhs => .ok (.bool (decide (lhs = rhs)))
-  | .ne, lhs, rhs => .ok (.bool (decide (lhs ≠ rhs)))
-  | .lt, lhs, rhs => ordered .lt (· == .lt) lhs rhs
-  | .le, lhs, rhs => ordered .le (· != .gt) lhs rhs
-  | .gt, lhs, rhs => ordered .gt (· == .gt) lhs rhs
-  | .ge, lhs, rhs => ordered .ge (· != .lt) lhs rhs
+  | op@(.eq), lhs, rhs | op@(.ne), lhs, rhs | op@(.lt), lhs, rhs
+  | op@(.le), lhs, rhs | op@(.gt), lhs, rhs | op@(.ge), lhs, rhs =>
+    comparisonResult op lhs rhs (lhs.orderedCompare rhs)
   | .add, .int lhs, .int rhs => .ok (.int (lhs + rhs))
   | .sub, .int lhs, .int rhs => .ok (.int (lhs - rhs))
   | .mul, .int lhs, .int rhs => .ok (.int (lhs * rhs))
@@ -123,11 +141,6 @@ def applyBinary : BinaryOp → Value → Value → Result Value
   | .mod, .int lhs, .int rhs =>
     if rhs = 0 then .error (.zeroDivisor .mod) else .ok (.int (lhs.fmod rhs))
   | op, _, _ => .error (.binaryType op)
-where
-  ordered (op : BinaryOp) (accepts : Ordering → Bool) (lhs rhs : Value) : Result Value :=
-    match lhs.orderedCompare rhs with
-    | some order => .ok (.bool (accepts order))
-    | none => .error (.binaryType op)
 
 /-- Absent entries include declared bindings that have yet to receive a value. -/
 abbrev Bindings := String → Option Value

@@ -12,14 +12,15 @@ namespace Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.C
 
 open Syntax
 
-universe u
+universe u x
 
+variable {σ : Type x}
 variable {Φ : Type u} [HasTy Φ Syntax.Ty] {X A B : Syntax.Ty}
 variable {n states captures seeds results : Nat}
 
 /-- A typed constructor jump has one ordinary return at the same state. -/
-theorem observe_jump {Γ L : List Syntax.Ty} (prim : Primitives Φ states) (env : Bindings Γ)
-    (i : Fin L.length) (typed : L.get i = A) (a : Expr Γ A) (s : Fin states) :
+theorem observe_jump {Γ L : List Syntax.Ty} (prim : StatePrimitives Φ σ) (env : Bindings Γ)
+    (i : Fin L.length) (typed : L.get i = A) (a : Expr Γ A) (s : σ) :
     Shape.denote (jump (Φ := Φ) i typed a) (model prim env) s =
       WithTop.some {Outcome.ret i (a.eval env).val s} :=
   Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.CFG.observe_jump prim env i typed a s

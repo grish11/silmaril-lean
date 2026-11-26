@@ -27,6 +27,11 @@ abbrev carryConsumer (value : BitVec consumer.val) :
     Frame (Label saved carried result) → Frame (Label saved carried result [consumer]) :=
   Saved.prependFrame value
 
+/-- Widen the header packet at the same typed successor label. -/
+def liftTarget : Target (Label saved carried result extra) → Target (Label saved carried result (consumer :: extra))
+  | ⟨_, .header⟩ => ⟨_, .header⟩
+  | ⟨_, .exit⟩ => ⟨_, .exit⟩
+
 def liftEdge (rename : Rename Γ Δ) (keep : Var Δ consumer) :
     Edge (Label saved carried result extra) Γ → Edge (Label saved carried result (consumer :: extra)) Δ
   | ⟨.header, args⟩ => ⟨.header, .cons keep (For.renameOperands rename args)⟩

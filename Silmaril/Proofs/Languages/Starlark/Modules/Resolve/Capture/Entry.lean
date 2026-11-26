@@ -120,6 +120,34 @@ theorem checked_module_globals {commands : List Command} {globals : List String}
   (checked_of_resolve checked).2.1.trans
     (congrArg (fun block : BlockContext => block.reads.globals) (moduleBlock_eq declares))
 
+theorem entered_cells (source : Silmaril.Languages.Starlark.Modules.Source) (caller : State) :
+    (∀ binding address, (enter source caller).slots binding = some (.owned address) → caller.heap.size ≤ address) ∧
+    ∀ (address : Nat) cell, caller.heap[address]? = some cell → (enter source caller).heap[address]? = some cell := by
+  have extend (slots : List Binding) (state : State) (size : caller.heap.size ≤ state.heap.size)
+      (fresh : ∀ binding address, state.slots binding = some (.owned address) → caller.heap.size ≤ address) :
+      let next := slots.foldl State.allocateSlot state
+      (∀ binding address, next.slots binding = some (.owned address) → caller.heap.size ≤ address) ∧
+      ∀ (address : Nat) cell, state.heap[address]? = some cell → next.heap[address]? = some cell := by
+    induction slots generalizing state with
+    | nil => exact ⟨fresh, fun _ _ present => present⟩
+    | cons first rest ih =>
+      have freshNext : ∀ binding address, (state.allocateSlot first).slots binding = some (.owned address) →
+          caller.heap.size ≤ address := by
+        intro binding address found
+        by_cases same : binding = first
+        · have sameAddress : state.heap.size = address := by simpa [State.allocateSlot, same] using found
+          exact sameAddress ▸ size
+        · exact fresh _ _ (by simpa [State.allocateSlot, same] using found)
+      obtain ⟨new, kept⟩ := ih _ (by simp [State.allocateSlot]; omega) freshNext
+      exact ⟨new, fun _ cell present => kept _ cell (push_preserves_cell _ present _)⟩
+  exact extend _ _ (Nat.le_refl _) (fun _ _ no => nomatch no)
+
+theorem entered_blank (source : Silmaril.Languages.Starlark.Modules.Source) (caller : State) (binding : Binding)
+    (declared : binding ∈ source.globals.map globalSlot ++ source.fileNames.map fileSlot) :
+    ∃ address, (enter source caller).slots binding = some (.owned address) ∧
+      (enter source caller).heap[address]? = some ⟨.binding none, false⟩ :=
+  allocate_blank _ _ _ (.inl declared)
+
 theorem checked_global_cell {commands : List Command} {globals : List String}
     {linked : Program} {resolved : ResolvedModule}
     (declares : ModuleBinders commands globals) (checked : resolve commands linked = .ok resolved)

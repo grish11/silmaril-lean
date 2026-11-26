@@ -23,14 +23,15 @@ open Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration
 open Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category (return_bind)
 open Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.Syntax (observe_request)
 
-universe u
+universe u x
 
+variable {σ : Type x}
 variable {Φ : Type u} [HasTy Φ (Silmaril.Ty Empty)] {states : Nat} {X : Silmaril.Ty Empty}
 variable {Γ P R L : List (Silmaril.Ty Empty)}
 
-private theorem observe_routePacket (prim : Primitives Φ states) (env : Bindings Γ)
+private theorem observe_routePacket (prim : StatePrimitives Φ σ) (env : Bindings Γ)
     (target : Fin P.length → Fin L.length) (typed : ∀ j, L.get (target j) = P.get j)
-    (p : Packed P) (s : Fin states) :
+    (p : Packed P) (s : σ) :
     denote (routePacket target typed) (model prim (env.push p)).raw s =
       WithTop.some {Outcome.ret (target (unpack p).1) (unpack p).2.val s} := by
   induction P generalizing Γ with
@@ -48,17 +49,17 @@ private theorem observe_routePacket (prim : Primitives Φ states) (env : Binding
       rw [decoded]
       exact ih (env.push p) (fun j => target j.succ) (fun j => typed j.succ) a
 
-private theorem cast_packet {A B : Syntax.Ty} (typed : A = B) (prim : Primitives Φ states)
-    (env : Bindings Γ) (a : Payload A) (r : Region Φ (B :: Γ) L) (s : Fin states) :
+private theorem cast_packet {A B : Syntax.Ty} (typed : A = B) (prim : StatePrimitives Φ σ)
+    (env : Bindings Γ) (a : Payload A) (r : Region Φ (B :: Γ) L) (s : σ) :
     denote (castHead typed r) (model prim (env.push a)).raw s =
       denote r (model prim (env.push (cast (congrArg Syntax.Payload typed) a))).raw s := by
   cases typed
   rfl
 
-theorem observe_packedRequestTo (prim : Primitives Φ states) (env : Bindings Γ)
+theorem observe_packedRequestTo (prim : StatePrimitives Φ σ) (env : Bindings Γ)
     (f : Φ) (arg : Expr Γ (instrSrc f)) (typed : instrTrg f = packedExitType R)
     (target : Fin R.length → Fin L.length) (routed : ∀ i, L.get (target i) = R.get i)
-    (s : Fin states) :
+    (s : σ) :
     denote (packedRequestTo f arg typed target routed) (model prim env).raw s =
       match prim f (arg.eval env) s with
       | .ret a t =>

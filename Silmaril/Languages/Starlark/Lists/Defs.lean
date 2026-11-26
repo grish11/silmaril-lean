@@ -12,7 +12,7 @@ abbrev Address := Nat
 /-- Universal callables supported by the resolved shared-store profile. -/
 inductive Builtin where
   | bool | len | type | list | tuple | range | abs | any | all
-  deriving DecidableEq, BEq, Repr
+  deriving DecidableEq, BEq, ReflBEq, LawfulBEq, Repr
 
 def Builtin.name : Builtin → String
   | .bool => "bool"
@@ -67,12 +67,20 @@ def Value.address? : Value → Option Address
   | .list address | .tuple address | .dict address | .function address => some address
   | .scalar _ | .builtin _ | .string _ | .range _ => none
 
-/-- Scalar values admitted as dictionary key parts. -/
+/-- Canonical scalar dictionary codes. Integers and floats share the numeric tag. -/
 inductive ScalarKey where
   | none
   | bool (value : Bool)
-  | int (value : Int)
-  deriving DecidableEq, BEq, Repr
+  | number (value : Binary64.Number)
+  deriving DecidableEq, BEq, ReflBEq, LawfulBEq, Repr
+
+abbrev ScalarKey.int (value : Int) : ScalarKey := .number (.ofInt value)
+
+def ScalarKey.ofValue : Starlark.Value → ScalarKey
+  | .none => .none
+  | .bool value => .bool value
+  | .int value => .int value
+  | .float bits => .number (Binary64.decode bits)
 
 /-- Canonical key encoding for tagged scalars and well-bracketed tuples. -/
 inductive KeyPart where
@@ -82,7 +90,7 @@ inductive KeyPart where
   | function (address : Address)
   | builtin (id : Builtin)
   | string (text : String)
-  deriving DecidableEq, BEq, Repr
+  deriving DecidableEq, BEq, ReflBEq, LawfulBEq, Repr
 
 abbrev Key := List KeyPart
 
@@ -172,6 +180,9 @@ inductive Error where
   | unpackArity (expected supplied : Nat)
   | wrongCellKind (address : Address)
   | unhashableKey (value : Value)
+  | comparisonType (left right : Value)
+  | membershipTarget (value : Value)
+  | comparisonDepth
   | missingKey (key : Value)
   | duplicateKey (key : Value)
   | unknownDeclaration (declaration : Nat)
@@ -258,6 +269,13 @@ def listElements (address : Address) : Meaning (List Value) :=
     | .list elements => some elements
     | _ => none
 
+/-- Read an immutable tuple without observing its dictionary key cache. -/
+def Heap.tupleFields (heap : Heap) (address : Address) : Except Error (List Value) :=
+  match heap[address]? with
+  | none => .error (.danglingAddress address)
+  | some ⟨.tuple fields _, _⟩ => .ok fields
+  | some _ => .error (.wrongCellKind address)
+
 def tupleElements (address : Address) : Meaning (List Value) :=
   projectCell address fun
     | .tuple elements _ => some elements
@@ -269,16 +287,11 @@ def dictEntries (address : Address) : Meaning (List Entry) :=
     | _ => none
 
 /-- Mutable container keys are disallowed, including when frozen. A tuple's
-cached key is computed from its fields at construction. Float keys require
-numeric equality across float and integer values and are outside this profile. -/
+cached key is computed from its fields at construction. Numeric leaves use
+the same exact observation as scalar comparison. -/
 def State.keyOf (state : State) (value : Value) : Except Error Key :=
   match value with
-  | .scalar scalar =>
-    match scalar with
-    | .none => .ok [.scalar .none]
-    | .bool value => .ok [.scalar (.bool value)]
-    | .int value => .ok [.scalar (.int value)]
-    | .float _ => .error (.unhashableKey (.scalar scalar))
+  | .scalar scalar => .ok [.scalar (ScalarKey.ofValue scalar)]
   | .tuple address =>
     match state.heap[address]? with
     | none => .error (.danglingAddress address)
@@ -478,6 +491,10 @@ def appendAt (address : Address) (value : Value) : Meaning Value := do
   updateCell address fun elements => .ok (elements ++ [value])
   return .scalar .none
 
+inductive ComparisonOp where
+  | eq | ne | mem | notMem
+  deriving DecidableEq, Repr
+
 /-- Resolved syntax indexed by the type of its result. The list element spine,
 expressions and statements share a structural recursion principle. -/
 inductive Code : Type → Type where
@@ -495,6 +512,7 @@ inductive Code : Type → Type where
   | cons (head : Code Value) (tail : Code (List Value)) : Code (List Value)
   | index (receiver index : Code Value) : Code Value
   | slice (operands : Code (List Value)) : Code Value
+  | compare (op : ComparisonOp) (left right : Code Value) : Code Value
   | append (receiver argument : Code Value) : Code Value
   | pass : Code Unit
   | eval (expr : Code Value) : Code Unit

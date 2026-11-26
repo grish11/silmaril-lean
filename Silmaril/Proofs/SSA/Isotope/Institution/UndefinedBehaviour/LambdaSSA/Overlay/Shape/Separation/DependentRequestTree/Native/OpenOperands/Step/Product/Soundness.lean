@@ -68,7 +68,7 @@ private theorem observe_infinite (g : Table S R) (caller : Payload (R.get g.entr
   let path := fun n => blockPoint (configs n) (store n)
   have loop := close_infinite_of_singleton (f := g.feedback caller prim) path
     (fun n => ⟨(configs (n + 1)).1, (configs (n + 1)).2.val, store (n + 1), rfl,
-      (g.feedback_step caller prim (configs n) (store n)).trans (congrArg Transition.routed (next n))⟩)
+      (g.feedback_step caller prim (configs n) (store n)).trans (congrArg StateTransition.routed (next n))⟩)
   rw [Table.observeAt, loop]
   exact diverge_bind _
 

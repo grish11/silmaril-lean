@@ -226,9 +226,9 @@ theorem returns_of_exit {k : Nat} {tagged final : Tagged m carried} {i : Index 1
   ⟨final, .seq (guard ▸ cert.guard.lower.runLoopFree_enableWhile env) witness.trace.exec,
     witness.returned⟩
 
-private theorem runFrom_trace {k : Nat} {tagged final : Tagged m carried}
+private theorem runStore_trace {k : Nat} {tagged final : Tagged m carried}
     (trace : Trace cert m k tagged final) :
-    cert.runFrom m k tagged = some (final.get (.tail cert.descriptor.returnSlot)) := by
+    cert.runStore m k tagged = some final := by
   induction trace with
   | @stop tagged test =>
     cases tagged with
@@ -242,7 +242,7 @@ private theorem runFrom_trace {k : Nat} {tagged final : Tagged m carried}
       have h : flag = ⟨true⟩ := Option.some.inj test
       subst flag
       have computed := Exec.deterministic (cert.body.runLoopFree_enableWhile _) step
-      simpa [Certificate.runFrom, computed] using ih
+      simpa [Certificate.runStore, computed] using ih
 
 theorem runFuel_of_exit {k : Nat} {tagged final : Tagged m carried} {i : Index 1}
     {value : m.Value result} (guard : cert.guard.lower.runLoopFree m env = some tagged)
@@ -250,36 +250,37 @@ theorem runFuel_of_exit {k : Nat} {tagged final : Tagged m carried} {i : Index 1
     cert.runFuel m k env = some value := by
   unfold Certificate.runFuel
   rw [guard]
-  exact (runFrom_trace cert witness.trace).trans (congrArg some witness.returned)
+  simp [Certificate.runFrom, runStore_trace cert witness.trace, witness.returned]
 
-private theorem runFrom_success (fuel : Nat) (tagged : Tagged m carried) {value : m.Value result}
-    (ran : cert.runFrom m fuel tagged = some value) :
-    ∃ final, Exec m (.while rfl (.var .head) cert.body.enableWhile) tagged (some final) ∧
-      final.get (.tail cert.descriptor.returnSlot) = value := by
+theorem runStore_exec (fuel : Nat) (tagged : Tagged m carried) {final : Tagged m carried}
+    (ran : cert.runStore m fuel tagged = some final) :
+    Exec m (.while rfl (.var .head) cert.body.enableWhile) tagged (some final) := by
   induction fuel generalizing tagged with
   | zero =>
     cases tagged with
     | cons flag store =>
       obtain ⟨flag⟩ := flag
       cases flag
-      · exact ⟨_, .whileStop rfl, Option.some.inj ran⟩
+      · cases ran
+        exact .whileStop rfl
       · cases ran
   | succ k ih =>
     cases tagged with
     | cons flag store =>
       obtain ⟨flag⟩ := flag
       cases flag
-      · exact ⟨_, .whileStop rfl, Option.some.inj ran⟩
-      · change (cert.body.runLoopFree m (.cons ⟨true⟩ store)).bind (cert.runFrom m k) =
-          some value at ran
+      · cases ran
+        exact .whileStop rfl
+      · change (cert.body.runLoopFree m (.cons ⟨true⟩ store)).bind (cert.runStore m k) =
+          some final at ran
         obtain ⟨next, computed, rest⟩ := Option.bind_eq_some_iff.mp ran
-        obtain ⟨final, loop, returned⟩ := ih next rest
-        exact ⟨final, .whileStep rfl (computed ▸ cert.body.runLoopFree_enableWhile _) loop, returned⟩
+        exact .whileStep rfl (computed ▸ cert.body.runLoopFree_enableWhile _) (ih next rest)
 
 theorem runFuel_returns (fuel : Nat) {value : m.Value result}
     (ran : cert.runFuel m fuel env = some value) : cert.revert.Returns m env value := by
   obtain ⟨tagged, guard, rest⟩ := Option.bind_eq_some_iff.mp ran
-  obtain ⟨final, loop, returned⟩ := runFrom_success cert fuel tagged rest
-  exact ⟨final, .seq (guard ▸ cert.guard.lower.runLoopFree_enableWhile env) loop, returned⟩
+  obtain ⟨final, computed, returned⟩ := Option.map_eq_some_iff.mp rest
+  exact ⟨final, .seq (guard ▸ cert.guard.lower.runLoopFree_enableWhile env)
+    (runStore_exec cert fuel tagged computed), returned⟩
 
 end Silmaril.SSA.PEG.Simple.Revert.While.Region.Proofs

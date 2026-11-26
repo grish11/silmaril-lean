@@ -48,4 +48,35 @@ theorem Checked.collect_readAll_first_error (snapshot : Checked) (decode : Decod
   Proofs.Formats.Parquet.Snapshot.collect_readAll_first_error snapshot decode before after index groups
     error split earlier failed
 
+/-- A checked singleton footer and a successful group read yield one batch
+followed by EOS, including when the decoded row list is empty. -/
+theorem readAll_single {limits : Limits} {bytes : Bytes} {footer : Footer.Span}
+    {metadata : Footer.Metadata} {group : Footer.RowGroup} {bind : Bind schema Value Failure}
+    {decode : DecodeGroup schema Value Failure} {rows : Reader.RowGroup schema Value}
+    (read : Footer.readFooter limits.footer bytes = .ok (footer, metadata))
+    (valid : Footer.validate footer.start limits.maxSchemaDepth metadata = .ok ())
+    (single : metadata.rowGroups = [group]) (bound : bind metadata = .ok decode)
+    (decoded : ∀ snapshot, snapshot.bytes = bytes → snapshot.footer = footer →
+      decode snapshot 0 group = .ok rows)
+    (count : rows.length = group.numRows.toNat) :
+    readAll limits bind bytes = .ok ⟨schema, ⟨[AlignedColumns.ofRows rows], .eos⟩⟩ :=
+  Proofs.Formats.Parquet.Snapshot.readAll_single read valid single bound decoded count
+
+/-- Logical scanning of the actual byte reader observes the projected ordered
+prefix, with EOS after all groups or the first indexed read error. The
+predicate and projection operate on decoded rows. -/
+theorem collect_scan_readAll_of_checked
+    (limits : Limits) (bind : Bind schema Value Failure) (bytes : Bytes)
+    {snapshot : Checked} {decode : DecodeGroup schema Value Failure}
+    (checked : check (Failure := Failure) limits bytes = .ok snapshot)
+    (bound : bind snapshot.metadata = .ok decode)
+    (projection : (s : Scan.Schema Id Kind) → Scan.Projection s)
+    (keep : (s : Scan.Schema Id Kind) → Scan.Predicate s Value) :
+    ((readAll limits bind bytes).scan projection keep).collect =
+      let source := snapshot.source decode
+      let groups := Reader.denoteGroups source.readGroup source.groups
+      .ok ⟨⟨(projection schema).schema,
+        (projection schema).scan (keep schema) groups.1.flatten⟩, groups.2⟩ :=
+  Proofs.Formats.Parquet.Snapshot.collect_scan_readAll_of_checked limits bind bytes checked bound projection keep
+
 end Silmaril.Formats.Parquet.Snapshot

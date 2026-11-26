@@ -9,15 +9,17 @@ import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Discovery.MemRef.CF.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.MLIR.MemRef.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Forwarding.Disjoint.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Thms
 
 public section
 
 namespace Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Static.Final.LoadTail.Proofs
 
-open RVSDG (Origin Port Tuple)
+open RVSDG (Locals Origin Port Tuple)
 open Retained.Load.Static.Sequence.Search
 open Discovery.MemRef.CF (entryDestination lowerDiamond lowerDiamond_entryTransition lowerDiamond_run run)
 open Memory.Forwarding.Disjoint (Certificate cell)
+open Memory.DeadStore (readAt readAt_load)
 open Memory.DeadStore.Search.Selection.Readers.Repeat (DeletesStores operations storeCount)
 open Silmaril.MLIR.MemRef (Buffer)
 open SeaOfNodes.Memory.MLIR.MemRef (observe lower_run)
@@ -25,20 +27,83 @@ open SeaOfNodes.Memory.MLIR.MemRef (observe lower_run)
 variable {args : List ValueSort} {cells : Nat}
 variable {facts : Certificate args} {input : Tuple (Val cells) args}
 
-private theorem checkTail_readers {past : List (List ValueSort)} {live : Nat}
+private theorem checkTailAddress_readers {past : List (List ValueSort)} {live : Nat}
     {tail : Memory.Body args past live} {readers : List (Port args .address)}
-    (store : PrefixStore args) (valid : facts.Valid input)
-    (accepted : checkTail facts store tail = true) (listed : readPorts tail = some readers) :
-    ∀ reader ∈ readers, cell input store.address ≠ cell input reader := by
-  simp only [checkTail, listed, Bool.and_eq_true_iff] at accepted
+    (address : Port args .address) (valid : facts.Valid input)
+    (accepted : checkTailAddress facts address tail = true) (listed : readPorts tail = some readers) :
+    ∀ reader ∈ readers, cell input address ≠ cell input reader := by
+  simp only [checkTailAddress, listed, Bool.and_eq_true_iff] at accepted
   obtain ⟨anchor, _, checked⟩ := accepted
   have readersSafe := List.all_eq_true.mp checked
   intro reader member
   have covered := (Bool.and_eq_true_iff.mp (readersSafe reader member)).2
-  have matched : cell input store.address = cell input facts.observed :=
-    facts.matches_read (.arg store.address : Origin args [] .address) anchor input PUnit.unit
+  have matched : cell input address = cell input facts.observed :=
+    facts.matches_read (.arg address : Origin args [] .address) anchor input PUnit.unit
   rw [matched]
   exact facts.covers_read (.arg reader : Origin args [] .address) covered input PUnit.unit valid
+
+private theorem readPorts_transfer {past : List (List ValueSort)} {live : Nat}
+    {tail : Memory.Body args past live} {readers : List (Port args .address)}
+    (address : Port args .address) (word : Word) (listed : readPorts tail = some readers)
+    (distinct : ∀ reader ∈ readers, cell input address ≠ cell input reader)
+    (locals : Locals (Val cells) past) (initial : Heap cells) :
+    let written := initial.write (cell input address) word
+    tail.denote input locals initial = ((tail.denote input locals initial).1, initial) ∧
+      tail.denote input locals written = ((tail.denote input locals initial).1, written) ∧
+      ∀ index, readAt tail index input locals written = readAt tail index input locals initial := by
+  induction tail generalizing readers with
+  | ret => exact ⟨rfl, rfl, fun _ => rfl⟩
+  | store => contradiction
+  | load _ reader _ ih =>
+    cases reader with
+    | output => contradiction
+    | arg reader =>
+      obtain ⟨remaining, checked, packed⟩ := Option.map_eq_some_iff.mp listed
+      cases packed
+      have same := initial.read_write_other (cell input address) (cell input reader) word
+        (distinct reader (List.mem_cons_self ..)).symm
+      obtain ⟨before, after, reads⟩ :=
+        ih checked (fun port member => distinct port (List.mem_cons_of_mem _ member))
+          (.cons (initial.read (cell input reader)) .nil, locals)
+      refine ⟨before, ?_, ?_⟩
+      · simpa only [Memory.Body.denote, show readValue (.arg reader) input locals = cell input reader from rfl,
+          same] using after
+      · intro index
+        cases index with
+        | zero => exact congrArg some same
+        | succ index => simpa only [readAt_load, show readValue (.arg reader) input locals = cell input reader from rfl,
+            same] using reads index
+
+private theorem checkTailAddress_observations {past : List (List ValueSort)} {live : Nat}
+    (tail : Memory.Body args past live) (address : Port args .address) (word : Word)
+    (valid : facts.Valid input) (safe : checkTailAddress facts address tail = true)
+    (locals : Locals (Val cells) past) (initial : Heap cells) :
+    let written := initial.write (cell input address) word
+    tail.denote input locals initial = ((tail.denote input locals initial).1, initial) ∧
+      tail.denote input locals written = ((tail.denote input locals initial).1, written) ∧
+      ∀ index, readAt tail index input locals written = readAt tail index input locals initial := by
+  cases listed : readPorts tail with
+  | none => simp [checkTailAddress, listed] at safe
+  | some readers =>
+    exact readPorts_transfer address word listed (checkTailAddress_readers address valid safe listed) locals initial
+
+theorem checkTailAddress_transfer {past : List (List ValueSort)} {live : Nat}
+    (tail : Memory.Body args past live) (address : Port args .address) (word : Word)
+    (valid : facts.Valid input) (safe : checkTailAddress facts address tail = true)
+    (locals : Locals (Val cells) past) (initial : Heap cells) :
+    tail.denote input locals initial = ((tail.denote input locals initial).1, initial) ∧
+      tail.denote input locals (initial.write (cell input address) word) =
+        ((tail.denote input locals initial).1, initial.write (cell input address) word) :=
+  let observed := checkTailAddress_observations tail address word valid safe locals initial
+  ⟨observed.1, observed.2.1⟩
+
+theorem checkTailAddress_readbacks {past : List (List ValueSort)} {live : Nat}
+    (tail : Memory.Body args past live) (address : Port args .address) (word : Word)
+    (valid : facts.Valid input) (safe : checkTailAddress facts address tail = true)
+    (locals : Locals (Val cells) past) (initial : Heap cells) (index : Nat) :
+    readAt tail index input locals (initial.write (cell input address) word) =
+      readAt tail index input locals initial :=
+  (checkTailAddress_observations tail address word valid safe locals initial).2.2 index
 
 private theorem readPorts_safe {past : List (List ValueSort)} {live : Nat}
     {tail : Memory.Body args past live} {readers : List (Port args .address)}
@@ -63,8 +128,8 @@ theorem checkTail_disjoint {past : List (List ValueSort)} {live : Nat}
     (safe : checkTail facts store tail = true) (valid : facts.Valid input) :
     Retained.Load.checkTail store input tail = true := by
   cases listed : readPorts tail with
-  | none => simp [checkTail, listed] at safe
-  | some readers => exact readPorts_safe store listed (checkTail_readers store valid safe listed)
+  | none => simp [checkTail, checkTailAddress, listed] at safe
+  | some readers => exact readPorts_safe store listed (checkTailAddress_readers store.address valid safe listed)
 
 theorem checkTail_read_word {past : List (List ValueSort)} {live : Nat}
     {tail : Memory.Body args past live} {readers : List (Port args .address)}
@@ -73,7 +138,7 @@ theorem checkTail_read_word {past : List (List ValueSort)} {live : Nat}
     (reader : Port args .address) (member : reader ∈ readers) (initial : Heap cells) :
     ((store.table.denote input initial).2).read (cell input reader) = initial.read (cell input reader) :=
   initial.read_write_other (cell input store.address) (cell input reader)
-    (input.get store.value) (checkTail_readers store valid accepted listed reader member).symm
+    (input.get store.value) (checkTailAddress_readers store.address valid accepted listed reader member).symm
 
 theorem checkTail_load_word {past : List (List ValueSort)} {live : Nat}
     {memory returnedMemory : MemoryInput live} {reader : Port args .address}

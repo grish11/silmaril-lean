@@ -18,10 +18,10 @@ open Silmaril.Formats
 private theorem isDecimal_decimal (n : Nat) : Spki.IsDecimal (Spki.decimal n) :=
   Spki.isDecimal_iff.mpr ⟨n, rfl⟩
 
-private theorem decimalSpelling_iff (field : Field) (value : Int32) :
-    DecimalSpelling field value.toInt ↔ field = int32Text value := by
-  by_cases neg : value.toInt < 0
-  · simp only [DecimalSpelling, int32Text, neg, ↓reduceIte]
+private theorem decimalSpelling_iff (field : Field) (value : Int) :
+    DecimalSpelling field value ↔ field = signedText value := by
+  by_cases neg : value < 0
+  · simp only [DecimalSpelling, signedText, neg, ↓reduceIte]
     constructor
     · rintro ⟨magnitude, rfl, hm, denotation⟩
       obtain ⟨n, rfl⟩ := Spki.isDecimal_iff.mp hm
@@ -29,7 +29,7 @@ private theorem decimalSpelling_iff (field : Field) (value : Int32) :
       rw [denotation]
     · rintro rfl
       exact ⟨_, rfl, isDecimal_decimal _, Spki.digitsValue_decimal _⟩
-  · simp only [DecimalSpelling, int32Text, neg, ↓reduceIte]
+  · simp only [DecimalSpelling, signedText, neg, ↓reduceIte]
     constructor
     · rintro ⟨hm, denotation⟩
       obtain ⟨n, rfl⟩ := Spki.isDecimal_iff.mp hm
@@ -46,14 +46,14 @@ private theorem unsignedHead (n : Nat) :
     subst d
     exact (by decide : ¬ (0x31 : UInt8) ≤ 0x2D) low
 
-private theorem signedValue_int32Text (value : Int32) : signedValue (int32Text value) = value.toInt := by
-  unfold int32Text
-  by_cases neg : value.toInt < 0
+private theorem signedValue_signedText (value : Int) : signedValue (signedText value) = value := by
+  unfold signedText
+  by_cases neg : value < 0
   · rw [ite_eq_left neg]
     have abs := Int.ofNat_natAbs_of_nonpos (Int.le_of_lt neg)
     simp [signedValue, Spki.digitsValue_decimal, abs]
   · rw [ite_eq_right neg]
-    obtain ⟨first, rest, eq, notMinus⟩ := unsignedHead value.toInt.natAbs
+    obtain ⟨first, rest, eq, notMinus⟩ := unsignedHead value.natAbs
     rw [eq]
     have ex : signedValue (first :: rest) = Int.ofNat (Spki.digitsValue (first :: rest)) := by
       simp [signedValue, notMinus]
@@ -89,7 +89,7 @@ private theorem magnitude_bound (value : Int32) : value.toInt.natAbs < 10^10 := 
 
 private theorem int32Text_length (value : Int32) : (int32Text value).length ≤ 11 := by
   have limit := decimal_length_le 9 value.toInt.natAbs (magnitude_bound value)
-  unfold int32Text
+  unfold int32Text signedText
   split <;> simp only [List.length_cons] <;> omega
 
 private theorem parseInt32_eq_text_iff (field : Field) (value : Int32) :
@@ -108,13 +108,14 @@ private theorem parseInt32_eq_text_iff (field : Field) (value : Int32) :
       next => cases h
     next => cases h
   · rintro rfl
-    simp only [parseInt32, int32Text_length, ↓reduceIte, signedValue_int32Text]
+    simp only [parseInt32, int32Text_length, ↓reduceIte]
+    simp only [int32Text, signedValue_signedText]
     rw [dite_eq_left ⟨value.minValue_le_toInt, value.toInt_le⟩, Int32.ofIntLE_toInt]
     simp
 
 theorem parseInt32_eq_some_iff (field : Field) (value : Int32) :
     parseInt32 field = some value ↔ DecimalSpelling field value.toInt :=
-  (parseInt32_eq_text_iff field value).trans (decimalSpelling_iff field value).symm
+  (parseInt32_eq_text_iff field value).trans (decimalSpelling_iff field value.toInt).symm
 
 theorem int32_parsePrint : int32.ParsePrint := by
   intro value field h
@@ -124,6 +125,54 @@ theorem int32_parsePrint : int32.ParsePrint := by
 theorem int32_printParse : int32.PrintParse := by
   intro value field h
   exact congrArg some ((parseInt32_eq_text_iff field value).mp h).symm
+
+private theorem magnitude64_bound (value : Int64) : value.toInt.natAbs < 10^19 := by
+  have low : -9223372036854775808 ≤ value.toInt := value.minValue_le_toInt
+  have high : value.toInt ≤ 9223372036854775807 := value.toInt_le
+  by_cases neg : value.toInt < 0
+  · have := Int.ofNat_natAbs_of_nonpos (Int.le_of_lt neg)
+    omega
+  · have := Int.natAbs_of_nonneg (Int.le_of_not_gt neg)
+    omega
+
+private theorem int64Text_length (value : Int64) : (int64Text value).length ≤ 20 := by
+  have limit := decimal_length_le 18 value.toInt.natAbs (magnitude64_bound value)
+  unfold int64Text signedText
+  split <;> simp only [List.length_cons] <;> omega
+
+private theorem parseInt64_eq_text_iff (field : Field) (value : Int64) :
+    parseInt64 field = some value ↔ field = int64Text value := by
+  constructor
+  · unfold parseInt64
+    intro h
+    split at h
+    next =>
+      dsimp only at h
+      split at h
+      next =>
+        split at h
+        next eq => cases h; exact eq.symm
+        next => cases h
+      next => cases h
+    next => cases h
+  · rintro rfl
+    simp only [parseInt64, int64Text_length, ↓reduceIte]
+    simp only [int64Text, signedValue_signedText]
+    rw [dite_eq_left ⟨value.minValue_le_toInt, value.toInt_le⟩, Int64.ofIntLE_toInt]
+    simp
+
+theorem parseInt64_eq_some_iff (field : Field) (value : Int64) :
+    parseInt64 field = some value ↔ DecimalSpelling field value.toInt :=
+  (parseInt64_eq_text_iff field value).trans (decimalSpelling_iff field value.toInt).symm
+
+theorem int64_parsePrint : int64.ParsePrint := by
+  intro value field h
+  have eq : int64Text value = field := Option.some.inj h
+  exact (parseInt64_eq_text_iff field value).mpr eq.symm
+
+theorem int64_printParse : int64.PrintParse := by
+  intro value field h
+  exact congrArg some ((parseInt64_eq_text_iff field value).mp h).symm
 
 private theorem digit_textByte (b : UInt8) (low : (0x30 : UInt8) ≤ b) (high : b ≤ 0x39) :
     Silmaril.Formats.Csv.Internal.fieldData b = true := by
@@ -147,7 +196,7 @@ private theorem decimal_textBytesOK (n : Nat) : textBytesOK (Spki.decimal n) = t
       exact digit_textByte b digit.1 digit.2
 
 theorem int32_textBytesOK (value : Int32) : textBytesOK (int32Text value) = true := by
-  unfold int32Text
+  unfold int32Text signedText
   split
   · have ok : Silmaril.Formats.Csv.Internal.fieldData 0x2D = true := by decide
     simp only [textBytesOK, List.all_cons, ok, Bool.true_and]

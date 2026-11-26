@@ -48,6 +48,23 @@ theorem invoke_tuple_exact (items : List Core.Module.TupleDispatch.Element) :
     invoke (.builtin .tuple) [.returnedTuple items] = .ok (.returnedTuple items) :=
   invoke_iff.mpr (.copyTuple items)
 
+theorem invoke_assertTrue_returnedTuple (items : List Core.Module.TupleDispatch.Element) :
+    invoke (.helper .assertTrue) [.returnedTuple items] =
+      if items.isEmpty then .error (.raised (.assertionError .emptyTuple)) else .ok .none := by
+  cases items <;> exact invoke_iff.mpr (by constructor)
+
+theorem invoke_assertTrue_listObject (object : Core.Module.ListObject) :
+    invoke (.helper .assertTrue) [.listObject object] =
+      if object.contents.isEmpty then .error (.raised (.assertionError (.listObject object))) else .ok .none := by
+  rw [invoke]
+  rfl
+
+theorem invoke_assertTrue_tupleObject (object : Core.Module.TupleDispatch.Object) :
+    invoke (.helper .assertTrue) [.tupleObject object] =
+      if object.contents.isEmpty then .error (.raised (.assertionError .emptyTuple)) else .ok .none := by
+  rcases object with ⟨_, items⟩
+  cases items <;> exact invoke_iff.mpr (by constructor)
+
 theorem invoke_tuple_reference (object : Core.Module.TupleDispatch.Object) :
     invoke (.builtin .tuple) [.tupleObject object] = .ok (.tupleObject object) :=
   invoke_iff.mpr (.copyTupleObject object)

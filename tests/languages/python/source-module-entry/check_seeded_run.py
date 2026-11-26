@@ -60,6 +60,8 @@ private def detail : AssertionArgument → String
   | .textPair left right =>
     s!"text-pair:{reprStr (left.points.map UInt32.toNat)}:{reprStr (right.points.map UInt32.toNat)}"
   | .tuplePair left right => s!"tuple-pair:{reprStr left}:{reprStr right}"
+  | .emptyTuple => "tuple:()"
+  | .listObject object => s!"list:{reprStr object.contents}"
 
 private def raised : Raised → String
   | .assertionError argument => "AssertionError:" ++ detail argument
@@ -910,7 +912,11 @@ def assertion(error):
     (argument,) = error.args
     if type(argument) is bool:
         return f"AssertionError:bool:{argument}"
+    if type(argument) is list:
+        return f"AssertionError:list:{argument!r}"
     if isinstance(argument, tuple):
+        if not argument:
+            return "AssertionError:tuple:()"
         left, right = argument
         if type(left) is bool and type(right) is bool:
             return f"AssertionError:bool-pair:{str(left).lower()}:{str(right).lower()}"
@@ -1014,6 +1020,19 @@ def pinned_source(checkout, path, sha256):
     raw = (checkout / path).read_bytes()
     assert hashlib.sha256(raw).hexdigest() == sha256, path
     return raw.decode("utf-8")
+
+
+def pinned_truth_helper(checkout):
+    path = "tests/python/evaluation/programs.py"
+    digest = "55091465bd9ff2b6f784d31b48798f50dfffb98b712e22c96fe4092b6e4eb37f"
+    harness = pinned_source(checkout, path, digest)
+    preamble, = (ast.literal_eval(stmt.value) for stmt in ast.parse(harness).body
+                 if isinstance(stmt, ast.Assign) and any(
+                     isinstance(target, ast.Name) and target.id == "LAMBDA_PY_PREAMBLE"
+                     for target in stmt.targets))
+    namespace = {}
+    exec(compile(preamble, path, "exec", dont_inherit=True, optimize=0), namespace)
+    return namespace["___assertTrue"]
 
 
 def guard_observation(profile, expected):

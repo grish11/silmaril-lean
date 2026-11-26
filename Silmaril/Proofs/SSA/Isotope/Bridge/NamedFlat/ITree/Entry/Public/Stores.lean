@@ -9,11 +9,25 @@ public section
 namespace Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Stores
 
 open Silmaril.Isotope
-open Silmaril.Isotope.Bridge.NamedFlat.Entry.Public (Seeded)
+open Silmaril.Isotope.Bridge.NamedFlat.Entry.Public (Seeded combineStoreVerdicts)
 open Silmaril.Isotope.Bridge.NamedFlat.Entry.LiveOut (observeRaw)
 open Silmaril.SSA.LambdaRTL (CFG)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 open Silmaril.Elgot.ITree (HandledTrace)
+
+theorem combine_eq_some (verdicts : List (Option Bool)) (verdict : Bool) :
+    combineStoreVerdicts verdicts = some verdict ↔
+      (∀ result ∈ verdicts, result.isSome = true) ∧
+      (verdict = true ↔ ∀ result ∈ verdicts, result = some true) := by
+  unfold combineStoreVerdicts
+  split
+  · rename_i typed
+    rw [Option.some.injEq, Bool.eq_iff_iff, List.all_eq_true]
+    simp only [beq_iff_eq]
+    exact ⟨fun h => ⟨List.all_eq_true.mp typed, h.symm⟩, fun h => h.2.symm⟩
+  · rename_i invalid
+    simp only [reduceCtorEq, false_iff]
+    exact fun h => invalid (List.all_eq_true.mpr h.1)
 
 variable {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type} [DecidableEq F]
   {signature : PrimitiveSignature F} {source target : CFG V K F} {exits : List K} {fields : K → List V}
@@ -39,8 +53,7 @@ theorem eq_none :
     left.refinementOverStores? right stores = none ↔
       ∃ i, left.seed? (stores i) = none ∨ right.seed? (stores i) = none := by
   classical
-  unfold Seeded.refinementOverStores?
-  dsimp only
+  unfold Seeded.refinementOverStores? combineStoreVerdicts
   split
   · rename_i typed
     have all := (all_typed left right stores).mp typed
@@ -64,25 +77,10 @@ theorem eq_some (verdict : Bool) :
         ∀ x, policy.initial x → ∀ trace,
           HandledTrace policy.step x (observeRaw signature.primitive exits fields source (stores i)) trace →
           HandledTrace policy.step x (observeRaw signature.primitive exits fields target (stores i)) trace) := by
-  unfold Seeded.refinementOverStores?
-  dsimp only
-  split
-  · rename_i typed
-    have all := (all_typed left right stores).mp typed
-    have passes :
-        (List.ofFn fun i => left.refinementFromStore? right (stores i)).all (· == some true) = true ↔
-          ∀ i (policy : Silmaril.Logic.ITree.Model.{0,0} signature.traceSignature.toSignature),
-            ∀ x, policy.initial x → ∀ trace,
-              HandledTrace policy.step x (observeRaw signature.primitive exits fields source (stores i)) trace →
-              HandledTrace policy.step x (observeRaw signature.primitive exits fields target (stores i)) trace := by
-      rw [List.all_eq_true, List.forall_mem_ofFn_iff]
-      exact forall_congr' fun i => by
-        simp only [beq_iff_eq, Seeded.refinementFromStore?_eq_some_iff, true_iff,
-          ← Seeded.seed?_eq_some_iff, ← Option.isSome_iff_exists, (all i).1, (all i).2, true_and]
-    rw [Option.some.injEq, Bool.eq_iff_iff, passes]
-    exact ⟨fun h => ⟨all, h.symm⟩, fun h => h.2.symm⟩
-  · rename_i invalid
-    simp only [reduceCtorEq, false_iff]
-    exact fun h => invalid ((all_typed left right stores).mpr h.1)
+  rw [Seeded.refinementOverStores?, combine_eq_some]
+  simp only [List.forall_mem_ofFn_iff, store_isSome, Bool.and_eq_true]
+  refine and_congr_right fun all => iff_congr Iff.rfl (forall_congr' fun i => ?_)
+  simp only [Seeded.refinementFromStore?_eq_some_iff, true_iff, ← Seeded.seed?_eq_some_iff,
+    ← Option.isSome_iff_exists, (all i).1, (all i).2, true_and]
 
 end Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Stores

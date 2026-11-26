@@ -25,6 +25,7 @@ open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.AfterReorder.Second
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.AfterReorder.Second.Emit
 open Header.Earlier (operations)
+open Header.Typed (edgePackets)
 open Header.Sequence (State)
 open Loop.MLIR.CF (Program TargetOp evalOp lower model)
 
@@ -120,11 +121,25 @@ theorem liftCode_eval (code : Block TargetOp (Label saved carried result extra) 
     | here => rfl
     | there ref => exact same ref
 
-private def liftTarget : Target (Label saved carried result extra) → Target (Label saved carried result (consumer :: extra))
-  | ⟨_, .header⟩ => ⟨_, .header⟩
-  | ⟨_, .exit⟩ => ⟨_, .exit⟩
+private theorem liftCode_edgePackets (code : Block TargetOp (Label saved carried result extra) Γ [result])
+    (rename : Rename Γ Δ) (keep : Var Δ consumer) (source : Env Γ) (target : Env Δ)
+    (same : ∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref) :
+    (liftCode rename keep code).eval evalOp edgePackets target =
+      (code.eval evalOp edgePackets source).map
+        (fun packet => (packet.1, Saved.prependFrame (target.get keep) packet.2)) := by
+  induction code generalizing Δ with
+  | terminator term =>
+    cases term <;> simp only [liftCode, Code.eval, liftTerm, edgePackets, List.map_cons, List.map_nil,
+      liftEdge_eval _ _ _ _ _ same]
+  | letOp op operands rest ih =>
+    simp only [liftCode, Code.eval, evalRenameOperands _ _ _ same]
+    apply ih
+    intro _ ref
+    cases ref with
+    | here => rfl
+    | there ref => exact same ref
 
-private theorem liftCode_target (code : Block TargetOp (Label saved carried result extra) Γ [result])
+theorem liftCode_target (code : Block TargetOp (Label saved carried result extra) Γ [result])
     (rename : Rename Γ Δ) (keep : Var Δ consumer) (slot : EdgeSlot) :
     (shape.ofBlock (liftCode rename keep code)).target slot =
       ((shape.ofBlock code).target slot).map liftTarget := by
@@ -150,6 +165,61 @@ theorem liftCode_targets_congr {Γ' Δ' : List Width}
   funext slot
   rw [liftCode_target, liftCode_target, same]
 
+private theorem rewriteAt?_observations {code : Block TargetOp (Label saved carried result extra) Γ [result]}
+    {index cut : Nat} {origins : Origins ((extra ++ [saved]) ++ Input) Γ}
+    {candidate : Candidate Input saved carried result extra}
+    (found : findCaptured? index cut origins code = some candidate)
+    (inputs : Env ((extra ++ [saved]) ++ Input)) (source : Env Γ) (agree : CapturesAgree origins source inputs)
+    (rename : Rename Γ Δ) (keep : Var Δ candidate.width) (target : Env Δ)
+    (same : ∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref)
+    (value : target.get keep = evalOp candidate.op (candidate.inputs.eval inputs)) :
+    ∃ rewritten, rewriteAt? index rename keep code = some rewritten ∧
+      rewritten.eval evalOp (fun term env => Terminator.eval env term) target =
+        (code.eval evalOp (fun term env => Terminator.eval env term) source).map
+          (Saved.prependFrame (target.get keep)) id ∧
+      rewritten.eval evalOp edgePackets target =
+        (code.eval evalOp edgePackets source).map
+          (fun packet => (packet.1, Saved.prependFrame (target.get keep) packet.2)) := by
+  induction code generalizing index cut Δ with
+  | terminator => simp [findCaptured?] at found
+  | letOp op operands rest ih =>
+    cases index with
+    | zero =>
+      cases capture : captureOrigins? origins operands with
+      | none => simp [findCaptured?, capture] at found
+      | some captured =>
+        simp [findCaptured?, capture] at found
+        subst candidate
+        refine ⟨liftCode (replaceBinding rename keep) keep rest, by simp [rewriteAt?], ?_⟩
+        have preserved : ∀ {w} (ref : Var (_ :: _) w),
+            target.get (replaceBinding rename keep ref) =
+              (Env.cons (target.get keep) source).get ref := by
+          intro _ ref
+          cases ref with
+          | here => rfl
+          | there ref => exact same ref
+        constructor
+        · rw [Code.eval, evalCaptureOrigins origins operands capture source inputs agree, ← value]
+          exact liftCode_eval rest (replaceBinding rename keep) keep _ _ preserved
+        · rw [Code.eval, evalCaptureOrigins origins operands capture source inputs agree, ← value]
+          exact liftCode_edgePackets rest (replaceBinding rename keep) keep _ _ preserved
+    | succ index =>
+      have nextAgree : CapturesAgree (afterBinding origins (cut + 1))
+          (.cons (evalOp op (operands.eval source)) source) inputs := by
+        intro _ ref cap fromOrigin
+        cases ref with
+        | here => cases fromOrigin
+        | there ref => exact agree ref cap fromOrigin
+      obtain ⟨rewritten, rewrite, taken, packets⟩ := ih found _ nextAgree (under rename) (.there keep)
+        (.cons (evalOp op (operands.eval source)) target) (by
+          intro _ ref
+          cases ref with
+          | here => rfl
+          | there ref => exact same ref) value
+      refine ⟨.letOp op (For.renameOperands rename operands) rewritten, by simp [rewriteAt?, rewrite], ?_, ?_⟩
+      · simpa only [Code.eval, Env.get, evalRenameOperands _ _ _ same] using taken
+      · simpa only [Code.eval, Env.get, evalRenameOperands _ _ _ same] using packets
+
 theorem rewriteAt?_eval {code : Block TargetOp (Label saved carried result extra) Γ [result]}
     {index cut : Nat} {origins : Origins ((extra ++ [saved]) ++ Input) Γ}
     {candidate : Candidate Input saved carried result extra}
@@ -162,38 +232,8 @@ theorem rewriteAt?_eval {code : Block TargetOp (Label saved carried result extra
       rewritten.eval evalOp (fun term env => Terminator.eval env term) target =
         (code.eval evalOp (fun term env => Terminator.eval env term) source).map
           (Saved.prependFrame (target.get keep)) id := by
-  induction code generalizing index cut Δ with
-  | terminator => simp [findCaptured?] at found
-  | letOp op operands rest ih =>
-    cases index with
-    | zero =>
-      cases capture : captureOrigins? origins operands with
-      | none => simp [findCaptured?, capture] at found
-      | some captured =>
-        simp [findCaptured?, capture] at found
-        subst candidate
-        refine ⟨liftCode (replaceBinding rename keep) keep rest, by simp [rewriteAt?], ?_⟩
-        rw [Code.eval, evalCaptureOrigins origins operands capture source inputs agree, ← value]
-        apply liftCode_eval
-        intro _ ref
-        cases ref with
-        | here => rfl
-        | there ref => exact same ref
-    | succ index =>
-      have nextAgree : CapturesAgree (afterBinding origins (cut + 1))
-          (.cons (evalOp op (operands.eval source)) source) inputs := by
-        intro _ ref cap fromOrigin
-        cases ref with
-        | here => cases fromOrigin
-        | there ref => exact agree ref cap fromOrigin
-      obtain ⟨rewritten, rewrite, evaluated⟩ := ih found _ nextAgree (under rename) (.there keep)
-        (.cons (evalOp op (operands.eval source)) target) (by
-          intro _ ref
-          cases ref with
-          | here => rfl
-          | there ref => exact same ref) value
-      exact ⟨.letOp op (For.renameOperands rename operands) rewritten, by simp [rewriteAt?, rewrite], by
-        simpa only [Code.eval, Env.get, evalRenameOperands _ _ _ same] using evaluated⟩
+  obtain ⟨code, changed, taken, _⟩ := rewriteAt?_observations found inputs source agree rename keep target same value
+  exact ⟨code, changed, taken⟩
 
 private theorem header_agrees (first : BitVec saved.val) (old : BitVec carried.val) (input : Env Input) :
     CapturesAgree savedOrigins (.cons first (.cons old input)) (.cons first input) :=
@@ -275,6 +315,36 @@ theorem emitAt?_step
       · exact ⟨.snoc leading candidate.op candidate.inputs, liftedTail,
           Saved.splitPrefix?_snoc split candidate.op candidate.inputs liftedTail,
           by simp [Saved.Prefix.eval, evaluates, Env.append]⟩
+
+theorem emitAt?_edgePackets
+    {cfg : Cfg TargetOp (Label saved carried result extra) Input [result]}
+    {candidate : Candidate Input saved carried result extra} {index : Nat}
+    {target : Cfg TargetOp (Label saved carried result (candidate.width :: extra)) Input [result]}
+    (found : findCaptured? index 0 (Saved.origins (extra ++ [saved])) (cfg.block .header) = some candidate)
+    (emitted : emitAt? cfg index candidate.op candidate.inputs = some target)
+    (input : Env Input) (values : Env (extra ++ [saved])) (latch : BitVec carried.val) :
+    let value := evalOp candidate.op (candidate.inputs.eval (values.append input))
+    let source := (values.append (.cons latch .nil)).append input
+    (target.block .header).eval evalOp edgePackets (.cons value source) =
+      ((cfg.block .header).eval evalOp edgePackets source).map
+        (fun packet => (packet.1, Saved.prependFrame value packet.2)) := by
+  let source := (values.append (.cons latch .nil)).append input
+  let value := evalOp candidate.op (candidate.inputs.eval (values.append input))
+  obtain ⟨header, rewrite, _, packets⟩ := rewriteAt?_observations found (values.append input) source
+    (Saved.origins_agree values latch input) Var.there .here (.cons value source) (fun _ => rfl) rfl
+  unfold emitAt? at emitted
+  obtain ⟨⟨leading, tail⟩, _, edited⟩ := Option.bind_eq_some_iff.mp emitted
+  simp only [rewrite] at edited
+  cases exit : cfg.block .exit with
+  | letOp => simp [exit] at edited
+  | terminator term =>
+    cases term with
+    | br => simp [exit] at edited
+    | condBr => simp [exit] at edited
+    | ret =>
+      simp [exit] at edited
+      cases edited
+      exact packets
 
 private theorem emit_exists_and_routes (accepted : prepare? g first consumerOrigin = some prepared)
     (input : Env Input) :

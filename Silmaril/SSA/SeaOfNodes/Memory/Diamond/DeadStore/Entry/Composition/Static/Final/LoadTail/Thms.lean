@@ -12,11 +12,33 @@ open RVSDG (Origin Port Tuple)
 open Retained.Load.Static.Sequence.Search
 open Discovery.MemRef.CF (entryDestination lowerDiamond run)
 open Memory.Forwarding.Disjoint (Certificate cell)
+open Memory.DeadStore (readAt)
 open Memory.DeadStore.Search.Selection.Readers.Repeat (DeletesStores operations storeCount)
 open Silmaril.MLIR.MemRef (Buffer)
 
 variable {args : List ValueSort} {cells : Nat}
 variable {facts : Certificate args} {input : Tuple (Val cells) args}
+
+/-- Both suffix executions preserve their input heap and compute the same
+return word, for any data word written at the checked address. -/
+theorem checkTailAddress_transfer {past : List (List ValueSort)} {live : Nat}
+    (tail : Memory.Body args past live) (address : Port args .address) (word : Word)
+    (valid : facts.Valid input) (safe : checkTailAddress facts address tail = true)
+    (locals : RVSDG.Locals (Val cells) past) (initial : Heap cells) :
+    tail.denote input locals initial = ((tail.denote input locals initial).1, initial) ∧
+      tail.denote input locals (initial.write (cell input address) word) =
+        ((tail.denote input locals initial).1, initial.write (cell input address) word) :=
+  Proofs.checkTailAddress_transfer tail address word valid safe locals initial
+
+/-- Every checked Load occurrence returns the same word, including earlier
+reads whose values are not the suffix's final Return. -/
+theorem checkTailAddress_readbacks {past : List (List ValueSort)} {live : Nat}
+    (tail : Memory.Body args past live) (address : Port args .address) (word : Word)
+    (valid : facts.Valid input) (safe : checkTailAddress facts address tail = true)
+    (locals : RVSDG.Locals (Val cells) past) (initial : Heap cells) (index : Nat) :
+    readAt tail index input locals (initial.write (cell input address) word) =
+      readAt tail index input locals initial :=
+  Proofs.checkTailAddress_readbacks tail address word valid safe locals initial index
 
 /-- A certified read-only suffix passes the existing concrete
 disjointness check at every valuation satisfying the certificate. -/

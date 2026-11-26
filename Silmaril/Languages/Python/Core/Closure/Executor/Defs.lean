@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Python.Core.Closure.Dispatch.Defs
+public import Silmaril.Languages.Python.Core.Text.Slice.Defs
 
 /-! # Stepping fixed positional Python closure bodies -/
 
@@ -37,11 +38,17 @@ inductive Operand (layout : Layout) where
   | literal (value : Value)
   | read (slot : Slot layout)
   | readGlobal (name : String)
+  | intDivMod (op : IntDivModOp) (numerator divisor : Int)
   | intTrueDiv (numerator divisor : Int)
+  | floatDiv (operands : Core.Binary64.FloatOperands)
   | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite)
+  | floatAdd (left right : Silmaril.Numeric.Ieee754.F64.Finite)
+  | floatSub (operands : Core.Binary64.FloatOperands)
+  | floatMul (operands : Core.Binary64.FloatOperands)
   | eqInt (left : NameRead layout) (right : Int)
   | binaryInt (op : IntegerOp) (left right : Operand layout)
   | tuple (items : List (TupleItem layout))
+  | textSlice (receiver : Core.Text) (bounds : Core.SliceBounds)
   | closure (code : CodeRef) (select : Fin code.layout.captures → CaptureSlot layout)
 
 abbrev Operand.addInt {layout : Layout} := @Operand.binaryInt layout .add
@@ -226,10 +233,17 @@ def Operand.evalIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout)
   | .literal value => .ok value
   | .read slot => frame.read heap slot
   | .readGlobal name => (NameRead.global name).evalIn globals heap frame
+  | .intDivMod op numerator divisor => (op.eval numerator divisor).map Value.int |>.mapError .defined
   | .intTrueDiv numerator divisor => (trueDivideInt numerator divisor).map Value.float64 |>.mapError .defined
+  | .floatDiv operands => (trueDivideFloat operands).map Value.float64
   | .mixedAdd integer floating => Closure.mixedAdd integer floating
+  | .floatAdd left right => Closure.floatAdd left right
+  | .floatSub operands => Closure.floatSub operands
+  | .floatMul operands => Closure.floatMul operands
   | .eqInt left right => (left.evalIn globals heap frame).bind (·.equalInt right)
   | .tuple items => evalTupleIn globals heap frame items
+  | .textSlice receiver bounds =>
+    (receiver.slice? bounds).elim (.error (.defined .zeroSliceStep)) (fun result => .ok (.text result))
   | .binaryInt op left right =>
     (left.evalIn globals heap frame).bind fun lhs =>
       (right.evalIn globals heap frame).bind (Value.binaryInt op lhs)
@@ -350,10 +364,21 @@ inductive EvaluatesIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layo
       EvaluatesIn globals heap frame (.readGlobal name) (.ok value)
   | globalMissing {name} : globals name = none →
       EvaluatesIn globals heap frame (.readGlobal name) (.error (.defined (.nameError name)))
+  | intDivMod (op : IntDivModOp) (numerator divisor : Int) :
+      EvaluatesIn globals heap frame (.intDivMod op numerator divisor)
+        ((op.eval numerator divisor).map Value.int |>.mapError .defined)
   | intTrueDiv (numerator divisor : Int) : EvaluatesIn globals heap frame (.intTrueDiv numerator divisor)
       ((trueDivideInt numerator divisor).map Value.float64 |>.mapError .defined)
+  | floatDiv (operands : Core.Binary64.FloatOperands) : EvaluatesIn globals heap frame (.floatDiv operands)
+      ((trueDivideFloat operands).map Value.float64)
   | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite) :
       EvaluatesIn globals heap frame (.mixedAdd integer floating) (Closure.mixedAdd integer floating)
+  | floatAdd (left right : Silmaril.Numeric.Ieee754.F64.Finite) :
+      EvaluatesIn globals heap frame (.floatAdd left right) (Closure.floatAdd left right)
+  | floatSub (operands : Core.Binary64.FloatOperands) :
+      EvaluatesIn globals heap frame (.floatSub operands) (Closure.floatSub operands)
+  | floatMul (operands : Core.Binary64.FloatOperands) :
+      EvaluatesIn globals heap frame (.floatMul operands) (Closure.floatMul operands)
   | eqInt {left : NameRead layout} {right result} :
       EvaluatesIn globals heap frame left.operand result →
       EvaluatesIn globals heap frame (.eqInt left right) (result.bind (·.equalInt right))
@@ -370,6 +395,9 @@ inductive EvaluatesIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layo
       EvaluatesIn globals heap frame (.binaryInt op left right) (Value.binaryInt op lhs rhs)
   | tuple (items : List (TupleItem layout)) :
       EvaluatesIn globals heap frame (.tuple items) (evalTupleIn globals heap frame items)
+  | textSlice (receiver : Core.Text) (bounds : Core.SliceBounds) :
+      EvaluatesIn globals heap frame (.textSlice receiver bounds)
+        ((receiver.slice? bounds).elim (.error (.defined .zeroSliceStep)) (fun result => .ok (.text result)))
   | closure (code : CodeRef) (select : Fin code.layout.captures → CaptureSlot layout) :
       EvaluatesIn globals heap frame (.closure code select) (.ok (.function (frame.closure code select)))
 

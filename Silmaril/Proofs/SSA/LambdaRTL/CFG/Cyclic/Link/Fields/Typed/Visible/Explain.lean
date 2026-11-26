@@ -16,20 +16,29 @@ variable {F : Type} [DecidableEq F] {signature : PrimitiveSignature F} {a b : Na
   {inputs : Fin a → PacketType} {outputs : Fin b → PacketType}
   (left right : Program signature inputs outputs)
 
-theorem explain_refinement (input : Fin a) (packet : Denote (inputs input)) :
-    (left.explainRefinementAt? right input packet = none ↔ left.refinementAt? right input packet = true) ∧
-    ∀ trace, left.explainRefinementAt? right input packet = some trace →
-      HasTrace (left.observe input packet) trace ∧ ¬ HasTrace (right.observe input packet) trace := by
+theorem explain_refinement_between {c : Nat} {rightInputs : Fin c → PacketType}
+    (other : Program signature rightInputs outputs)
+    (leftInput : Fin a) (leftPacket : Denote (inputs leftInput))
+    (rightInput : Fin c) (rightPacket : Denote (rightInputs rightInput)) :
+    (left.explainRefinementBetween? other leftInput leftPacket rightInput rightPacket = none ↔
+      left.refinementBetween? other leftInput leftPacket rightInput rightPacket = true) ∧
+    ∀ trace, left.explainRefinementBetween? other leftInput leftPacket rightInput rightPacket = some trace →
+      HasTrace (left.observe leftInput leftPacket) trace ∧ ¬ HasTrace (other.observe rightInput rightPacket) trace := by
   have checked := Finite.explain_spec
     (fun (key : signature.Request) => (signature.reply key.1).enumerate) (fun key => mem_enumerate (signature.reply key.1))
-    left.states right.states left.mem_states right.mem_states left.step right.step
-    (left.start input packet) (right.start input packet)
-  refine ⟨by simpa only [Program.explainRefinementAt?, Option.map_eq_none_iff,
-    Program.refinementAt?, Program.refinementBetween?] using
+    left.states other.states left.mem_states other.mem_states left.step other.step
+    (left.start leftInput leftPacket) (other.start rightInput rightPacket)
+  refine ⟨by simpa only [Program.explainRefinementBetween?, Option.map_eq_none_iff, Program.refinementBetween?] using
     checked.1, ?_⟩
   intro trace found
   obtain ⟨pre, stored, rfl⟩ := Option.map_eq_some_iff.mp found
   simpa only [observe_eq, hasTrace_bind_pure_map_iff render_injective] using checked.2 pre stored
+
+theorem explain_refinement (input : Fin a) (packet : Denote (inputs input)) :
+    (left.explainRefinementAt? right input packet = none ↔ left.refinementAt? right input packet = true) ∧
+    ∀ trace, left.explainRefinementAt? right input packet = some trace →
+      HasTrace (left.observe input packet) trace ∧ ¬ HasTrace (right.observe input packet) trace :=
+  explain_refinement_between left right input packet input packet
 
 theorem explain_mismatch :
     (left.explainMismatch? right = none ↔ left.weakEq? right = true) ∧

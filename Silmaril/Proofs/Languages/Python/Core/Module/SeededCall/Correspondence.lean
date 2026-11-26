@@ -66,6 +66,15 @@ private theorem unique {arity : Nat} {request : Request arity} {first second : R
     | equalTuple _ _ same => contradiction
     | unequalTuple => rfl
   | asserted | assertionFailed | textConversion | truthConversion | intFromBool | callable | isinstance | distinctIntBool | copyTuple | copyTupleObject => cases right; rfl
+  | tupleAsserted | tupleAssertionFailed => cases right; rfl
+  | listAsserted _ nonempty =>
+    cases right with
+    | listAsserted => rfl
+    | listAssertionFailed _ empty => contradiction
+  | listAssertionFailed _ empty =>
+    cases right with
+    | listAsserted _ nonempty => contradiction
+    | listAssertionFailed => rfl
   | sameBool left right same =>
     cases right with
     | sameBool => rfl
@@ -95,6 +104,20 @@ private theorem computed (callee : Value) (arguments : List Value) :
       cases value
       · exact .assertionFailed
       · exact .asserted
+    | assertTuple nonempty =>
+      rw [invoke, decoded]
+      cases nonempty
+      · exact .tupleAssertionFailed
+      · exact .tupleAsserted
+    | assertList object =>
+      rw [invoke, decoded]
+      change Executes (.assertList object)
+        (if object.contents.isEmpty then .error (.raised (.assertionError (.listObject object))) else .ok .none)
+      by_cases empty : object.contents.isEmpty = true
+      · rw [ite_eq_left empty]
+        exact .listAssertionFailed object empty
+      · rw [ite_eq_right empty]
+        exact .listAsserted object empty
     | compare left right =>
       rw [invoke, decoded]
       by_cases same : left = right

@@ -50,7 +50,7 @@ private theorem lookup_succ {Γ : VCtx τ} {A B : τ} {i : Nat} (h : At Γ i A) 
     lookup M (Γ := B :: Γ) (i + 1) h = fst (ctxObj M Γ) (M.obj B) ≫ lookup M i h := rfl
 
 omit [DistributiveFreydCategory J] [SymmetricCategory V] [DistributiveTensor V] in
-private theorem renameLookup_lift {Γ Δ : VCtx τ} {ρ : Nat → Nat} (hρ : Ren Γ Δ ρ)
+theorem renameLookup_lift {Γ Δ : VCtx τ} {ρ : Nat → Nat} (hρ : Ren Γ Δ ρ)
     {k : ctxObj M Δ ⟶ ctxObj M Γ}
     (hk : ∀ ⦃i A⦄ (h : At Γ i A), k ≫ lookup M i h = lookup M (ρ i) (hρ h)) (B : τ) :
     ∀ ⦃i A⦄ (h : At (B :: Γ) i A),

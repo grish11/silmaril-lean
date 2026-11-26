@@ -3,7 +3,7 @@ module
 public import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.Defs
 import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.Control
 import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Thms
-import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Continuation.Conditional.Thms
+import Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Continuation.Thms
 import Silmaril.Wasm.Lime1.Execution.Callout.Properties
 
 @[expose] public section
@@ -36,7 +36,7 @@ private theorem producer_values {vs : List Value} (typed : p.producer.TypedResul
   exact ⟨res, param, condition, rfl⟩
 
 private theorem beforeContinuation {a b : Phase H} (move : Control arg p.saved p.continuation a b) :
-    ∀ q, a ≠ .continuation q := by
+    ∀ q labels, a ≠ .continuation q labels := by
   cases move <;> simp
 
 private theorem preserves (checked : p.Checked mem outer index) (contract : p.Contract mem host) {a b : State H}
@@ -46,14 +46,13 @@ private theorem preserves (checked : p.Checked mem outer index) (contract : p.Co
   | control control =>
     refine ⟨?_, live⟩
     cases control with
-    | loopResult res =>
-      exact Continuation.Conditional.Plan.start_ready (active := p.active arg) (saved := [i64 p.saved])
-        (guard := res) checked.continuation contract.2
+    | loopResult => exact ⟨.nil, checked.continuation, contract.2⟩
+    | exitLoop => exact ⟨.nil, trivial⟩
     | test => split <;> trivial
     | _ => trivial
   | producerReturns nextLive _ | producerTraps nextLive _ => exact ⟨trivial, nextLive⟩
   | producerDiverges _ => exact ⟨ready, live⟩
-  | continuation edge => exact Continuation.Conditional.preserves edge ready live
+  | continuation edge => exact Continuation.preserves edge ready live
 
 private theorem sound (checked : p.Checked mem outer index) {a b : State H}
     (ready : p.Ready mem host arg a.phase) (live : mem.Live a.bytes) (move : Edge p mem host arg a b) :
@@ -64,9 +63,9 @@ private theorem sound (checked : p.Checked mem outer index) {a b : State H}
   | producerReturns _ answer => exact Step.callout_returned (pending_producer checked) answer
   | producerTraps _ answer => exact Step.callout_returned (pending_producer checked) answer
   | producerDiverges answer => exact Step.callout_diverged (pending_producer checked) answer
-  | @continuation bytes next a b edge =>
-    exact (Continuation.Conditional.step_iff (mem := mem) (host := host) (outer := outer) (active := p.active arg)
-      (results := signature.results) (a := ⟨bytes, a⟩) (dst := p.render mem outer index arg ⟨next, .continuation b⟩)
+  | @continuation bytes next a b labels rest edge =>
+    exact (Continuation.step_iff (mem := mem) (host := host) (outer := outer) (active := p.active arg)
+      (results := p.functionResults) (a := ⟨bytes, a, labels⟩) (dst := p.render mem outer index arg ⟨next, .continuation b rest⟩)
       ready live).mpr ⟨_, edge, rfl⟩
 
 private theorem producer_step (checked : p.Checked mem outer index) (contract : p.Contract mem host)
@@ -84,7 +83,7 @@ private theorem producer_step (checked : p.Checked mem outer index) (contract : 
     | trap => exact ⟨⟨next, .loopTrap Program.afterProducer⟩, .producerTraps live answer, rfl⟩
   · exact ⟨_, .producerDiverges diverged, rfl⟩
 
-private theorem internal_read (checked : p.Checked mem outer index) {a : Phase H} (before : ∀ q, a ≠ .continuation q)
+private theorem internal_read (checked : p.Checked mem outer index) {a : Phase H} (before : ∀ q labels, a ≠ .continuation q labels)
     (absent : decompose? (p.render mem outer index arg ⟨bytes, a⟩) = none)
     (move : Step host (p.render mem outer index arg ⟨bytes, a⟩) dst) :
     ∃ next, Edge p mem host arg ⟨bytes, a⟩ next ∧ dst = p.render mem outer index arg next := by
@@ -106,15 +105,15 @@ theorem step_iff (checked : p.Checked mem outer index) (contract : p.Contract me
     exact sound checked ready live edge
   intro move
   rcases a with ⟨bytes, phase⟩
-  have allocation : (mem.store bytes).funcs[p.rootAddress.value]? = some (.wasm signature p.module p.function) :=
+  have allocation : (mem.store bytes).funcs[p.rootAddress.value]? = some (.wasm p.functionType p.module p.function) :=
     checked.root
   cases phase
   case producerInvoke input => exact producer_step checked contract live input move
-  case continuation phase =>
-    have theoremAtTail := Continuation.Conditional.step_iff (mem := mem) (host := host) (outer := outer) (active := p.active arg)
-      (results := signature.results) (a := ⟨bytes, phase⟩) (dst := dst) ready live
+  case continuation phase labels =>
+    have theoremAtTail := Continuation.step_iff (mem := mem) (host := host) (outer := outer) (active := p.active arg)
+      (results := p.functionResults) (a := ⟨bytes, phase, labels⟩) (dst := dst) ready live
     obtain ⟨next, edge, eq⟩ := theoremAtTail.mp move
-    exact ⟨⟨next.bytes, .continuation next.phase⟩, .continuation edge, eq⟩
+    exact ⟨⟨next.bytes, .continuation next.phase next.labels⟩, .continuation edge, eq⟩
   all_goals
     refine internal_read checked (by simp) ?_ move
     simp [decompose?, Program.render, Program.code, Program.functionCode, Program.loopCode,

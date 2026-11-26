@@ -142,6 +142,14 @@ closure record. Publication freezes the record without changing its contents. -/
     ∃ address defining, published.exports.lookup name = some (.function address) ∧
       ∃ record : ClosureAt callee.site callee.id defining state address, record.frozen = true
 
+@[expose] def resultState {α : Type} : Modules.Result α → State
+  | .ok _ state | .error _ state => state
+
+/-- Publication may freeze a caller cell. Its address and contents survive. -/
+@[expose] def KeepsContents (before after : State) : Prop :=
+  ∀ (address : Nat) (cell : Lists.Cell), before.heap[address]? = some cell →
+    ∃ frozen, after.heap[address]? = some { cell with frozen }
+
 @[expose] def afterWrite (name : String) : Outcome Lists.Value → Modules.Result Unit
   | .error error state => .error (.runtime error) state
   | .ok value state => .ok () (state.write (globalSlot name) value)

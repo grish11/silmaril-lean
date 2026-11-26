@@ -180,4 +180,27 @@ structure Accepted.ChildObservation (values : g.Valuation m) (base : Index l)
   commit : ∀ t (p : Port (inner ++ outer) t),
     Rules.readRef values (a.descriptor.commitScope.get p) base = some (store.get p)
 
+/-- The outer first pass and one finite child first pass per continuing
+outer iteration. Child coordinates are reset by pass semantics. -/
+structure Accepted.FirstExits (values : g.Valuation m) (base : Index l) (count : Nat) : Prop where
+  outer : Rules.readRef values a.descriptor.outerPass base = some ⟨count⟩
+  child : ∀ j < count, ∃ k, Rules.readRef values a.descriptor.childPass
+    (base.set a.descriptor.outerKey j) = some ⟨k⟩
+
+/-- Defined executions of the complete slices where their typed stores
+realize the corresponding PEG scope. The update is required on a
+continuing child store, and the commit on the whole child exit bundle. -/
+structure Accepted.DefinedSlices (values : g.Valuation m) : Prop where
+  outerGuard : ∀ idx store, Schedule.Realizes m values idx a.descriptor.outerTheta store →
+    ∃ next, a.outerGuard.lower.runLoopFree m store = some next
+  childStart : ∀ idx old, a.Captures m values idx old →
+    ∃ next, a.childStart.lower.runLoopFree m old = some next
+  childGuard : ∀ idx store, Schedule.Realizes m values idx a.descriptor.childScope store →
+    ∃ next, a.childGuard.lower.runLoopFree m store = some next
+  childStep : ∀ idx store, Schedule.Realizes m values idx a.descriptor.childScope store →
+    Rules.readRef values a.descriptor.childFlag idx = some ⟨false⟩ →
+    ∃ next, a.childStep.lower.runLoopFree m store = some next
+  commit : ∀ idx trips store, a.ChildObservation m values idx trips store →
+    ∃ next, a.commit.lower.runLoopFree m store = some next
+
 end Silmaril.SSA.PEG.Simple.Revert.While.Nested.Region

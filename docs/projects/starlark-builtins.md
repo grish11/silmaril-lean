@@ -120,17 +120,61 @@ truth test applies in `bool`, `any`, `all` and existing conditionals.
 remainder modulo `2^63` and give exact truth results.
 [Pinned floats][spec-floats] · [Pinned abs][abs] · [Go abs][go-abs] · [Operator theorems](../../Silmaril/Languages/Starlark/Binary64/Thms.lean)
 
-The full spec and Go equate the two zeros, equate all NaNs and order them
-above infinity, and compare floats to arbitrary integers exactly. Go
-accepts float keys, including inside tuples, and gives equal numeric keys
-equal hashes. The resolved slice gives `binaryType` for any comparison
-involving a float, including `==` and `!=`. A float used as a dictionary
-key gives `unhashableKey` on insertion or lookup. Tuple allocation
-propagates the absence of a key through nested tuples. Cached tuple codes
-and dictionary entries use key parts whose scalar cases are `None`, Boolean
-and integer. General collection comparisons and membership are outside the
-resolved profile.
-[Pinned comparisons][spec-floats] · [Pinned keys][spec-dicts] · [Go float comparison and hashing][go-float-values] · [Go mixed comparisons][go-compare]
+## Scalar numeric comparison
+
+The scalar evaluator uses language comparison for `==`, `!=`, `<`, `<=`,
+`>` and `>=`. The two signed zeros compare equal. Every NaN compares equal
+to every other NaN and greater than positive infinity. Negative infinity
+is below every finite value. Booleans order as `False < True` and compare
+unequal to numbers. Ordered Boolean–number comparisons give `binaryType`.
+Structural Lean equality still distinguishes encodings for observations of
+state and returned values.
+[Pinned floating-point numbers][spec-floats] · [Pinned comparisons][spec-comparisons] · [Pinned Booleans][spec-booleans] · [Go scalar comparisons][go-compare]
+
+Finite operands are compared in integer units of `2⁻¹⁰⁷⁴`, the least positive
+binary64 value. A subnormal contributes its signed fraction. A normal with
+encoded exponent `e` contributes its signed significand times `2^(e-1)`.
+An integer contributes its exact value times `2^1074`. This gives exact
+mixed comparison even above `2^53`. The operational field rules reconstruct
+the original sign, exponent and fraction. Separate comparison rules derive
+an order and interpret the operator. `decodes_iff_decode` and
+`orders_iff_compareNumbers` give agreement on the intermediate observations.
+`compares_iff_applyBinary` and `eval_iff_denoteExpr` give agreement on the
+result or error, including left-to-right operand evaluation.
+[Binary64 theorems](../../Silmaril/Languages/Starlark/Binary64/Thms.lean) · [Scalar theorems](../../Silmaril/Languages/Starlark/Thms.lean) · [Pinned Go controls](../../scripts/starlark/binary64/check.go)
+
+## Numeric dictionary keys
+
+An integer or binary64 key encodes the exact comparison observation. Finite
+codes use signed `2⁻¹⁰⁷⁴` units, each infinity has its own tag, and NaN codes
+share one tag. Booleans have a separate code from every number.
+`scalar_key_eq_iff_eq` proves equality of scalar key encodings exactly when
+language `==` returns `True`. `scalar_key_match_iff_eq` gives the same result
+for the Boolean test that dictionary lookup and replacement use.
+[Pinned dictionaries][spec-dicts] · [Pinned hashing][spec-hashing] · [Key theorems](../../Silmaril/Languages/Starlark/Lists/Thms.lean)
+
+Updating through an equivalent key keeps the original displayed key and
+its iteration position. The fixtures check the original signed-zero and
+NaN bits, and lookup through both an integral float and its equal integer.
+Tuple allocation composes the field codes in its cached encoding. Nested
+tuples therefore match when their corresponding numeric fields compare
+equal, and an unhashable list field still makes its enclosing tuple
+unhashable. [Resolved list and tuple comparison](starlark-lists.md#list-and-tuple-equality-and-membership)
+traverses actual fields under a separate depth policy. [Dictionary equality](starlark-lists.md#dictionary-equality)
+uses the key cache for correspondence and the bounded comparator for values.
+[Pinned Go replacement][go-key-insert] · [Lean fixtures](../../Silmaril/Languages/Starlark/Binary64/Checks.lean) · [Go controls](../../scripts/starlark/binary64/check.go)
+
+Go uses hash buckets followed by numeric equality, so `1` and `1.5` can
+share a hash and still occupy separate entries. The Lean store tests
+canonical codes in its entry list and gives no language `hash` operation.
+Both reject an equivalent second key in a dictionary display, as the
+spec requires. Go writes the second value into its private dictionary
+before raising the duplicate error. The Lean evaluator retains the first
+value in the accepted prefix of the reached heap. With Go's default
+comparison depth limit of 10, a lookup through ten nested singleton tuples
+can fail before comparing their numeric leaves. Lean compares the flattened
+cache without a recursive comparison depth limit.
+[Pinned display rules][spec-dict-display] · [Pinned Go display][go-key-display] · [Go float hashing][go-float-values] · [Go comparison limit][go-key-depth]
 
 The `float()` conversion, source literals and float arithmetic require
 separate rules. The Go controls distinguish finite-input conversion overflow,
@@ -212,9 +256,16 @@ git -C "$oracle" checkout --detach 4f4267fb140d1e8b91c9bce55cee2f809e8840dd
 [go-range]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/library.go#L827-L879
 [go-library]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/library.go
 [spec-floats]: https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#floating-point-numbers
+[spec-comparisons]: https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#comparisons
+[spec-booleans]: https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#booleans
 [spec-dicts]: https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#dictionaries
+[spec-hashing]: https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#hashing
+[spec-dict-display]: https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#dictionary-expressions
 [spec-float-conversion]: https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#float
 [go-abs]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/library.go#L178-L195
 [go-float-values]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/value.go#L473-L521
 [go-compare]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/value.go#L1547-L1609
 [go-float]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/library.go#L391-L446
+[go-key-insert]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/hashtable.go#L78-L143
+[go-key-display]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/interp.go#L473-L486
+[go-key-depth]: https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/value.go#L1511-L1550

@@ -2,9 +2,16 @@ module
 
 import Silmaril.SSA.Peggy.SimpleValidation.Thms
 import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Source.Thms
+import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Thms
+import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Bundle.Thms
+import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Bundle.Worklist.Thms
+import Silmaril.SSA.Peggy.EPEG.Saturation.Extension.Thms
 import Silmaril.SSA.PEG.Thms
 meta import Silmaril.SSA.Peggy.SimpleValidation.Defs
 meta import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Source.Defs
+meta import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Defs
+meta import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Bundle.Defs
+meta import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Bundle.Worklist.Defs
 meta import Silmaril.SSA.PEG.Defs
 
 namespace Silmaril.SSA.Peggy.SimpleValidation.Tests
@@ -159,8 +166,10 @@ open PEG.Simple
 open RVSDG (Tuple)
 
 private inductive Op : InstructionSet Unit where
+  | zero : Op [] .count
   | one : Op [] .count
   | sub : Op [.count, .count] .count
+  | subTwice : Op [.count, .count, .count] .count
   | aboveTwo : Op [.count] .bool
   | not : Op [.bool] .bool
   deriving DecidableEq
@@ -168,8 +177,10 @@ private inductive Op : InstructionSet Unit where
 private def model : Interpretation Op where
   carrier _ := Unit
   run
+    | .zero, .nil => some ⟨0⟩
     | .one, .nil => some ⟨1⟩
     | .sub, .cons n (.cons k .nil) => some ⟨n.down - k.down⟩
+    | .subTwice, .cons n (.cons a (.cons b .nil)) => some ⟨n.down - a.down - b.down⟩
     | .aboveTwo, .cons n .nil => some ⟨decide (n.down > 2)⟩
     | .not, .cons b .nil => some ⟨!b.down⟩
 
@@ -307,6 +318,263 @@ example (a : Accepted (graph .constant)) (total : a.reversion.Total model)
     (neg : ∀ b : Bool, model.run a.reversion.descriptor.negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
     (i : Index 1) : a.output.Returns model (store 5) ⟨2⟩ :=
   (a.returns_iff_observe model (store 5) total neg i ⟨2⟩).mpr (inputObserve i)
+
+-- Extend the landed decrement fixture so the update reads one twice:
+-- once through the removable self-feedback θ, and once directly.
+private def sharedSource : Graph Op params [.count] 9 1 :=
+  { graph .constant with
+    node := fun i =>
+      if site : i = 3 then
+        site.symm ▸ (Node.ofLabel (.op .subTwice)
+          (.cons ⟨6, rfl⟩ (.cons ⟨8, rfl⟩ (.cons ⟨4, rfl⟩ .nil))) :
+            Node Op params (Fin 1) sorts (sorts 3))
+      else (graph .constant).node i }
+
+private def sharedMatch : Optimizer.Cyclic.Match sharedSource (8 : Fin 9) :=
+  (Optimizer.Cyclic.matchAt sharedSource 8).get (by decide)
+
+private def shared : Cost.Candidate sharedSource :=
+  let rank := PEG.Simple.Revert.While.Region.Automatic.inferDemandRank sharedMatch.extract
+  ⟨8, sharedMatch.extract, sharedMatch.selectionWithRank rank, sharedMatch.rowsWithRank rank⟩
+
+private inductive Layout where
+  | original
+  | duplicate
+  | shortcut
+  deriving DecidableEq
+
+private def representative : Layout → Fin 9 → Fin 9
+  | .original, i => i
+  | .duplicate, i => if i = 8 then 4 else i
+  | .shortcut, i => if i = 8 ∨ i = 4 then 7 else i
+
+private theorem sameSort (layout : Layout) (i : Fin 9) :
+    sharedSource.sort (representative layout i) = sharedSource.sort i := by
+  cases layout with
+  | original => rfl
+  | duplicate =>
+    simp only [representative]
+    split
+    · rename_i same
+      subst i
+      rfl
+    · rfl
+  | shortcut =>
+    simp only [representative]
+    split
+    · rename_i replaced
+      rcases replaced with same | same <;> subst i <;> rfl
+    · rfl
+
+private def wireRef (layout : Layout) {t : Ty Unit} (r : Ref sharedSource.sort t) :
+    Ref (sharedSource.sort ∘ representative layout) t :=
+  if redirected : layout = .shortcut ∧ (r.id = 8 ∨ r.id = 4) then
+    ⟨6, by
+      obtain ⟨rfl, moved⟩ := redirected
+      have typed := r.typed
+      rcases moved with hit | hit <;> rw [hit] at typed <;> exact typed⟩
+  else ⟨r.id, (sameSort layout r.id).trans r.typed⟩
+
+private def wired (layout : Layout) : Cost.Candidate sharedSource :=
+  Cost.Candidate.wire sharedSource (representative layout)
+    (fun i => (sharedSource.node (representative layout i)).args.map fun _ => wireRef layout)
+    (sharedSource.roots.map fun _ => wireRef layout)
+
+private def duplicated := wired .duplicate
+private def shortcut := wired .shortcut
+private def original := wired .original
+
+-- Both constant operands are replaced by the live counter in the shortcut.
+-- It emits and returns 0, but its operand classes fail extraction replay.
+#guard [shortcut.primitiveRows, shared.primitiveRows, duplicated.primitiveRows] == [3, 4, 5]
+#guard shortcut.selection.check sharedMatch.classes
+#guard !EPEG.Selection.checkRows shortcut.rows sharedMatch.classes
+#guard (shortcut.checkLegal sharedMatch.classes).isNone
+#guard ((PEG.Simple.Revert.While.Region.Automatic.extract shortcut.graph).bind fun cert =>
+  (cert.runFuel model 3 (store 7)).map ULift.down) == some 0
+
+-- Keeping the extra θ passes extraction legality but cannot be emitted
+-- by the single-loop reverter. The pool must skip it too.
+#guard (original.checkLegal sharedMatch.classes).isSome
+#guard (original.check sharedMatch.classes).isNone
+
+private def runPool (pool : List (Cost.Candidate sharedSource))
+    (cost : Cost.Candidate sharedSource → Nat := Cost.Candidate.primitiveRows) :
+    Option (Nat × Nat × Nat) := do
+  let a ← Cost.select sharedMatch.classes cost pool
+  let order ← PEG.Simple.Revert.While.Region.sliceOrder a.candidate.graph
+    a.reversion.descriptor a.reversion.descriptor.next
+  let value ← a.reversion.runFuel model 3 (store 7)
+  return (a.candidate.primitiveRows, order.length, value.down)
+
+-- Both legal layouts emit and return 1. The shared one binds the
+-- constant once per update, and the duplicate layout binds it twice.
+#guard runPool [duplicated] == some (5, 3, 1)
+#guard runPool [shortcut, original, duplicated, shared] == some (4, 2, 1)
+#guard runPool [shared, duplicated, shortcut] == some (4, 2, 1)
+#guard (Cost.select (source := sharedSource) sharedMatch.classes Cost.Candidate.primitiveRows []).isNone
+#guard (Cost.select sharedMatch.classes Cost.Candidate.primitiveRows [shortcut, original]).isNone
+#guard runPool [duplicated, shared] (fun _ => 0) == some (5, 3, 1)
+#guard runPool [shared, duplicated] (fun _ => 0) == some (4, 2, 1)
+
+private theorem sharedSourceWF : WellFounded sharedSource.Demand :=
+  sharedSource.demandWellFounded_of_check inputRank (by decide)
+
+example (a : Cost.Accepted sharedSource sharedMatch.classes) (total : a.reversion.Total model)
+    (neg : ∀ b : Bool, model.run a.reversion.descriptor.negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    (i : Index 1) :
+    a.output.Returns model (store 7) ⟨1⟩ ↔
+      sharedSource.observe model (sharedSource.denote model (store 7) sharedSourceWF) i =
+        .cons (some ⟨1⟩) .nil :=
+  a.returns_iff_observe sharedSourceWF (sharedMatch.classes_valid sharedSourceWF) total neg i ⟨1⟩
+
+private abbrev bundleParams : List (Ty Unit) := [.count, .count]
+private abbrev bundleResults : List (Ty Unit) := [.count, .count, .count]
+
+private def bundleSort (i : Fin 12) : Ty Unit :=
+  if i = 6 ∨ i = 7 then .bool else .count
+
+private def evalArgs (theta pass : Ref bundleSort .count) :
+    Tuple (Ref bundleSort) [.count, .count] :=
+  .cons theta (.cons pass .nil)
+
+private def roots (first second third : Ref bundleSort .count) : Tuple (Ref bundleSort) bundleResults :=
+  .cons first (.cons second (.cons third .nil))
+
+private def bundleGraph : Graph Op bundleParams bundleResults 12 1 where
+  forest := ⟨fun _ => none⟩
+  sort := bundleSort
+  node i := match i with
+    | 0 => .ofLabel (.param .head) .nil
+    | 1 => .ofLabel (.param (.tail .head)) .nil
+    | 2 => .ofLabel (.theta 0) (evalArgs ⟨0, rfl⟩ ⟨5, rfl⟩)
+    | 3 => .ofLabel (.theta 0) (evalArgs ⟨1, rfl⟩ ⟨3, rfl⟩)
+    | 4 => .ofLabel (.op .one) .nil
+    | 5 => .ofLabel (.op .sub) (evalArgs ⟨2, rfl⟩ ⟨4, rfl⟩)
+    | 6 => .ofLabel (.op .aboveTwo) (.cons ⟨2, rfl⟩ .nil)
+    | 7 => .ofLabel (.op .not) (.cons ⟨6, rfl⟩ .nil)
+    | 8 => .ofLabel (.pass 0) (.cons ⟨7, rfl⟩ .nil)
+    | 9 => .ofLabel (.eval 0) (evalArgs ⟨2, rfl⟩ ⟨8, rfl⟩)
+    | 10 => .ofLabel (.eval 0) (evalArgs ⟨3, rfl⟩ ⟨8, rfl⟩)
+    | 11 => .ofLabel (.pass 0) (.cons ⟨7, rfl⟩ .nil)
+    | ⟨k + 12, bound⟩ => False.elim (by omega)
+  roots := roots ⟨9, rfl⟩ ⟨10, rfl⟩ ⟨9, rfl⟩
+
+private def bundleWiring (first second : Ref bundleSort .count) (i : Fin 12) :
+    Tuple (Ref bundleSort) (bundleGraph.node i).inputs :=
+  if atFirst : i = 9 then atFirst.symm ▸ evalArgs ⟨2, rfl⟩ first
+  else if atSecond : i = 10 then atSecond.symm ▸ evalArgs ⟨3, rfl⟩ second
+  else (bundleGraph.node i).args
+
+private def bundleCandidate (first second : Ref bundleSort .count)
+    (outputs : Tuple (Ref bundleSort) bundleResults) : Cost.Candidate bundleGraph :=
+  Cost.Candidate.wire bundleGraph id (bundleWiring first second) outputs
+
+private def passRows : EPEG.MatchingNodes bundleGraph 8 11 :=
+  ⟨[.bool], .count, .pass 0, .cons ⟨7, rfl⟩ .nil, .cons ⟨7, rfl⟩ .nil, rfl, rfl, HEq.rfl, HEq.rfl⟩
+
+private def bundleClasses : EPEG.Classes 12 := EPEG.Classes.discrete.merge 8 11
+private def sharedPass := bundleCandidate ⟨8, rfl⟩ ⟨8, rfl⟩ bundleGraph.roots
+private def otherPass := bundleCandidate ⟨11, rfl⟩ ⟨11, rfl⟩ bundleGraph.roots
+private def splitPass := bundleCandidate ⟨8, rfl⟩ ⟨11, rfl⟩ bundleGraph.roots
+private def swapped := bundleCandidate ⟨8, rfl⟩ ⟨8, rfl⟩ (roots ⟨10, rfl⟩ ⟨9, rfl⟩ ⟨9, rfl⟩)
+
+-- The swap is well typed and independently revertible, but has the wrong
+-- provenance at two ports. Split passes are in the same source class
+-- and replay successfully, but are distinct addresses in the emitter.
+#guard (PEG.Simple.Revert.While.Region.Bundle.extract swapped.graph).isSome
+#guard !swapped.selection.check bundleClasses
+#guard (swapped.checkLegal bundleClasses).isNone
+#guard (splitPass.checkLegal bundleClasses).isSome
+#guard (Cost.Bundle.check bundleClasses splitPass).isNone
+
+private def bundleInput : Tuple model.Value bundleParams := .cons ⟨5⟩ (.cons ⟨17⟩ .nil)
+private def returnedCounts (out : Tuple model.Value bundleResults) : List Nat :=
+  [(out.get .head).down, (out.get (.tail .head)).down, (out.get (.tail (.tail .head))).down]
+
+private def runBundle (pool : List (Cost.Candidate bundleGraph)) (fuel : Nat) :
+    Option (Nat × List Nat) := do
+  let a ← Cost.Bundle.select bundleClasses Cost.Candidate.primitiveRows pool
+  let out ← a.reversion.runFuel model fuel bundleInput
+  return (a.reversion.scalar.descriptor.pass.id.val, returnedCounts out)
+
+#guard runBundle [swapped, splitPass, sharedPass, otherPass] 3 == some (8, [2, 17, 2])
+#guard runBundle [otherPass, sharedPass] 3 == some (11, [2, 17, 2])
+#guard runBundle [sharedPass] 2 == none
+
+private theorem bundleWF : WellFounded bundleGraph.Demand :=
+  bundleGraph.demandWellFounded_of_check
+    (PEG.Simple.Revert.While.Region.Automatic.inferDemandRank bundleGraph) (by decide)
+
+example (a : Cost.Bundle.Accepted bundleGraph bundleClasses) (idx : Index 1)
+    (neg : ∀ b : Bool, model.run a.reversion.scalar.descriptor.negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    (ran : Exec model a.output bundleInput (some (.cons ⟨2⟩ (.cons ⟨17⟩ (.cons ⟨2⟩ .nil))))) :
+    bundleGraph.observe model (bundleGraph.denote model bundleInput bundleWF) idx =
+      .cons (some ⟨2⟩) (.cons (some ⟨17⟩) (.cons (some ⟨2⟩) .nil)) :=
+  let valid := passRows.merge_sound (bundleGraph.denote_solves model bundleInput bundleWF)
+    EPEG.Classes.discrete_valid (by decide)
+  Exists.elim (a.firstExit_of_exec bundleWF valid neg idx ran) (fun _ seen => seen.2.2)
+
+private def zeroRow : EPEG.Saturation.Extension.Row bundleGraph :=
+  ⟨[], .count, .op .zero, .nil⟩
+
+private def sampleRow {n : Nat} {g : Graph Op bundleParams bundleResults n 1}
+    (stream index : Ref g.sort .count) : EPEG.Saturation.Extension.Row g :=
+  ⟨[.count, .count], .count, .eval 0, .cons stream (.cons index .nil)⟩
+
+private def firstSite := sampleRow (g := zeroRow.append) (zeroRow.liftRef ⟨2, rfl⟩) zeroRow.fresh
+
+private def secondSite := sampleRow (g := firstSite.append)
+  (firstSite.liftRef (zeroRow.liftRef ⟨3, rfl⟩)) (firstSite.liftRef zeroRow.fresh)
+
+-- A dead eval uses the first zero sample as its index. The emitter still
+-- reads the three original shared-pass roots.
+private def sampleConsumer := sampleRow (g := secondSite.append)
+  (secondSite.liftRef (firstSite.liftRef (zeroRow.liftRef ⟨3, rfl⟩)))
+  (secondSite.liftRef firstSite.fresh)
+
+open EPEG.Saturation EPEG.Saturation.Extension in
+private def receiptSource : Extension.Output Op bundleParams bundleResults 1 :=
+  ⟨16, ⟨sampleConsumer.append, EPEG.Classes.discrete⟩⟩
+
+private def evalArgsWithIndex {n : Nat} {sort : Fin n → Ty Unit} {t : Ty Unit}
+    (rhs : Ref sort .count) :
+    (row : Node Op bundleParams (Fin 1) sort t) → Tuple (Ref sort) row.inputs
+  | ⟨_, .eval _, .cons stream (.cons _ .nil)⟩ => .cons stream (.cons rhs .nil)
+  | row => row.args
+
+open EPEG.Saturation.Extension in
+private def runAfterReplay (fuel : Nat) :
+    Option (Dedup.Worklist.Stop × List Nat × Nat × Bool × List Nat) := do
+  let report := (Dedup.Worklist.run Op.zero fuel receiptSource).report
+  let receipt ← Cost.Bundle.Worklist.check Op.zero fuel receiptSource report
+  let graph := receipt.endpoint.2.graph
+  let rhs ← Ref.check graph.sort .count 16
+  let candidate := Cost.Candidate.wire graph id
+    (fun i => if i.val = 15 then evalArgsWithIndex rhs (graph.node i) else (graph.node i).args)
+    graph.roots
+  let chosen ← receipt.select Cost.Candidate.primitiveRows [candidate]
+  let out ← chosen.reversion.runFuel model 3 bundleInput
+  -- The same table with singleton classes cannot justify the redirected index.
+  let needsMerge := (Cost.Bundle.check EPEG.Classes.discrete candidate).isNone
+  return (receipt.report.stop, receipt.report.sites, receipt.endpoint.1, needsMerge, returnedCounts out)
+
+#guard runAfterReplay 1 == some (.exhausted, [13], 17, true, [2, 17, 2])
+#guard runAfterReplay 2 == some (.fixed, [13, 14], 18, true, [2, 17, 2])
+#guard (Cost.Bundle.Worklist.check Op.zero 1 receiptSource ⟨[13], .fixed⟩).isNone
+
+private theorem receiptSourceWF : WellFounded receiptSource.2.graph.Demand :=
+  sampleConsumer.demandWellFounded
+    (secondSite.demandWellFounded (firstSite.demandWellFounded (zeroRow.demandWellFounded bundleWF)))
+
+example {fuel : Nat} (receipt : Cost.Bundle.Worklist.CheckedReceipt Op.zero fuel receiptSource)
+    (a : Cost.Bundle.Accepted receipt.endpoint.2.graph receipt.endpoint.2.classes) (idx : Index 1)
+    (neg : ∀ b : Bool, model.run a.reversion.scalar.descriptor.negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    (ran : a.reversion.runFuel model 3 bundleInput = some (.cons ⟨2⟩ (.cons ⟨17⟩ (.cons ⟨2⟩ .nil)))) :
+    receiptSource.2.graph.observe model (receiptSource.2.graph.denote model bundleInput receiptSourceWF) idx =
+      .cons (some ⟨2⟩) (.cons (some ⟨17⟩) (.cons (some ⟨2⟩) .nil)) :=
+  receipt.observe_of_exec a receiptSourceWF EPEG.Classes.discrete_valid rfl neg idx
+    (a.reversion.runFuel_exec 3 ran)
 
 end Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Tests
 

@@ -18,6 +18,14 @@ open Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper
 
 universe u v
 
+/-- A native equation can be placed in the original packed continuation. -/
+theorem applyPacked_eqv {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
+    {S : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
+    {X A : τ} {L : LCtx τ} {r s : Region Φ}
+    (h : Paper.Extension.Eqv S [product X A] r s L) :
+    Paper.Extension.Eqv S [A, X] (Paper.PackedBody.applyPacked r) (Paper.PackedBody.applyPacked s) L :=
+  SelectedCaseNativeReplay.applyPacked_eqv h
+
 /-- Replay either arm of a literal selected case under constructor substitution
 of its packed input and payload. The discriminator is shared. -/
 theorem case_congr {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]

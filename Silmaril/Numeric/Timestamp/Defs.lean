@@ -16,6 +16,7 @@ inductive Kind where
 /-- The unit of one tick. -/
 inductive TickUnit where
   | second | millisecond | microsecond | nanosecond
+  deriving DecidableEq
 
 def TickUnit.nanosecondsPerTick : TickUnit → Int
   | .second => 1000000000

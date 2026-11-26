@@ -180,4 +180,24 @@ private def textTupleEvidence (placement : SeedPlacement) : Bool := Id.run do
 #guard textTupleEvidence .builtin
 #guard textTupleEvidence .preamble
 
+private def tupleTruthEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let assertTrue operand := Source.Stmt.expression (.call (.name "___assertTrue") [operand])
+  let source : Source.Module := ⟨[
+    assertTrue (.unary .not_ (.tuple [])),
+    assertTrue (.tuple [.integer 42]),
+    assertTrue (.tuple []),
+    .assign "unreached" (.integer 9)]⟩
+  let .ok compiled := Run.compile source | return false
+  let space := legacyTupleIdentitySeed placement
+  let result := run space compiled
+  let failure : Core.Module.SeededCall.Failure := .raised (.assertionError .emptyTuple)
+  return result.completion == .error (.ofCall failure) && result.heap.next == 0 && result.lists.objects.isEmpty &&
+    result.residual.moduleGlobals == space.moduleGlobals && result.residual.builtins == space.builtins &&
+    result.calls.map (fun call => (call.callee, call.observation.result, call.observation.caught)) ==
+      [("___assertTrue", .ok .none, none), ("___assertTrue", .ok .none, none),
+        ("___assertTrue", .error failure, none)]
+
+#guard tupleTruthEvidence .builtin
+#guard tupleTruthEvidence .preamble
+
 end Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded

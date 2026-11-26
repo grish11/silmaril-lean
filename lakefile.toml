@@ -507,6 +507,10 @@ globs = ["tests.ssa.PeggyEgg"]
 name = "PeggyInstitutionTests"
 globs = ["tests.ssa.PeggyInstitution"]
 
+[[lean_lib]]
+name = "PeggySortMapTests"
+globs = ["tests.ssa.PeggySortMap"]
+
 # Check the ordinary many-sorted equational comorphism into total-primitive Peggy.
 [[lean_lib]]
 name = "PeggyEquationalTests"
@@ -902,3 +906,17 @@ needs = ["parquetFooterFixture", "parquetV2PageFixture"]
 [[input_file]]
 name = "parquetV2PageFixture"
 path = "tools/parquet-page/fixtures/datapage_v2.snappy.parquet"
+
+[[lean_exe]]
+name = "parquet-flat-scan-regression"
+srcDir = "tools/parquet-flat-scan"
+root = "ParquetFlatScanRegression"
+needs = ["parquetFlatScanV1", "parquetFlatScanV2"]
+
+[[input_file]]
+name = "parquetFlatScanV1"
+path = "tools/parquet-flat-scan/fixtures/flat-plain-v1.parquet"
+
+[[input_file]]
+name = "parquetFlatScanV2"
+path = "tools/parquet-flat-scan/fixtures/flat-plain-v2.parquet"

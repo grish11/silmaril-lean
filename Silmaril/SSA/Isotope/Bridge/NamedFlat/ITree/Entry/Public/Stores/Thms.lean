@@ -12,6 +12,12 @@ open Silmaril.SSA.LambdaRTL (CFG)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 open Silmaril.Elgot.ITree (HandledTrace)
 
+theorem combineStoreVerdicts_eq_some_iff (verdicts : List (Option Bool)) (verdict : Bool) :
+    combineStoreVerdicts verdicts = some verdict ↔
+      (∀ result ∈ verdicts, result.isSome = true) ∧
+      (verdict = true ↔ ∀ result ∈ verdicts, result = some true) :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Stores.combine_eq_some verdicts verdict
+
 variable {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type} [DecidableEq F]
   {signature : PrimitiveSignature F} {source target : CFG V K F} {exits : List K} {fields : K → List V}
   {leftCapture rightCapture : V} {leftType rightType : PacketType} {outputs : Fin exits.length → PacketType}

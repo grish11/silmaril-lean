@@ -36,6 +36,15 @@ theorem collective_ext (n : Nat) (Γ : VCtx τ) (R : Fin (n + 1) → τ)
     f = g :=
   collective_ext_proof J M n Γ R h
 
+/-- Assemble arbitrary arrows with a shared target at the contextual
+injections of a nonempty label family. -/
+theorem collective_exists (n : Nat) (Γ : VCtx τ) (R : Fin (n + 1) → τ) (X : V)
+    (block : ∀ i, J.obj (ctxObj M (R i :: Γ)) ⟶ J.obj X) :
+    ∃ f : J.obj (ctxObj M Γ ⊗ finiteLabelObj M R) ⟶ J.obj X,
+      ∀ i, J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i) ≫ f = block i := by
+  obtain ⟨f, hf⟩ := finiteCollective_exists_succ J M n Γ R X block
+  exact ⟨f, hf.restrict⟩
+
 end Collective
 
 section Term

@@ -31,7 +31,8 @@ theorem observe_reindexed (entry : PackedEntry left input) (f : signature.traceS
   observe_mapped entry f.hom ambient record
 
 theorem refinementSentence_reindexed
-    (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    {c : Nat} {rightInputs : Fin c → PacketType} {right : Program signature rightInputs outputs}
+    {rightInput : Fin c} (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right rightInput)
     (f : signature.traceSignature ⟶ Target) (direction : MismatchDirection)
     (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom) :
     (leftEntry.refinementSentence rightEntry direction leftAmbient rightAmbient leftRecord rightRecord).translate f =

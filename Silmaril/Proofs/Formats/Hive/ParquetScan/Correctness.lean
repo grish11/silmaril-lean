@@ -40,7 +40,7 @@ private theorem scan_augmented (projection : Scan.Projection (schema.extend phys
     simp [Partition.augmented, rows_extendTrace, Scan.Projection.scan, Scan.Projection.project,
       Scan.select, List.filter_map, Function.comp_def, Silmaril.Formats.Hive.TypedPartitions.partitionCells_extendRow, keep]
 
-private theorem scanPartition_observation (projection : Scan.Projection (schema.extend physical))
+theorem scanPartition_observation (projection : Scan.Projection (schema.extend physical))
     (predicate : Scan.Predicate schema.toScan Value) (part : Partition physical schema Value Error) :
     let rowwise := part.augmented.scan projection (fun row => predicate (partitionCells row))
     let hoisted := scanPartition projection predicate part
@@ -52,7 +52,7 @@ private theorem scanPartition_observation (projection : Scan.Projection (schema.
   · simp only [keep, ite_true, scanPartition, Events.Trace.rows, Partition.augmented]
     exact ⟨rows_projectBatches projection _, rfl⟩
 
-private theorem assemble_scan {Item : Type*} {input : Scan.Schema String Kind}
+theorem assemble_scan {Item : Type*} {input : Scan.Schema String Kind}
     (traceOf : Item → Events.Trace input Value Error) (items : List Item)
     (projection : Scan.Projection input) (predicate : Scan.Predicate input Value) :
     (assemble traceOf items).scan projection predicate =
@@ -64,7 +64,7 @@ private theorem assemble_scan {Item : Type*} {input : Scan.Schema String Kind}
     cases outcome : (traceOf item).termination <;>
       simp [assemble, Events.Trace.scan, outcome, List.map_append, ← ih]
 
-private theorem assemble_observation {Item : Type*} {output : Scan.Schema String Kind}
+theorem assemble_observation {Item : Type*} {output : Scan.Schema String Kind}
     (left right : Item → Events.Trace output Value Error) (items : List Item)
     (equal : ∀ item, (left item).rows = (right item).rows ∧
       (left item).termination = (right item).termination) :

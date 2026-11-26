@@ -71,6 +71,10 @@ def lowerFunc {captures : Nat} (g : Source captures bank entrySigs sigs) : Func 
 def lowerRTL {captures : Nat} (g : Source captures bank entrySigs sigs) : Prog Reg :=
   ⟨[lowerFunc g]⟩
 
+/-- Entry producers and jump, one header activation per visit, then the return instruction. -/
+def rtlFuel (entrySigs sigs : List (List PortTy)) (backedges : Nat) : Nat :=
+  entrySigs.length + 1 + ((sigs.length + 1) * (backedges + 1) + 1)
+
 /-- Start from the ordinary checked table. Emit the graph at its new
 interface and validate the resulting RTL function with the actual SSA checker. -/
 def lowerChecked (mapping : InputMap old new) (g : SourceWithEntry old entrySigs sigs) :

@@ -109,6 +109,28 @@ standard typed CF terminators. Its proof applies to the recovered singleton θ
 and finite returns. Native SCF emission, the recursive mixed suffix, general
 effects, and infinite traces are outside the admitted interface.
 
+### Ordered CF continuation
+
+The splice recovers the whole numbered prefix from [#4277][mixed-prefix].
+Its admitted continuation is one canonical loop leaf with an ordinary
+instruction between the header and join classifiers. All carried and exit
+values share one word sort. The recovered mixed θ from [#4402][mixed-cf-pr]
+now branches to the continuation with its completed payload. The shared
+ordered CF scheduler forwards the exact returned store. The continuation
+emits its own typed instruction calls and branches, and an `i1` return tag
+distinguishes its two exit labels.
+
+`Prefix.returns_iff` preserves and reflects finite return with the exact
+exit label, value and store. `Prefix.no_return_iff` covers every output packet
+and fuel budget. In the regression, the θ changes store 2 to 2777 and
+passes word 3 to the suffix. The suffix reads that store to select its
+body, which also uses the store to compute the returned word 222. The
+second exit returns store 2783. In the undefined case the suffix receives
+word 13 and store 2777, and its selected header action has no finite return.
+Both fixtures exercise both recovered binding orders. The target is the
+project-defined ordered CF interface, with general suffixes and traces
+outside this splice. [Splice theorems][mixed-cf-splice] · [Regression][mixed-fixture]
+
 [whole-theta]: ../../../../Silmaril/SSA/RVSDG/MLIR/Graph/Feedback/Theta/Thms.lean
 [peg-scoped]: ../../../../Silmaril/SSA/PEG/Bridge/Theta/Region/MLIR/Scoped/Thms.lean
 [peg-theta]: https://github.com/hiloopai/silmaril-lean/pull/3993
@@ -118,6 +140,8 @@ effects, and infinite traces are outside the admitted interface.
 [mixed-prefix]: https://github.com/hiloopai/silmaril-lean/pull/4277
 
 [mixed-cf]: ../../../../Silmaril/SSA/RVSDG/MLIR/CF/MixedTheta/Thms.lean
+[mixed-cf-pr]: https://github.com/hiloopai/silmaril-lean/pull/4402
+[mixed-cf-splice]: ../../../../Silmaril/SSA/RVSDG/MLIR/CF/MixedTheta/Prefix/Thms.lean
 [cf-ordered]: ../../../../Silmaril/SSA/MLIR/CF/Ordered/Defs.lean
 [cf-ordered-pr]: https://github.com/hiloopai/silmaril-lean/pull/3734
 [native-scf]: ../../../../Silmaril/SSA/MLIR/SCF/While/Defs.lean

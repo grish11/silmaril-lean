@@ -98,4 +98,10 @@ def batchReader (limits : Limits) (bind : Bind schema Value Failure) :
       (fun s => Reader.Source Nat s Value (Error Failure)) :=
   Reader.batchReader (fun bytes => (openSource limits bind bytes).map fun source => ⟨schema, source⟩)
 
+/-- Open immutable bytes and pull through EOF or the first read failure.
+The opened group count determines the pull budget. -/
+@[expose] def readAll (limits : Limits) (bind : Bind schema Value Failure) (bytes : Bytes) :
+    Events.EventStream Id Value (Error Failure) :=
+  Reader.readAll ((openSource limits bind bytes).map fun source => ⟨schema, source⟩)
+
 end Silmaril.Formats.Parquet.Snapshot

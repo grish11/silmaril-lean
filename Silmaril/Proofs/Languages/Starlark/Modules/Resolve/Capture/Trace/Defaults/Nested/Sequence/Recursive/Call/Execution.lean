@@ -75,15 +75,19 @@ theorem callee_error {parent block : LexicalBlock} (site : Site parent) (id : De
       Lowering.EvaluatesManyWith.headError (tail := codes) (Body.evaluates_with program available _ read)
   exact ⟨.calleeError read, agreement native⟩
 
-theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String} {scope : Scope}
+theorem runs_actual_reached {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String} {scope : Scope}
     (site : Site parent formals varargs kwargs scope)
     (bodyRuns : State → Outcome Flow → Prop)
     (program : Program) (id : DeclarationId) (available : List DeclarationId) (permitted : id ∈ available)
-    (enterBody : BodyEntry site program available id bodyRuns)
     {name : String} (slot : Binding) {state defining : State} {address : Nat}
     (callee : Body.Evaluates block state (.scalar (.read name)) (Leaf.readOperand slot)
       (.ok (.function address) state))
     (record : ClosureAt site id defining state address)
+    (enterReached : ∀ packed, Body.Keeps state.heap.size state packed →
+      ∀ assigned : List (Binding × Value),
+      let active := activate packed site.declaration record.captures assigned
+      ∃ out, bodyRuns active out ∧ Exec program (withoutDeclaration available id) active site.body.code out ∧
+        Body.Keeps packed.heap.size packed (finishState (Leaf.returnTo packed out)))
     (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star starStar : Option Lowering.Expr)
     (actuals : State → Outcome Actual → Prop)
     (reaches : ∀ state, ∃ out, actuals state out ∧
@@ -150,9 +154,8 @@ theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordPa
       exact ⟨_, .bindingError callee source reached binding, native, meaning, kept⟩
     | ok bound =>
       obtain ⟨assigned, packed, packedArgs, packedKept, sameBindings, ready⟩ := ready
-      let packedRecord := keep_record reached packedKept
       obtain ⟨out, bodyRun, executable, restored⟩ :=
-        enterBody packed defining packedRecord.captures packedRecord.installed packedRecord.live assigned
+        enterReached packed (keeps_all kept packedKept) assigned
       have sameCaller : Leaf.returnTo packed out = Leaf.returnTo actualState out := by
         cases out <;> simp [Leaf.returnTo, restoreCaller, packedKept.1, sameBindings, finishState]
       have dispatch : Lowering.DispatchesWith program available calls actualState (.function address)
@@ -161,8 +164,45 @@ theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordPa
         | ok flow final => exact .returned ready executable
         | error error final => exact .failed ready executable
       have ⟨native, meaning⟩ := agreement (invoke dispatch)
-      exact ⟨_, .invoked callee source reached binding packedArgs bodyRun, native, meaning,
+      exact ⟨_, .invoked callee source reached binding packedArgs (show bodyRuns (activate packed site.declaration reached.captures assigned) out from bodyRun), native, meaning,
         sameCaller ▸ keeps_all (keeps_all kept packedKept) restored⟩
+
+theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String} {scope : Scope}
+    (site : Site parent formals varargs kwargs scope)
+    (bodyRuns : State → Outcome Flow → Prop)
+    (program : Program) (id : DeclarationId) (available : List DeclarationId) (permitted : id ∈ available)
+    (enterBody : BodyEntry site program available id bodyRuns)
+    {name : String} (slot : Binding) {state defining : State} {address : Nat}
+    (callee : Body.Evaluates block state (.scalar (.read name)) (Leaf.readOperand slot)
+      (.ok (.function address) state))
+    (record : ClosureAt site id defining state address)
+    (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star starStar : Option Lowering.Expr)
+    (actuals : State → Outcome Actual → Prop)
+    (reaches : ∀ state, ∃ out, actuals state out ∧
+      NativeActuals program available positional keywords star starStar state out ∧
+      Body.Keeps state.heap.size state (finishState out))
+    {Bound : Type} (binds : BindingRule Bound) (packs : PackRule Bound)
+    (total : ∀ defaults actual, ∃ result, binds defaults actual result)
+    (prepare : ∀ {reached : State} (closure : ClosureAt site id defining reached address) actual result,
+      actuals state (.ok actual reached) → binds closure.defaults actual result →
+      match result with
+      | .error error => prepareExpanded program available actual (.function address) reached =
+          .error error reached
+      | .ok bound => ∃ assigned packed, packs reached bound assigned packed ∧
+          Body.Keeps reached.heap.size reached packed ∧ packed.bindings = reached.bindings ∧
+          prepareExpanded program available actual (.function address) reached =
+            .ok (.closure ⟨id, permitted, site.declaration.body⟩)
+              (activate packed site.declaration closure.captures assigned)) :
+    let code := Lowering.Expr.call (Leaf.readOperand slot) positional keywords star starStar
+    ∃ out, RunsActual site bodyRuns block id name slot actuals binds packs state out ∧
+      ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
+      Body.Keeps state.heap.size state (finishState out) :=
+  runs_actual_reached site bodyRuns program id available permitted slot callee record
+    (fun packed preserved assigned =>
+      enterBody packed defining record.captures record.installed
+        (fun capture member => by
+          obtain ⟨value, frozen, found⟩ := record.live capture member
+          exact ⟨value, frozen, preserved.2 _ _ (Array.getElem?_eq_some_iff.mp found).choose found⟩) assigned) positional keywords star starStar actuals reaches binds packs total prepare
 
 theorem runs_packed {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
     (site : Site parent formals varargs kwargs)

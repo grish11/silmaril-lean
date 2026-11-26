@@ -87,12 +87,12 @@ def Limits.payloadBounds (limits : Limits) (sizes : Sizes) (levelBytes : Nat) : 
 def v2Codec (columnCodec : Int) (isCompressed : Option Bool) : Int :=
   if isCompressed.getD true then columnCodec else Payload.Codec.uncompressed.id
 
-/-- Validate the exact input extent and page-wide caps before making slices
-or expanding a payload. The Thrift header stores page sizes as signed i32. -/
-def validate (params : Parameters) (limits : Limits) (source : Bytes) :
+/-- Validate the caller's selected encoding, the exact input extent, and
+page-wide caps before making slices or expanding a payload. -/
+def validateFor (encoding : Int) (params : Parameters) (limits : Limits) (source : Bytes) :
     Except Error FlatPage.Layout :=
   let sizeLimit : Nat := 2 ^ 31
-  if params.encoding ≠ 0 then .error (.unsupportedEncoding params.encoding)
+  if params.encoding ≠ encoding then .error (.unsupportedEncoding params.encoding)
   else if sizeLimit ≤ params.sizes.compressed ∨ sizeLimit ≤ params.sizes.uncompressed then
     .error .invalidPageSize
   else if limits.compressedBytes < params.sizes.compressed then .error (.payload .compressedLimit)
@@ -104,6 +104,11 @@ def validate (params : Parameters) (limits : Limits) (source : Bytes) :
     match params.schema.layout? with
     | some layout => .ok layout
     | none => .error (.levels .unsupportedLevels)
+
+/-- Validate a PLAIN page. -/
+def validate (params : Parameters) (limits : Limits) (source : Bytes) :
+    Except Error FlatPage.Layout :=
+  validateFor 0 params limits source
 
 /-- V2 leaves the level prefix uncompressed. Its extent must fit both sizes
 before either size is reduced to describe the scalar suffix. -/
@@ -146,14 +151,20 @@ def prepareV2 (params : Parameters) (limits : Limits) (layout : FlatPage.Layout)
         (v2Codec params.codec isCompressed) encoded).mapError Error.payload
       pure ⟨mask, Bytes.ofList scalars⟩
 
-/-- Establish a checked mask and the exact decompressed scalar slice. -/
-def prepare (params : Parameters) (limits : Limits) (source : Bytes) : Except Error Prepared := do
-  let layout ← validate params limits source
+/-- Establish a checked mask and the exact decompressed value slice for the
+encoding already selected by the physical decoder. -/
+def prepareFor (encoding : Int) (params : Parameters) (limits : Limits) (source : Bytes) :
+    Except Error Prepared := do
+  let layout ← validateFor encoding params limits source
   match params.version with
   | .v1 definitionEncoding repetitionEncoding =>
     prepareV1 params limits layout definitionEncoding repetitionEncoding source
   | .v2 nulls rows repetitionBytes definitionBytes isCompressed =>
     prepareV2 params limits layout nulls rows repetitionBytes definitionBytes isCompressed source
+
+/-- Prepare a PLAIN page. -/
+def prepare (params : Parameters) (limits : Limits) (source : Bytes) : Except Error Prepared :=
+  prepareFor 0 params limits source
 
 /-- For V1 the scalar count comes from the mask. For V2 preparation has
 already checked that the mask count equals the header's present count. -/

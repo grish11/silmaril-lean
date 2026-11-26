@@ -76,6 +76,7 @@ structure StructuralEntry (signature : PrimitiveSignature F) (source : CFG V K F
   accepted : NamedFlat.elaborate (LiveOut.attach fields source) exits (fun i => names[i.val]) = some flat
   provenance : Provenance flat entry.target
   typedSeed : StructuralSeed provenance.seed inputType
+  publicCaptures : ∀ i, entry.captures i = ⟨0⟩
 
 /-- Infer the source capture layout from the written pure jump, then
 check the attached table and its public row readback. -/
@@ -93,12 +94,14 @@ def constructStructural [DecidableEq F] (signature : PrimitiveSignature F) (sour
       | none => none
       | some flat => do
         let built ← Phi.Certified.Entry.OrderedExits.Readback.construct signature internal outputs flat
-        if profile : internal built.start = inputType then
-          let typed ← StructuralSeed.check built.provenance.seed (internal built.start)
-          let result : StructuralEntry signature source exits fields (internal built.start) outputs :=
-            ⟨names, built.program, built.packed, Construction.packetClosed attached closed,
-              flat, accepted, built.provenance, typed⟩
-          some (profile ▸ result)
+        if captures : ∀ i, built.packed.captures i = ⟨0⟩ then
+          if profile : internal built.start = inputType then
+            let typed ← StructuralSeed.check built.provenance.seed (internal built.start)
+            let result : StructuralEntry signature source exits fields (internal built.start) outputs :=
+              ⟨names, built.program, built.packed, Construction.packetClosed attached closed,
+                flat, accepted, built.provenance, typed, captures⟩
+            some (profile ▸ result)
+          else none
         else none
     else none
   | _ => none

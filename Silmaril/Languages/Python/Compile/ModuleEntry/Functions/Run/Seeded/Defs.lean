@@ -81,7 +81,7 @@ def legacyTupleSeed (placement : SeedPlacement) : Namespace :=
   let seed := legacySeed placement
   { seed with builtins := ("tuple", .builtin .tuple) :: seed.builtins }
 
-/-- Supply the exact Boolean helper in the selected harness placement. -/
+/-- Supply the stock truth assertion helper in the selected harness placement. -/
 def legacyTupleIdentitySeed (placement : SeedPlacement) : Namespace :=
   let space := legacyTupleSeed placement
   let truthHelper := ("___assertTrue", Value.helper .assertTrue)
@@ -101,9 +101,15 @@ def legacyTextSeed (placement : SeedPlacement) : Namespace :=
 
 def lowerCallOperand : Core.Module.Functions.Operand → Core.Module.SeededCall.Operand 0
   | .readGlobal name => .global name
+  | .intDivMod op numerator divisor => .intDivMod op numerator divisor
   | .intTrueDiv numerator divisor => .intTrueDiv numerator divisor
+  | .floatDiv operands => .floatDiv operands
   | .mixedAdd integer floating => .mixedAdd integer floating
+  | .floatAdd left right => .floatAdd left right
+  | .floatSub operands => .floatSub operands
+  | .floatMul operands => .floatMul operands
   | .tuple items => .tuple items
+  | .textSlice receiver bounds => .textSlice receiver bounds
   | .literal (.int value) => .literal (.int value)
   | .literal (.bool value) => .literal (.bool value)
   | .literal (.float64 value) => .literal (.float64 value)
@@ -750,6 +756,28 @@ def observeTupleFromListDisplayCall (space : Namespace) (context : CallContext)
         let (later, residual) := observeRemainingCallIn space { context with heap } destination name callee [value] remaining
         (({ later with calls := receipt :: later.calls }, residual), reached)
 
+def readListItem (space : Namespace) (name : String) : Except Failure Core.Module.Value := do
+  let some value := space.lookupGlobal name | throw (.raised (.runtime (.nameError name)))
+  let some scalar := value.scalar? | throw .unsupported
+  return scalar
+
+def listDisplayArgument (display : ListDisplay.Display) (object : ListObject) : Value :=
+  if display.negated then .bool object.contents.isEmpty else .listObject object
+
+def observeListDisplayCall (space : Namespace) (context : CallContext)
+    (destination : Core.Module.Functions.Destination) (name : String) (display : ListDisplay.Display)
+    (lists : ListHeap) : (Effect × Heap) × ListHeap :=
+  match space.lookupGlobal name with
+  | none => ((acceptObservation destination name ⟨.error (.raised (.runtime (.nameError name))), none⟩,
+      context.heap), lists)
+  | some callee =>
+    let (result, reached) := display.prepare (readListItem space) lists
+    let observed := match result with
+      | .error error => (acceptObservation destination name ⟨.error error, none⟩, context.heap)
+      | .ok object => observeRemainingCallIn space context destination name callee
+          [listDisplayArgument display object] []
+    (observed, reached)
+
 def checkTupleChain {scope : Scope} (space : Namespace) (test : TupleChainTest scope) : Except Failure Unit :=
   let compared := (TupleChain.evaluate (tupleLookup space) test).result
   let checked := compared.mapError fun error =>
@@ -828,6 +856,8 @@ def effect {scope : Scope} (space : Namespace) (context : CallContext) (instruct
   | .callTupleIdentity destination name test => observeTupleIdentityCall space context destination name test
   | .callTupleFromListDisplay destination contents outer =>
     (observeTupleFromListDisplayCall space context destination contents outer lists).1
+  | .callListDisplay destination name display =>
+    (observeListDisplayCall space context destination name display lists).1
   | .adjacentKeywordDiscard name value =>
     match invokeAdjacentKeywordDiscard space context name value with
     | (.ok observed, heap) => (acceptObservation .discard name observed, heap)
@@ -849,6 +879,8 @@ def effectWithLists {scope : Scope} (space : Namespace) (context : CallContext)
     ((outcome.effect, context.heap), outcome.lists)
   | .callTupleFromListDisplay destination contents outer =>
     observeTupleFromListDisplayCall space context destination contents outer lists
+  | .callListDisplay destination name display =>
+    observeListDisplayCall space context destination name display lists
   | instruction => (effect space context instruction lists, lists)
 
 /-- A failed instruction keeps its incoming namespace and the heap reached

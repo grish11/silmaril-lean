@@ -31,7 +31,8 @@ theorem run_iff (checked : p.Checked mem outer index) (contract : p.Contract mem
 
 /-- Start at an ordinary typed source invocation in the allocated base store.
 The checked source links, phase signatures and embedding contract supply the
-premises for each reached loop boundary. -/
+premises for each reached loop boundary and indirect callee phase. The
+checked endpoint carries the live bytes after any reached callee write. -/
 theorem call_run_iff (checked : p.Checked mem outer index) (contract : p.Contract mem host) :
     Steps host ⟨base, outer, values [i64 arg] ++ [.source (.call index)]⟩ dst ↔
       ∃ next, Relation.ReflTransGen (Edge p mem host arg) ⟨mem.initial.data, .source⟩ next ∧

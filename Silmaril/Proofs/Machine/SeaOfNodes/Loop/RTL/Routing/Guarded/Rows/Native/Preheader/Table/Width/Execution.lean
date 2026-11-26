@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Defs
 import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Thms
+import Silmaril.Machine.SeaOfNodes.Diamond.RTL.Thms
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.WellFormed
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Correctness
 
@@ -12,35 +13,36 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Prehe
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.RTL (Frame)
 open Silmaril.Machine.RTL.SSA
-open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp model)
-open Silmaril.SSA.RVSDG (Origin extend)
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp encodeValue emitOpsWith_steps model registerWith)
+open Silmaril.SSA.RVSDG (Origin Port extend)
 open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow read)
 open Silmaril.SSA.SeaOfNodes.Loop (Graph appendTuple)
 
 variable {captures bank : Nat} {entrySigs sigs : List (List PortTy)}
 
-private theorem supported_mapFlow {arity new : Nat} (mapping : InputMap arity new)
+theorem supported_mapFlow {arity new : Nat} (mapping : InputMap arity new)
     {past : List (List PortTy)} (flow : Dataflow WordOp (wordPorts arity) past sigs) :
     Table.supported (mapFlow (fun p => mapping.port p) flow) = Table.supported flow := by
   induction flow with
   | nil => rfl
   | cons op args rest ih => cases op <;> simp [mapFlow, Table.supported, ih]
 
-private theorem append_step {program : Prog Reg} {n : Nat} {start middle finish : State Reg}
+theorem append_step {program : Prog Reg} {n : Nat} {start middle finish : State Reg}
     (path : StepsNWithin program [] n start middle) (last : step program middle = .running finish) :
     StepsNWithin program [] (n + 1) start finish := by
   induction path with
   | refl => exact .head ⟨last, List.nil_suffix⟩ .refl
   | head next _ ih => exact .head next (ih last)
 
-private theorem entry_packet (g : Source captures bank entrySigs sigs)
+theorem entry_packet_at (g : Source captures bank entrySigs sigs) (prog : Prog Reg) {block : Block Reg}
+    (found : prog.block? 0 0 = some (preheader g)) (target : prog.block? 0 1 = some block)
+    (params : block.params = paramRegs captures bank)
     (input : WordTuple captures) (fr : Frame Reg) (mem : Memory)
     (supported : Table.supported g.preheader = true) (capturesMatch : ArgsMatch fr input) :
-    ∃ latched, StepsNWithin (lowerRTL g) [] (entrySigs.length + 1) ⟨⟨0, 0, 0⟩, fr, [], mem⟩
+    ∃ latched, StepsNWithin prog [] (entrySigs.length + 1) ⟨⟨0, 0, 0⟩, fr, [], mem⟩
       ⟨⟨0, 1, 0⟩, latched, [], mem⟩ ∧ ArgsMatch latched (appendTuple (g.initial model input) input) := by
-  have found : (lowerRTL g).block? 0 0 = some (preheader g) := rfl
   obtain ⟨ready, path, capturesReady, reads⟩ :=
-    Table.entry_block_at (captures + bank) g.preheader (lowerRTL g) (preheader g)
+    Table.entry_block_at (captures + bank) g.preheader prog (preheader g)
       found input mem supported (Nat.le_add_right _ _) rfl fr capturesMatch
   have readsWire (wire : Origin (wordPorts captures) (extend [] entrySigs) wordPort) :
       ready.get (entryReg captures bank wire.address) =
@@ -51,14 +53,20 @@ private theorem entry_packet (g : Source captures bank entrySigs sigs)
   have readsBank : ready.readAll ((g.phiInputs .entry).addresses.map (entryReg captures bank)) =
       some (words (g.initial model input)) :=
     readColumnWith_eq (entryReg captures bank) (g.phiInputs .entry) input _ ready readsWire
-  have fetchJump : (lowerRTL g).fetch ⟨0, 0, entrySigs.length⟩ = some (.term (preheader g).term) :=
+  have fetchJump : prog.fetch ⟨0, 0, entrySigs.length⟩ = some (.term (preheader g).term) :=
     preheader_ops_length g ▸ Prog.fetch_term found
   let bankValues := g.initial model input
-  have jump : step (lowerRTL g) ⟨⟨0, 0, entrySigs.length⟩, ready, [], mem⟩ =
+  have jump : step prog ⟨⟨0, 0, entrySigs.length⟩, ready, [], mem⟩ =
       .running ⟨⟨0, 1, 0⟩, bindWords captures ready bankValues, [], mem⟩ := by
-    have target : (lowerRTL g).block? 0 1 = some (header g) := rfl
-    simp only [step, fetchJump, preheader, transfer, readsBank, target, header, bindWords_write, bankValues]
+    simp only [step, fetchJump, preheader, transfer, readsBank, target, params, bindWords_write, bankValues]
   exact ⟨_, append_step path jump, bank_matches_at capturesReady bankValues⟩
+
+private theorem entry_packet (g : Source captures bank entrySigs sigs)
+    (input : WordTuple captures) (fr : Frame Reg) (mem : Memory)
+    (supported : Table.supported g.preheader = true) (capturesMatch : ArgsMatch fr input) :
+    ∃ latched, StepsNWithin (lowerRTL g) [] (entrySigs.length + 1) ⟨⟨0, 0, 0⟩, fr, [], mem⟩
+      ⟨⟨0, 1, 0⟩, latched, [], mem⟩ ∧ ArgsMatch latched (appendTuple (g.initial model input) input) :=
+  entry_packet_at g (lowerRTL g) rfl rfl rfl input fr mem supported capturesMatch
 
 /-- The ordinary checked source supplies the arithmetic admission for the resized entry. -/
 theorem checked_entry_packet {old new : Nat} (mapping : InputMap old new)
@@ -140,5 +148,71 @@ theorem header_terminator (g : Source captures bank entrySigs sigs) (input : Wor
         (g.header.eval model (appendTuple old input) PUnit.unit)) capturesMatch reads
     simpa only [Graph.step, h, ite_true, step, fetch, header, guard, Bool.true_eq,
       show (1 : Word) ≠ 0 by decide, ite_false] using back
+
+private theorem word_port {n : Nat} {t : PortTy} (p : Port (wordPorts n) t) : t = wordPort := by
+  induction n with
+  | zero => nomatch p
+  | succ n ih =>
+    cases p with
+    | head => rfl
+    | tail p => exact ih p
+
+/-- Execute the real header producers and resolve every typed origin at the branch. -/
+theorem header_producers_at (g : Source captures bank entrySigs sigs) (prog : Prog Reg)
+    {block : Block Reg} (found : prog.block? 0 1 = some block)
+    (code : block.ops = (header g).ops) (input : WordTuple captures)
+    (old : WordTuple bank) (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
+    ∃ ready, StepsNWithin prog [] sigs.length ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+      ⟨⟨0, 1, sigs.length⟩, ready, [], mem⟩ ∧
+      ∀ {t} (wire : Origin (wordPorts captures ++ wordPorts bank) (extend [] sigs) t),
+        ready.get (register wire.address) = some (encodeValue t
+          (read model wire (appendTuple old input) (g.header.eval model (appendTuple old input) PUnit.unit))) := by
+  have args {t} (p : Port (wordPorts captures ++ wordPorts bank) t) :
+      fr.get (.arg p.index) = some (encodeValue t ((appendTuple old input).get p)) := by
+    have sort : t = wordPort := word_port (wordPorts_append captures bank ▸ p)
+    subst t
+    exact agree p
+  obtain ⟨ready, path, reads⟩ :=
+    emitOpsWith_steps (fun p => .arg p.index) (fun _ _ => by simp) (appendTuple old input) g.header
+      fr mem prog 0 1 block found code args
+  refine ⟨ready, path, ?_⟩
+  intro t wire
+  have resolved : registerWith (fun p => .arg p.index) wire = register wire.address := by
+    cases wire <;> rfl
+  rw [← resolved]
+  exact reads wire
+
+theorem header_producers (g : Source captures bank entrySigs sigs) (input : WordTuple captures)
+    (old : WordTuple bank) (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
+    ∃ ready, StepsNWithin (lowerRTL g) [] sigs.length ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+      ⟨⟨0, 1, sigs.length⟩, ready, [], mem⟩ ∧
+      ∀ {t} (wire : Origin (wordPorts captures ++ wordPorts bank) (extend [] sigs) t),
+        ready.get (register wire.address) = some (encodeValue t
+          (read model wire (appendTuple old input) (g.header.eval model (appendTuple old input) PUnit.unit))) :=
+  header_producers_at g (lowerRTL g) rfl rfl input old fr mem agree
+
+/-- One instruction per header producer, then one terminator. The exit branch
+takes one further instruction to return. The feedback branch restores the bank invariant. -/
+theorem header_activation (g : Source captures bank entrySigs sigs) (input : WordTuple captures)
+    (old : WordTuple bank) (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
+    match g.step model input old with
+    | .inl value =>
+      ∃ ready, StepsNWithin (lowerRTL g) [] (sigs.length + 1) ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+        ⟨⟨0, 2, 0⟩, ready, [], mem⟩ ∧
+        step (lowerRTL g) ⟨⟨0, 2, 0⟩, ready, [], mem⟩ = .returned [value] mem
+    | .inr next =>
+      ∃ latched, StepsNWithin (lowerRTL g) [] (sigs.length + 1) ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+        ⟨⟨0, 1, 0⟩, latched, [], mem⟩ ∧ ArgsMatch latched (appendTuple next input) := by
+  obtain ⟨ready, path, reads⟩ := header_producers g input old fr mem agree
+  have readyArgs : ArgsMatch ready (appendTuple old input) := fun port => reads (.arg port)
+  have packet := header_terminator g input old ready mem (input_matches_at readyArgs)
+    (reads g.predicate) (fun wire => reads wire)
+  cases taken : g.step model input old with
+  | inl value =>
+    rw [taken] at packet
+    exact ⟨_, append_step path packet.1, packet.2⟩
+  | inr next =>
+    rw [taken] at packet
+    exact ⟨_, append_step path packet.1, packet.2⟩
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Proofs

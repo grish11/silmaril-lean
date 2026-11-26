@@ -404,6 +404,13 @@ private theorem case_choose {Γ L : List (Ty Empty)} {a u : Tm signature.Instr} 
       (.paper (.cfgEta (.native ((SubstitutionEquiv.base (.caseInr hu.hasType hl.hasType hr.hasType)).trans
         (.letValue hu hr.hasType)))))
 
+theorem case_choose_bit {Γ L : List (Ty Empty)} {a u : Tm signature.Instr} {l r : Region signature.Instr}
+    (b : Bool) (ha : Tm.HasType Γ a Bit) (hu : Tm.BranchValue Γ u unit)
+    (hl : ValueBranches (unit :: Γ) l L) (hr : ValueBranches (unit :: Γ) r L)
+    (value : E Γ (returnOnce a) (.br 0 (replyBitTag b u)) [Bit]) :
+    E Γ (.case a l r) ((if b then r else l).substVars (Tm.singleSubst u)) L :=
+  case_choose b ha hu hl hr value
+
 private theorem packed_payload_subst {X : Ty Empty} {L : List (Ty Empty)}
     {r : Region signature.Instr} {a u : Tm signature.Instr}
     (hr : HasType [product X unit] r L) :
@@ -549,6 +556,11 @@ private theorem frameSlot_return {Γ : List (Ty Empty)} {X : Ty Empty} {frame : 
       · exact (retained_returnOnce slot.term older.elaborate.property (.inl u.property)).trans (ih older)
       · exact (retained_returnOnce slot.term older.elaborate.property (.inr u.property)).trans (ih older)
 
+theorem frameSlot_returns_at {Γ : List (Ty Empty)} {X : Ty Empty} {frame : ReplyFrame X}
+    (slot : ReplyFrame.Slot frame) (v : ReplyFrame.Value Γ frame) :
+    ReturnsAt (Γ := Γ) slot.term v.elaborate.val (replyBitTag (slot.read v).1 (slot.read v).2.val) :=
+  frameSlot_return slot v
+
 theorem quote_frameValue {Γ L : List (Ty Empty)} {n : Nat} {X : Ty Empty} {frame : ReplyFrame X}
     (pos : Position L) (table : Finite.Table n) (slots : Fin n → ReplyFrame.Slot frame)
     (v : ReplyFrame.Value Γ frame) :
@@ -560,7 +572,7 @@ theorem quote_frameValue {Γ L : List (Ty Empty)} {n : Nat} {X : Ty Empty} {fram
     (fun j => ((slots j).read v).1) (fun j => ((slots j).read v).2.val)
     (fun j => ((slots j).read v).2.property) (fun j => frameSlot_return (slots j) v)
 
-private theorem prependEmits_subst (emits : List Bool) (r : Region signature.Instr)
+theorem prependEmits_subst (emits : List Bool) (r : Region signature.Instr)
     (σ : Nat → Tm signature.Instr) :
     (prependEmits emits r).substVars σ = prependEmits emits (r.substVars σ) := by
   induction emits with
