@@ -12,7 +12,7 @@ open Silmaril.Languages.Starlark.Modules.Resolve.Block (ModuleBinders)
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.WithDefaults
-open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped (Spec Admitted capturesAt)
+open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped (Spec Admitted)
 open Silmaril.Languages.Starlark.Functions
 open Silmaril.Languages.Starlark.Lists (Cell State)
 
@@ -70,36 +70,29 @@ theorem call_scoped {before rest : List Command} {globals : List String} {callee
   have site := RootCall.checked_call_assignment_site before rest destination _ arguments _ actuals globals
     linked resolved declared checked calleeCode related
   rcases RootCall.operands_total related state with ⟨values, ran⟩ | ⟨error, failed⟩
-  · obtain ⟨binding, bound⟩ := Entry.binds_total [spec.wrapper.parameter] values
+  · obtain ⟨binding, bound⟩ := Entry.binds_total spec.parameters values
     cases binding with
     | error error =>
       exact ⟨.error (.runtime error) state, .scopedCall root site calleeCode related ran (.rejected bound),
         fun _ impossible => nomatch impossible⟩
     | ok assigned =>
-      cases bound with
-      | success fill =>
-        cases fill with
-        | @cons _ _ argument _ _ tail =>
-          cases tail
-          let captures := capturesAt spec state.heap.size
-          let codes := spec.wrapper.codes
-          obtain ⟨out, _, returned, _, _, progress⟩ := Defaults.Escape.returns_with_total resolved.program
-            (withoutDeclaration (List.range resolved.program.size) (root.childId + 1)) spec.wrapper root.names
-            root.childId (root.plan.body.declaration codes) root.childCode rfl state argument captures
-            (fun _ owned => Defaults.Escape.Scoped.installs_at root.plan _ _ owned)
-          refine ⟨_, .scopedCall root site calleeCode related ran (.entered returned), ?_⟩
-          intro next success
-          cases out with
-          | error => cases success
-          | ok value middle =>
-            cases success
-            obtain ⟨address, values, rfl, length, cell, rebound, kept, owner, installed⟩ := progress value middle rfl
-            have cells := Defaults.Escape.Scoped.returned_cells spec middle state.heap.size rebound
-            have stored := Defaults.Body.capture_cells_written middle (globalSlot destination) (.function address) cells
-            have live := commit_cell target.1 (kept.layout layout) address root.childId captures _ cell
-            exact ⟨.commit middle _ kept, ⟨target.1, ⟨⟨root.childId, spec.enclosing, root.plan.body, codes,
-              address, values, captures, Defaults.Escape.code_length spec.wrapper, length, root.childCode,
-              owner, installed, stored, live⟩⟩⟩⟩
+      obtain ⟨captures, installed, cells⟩ := Defaults.Escape.Scoped.activate_installs root.plan root.childId state assigned
+      let codes := spec.wrapper.codes
+      obtain ⟨out, _, returned, _, _, progress⟩ := Defaults.Escape.returns_with_total resolved.program
+        (withoutDeclaration (List.range resolved.program.size) (root.childId + 1)) spec.wrapper root.names.wrapper
+        root.childId (root.plan.body.declaration codes) root.childCode rfl spec.additional state assigned captures installed cells
+      refine ⟨_, .scopedCall root site calleeCode related ran (.entered bound returned), ?_⟩
+      intro next success
+      cases out with
+      | error => cases success
+      | ok value middle =>
+        cases success
+        obtain ⟨address, values, rfl, length, cell, kept, retained, _⟩ := progress value middle rfl
+        have stored := Defaults.Body.capture_cells_written middle (globalSlot destination) (.function address) retained
+        have live := commit_cell target.1 (kept.layout layout) address root.childId captures _ cell
+        exact ⟨.commit middle _ kept, ⟨target.1, ⟨⟨root.childId, spec.enclosing, root.plan.body, codes,
+          address, values, captures, Defaults.Escape.code_length spec.wrapper, length, root.childCode,
+          _, installed, stored, live⟩⟩⟩⟩
   · have calleeRead : RootCall.Evaluates state (.scalar (.read callee)) (.ok (.function root.address) state) := by
       simpa [State.read, root.live.binding] using RootCall.Evaluates.name (state := state) callee
     exact ⟨.error (.runtime error) state, .ordinary (.operandError site calleeCode related (.cons calleeRead failed)),

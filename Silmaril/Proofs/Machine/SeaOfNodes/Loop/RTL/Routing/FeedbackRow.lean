@@ -10,7 +10,7 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Proofs
 
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.RTL (Frame)
-open Silmaril.Machine.RTL.SSA (Block Op Prog State Steps Transition)
+open Silmaril.Machine.RTL.SSA (Block Op Prog State Steps StepsNWithin Transition)
 open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp emitOpsWith model)
 open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow Val read)
 open Silmaril.SSA.SeaOfNodes.GVN (keepOrigin olderIndex weaken)
@@ -225,7 +225,7 @@ private theorem update_exec {fields arity : Nat} (slot : Fin fields → Port (wo
   cases op <;> rfl
 
 /-- Run the emitted suffix at its actual offsets in the header. -/
-theorem row_steps_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+theorem row_stepsN_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
     (p : Prog Reg) (block : Block Reg) (found : p.block? 0 1 = some block)
     (input old : WordTuple arity) (mem : Memory)
     (updates : List (FeedbackUpdate fields)) (past : List (List PortTy))
@@ -233,7 +233,7 @@ theorem row_steps_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts
     (tailOps : List (Op Reg))
     (ops : block.ops = prefixOps ++ (emitOpsWith (fun p => .arg p.index) (rowSuffixAt slot past updates) ++ tailOps))
     (fr : Frame Reg) (agree : ArgsMatch fr (appendTuple old input)) :
-    Steps p ⟨⟨0, 1, past.length⟩, fr, [], mem⟩
+    StepsNWithin p [] updates.length ⟨⟨0, 1, past.length⟩, fr, [], mem⟩
       ⟨⟨0, 1, past.length + updates.length⟩, rowFrameAt slot old past.length fr updates, [], mem⟩ := by
   induction updates generalizing past prefixOps fr with
   | nil =>
@@ -264,7 +264,19 @@ theorem row_steps_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts
     rw [List.length_append, List.length_singleton] at tail
     have length : past.length + (u :: rest).length = past.length + 1 + rest.length := by simp; omega
     rw [length]
-    exact .head step.step_eq tail
+    exact .head ⟨step.step_eq, List.nil_suffix⟩ tail
+
+theorem row_steps_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (p : Prog Reg) (block : Block Reg) (found : p.block? 0 1 = some block)
+    (input old : WordTuple arity) (mem : Memory)
+    (updates : List (FeedbackUpdate fields)) (past : List (List PortTy))
+    (prefixOps : List (Op Reg)) (prefixLength : prefixOps.length = past.length)
+    (tailOps : List (Op Reg))
+    (ops : block.ops = prefixOps ++ (emitOpsWith (fun p => .arg p.index) (rowSuffixAt slot past updates) ++ tailOps))
+    (fr : Frame Reg) (agree : ArgsMatch fr (appendTuple old input)) :
+    Steps p ⟨⟨0, 1, past.length⟩, fr, [], mem⟩
+      ⟨⟨0, 1, past.length + updates.length⟩, rowFrameAt slot old past.length fr updates, [], mem⟩ :=
+  (row_stepsN_at slot p block found input old mem updates past prefixOps prefixLength tailOps ops fr agree).toStepsWithin.toSteps
 
 theorem emit_row_length {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
     (past : List (List PortTy)) (updates : List (FeedbackUpdate fields)) :

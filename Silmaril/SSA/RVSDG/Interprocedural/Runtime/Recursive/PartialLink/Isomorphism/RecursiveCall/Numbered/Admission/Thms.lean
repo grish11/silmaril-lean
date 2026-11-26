@@ -33,7 +33,7 @@ when using the resulting family to compare runs. -/
 theorem LinkedFamily.ofGroups_sound [DecidableEq (Ty V S)] {keys : OpcodeCode (Instruction Op)}
     [DecidableEq keys.Key] (captureCode : CaptureCode m) (ordinary : OrdinaryOutputs Op) {membersL membersR : List (Function V S)}
     (left : Group m membersL) (right : Group m membersR) (accepted : checkGroupPair keys left right = true) :
-    LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed left.key right.key) :=
+    LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed (left.profile keys) (right.profile keys)) :=
   AdmissionProofs.linked_groups captureCode ordinary left right accepted
 
 /-- Seed ordered admission from the actual tables of two earlier linked
@@ -41,7 +41,7 @@ theorem LinkedFamily.ofGroups_sound [DecidableEq (Ty V S)] {keys : OpcodeCode (I
 @[expose] def LinkedFamily.ofGroups [DecidableEq (Ty V S)] (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
     (primitives : Primitives m σ) (ids : GlobalRel) (captureCode : CaptureCode m) (ordinary : OrdinaryOutputs Op)
     {membersL membersR : List (Function V S)} (left : Group m membersL) (right : Group m membersR) :
-    Option (PLift (LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed left.key right.key))) :=
+    Option (PLift (LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed (left.profile keys) (right.profile keys)))) :=
   if accepted : checkGroupPair keys left right = true then some ⟨ofGroups_sound captureCode ordinary left right accepted⟩ else none
 
 theorem LinkedFamily.extendGroup [DecidableEq (Ty V S)] {keys : OpcodeCode (Instruction Op)}
@@ -49,16 +49,16 @@ theorem LinkedFamily.extendGroup [DecidableEq (Ty V S)] {keys : OpcodeCode (Inst
     {familyL familyR : Family m} {prior : DispatchKeys V S keys.Key captureCode.Key}
     (earlier : LinkedFamily primitives ids keys captureCode familyL familyR prior)
     {members : List (Function V S)} (left right : Group m members)
-    (fresh : left.key ∉ prior.groupsR ∧ right.key ∉ prior.groupsL)
+    (fresh : left.profile keys ∉ prior.groupsR ∧ right.profile keys ∉ prior.groupsL)
     (outerL : TupleIn familyL left.values) (outerR : TupleIn familyR right.values)
     (bodies : checkGroupBodies keys left right = true) :
     LinkedFamily primitives ids keys captureCode (WithGroup familyL left) (WithGroup familyR right)
-      (prior.addGroup left.key right.key) :=
+      (prior.addGroup (left.profile keys) (right.profile keys)) :=
   AdmissionProofs.linked_group_extension ordinary earlier left right fresh outerL outerR bodies
 
 /-- Admit a new group with checked earlier captures and one matched body per
-slot. Distinct cross-side group signatures or capture types exclude dispatch
-between an earlier group and the new one. -/
+slot. Profiles distinguish earlier opposite-side groups by interface or by
+a difference in the outer labels of a corresponding member definition. -/
 @[expose] def LinkedFamily.addGroup [DecidableEq (Ty V S)] (keys : OpcodeCode (Instruction Op))
     [DecidableEq keys.Key] {captureCode : CaptureCode m} (ordinary : OrdinaryOutputs Op)
     {familyL familyR : Family m} {prior : DispatchKeys V S keys.Key captureCode.Key}
@@ -66,10 +66,13 @@ between an earlier group and the new one. -/
     {members : List (Function V S)} (left right : Group m members)
     (outerL : TupleIn familyL left.values) (outerR : TupleIn familyR right.values) :
     Option (PLift (LinkedFamily primitives ids keys captureCode (WithGroup familyL left) (WithGroup familyR right)
-      (prior.addGroup left.key right.key))) :=
+      (prior.addGroup (left.profile keys) (right.profile keys)))) :=
   letI : DecidableEq (Function V S) := decideFunction
   letI : DecidableEq (GroupKey V S) := inferInstance
-  if fresh : left.key ∉ prior.groupsR ∧ right.key ∉ prior.groupsL then
+  letI : DecidableEq (LabelCode V S keys.Key) := inferInstance
+  letI : DecidableEq (List (Multiset (LabelCode V S keys.Key))) := inferInstance
+  letI : DecidableEq (GroupProfile V S keys.Key) := inferInstance
+  if fresh : left.profile keys ∉ prior.groupsR ∧ right.profile keys ∉ prior.groupsL then
     if bodies : checkGroupBodies keys left right = true then
       some ⟨earlier.extendGroup ordinary left right fresh outerL outerR bodies⟩
     else none
@@ -82,6 +85,11 @@ theorem outerProfile_eq (code : OpcodeCode (Instruction Op))
     (iso : NestedTheta.Graph.Isomorphic (Instruction Op) left right) :
     outerProfile code left = outerProfile code right :=
   AdmissionProofs.outer_profile code iso
+
+/-- Related members agree on the profile of the entire ordered definition table. -/
+theorem memberProfile_eq (code : OpcodeCode (Instruction Op)) {port : Ty V S} {left right : m.Val port}
+    (related : ValueRelated m ids left right) : memberProfile code left = memberProfile code right :=
+  AdmissionProofs.related_memberProfile code related
 
 /-- Distinct capture observations rule out a related tuple for any global
 address correspondence. For equal observations the body check still applies. -/

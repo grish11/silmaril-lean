@@ -8,6 +8,7 @@ import Silmaril.Wasm.Institution.Operational.CallContinuation.Native.Thms
 import Silmaril.Wasm.Versions.Lime1.Execution.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryQuery.Native.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryWrite.Native.Thms
+import Silmaril.Wasm.Institution.Operational.MemoryGrow.Native.Thms
 
 @[expose] public section
 
@@ -29,9 +30,10 @@ private theorem update_bytes {H : Type} (base : Store H) (m : MemAddr) (initial 
       storeWithBytes base m initial after := by
   simp [storeWithBytes, setMemory, List.set_set]
 
-theorem sound {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
-    (checked : p.checkV1 m = true) (layout : Layout p base m initial) {src dst : State}
-    (move : Edge p m src dst) :
+theorem sound {H : Type} {mode : MemoryMode} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
+    (checked : p.checkV1 m mode = true) (layout : Layout p base m initial)
+    (matched : mode.matches initial) {src dst : State}
+    (move : EdgeAt mode p m src dst) :
     Step CallFrame.v1NoHost (render base m initial src) (render base m initial dst) := by
   induction move with
   | pure move => exact .pure _ _ move
@@ -56,25 +58,37 @@ theorem sound {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial :
     exact (MemoryWrite.v1_context_store_step_iff_at (saved := []) (tail := [])
       (selected layout slot _)).mpr ⟨_, rule, rfl⟩
 
-private theorem reflect_load {H : Type} {p : Program} {m : MemAddr} {base : Store H}
+  | size _ slot => exact .memorySize _ _ _ _ (selected layout slot _)
+  | @grow bytes f maximum delta grown enabled slot rule =>
+    have limit : initial.max = maximum := by simpa only [enabled, MemoryMode.matches] using matched
+    have compatible : MemoryGrow.Edge { initial with data := bytes } (.request delta) (.grown grown) := by
+      cases initial
+      cases limit
+      exact rule
+    have native := MemoryGrow.v1_sound (host := CallFrame.v1NoHost) (selected layout slot bytes) compatible
+    simpa only [MemoryGrow.v1Config, render, update_bytes] using! native
+  | @growFail bytes _ _ delta _ slot =>
+    exact MemoryGrow.v1_sound (selected layout slot bytes) (MemoryGrow.fact (.fail delta))
+
+private theorem reflect_load {H : Type} {mode : MemoryMode} {p : Program} {m : MemAddr} {base : Store H}
     {initial : MemInst} (layout : Layout p base m initial)
     {bytes : ByteArray} {f : Frame} {arg : Wasm.V1.MemArg} {ptr : BitVec 32} {dst : Config H}
     (slot : f.module.memories[0]? = some m)
     (move : Step CallFrame.v1NoHost
       (render base m initial ⟨bytes, f, MemoryQuery.v1CodeAt arg (.load ptr)⟩) dst) :
-    ∃ out, Edge p m ⟨bytes, f, MemoryQuery.v1CodeAt arg (.load ptr)⟩ out ∧
+    ∃ out, EdgeAt mode p m ⟨bytes, f, MemoryQuery.v1CodeAt arg (.load ptr)⟩ out ∧
       dst = render base m initial out := by
   obtain ⟨out, edge, eq⟩ := (MemoryWrite.v1_context_load_step_iff_at (saved := []) (tail := [])
     (selected layout slot _)).mp move
   exact ⟨_, .load slot edge, by simpa [render, values] using eq⟩
 
-private theorem reflect_store {H : Type} {p : Program} {m : MemAddr} {base : Store H}
+private theorem reflect_store {H : Type} {mode : MemoryMode} {p : Program} {m : MemAddr} {base : Store H}
     {initial : MemInst} (layout : Layout p base m initial)
     {bytes : ByteArray} {f : Frame} {arg : Wasm.V1.MemArg} {ptr word : BitVec 32} {dst : Config H}
     (slot : f.module.memories[0]? = some m)
     (move : Step CallFrame.v1NoHost (render base m initial ⟨bytes, f,
       [value (.int .i32 ptr), value (.int .i32 word), .source (.intStore .i32 none arg)]⟩) dst) :
-    ∃ out, Edge p m ⟨bytes, f,
+    ∃ out, EdgeAt mode p m ⟨bytes, f,
       [value (.int .i32 ptr), value (.int .i32 word), .source (.intStore .i32 none arg)]⟩ out ∧
       dst = render base m initial out := by
   obtain ⟨out, edge, eq⟩ := (MemoryWrite.v1_context_store_step_iff_at (saved := []) (tail := [])
@@ -83,17 +97,17 @@ private theorem reflect_store {H : Type} {p : Program} {m : MemAddr} {base : Sto
   | write => exact ⟨_, .store slot edge, by simpa [render, MemoryWrite.v1ConfigAt, values, update_bytes] using eq⟩
   | trap => exact ⟨_, .storeTrap slot edge, eq⟩
 
-private theorem source_last {p : Program} {m : MemAddr} {rank : Nat} {mod : ModuleInst}
+private theorem source_last {mode : MemoryMode} {p : Program} {m : MemAddr} {rank : Nat} {mod : ModuleInst}
     {code : List Admin} {op : Wasm.V1.Instr}
-    (guard : CodeAllowed p m rank mod code) (last : code.getLast? = some (.source op)) :
-    SourceAllowed p m rank mod op :=
+    (guard : CodeAllowedAt mode p m rank mod code) (last : code.getLast? = some (.source op)) :
+    SourceAllowedAt mode p m rank mod op :=
   source_allowed (guard _ (List.mem_of_getLast? last))
 
-theorem readback {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
-    (layout : Layout p base m initial) {src dst : Config H} (move : Step CallFrame.v1NoHost src dst)
+theorem readback {H : Type} {mode : MemoryMode} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
+    (layout : Layout p base m initial) (matched : mode.matches initial) {src dst : Config H} (move : Step CallFrame.v1NoHost src dst)
     (bytes : ByteArray) (same : src.store = storeWithBytes base m initial bytes)
-    {rank : Nat} (ready : CodeAllowed p m rank src.frame.module src.code) :
-    ∃ out, Edge p m ⟨bytes, src.frame, src.code⟩ out ∧ dst = render base m initial out := by
+    {rank : Nat} (ready : CodeAllowedAt mode p m rank src.frame.module src.code) :
+    ∃ out, EdgeAt mode p m ⟨bytes, src.frame, src.code⟩ out ∧ dst = render base m initial out := by
   induction move generalizing bytes rank with
   | pure s f move => exact ⟨_, .pure move, by simp [render, ← same]⟩
   | @context s t f g before after move saved tail ih =>
@@ -174,6 +188,30 @@ theorem readback {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initia
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj found)
       subst s
       exact reflect_store layout slot (.intStoreTrap _ _ _ _ _ _ _ _ _ foundNow stored)
+  | memorySize s f a mem found =>
+    have guard := source_allowed (single_allowed.mp ready)
+    cases guard with | memorySize enabled slot =>
+      change s = storeWithBytes base m initial bytes at same
+      have foundNow := selected layout slot bytes
+      rw [same, foundNow] at found
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj found)
+      exact ⟨_, .size enabled slot, by simp only [render, ← same]; rfl⟩
+  | memoryGrow s f a mem delta r out found grown =>
+    have guard := source_last ready (op := .memoryGrow) rfl
+    cases guard with | @memoryGrow maximum enabled slot =>
+      change s = storeWithBytes base m initial bytes at same
+      have foundNow := selected layout slot bytes
+      rw [same, foundNow] at found
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj found)
+      have limit : initial.max = maximum := by simpa only [enabled, MemoryMode.matches] using matched
+      cases grown with
+      | success _ ok =>
+        have grew : Execution.Memory.grow? bytes maximum delta.toNat = some out := by
+          simpa only [limit] using ok
+        exact ⟨_, .grow enabled slot (MemoryGrow.fact (.grow delta _ grew)),
+          by simp only [render, same, update_bytes]; rfl⟩
+      | failure =>
+        exact ⟨_, .growFail enabled slot, by simp only [render, same, update_bytes]; rfl⟩
   | _ =>
     have guard := source_last ready rfl
     cases guard
@@ -186,33 +224,33 @@ theorem initial_store {H : Type} {p : Program} {m : MemAddr} {base : Store H} {i
   unfold setMemory
   rw [← allocated, List.set_getElem_self]
 
-theorem step_iff {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
-    (checked : p.checkV1 m = true) (layout : Layout p base m initial) {src : State} {rank : Nat}
-    (ready : Ready p m rank initial.data.size src) {dst : Config H} :
+theorem step_iff {H : Type} {mode : MemoryMode} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
+    (checked : p.checkV1 m mode = true) (layout : Layout p base m initial) (matched : mode.matches initial) {src : State} {rank : Nat}
+    (ready : ReadyAt mode p m rank initial.data.size src) {dst : Config H} :
     Step CallFrame.v1NoHost (render base m initial src) dst ↔
-      ∃ out, Edge p m src out ∧ Ready p m rank initial.data.size out ∧ dst = render base m initial out := by
+      ∃ out, EdgeAt mode p m src out ∧ ReadyAt mode p m rank initial.data.size out ∧ dst = render base m initial out := by
   constructor
   · intro step
-    obtain ⟨out, edge, eq⟩ := readback layout step src.bytes rfl ready.2
-    exact ⟨out, edge, ⟨(edge_extent edge).trans ready.1, preserve checked edge ready.2⟩, eq⟩
+    obtain ⟨out, edge, eq⟩ := readback layout matched step src.bytes rfl ready.2
+    exact ⟨out, edge, ⟨extent_preserved edge ready.1, preserve checked edge ready.2⟩, eq⟩
   · rintro ⟨out, edge, _, rfl⟩
-    exact sound checked layout edge
+    exact sound checked layout matched edge
 
-theorem run_iff {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
-    (checked : p.checkV1 m = true) (layout : Layout p base m initial) {src : State} {rank : Nat}
-    (ready : Ready p m rank initial.data.size src) {dst : Config H} :
+theorem run_iff {H : Type} {mode : MemoryMode} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
+    (checked : p.checkV1 m mode = true) (layout : Layout p base m initial) (matched : mode.matches initial) {src : State} {rank : Nat}
+    (ready : ReadyAt mode p m rank initial.data.size src) {dst : Config H} :
     Steps CallFrame.v1NoHost (render base m initial src) dst ↔
-      ∃ out, Runs p m src out ∧ Ready p m rank initial.data.size out ∧ dst = render base m initial out := by
+      ∃ out, RunsAt mode p m src out ∧ ReadyAt mode p m rank initial.data.size out ∧ dst = render base m initial out := by
   constructor
   · intro run
     induction run with
     | refl => exact ⟨src, .refl, ready, rfl⟩
     | tail _ step ih =>
       obtain ⟨middle, trace, guarded, rfl⟩ := ih
-      obtain ⟨next, edge, nextGuarded, eq⟩ := (step_iff checked layout guarded).mp step
+      obtain ⟨next, edge, nextGuarded, eq⟩ := (step_iff checked layout matched guarded).mp step
       exact ⟨next, trace.tail edge, nextGuarded, eq⟩
   · rintro ⟨out, trace, _, rfl⟩
-    exact Relation.ReflTransGen.lift (render base m initial) (fun _ _ h => sound checked layout h) _ _ trace
+    exact Relation.ReflTransGen.lift (render base m initial) (fun _ _ h => sound checked layout matched h) _ _ trace
 
 theorem loop_restart {H : Type} {s : Store H} {f : Frame} {result : Option NumType}
     {body : Wasm.V1.Expr} {saved scratch : List Value} {branchTail tail : List Admin} :

@@ -40,28 +40,47 @@ def fieldMap? : (width : Nat) → Val (Fin n) → Option (Fin width → Fin n)
   | width + 1, .pair (.var i) tail => (fieldMap? width tail).map (Fin.cons i)
   | _, _ => none
 
+/-- The checked symbolic values agree with the corresponding real registers. -/
+def StoreAgrees {M : Type → Type} (model : Model F M α) (packet : Fin n → α)
+    (env : V → Option (Val (Fin n))) (store : V → α) : Prop :=
+  ∀ reg shape, env reg = some shape → store reg = shape.eval model packet
+
 variable [DecidableEq V]
 
-/-- Recognize value copies, pair construction and known-pair destructuring.
-The symbolic updates follow the actual order, including aliased destinations. -/
-def bodyTo? (width : K → Nat) (env : V → Option (Val (Fin n))) :
-    Body V K F → Option ((target : K) × Route n (width target))
-  | .let1 dst (.val value) tail => do
-    let shape ← read? env value
-    bodyTo? width (upd env dst (some shape)) tail
-  | .let2 left right (.val value) tail =>
-    match read? env value with
-    | some (.pair fst snd) => bodyTo? width (upd (upd env left (some fst)) right (some snd)) tail
-    | _ => none
-  | .term (.br target value) => do
+/-- Check a jump and extract its declared target's field route. -/
+def termTo? (width : K → Nat) (env : V → Option (Val (Fin n))) :
+    Term V K F → Option ((target : K) × Route n (width target))
+  | .br target value => do
     let shape ← read? env value
     let fields ← fieldMap? (width target) shape
     return ⟨target, fields⟩
   | _ => none
 
+/-- Recognize value copies, pair construction and known-pair destructuring.
+The symbolic updates follow the actual order, including aliased destinations. -/
+def bodyWith? {R : Type} (finish : (V → Option (Val (Fin n))) → Term V K F → Option R)
+    (env : V → Option (Val (Fin n))) : Body V K F → Option R
+  | .let1 dst (.val value) tail => do
+    let shape ← read? env value
+    bodyWith? finish (upd env dst (some shape)) tail
+  | .let2 left right (.val value) tail =>
+    match read? env value with
+    | some (.pair fst snd) => bodyWith? finish (upd (upd env left (some fst)) right (some snd)) tail
+    | _ => none
+  | .term term => finish env term
+  | _ => none
+
+def blockWith? {R : Type} (source : Nat)
+    (finish : (V → Option (Val (Fin source))) → Term V K F → Option R) (block : Block V K F) : Option R :=
+  bodyWith? finish (upd (fun _ => none) block.param (some (packed fun i : Fin source => .var i))) block.body
+
+def bodyTo? (width : K → Nat) (env : V → Option (Val (Fin n))) (body : Body V K F) :
+    Option ((target : K) × Route n (width target)) :=
+  bodyWith? (termTo? width) env body
+
 def blockTo? (source : Nat) (width : K → Nat) (block : Block V K F) :
     Option ((target : K) × Route source (width target)) :=
-  bodyTo? width (upd (fun _ => none) block.param (some (packed fun i : Fin source => .var i))) block.body
+  blockWith? source (termTo? width) block
 
 def body? (env : V → Option (Val (Fin n))) (body : Body V K F) : Option (K × FieldMap n) :=
   (bodyTo? (fun _ => n) env body).map fun result => (result.1, result.2)

@@ -20,6 +20,17 @@ local notation "Seed" => Paper.WithCaseReturns.JoinedStep (τ := τ) (Φ := Φ) 
 local notation "Comp" => Paper.WithCaseReturns.TypeCategory (τ := τ) (Φ := Φ) pe
 local notation "U" => ofType Seed (Silmaril.unit : τ)
 
+/-- Unit η proves the double-step equation in any contextual quotient containing it. -/
+theorem unit_alternate_power_of_seed
+    (S : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+    (includeUnit : ∀ {Γ : VCtx τ} {r s : Region Φ} {L : LCtx τ},
+      Paper.WithUnitEta.Step Γ r s L → S Γ r s L)
+    {B : Extension.Singleton.TypeCategory S}
+    (g : ofType S (Silmaril.unit : τ) ⟶ B ⨿ ofType S (Silmaril.unit : τ)) :
+    iterateChosen S (g ≫ coprod.desc coprod.inl g) = iterateChosen S g :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.UnitFoldUniformity.unit_alternate_power_of_seed
+    S includeUnit g
+
 /-- Unit η allows literal constructor discard to prove the power equation for every unit-state step. -/
 theorem unit_alternate_power {B : Comp} (g : U ⟶ B ⨿ U) :
     iterateChosen Seed (g ≫ coprod.desc coprod.inl g) = iterateChosen Seed g :=

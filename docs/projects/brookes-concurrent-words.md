@@ -117,16 +117,20 @@ whereas the specified alphabet still orders every sync/sync pair. [Zielonka, §4
   interpretation, including the state and result used to select the next call.
   The bridge supplies no observation of infinite schedules or fairness. [Brookes iteration][iteration]
 
-Once the finite trace API is available, an adapter under
-`Silmaril/Semantics/Brookes/Word/EventSync/` can instantiate `I` by the table
-and use the source quotient's lift with `Word.eval_of_swap` or
-`Word.endpoints_of_swap` on each generator. The adapter's computation theorem
-should state `denote (classOf w) = Word.eval letter w`, or
-`observe (classOf w) = Word.endpoints (Word.eval letter w)` for the endpoint
-version. These equations and `Word.eval_append` give the unit and product laws
-using the source API's representative multiplication. A scheduler adequacy
-claim additionally needs the per-letter correspondence and the appropriate
-swap hypothesis on the resulting commands.
+[`Silmaril.Semantics.Brookes.Word.EventSync.Thms`][event-sync] instantiates
+`I` with `ConcurrentTrace.Letter.Independent`. Its `swapEquiv` identifies
+the finite event/sync monoid's classes with this instance of the generic
+swap quotient. `exists_denote_iff` and `exists_denoteEndpoints_iff` give the
+exact conditions for factoring through those classes. The regression
+assigns disjoint store effects to events and synchronizations. It checks
+that an event can cross a nonparticipating synchronization at endpoints
+while the open interpretations differ.
+
+The endpoint lift compares contiguous initial and final stores of finite
+words. Connecting it to a closed scheduler still requires an adequacy proof
+for that scheduler's enabled transitions and completed observations. Open
+descent requires equality of full Brookes commands for every permitted
+swap, including event/sync pairs, even where endpoint descent is available.
 
 ## Sources
 
@@ -165,10 +169,13 @@ for Lamport.
 lake build --wfail +Silmaril.Semantics.Brookes.Word.Thms \
   +Silmaril.Proofs.Semantics.Brookes.Word.Regression
 make check CHECK_TARGETS='+Silmaril.Semantics.Brookes.Word.Thms +Silmaril.Proofs.Semantics.Brookes.Word.Regression'
+lake build --wfail +Silmaril.Semantics.Brookes.Word.EventSync.Thms \
+  +Silmaril.Proofs.Semantics.Brookes.Word.EventSync.Regression
 ```
 
 [defs]: ../../Silmaril/Semantics/Brookes/Word/Defs.lean
 [thms]: ../../Silmaril/Semantics/Brookes/Word/Thms.lean
+[event-sync]: ../../Silmaril/Semantics/Brookes/Word/EventSync/Thms.lean
 [regression]: ../../Silmaril/Proofs/Semantics/Brookes/Word/Regression.lean
 [core]: sc-brookes.md
 [tree]: brookes-tree-sc-closed.md

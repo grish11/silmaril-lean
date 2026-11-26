@@ -2,7 +2,7 @@ module
 
 import Silmaril.Semantics.ITree.Thms
 import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Cover.Thms
-import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.Terminal.Thms
+import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.Native.Thms
 import Silmaril.Semantics.ITree.VisiblePrefix.Thms
 import Silmaril.SSA.Isotope.LetIter.RequestFeedback.Thms
 import Silmaril.SSA.Isotope.LetIter.Categorical.Syntactic.AbortSequence.Category.Model.Thms
@@ -4091,5 +4091,77 @@ example :
 
 example : strict < (⊤ : Fx) :=
   lt_of_le_of_ne le_top (fun h => Bool.noConfusion (congrArg Prod.snd h))
+
+private def rawReply : Expr Ops :=
+  .let₁ (.var 0) (.case (.var 0) (.let₁ (.inr .unit) (.inr (.var 0))) (.inr (.inr .unit)))
+
+private def rawCall : Expr Ops := .let₁ (.op read (.let₁ .unit (.var 0))) rawReply
+
+private def rawProgram : Native.Program family Bit .unit strict where
+  initial := .let₁ .unit (.inl (.var 0))
+  body := .let₁ (.var 0) (.case (.var 0) rawCall (.inl .unit))
+  initialSyntax := .letInl (.literal .unit PUnit.unit)
+  bodySyntax := .copy (.split
+    (.leaf (.call read (.letId (.literal .unit PUnit.unit))
+      (.copy (.split (.leaf (.letInr (.literal Bit on)))
+        (.leaf (.literal (Code.sum .unit Bit) (.inr on)))))))
+    (.leaf (.ret (.literal .unit PUnit.unit))))
+  initTerm := .let₁ .unit (.inl (.bv 0))
+  bodyTerm := .let₁ (.bv 0) (.case (.bv 0)
+    (.let₁ (.op read (.let₁ .unit (.bv 0)))
+      (.let₁ (.bv 0) (.case (.bv 0) (.let₁ (.inr .unit) (.inr (.bv 0))) (.inr (.inr .unit)))))
+    (.inl .unit))
+  initial_lowers := rfl
+  body_lowers := rfl
+  effects _ := le_rfl
+  iterative := rfl
+
+private def directProgram : Native.Program family .unit .unit strict where
+  initial := .unit
+  body := .let₁ (.op read .unit) (.inl .unit)
+  initialSyntax := .literal .unit PUnit.unit
+  bodySyntax := .leaf (.call read (.literal .unit PUnit.unit)
+    (.leaf (.literal (Code.sum .unit .unit) (.inl PUnit.unit))))
+  initTerm := .unit
+  bodyTerm := .let₁ (.op read .unit) (.inl .unit)
+  initial_lowers := rfl
+  body_lowers := rfl
+  effects _ := le_rfl
+  iterative := rfl
+
+private theorem raw_extract : rawProgram.table = delayed := by
+  funext s
+  cases s with
+  | inl _ =>
+    apply congrArg (Row.call read PUnit.unit)
+    funext reply
+    cases reply <;> rfl
+  | inr _ => rfl
+
+-- The state-selector let survives lowering of the written representative.
+-- The renderer would start the same body with a case.
+example : rawProgram.body.toLetIter 1 ≠ rawProgram.table.source.toLetIter 1 := by
+  intro same
+  have terms := Option.some.inj same
+  cases terms
+
+-- The two native endpoints are checked at the same strict bound. The extracted
+-- tables have the unequal reply modes of the earlier no-cover fixture.
+example : HasTypeEffect Γ₀ .nil rawProgram.endpoint.val Ty.unit strict ∧
+    HasTypeEffect Γ₀ .nil directProgram.endpoint.val Ty.unit strict ∧
+    ∃ (dp : Derivation Ops Γ₀ .nil rawProgram.native Ty.unit)
+      (dq : Derivation Ops Γ₀ .nil directProgram.native Ty.unit),
+      repairedDenoteInSyntax (⊥ : Fx) dp = repairedDenoteInSyntax (⊥ : Fx) dq ∧
+      AbortEquiv (⊥ : Fx) Γ₀ .nil rawProgram.native directProgram.native Ty.unit := by
+  have obs : rawProgram.table.run rawProgram.start = directProgram.table.run directProgram.start := by
+    rw [raw_extract]
+    exact direct_delayed.1.symm
+  obtain ⟨dp⟩ := Derivation.ofHasType rawProgram.typed.1
+  obtain ⟨dq⟩ := Derivation.ofHasType directProgram.typed.1
+  have nativeObs := (rawProgram.denote_eq_run dp noPure visible).trans
+    (obs.trans (directProgram.denote_eq_run dq noPure visible).symm)
+  exact ⟨rawProgram.endpoint.property, directProgram.endpoint.property, dp, dq,
+    (rawProgram.packed_eq_iff_denote_eq directProgram dp dq noPure visible).mpr nativeObs,
+    (rawProgram.abortEquiv_iff_denote_eq directProgram dp dq noPure visible).mpr nativeObs⟩
 
 end LetIterHeterogeneousFeedbackFixture

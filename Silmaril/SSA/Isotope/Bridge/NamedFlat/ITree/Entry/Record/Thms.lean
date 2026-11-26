@@ -18,4 +18,17 @@ theorem inputEnv_reindex {β : BoundCtx (Ty κ) n} {γ : BoundCtx (Ty κ) m}
     inputEnv β (reindex slots record) i.val = inputEnv γ record (slots.toFun i).val :=
   Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Record.inputEnv_reindex slots record i
 
+@[simp]
+theorem reindex_id (β : BoundCtx (Ty κ) n) (record : Input β) :
+    reindex (.id β) record = record :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Record.reindex_id β record
+
+/-- Reading a record along a composite checked slot map is successive
+projection, in the reverse direction to the maps on slots. -/
+theorem reindex_comp {β : BoundCtx (Ty κ) n} {γ : BoundCtx (Ty κ) m}
+    {k : Nat} {δ : BoundCtx (Ty κ) k} (first : BoundCtx.Renaming β γ)
+    (second : BoundCtx.Renaming γ δ) (record : Input δ) :
+    reindex (first.comp second) record = reindex first (reindex second record) :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Record.reindex_comp first second record
+
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Record

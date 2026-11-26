@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Thms
 public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.FIFO.Defs
+public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Phi.Support.Defs
 public import Mathlib.Logic.Function.Basic
 
 /-! Typed destination jobs for the Φ equation of the cyclic SCCP worklist. -/
@@ -29,8 +30,8 @@ def wireAt {args : List (Ty Data)} {past : List (List (Ty Data))} :
   | [], .nil, i => i.elim0
   | _ :: _, .cons wire tail, i => Fin.cases wire (wireAt tail) i
 
-/-- A direct wire watches its one typed fact. A producer wire conservatively
-watches the old bank and uses the existing shared evaluator when popped. -/
+/-- A direct wire watches its one typed fact. A producer wire watches the
+support of its operand DAG and uses the shared evaluator when popped. -/
 abbrev FeedbackInput (value : Data → Type w) (carried : List (ValueSort Data)) (job : Job carried) :=
   Sum (Fact value (dataPorts carried)[job]) (BankFacts value (dataPorts carried))
 
@@ -41,6 +42,11 @@ variable (m : Model.{u, v, w} Op) [eqBank : BankDecidableEq m.value (dataPorts c
 variable (g : Graph Op inputs carried entrySigs headerSigs out)
 variable (input : Tuple (Fact m.value) (dataPorts inputs))
 
+/-- Static transitive support of one typed feedback operand. -/
+def feedbackSupport (g : Graph Op inputs carried entrySigs headerSigs out) (job : Job carried) :
+    Finset (Job carried) :=
+  Support.wire (inputs := inputs) (carried := carried) g.header (wireAt (g.phiInputs .backedge) job)
+
 /-- The backedge mark gates all feedback dependencies. Captured argument
 facts are immutable during the worklist, so reads of them never wake a job. -/
 def dependencies (state : State m.value carried out) (job : Job carried) : Watched m.value carried job :=
@@ -48,7 +54,7 @@ def dependencies (state : State m.value carried out) (job : Job carried) : Watch
     if incomingIndex .backedge ∈ state.1 then
       some (match wireAt (g.phiInputs .backedge) job with
         | .arg port => .inl ((appendTuple (bankTuple state.2.1) input).get port)
-        | .output _ _ => .inr state.2.1)
+        | .output _ _ => .inr (Support.restrictBank (feedbackSupport g job) state.2.1))
     else none)
 
 def evaluate (job : Job carried) (watched : Watched m.value carried job) :

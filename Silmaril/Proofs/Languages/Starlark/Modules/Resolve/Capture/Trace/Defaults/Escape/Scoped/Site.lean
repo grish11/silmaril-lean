@@ -17,11 +17,11 @@ open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.S
 open Silmaril.Languages.Starlark.Functions
 open Silmaril.Languages.Starlark.Functions.Lowering.Resolve (resolveTracked)
 
-theorem emission (spec : Spec) (globals : List String) (names : Defaults.Escape.WrapperNames spec.wrapper)
+theorem emission (spec : Spec) (globals : List String) (names : Names spec)
     (plan : Plan globals spec) (program : Program) :
     elaborateCommand ⟨⟨[], globals⟩, .global⟩ spec.command program =
       .ok (.exec (.define spec.wrapper.name (program.size + 1)),
-        (program.push (plan.body.declaration spec.wrapper.codes)).push (spec.wrapper.frame program.size).declaration) := by
+        (program.push (plan.body.declaration spec.wrapper.codes)).push (spec.frame program.size).declaration) := by
   let wrapper := spec.wrapper
   let defaults := Defaults.Escape.planned wrapper
   have paired : defaults.map (fun item => (item.name, item.source)) = spec.child.parameters.optional := by
@@ -30,31 +30,33 @@ theorem emission (spec : Spec) (globals : List String) (names : Defaults.Escape.
       resolveTracked ⟨spec.enclosing, globals⟩ item.source = .ok (item.value, item.reads) := by
     intro item member
     obtain ⟨⟨name, operand⟩, _, rfl⟩ := List.mem_map.mp member
-    exact Defaults.Escape.default_read _ wrapper.parameter (by simp [Spec.enclosing, wrapper]) names.parameterLegal operand
+    exact Defaults.Escape.default_read _ wrapper.parameter (by simp [Spec.enclosing, Spec.parameters, wrapper]) names.wrapper.parameterLegal operand
   have codes : defaults.map PlainPositionalDefault.value = wrapper.codes := by
     simp [defaults, Defaults.Escape.planned, Defaults.Escape.Spec.codes, List.map_map, Function.comp_def]
   have reads (binding : Silmaril.Languages.Starlark.Binding)
       (member : binding ∈ defaults.flatMap PlainPositionalDefault.reads ++ plan.body.free.map FreeName.source) :
-      binding = fileSlot wrapper.parameter := by
+      ∃ name ∈ spec.parameters, binding = fileSlot name := by
     rcases List.mem_append.mp member with fromDefault | fromBody
-    · exact Defaults.Escape.only_parameter wrapper fromDefault
-    · simpa [plan.captured, wrapper] using fromBody
-  apply Defaults.Escape.wrap_emission wrapper names globals spec.child.body.source _ _ reads
+    · exact ⟨_, by simp [Spec.parameters, wrapper], Defaults.Escape.only_parameter wrapper fromDefault⟩
+    · obtain ⟨entry, present, rfl⟩ := List.mem_map.mp fromBody
+      obtain ⟨name, parameter, rfl⟩ := plan.captured entry present
+      exact ⟨name, parameter, rfl⟩
+  apply Defaults.Escape.wrap_emission wrapper names.wrapper globals spec.additional names.childFresh spec.child.body.source _ _ reads
   intro seed
   have step := Defaults.Body.compile_nested plan.body defaults paired translated seed
   rw [codes] at step
   exact step
 
 theorem checked_site {before after : List Command} {globals : List String} {spec : Spec}
-    {linked : Program} {resolved : ResolvedModule} (names : Defaults.Escape.WrapperNames spec.wrapper)
+    {linked : Program} {resolved : ResolvedModule} (names : Names spec)
     (plan : Plan globals spec) (declared : ModuleBinders (before ++ spec.command :: after) globals)
     (checked : resolve (before ++ spec.command :: after) linked = .ok resolved)
     (suffix : RootCall.Segment globals after) :
     ∃ id, resolved.source.commands[before.length]? = some (.exec (.define spec.wrapper.name (id + 1))) ∧
       resolved.program[id]? = some (plan.body.declaration spec.wrapper.codes) ∧
-      resolved.program[id + 1]? = some (spec.wrapper.frame id).declaration :=
+      resolved.program[id + 1]? = some (spec.frame id).declaration :=
   RootCall.checked_pair_emission before after spec.command spec.wrapper.name globals linked resolved
-    (plan.body.declaration spec.wrapper.codes) (fun id => (spec.wrapper.frame id).declaration)
+    (plan.body.declaration spec.wrapper.codes) (fun id => (spec.frame id).declaration)
     declared checked suffix (emission spec globals names plan)
 
 end Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped

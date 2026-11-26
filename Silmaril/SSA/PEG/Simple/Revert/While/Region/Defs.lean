@@ -18,7 +18,7 @@ open RVSDG (Port Tuple)
 universe u v w
 
 variable {Data : Type u} {P : InstructionSet.{u,v} Data}
-variable {carried vars ins outs : List (Ty Data)} {result t : Ty Data} {n : Nat}
+variable {carried vars ins outs : List (Ty Data)} {result t : Ty Data} {n l : Nat}
 variable {g : Graph P carried [result] n 1} {sort : Fin n → Ty Data}
 
 def refEq (a b : Ref sort t) : Decidable (a = b) :=
@@ -33,8 +33,8 @@ def tupleEq : {ins : List (Ty Data)} → (a b : Tuple (Ref sort) ins) → Decida
     | isFalse h, _ => isFalse (by intro eq; cases eq; exact h rfl)
     | _, isFalse h => isFalse (by intro eq; cases eq; exact h rfl)
 
-def nodeAt (g : Graph P carried [result] n 1) (r : Ref g.sort t) :
-    Node P carried (Fin 1) g.sort t :=
+def nodeAt (g : Graph P carried [result] n l) (r : Ref g.sort t) :
+    Node P carried (Fin l) g.sort t :=
   r.typed ▸ g.node r.id
 
 def nodeEq [DecidableEq Data] [∀ ins out, DecidableEq (P ins out)]
@@ -95,7 +95,7 @@ def Reads.args {scope : Tuple (Ref sort) vars} :
 
 /-- Every binding extends the scope. Only the terminal projection commits
 the ordered outputs, so old θ slots remain available throughout a slice. -/
-inductive Schedule (g : Graph P carried [result] n 1) (roots : Tuple (Ref g.sort) outs) :
+inductive Schedule (g : Graph P carried [result] n l) (roots : Tuple (Ref g.sort) outs) :
     {vars : List (Ty Data)} → Tuple (Ref g.sort) vars → Type (max u v) where
   | done {vars : List (Ty Data)} {scope : Tuple (Ref g.sort) vars} (reads : Reads scope roots) :
       Schedule g roots scope
@@ -107,7 +107,7 @@ inductive Schedule (g : Graph P carried [result] n 1) (roots : Tuple (Ref g.sort
       (tail : Schedule g roots (.cons (Ref.ofId g.sort i) scope)) :
       Schedule g roots scope
 
-def Schedule.check (g : Graph P carried [result] n 1) (roots : Tuple (Ref g.sort) outs) :
+def Schedule.check (g : Graph P carried [result] n l) (roots : Tuple (Ref g.sort) outs) :
     (order : List (Fin n)) → {vars : List (Ty Data)} → (scope : Tuple (Ref g.sort) vars) →
     Option (Schedule g roots scope)
   | [], _, scope =>
@@ -126,7 +126,7 @@ def Schedule.check (g : Graph P carried [result] n 1) (roots : Tuple (Ref g.sort
       | _ => none
     else none
 
-def Schedule.lower {roots : Tuple (Ref g.sort) outs} :
+def Schedule.lower {g : Graph P carried [result] n l} {roots : Tuple (Ref g.sort) outs} :
     {vars : List (Ty Data)} → {scope : Tuple (Ref g.sort) vars} →
     Schedule g roots scope → Stmt P false vars outs
   | _, _, .done reads => .project reads.slots
@@ -222,7 +222,7 @@ def check [DecidableEq Data] [∀ ins out, DecidableEq (P ins out)]
 /-- Collect a primitive slice in reverse topological order. Carried rows
 are leaves, and a completed binding is reused by later visits. Fuel
 bounds the depth of the search, including cyclic proposals. -/
-def visit (g : Graph P carried [result] n 1) (carriedRows : List Nat) :
+def visit (g : Graph P carried [result] n l) (carriedRows : List Nat) :
     Nat → Fin n → List (Fin n) → Option (List (Fin n))
   | fuel, i, order =>
     if i.val ∈ carriedRows ∨ i ∈ order then some order
@@ -239,11 +239,16 @@ def visit (g : Graph P carried [result] n 1) (carriedRows : List Nat) :
         | _ => none
 termination_by structural fuel _ _ => fuel
 
-def sliceOrder (g : Graph P carried [result] n 1) (d : Descriptor g)
+/-- Infer a scope-closed order for a primitive slice of a PEG. -/
+def scopedOrder (g : Graph P carried [result] n l) (scope : Tuple (Ref g.sort) vars)
     (roots : Tuple (Ref g.sort) outs) : Option (List (Fin n)) := do
   let order ← (refNumbers roots).foldlM (fun order i => do
-    if bound : i < n then visit g (refNumbers d.theta) n ⟨i, bound⟩ order else none) []
+    if bound : i < n then visit g (refNumbers scope) n ⟨i, bound⟩ order else none) []
   return order.reverse
+
+def sliceOrder (g : Graph P carried [result] n 1) (d : Descriptor g)
+    (roots : Tuple (Ref g.sort) outs) : Option (List (Fin n)) :=
+  scopedOrder g d.theta roots
 
 /-- Synthesize both slice orders from a supplied typed boundary, then
 validate the complete certificate. Boundary discovery and demand-rank

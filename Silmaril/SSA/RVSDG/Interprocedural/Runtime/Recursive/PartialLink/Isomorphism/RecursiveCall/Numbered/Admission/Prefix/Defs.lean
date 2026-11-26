@@ -468,7 +468,7 @@ def walk (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] (captureCod
     let rightTable := (Table.empty groupR.In localsR).snoc (memberRow membersR groupR.ref (fun slot => .member slot))
     let checked ← walk keys captureCode exactValue actions ids ordinary unitL unitR inputsL inputsR port
       (localsL.snoc (memberValues membersL groupL.ref)) (localsR.snoc (memberValues membersR groupR.ref))
-      storeL storeR next (.seeded ⟨groupL.In, groupR.In, DispatchKeys.seed groupL.key groupR.key, seed.down, [], leftTable, rightTable⟩)
+      storeL storeR next (.seeded ⟨groupL.In, groupR.In, DispatchKeys.seed (groupL.profile keys) (groupR.profile keys), seed.down, [], leftTable, rightTable⟩)
     pure ⟨by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; exact checked.down⟩
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR,
       .phi (members := members) (left := left) (right := right) next, .seeded earlier => do

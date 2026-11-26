@@ -102,6 +102,21 @@ theorem binary_fold_of_right_switch_and_double {A B : Q}
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.HiddenBitFeedback.TwoMode.binary_fold_of_right_switch_and_double
     Seed f g square switch double
 
+/-- The right-switch argument uses only the chosen quotient iteration laws. -/
+theorem binary_fold_of_right_switch_and_double_of_seed
+    (S : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+    {A B : Paper.Extension.Singleton.TypeCategory S}
+    (f : A ⨿ A ⟶ B ⨿ (A ⨿ A)) (g : A ⟶ B ⨿ A)
+    (square : f ≫ coprod.map (𝟙 B) (coprod.desc (𝟙 A) (𝟙 A)) =
+      coprod.desc (𝟙 A) (𝟙 A) ≫ g)
+    (switch : coprod.inr ≫ f = g ≫ coprod.map (𝟙 B) (coprod.inl : A ⟶ A ⨿ A))
+    (double :
+      let p := (coprod.inl ≫ f) ≫ (coprod.associator B A A).inv
+      iterateChosen S (p ≫ coprod.desc coprod.inl p) = iterateChosen S p) :
+    iterateChosen S f = coprod.desc (𝟙 A) (𝟙 A) ≫ iterateChosen S g :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.HiddenBitFeedback.TwoMode.binary_fold_of_right_switch_and_double
+    S f g square switch double
+
 /-- The alternating reduction uses the same chosen iteration in any contextual quotient. -/
 theorem alternating_fold_iff_double_of_seed
     (S : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)

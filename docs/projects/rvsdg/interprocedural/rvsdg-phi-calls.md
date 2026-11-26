@@ -824,8 +824,8 @@ The φ seed can describe member capture witnesses that project directly
 through its outer context. The checker rejects missing source descriptions,
 formal callees, and local outputs as origins for callees or capture
 witnesses, including callable values produced by a branch join. Inline
-closure descriptions and θ use the explicit plan constructors with
-supplied resolution proofs. Invocation uses the same linked runner.
+closure descriptions use the explicit plan constructors with supplied
+resolution proofs. Invocation uses the same linked runner.
 [Direct resolution API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Direct/Thms.lean)
 
 `synthesize_complete` proves success for a direct forwarding derivation
@@ -840,6 +840,26 @@ spare formal stays dead. Substituting a same-signature φ target from the
 wrong linker position rejects admission even when the affected inner arm
 would be unselected.
 [Linked γ fixture](../../../../Silmaril/Proofs/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Family/Regression.lean)
+
+### Tracking captured calls through θ feedback
+
+At θ entry, the checker follows the actual input wires and keeps a
+carried origin only if the corresponding body result is wired straight
+back from that same port. `feedback_return_reads` proves that every
+returned body packet preserves those reads by `Code.Forwards`. The
+linked runtime theorem carries those equalities through each restart,
+including after resumption. Untracked ordinary state may change, and
+inference checks the suffix under its enclosing boundary.
+
+The linked θ fixture changes a counter on the first iteration and calls
+a captured φ member on the second. With the spare input dead, the runner
+returns, blocks on a typed probe, and resumes through both effectful
+suffixes at exact stores. Swapping two same-signature callables on the
+backedge rejects admission, even with the right target on initial entry.
+θ bodies that need computed or permuted origins for call operands still
+use supplied resolution proofs.
+[Feedback and checker API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Direct/Thms.lean)
+[Linked θ fixture](../../../../Silmaril/Proofs/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Family/Regression.lean)
 
 ### Single-call admission
 

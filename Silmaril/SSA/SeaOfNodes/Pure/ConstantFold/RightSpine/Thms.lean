@@ -10,10 +10,23 @@ namespace Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.RightSpine
 open Diamond (Ty Val ValueSort dataPorts)
 open GVN.Elimination (Rewrite Routing splitOrigin)
 open SubZero (model wordPort)
-open RVSDG (Tuple)
+open RVSDG (Locals Tuple Wires)
 
 variable {args : List (Ty Unit)} {past : List (List (Ty Unit))}
 variable {known : Prefix args past} {lhs rhs : WordWire args past} {edit : AddRewrite.Splice args past}
+
+/-- Recording a binding extends both prefix invariants. -/
+theorem Prefix.record_agrees {entry : Tuple (Val model.value) args} {locals : Locals (Val model.value) past}
+    (agree : known.Agrees entry locals) {ins : List (ValueSort Unit)} {out : ValueSort Unit}
+    (op : SubZero.Opcode ins out) (operands : Wires args past (dataPorts ins)) :
+    (known.record op operands).Agrees entry
+      (locals.snoc (.cons (model.run op (operands.read entry locals)) .nil)) :=
+  Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.RightSpine.record_agrees agree op operands
+
+/-- An empty prefix has no literal or addition facts. -/
+theorem Prefix.empty_agrees (entry : Tuple (Val model.value) args) :
+    (Prefix.empty (args := args)).Agrees entry PUnit.unit :=
+  Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.RightSpine.empty_agrees entry
 
 /-- The newest add fact records the two actual operand wires, in order. -/
 theorem Prefix.record_addends (known : Prefix args past) (lhs rhs : WordWire args past)

@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Phi.Defs
 import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.FIFO.Thms
+import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Phi.Support.Thms
 
 public section
 
@@ -29,9 +30,21 @@ private theorem read_wireAt {value : Data → Type w} {args ports : List (Ty Dat
     · cases wire <;> rfl
     · exact ih i
 
-variable {m : Model.{u, v, w} Op} [eqBank : BankDecidableEq m.value (dataPorts carried)]
+variable {m : Model.{u, v, w} Op}
 variable {g : Graph Op inputs carried entrySigs headerSigs out}
 variable {input : Tuple (Fact m.value) (dataPorts inputs)}
+
+theorem feedback_agrees (job : Job carried) {left right : BankFacts m.value (dataPorts carried)}
+    (same : ∀ i ∈ feedbackSupport g job, left i = right i) :
+    (headerFacts m g input left).feedback job = (headerFacts m g input right).feedback job := by
+  let leftArgs := appendTuple (bankTuple left) input
+  let rightArgs := appendTuple (bankTuple right) input
+  let wires := g.phiInputs .backedge
+  have readLeft := read_wireAt wires leftArgs (Diamond.SCCP.evalFacts m leftArgs g.header PUnit.unit) job
+  have readRight := read_wireAt wires rightArgs (Diamond.SCCP.evalFacts m rightArgs g.header PUnit.unit) job
+  exact readLeft.trans ((Support.wire_agrees (m := m) g.header (wireAt wires job) input same).trans readRight.symm)
+
+variable [eqBank : BankDecidableEq m.value (dataPorts carried)]
 
 theorem evaluate_eq (job : Job carried) (state : State m.value carried out) :
     evaluate m g input job (dependencies m g input state job) = (SCCP.transfer m g input state).2.1 job := by
@@ -41,7 +54,9 @@ theorem evaluate_eq (job : Job carried) (state : State m.value carried out) :
   by_cases marked : incomingIndex .backedge ∈ state.1
   · simp only [ite_eq_left marked, decide_eq_true_eq]
     cases wire : wireAt (g.phiInputs .backedge) job with
-    | output producer port => rfl
+    | output producer port =>
+      congr 1
+      exact feedback_agrees job (fun i member => ite_eq_left member)
     | arg port =>
       congr 1
       let args := appendTuple (bankTuple state.2.1) input

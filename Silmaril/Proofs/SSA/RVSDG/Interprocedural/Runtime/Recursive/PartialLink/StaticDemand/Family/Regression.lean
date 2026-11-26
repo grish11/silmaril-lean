@@ -775,4 +775,122 @@ private def gammaBlock (count : Nat) : Option (Nat × Nat) :=
 #guard (resume (runGamma false 80 0 1 4)).bind wrapperResult == some (41, 70)
 #guard (resume (runGamma false 80 0 3 4)).bind wrapperResult == some (0, 100)
 
+-- The first θ activation only updates the counter. Its second activation
+-- calls φ through the carried target and witnesses, then exits.
+private abbrev thetaContext := [fn.port, fn.port, num]
+private abbrev thetaCarried := thetaContext ++ exportFn.args
+
+private def thetaA : Port thetaCarried fn.port := .head
+private def thetaB : Port thetaCarried fn.port := .tail .head
+private def thetaCapture : Port thetaCarried num := .tail (.tail .head)
+private def thetaCount : Port thetaCarried num := .tail (.tail (.tail .head))
+private def thetaPayload : Port thetaCarried num := .tail (.tail (.tail (.tail .head)))
+private def thetaSpare : Port thetaCarried num := .tail (.tail (.tail (.tail (.tail .head))))
+
+private def thetaArgs {past : List (Ports T)} : Wires thetaCarried past exportFn.args :=
+  .cons (.arg thetaCount) (.cons (.arg thetaPayload) (.cons (.arg thetaSpare) .nil))
+
+private def thetaWires {past : List (Ports T)} : Wires thetaCarried past thetaCarried :=
+  .cons (.arg thetaA) (.cons (.arg thetaB) (.cons (.arg thetaCapture) thetaArgs))
+
+private def thetaArmSigs : Fin 2 → List (Ports T) := Fin.cases [pair, []] (fun _ => [])
+
+private def thetaArms (i : Fin 2) :
+    Code Op thetaCarried [] (thetaArmSigs i) single true (some seeds) :=
+  Fin.cases (motive := fun i => Code Op thetaCarried [] (thetaArmSigs i) single true (some seeds))
+    (.familyCall (table := seeds) (0 : Fin 2) thetaA (.cons (.arg thetaCapture) .nil) thetaArgs
+      (.primitive .after .nil (.ret (.cons (.output (0 : Fin 2) (.tail .head)) .nil))))
+    (fun _ => .ret (.cons (.arg thetaPayload) .nil)) i
+
+private def thetaBody (swap : Bool) :
+    Code Op thetaCarried [] [decision, single] (Theta.BodyResults thetaCarried) true (some seeds) :=
+  let next : Wires thetaCarried [decision, single] (Theta.BodyResults thetaCarried) :=
+    .cons (.output (0 : Fin 2) .head)
+      (.cons (.arg (if swap then thetaB else thetaA))
+        (.cons (.arg (if swap then thetaA else thetaB))
+          (.cons (.arg thetaCapture)
+            (.cons (.output (0 : Fin 2) (.tail .head))
+              (.cons (.output (1 : Fin 2) .head) (.cons (.arg thetaSpare) .nil))))))
+  .primitive (.route true) (.cons (.arg thetaCount) .nil)
+    (.gamma 0 thetaArmSigs (.output (0 : Fin 1) .head) thetaWires thetaArms (.ret next))
+
+private def thetaBinding (swap : Bool) : Ordered.Binding Op seeds single seedSigs exportFn where
+  context := thetaContext
+  captures := .cons (.output (0 : Fin 1) .head)
+    (.cons (.output (0 : Fin 1) (.tail .head)) (.cons (.arg .head) .nil))
+  sigs := [thetaCarried, []]
+  body := .theta thetaWires (thetaBody swap)
+    (.primitive .after .nil (.ret (.cons (.output (0 : Fin 2) thetaPayload) .nil)))
+
+private def thetaLambdas (swap : Bool) : ModuleTerm Op single seedSigs [[exportFn.port]] [exportFn.port] :=
+  .bind (.lambda (thetaBinding swap).term) (.ret (lastExport seedSigs exportFn))
+
+private def thetaPlan (cap : Nat) (swap : Bool) :
+    Plan (one cap) (one cap) (Scope.seed inferred (one cap) (one cap))
+      (thetaBinding swap).summary (thetaLambdas swap) :=
+  Plan.finishDirect (scope := Scope.seed inferred (one cap) (one cap)) (thetaBinding swap)
+
+private def thetaAdmitted (cap : Nat) (swap : Bool) :=
+  (thetaPlan cap swap).admit inferred actions 83 (one cap) (one cap) 20 (relayReady cap) (relayReady cap)
+
+private def thetaExport (cap : Nat) := (thetaAdmitted cap false).get (by rfl)
+
+-- The actual initial callable wires still match. Swapping the two carried
+-- callables on the backedge removes the target's provenance at the call.
+example (cap : Nat) : thetaAdmitted cap true = none := rfl
+
+set_option maxRecDepth 2048 in
+private theorem thetaSpareDead : Address.arg 5 ∉ (thetaBinding false).summary.live requested := by decide
+
+#guard ((thetaBinding false).summary.live requested).contains (.arg 3)
+#guard ((thetaBinding false).summary.live requested).contains (.arg 4)
+
+private theorem thetaAgreed (cap count : Nat) :
+    Ordered.InputsAgree (m := machine) (thetaBinding false).summary requested
+      (prependContext (args count 41 4) (thetaExport cap).capsL)
+      (prependContext (args count 41 40) (thetaExport cap).capsR) := by
+  intro ty p live
+  let scope := Scope.seed inferred (one cap) (one cap)
+  let captured := (thetaBinding false).captures.read (one cap) scope.localsL
+  change (prependContext (args count 41 4) captured).get p = (prependContext (args count 41 40) captured).get p
+  rcases p with _ | p
+  · rfl
+  rcases p with _ | p
+  · rfl
+  rcases p with _ | p
+  · rfl
+  rcases p with _ | p
+  · rfl
+  rcases p with _ | p
+  · rfl
+  cases p with
+  | head => exact False.elim (thetaSpareDead live)
+  | tail p => nomatch p
+
+private def runTheta (swap : Bool) (fuel cap count spare : Nat) :=
+  Executable.run actions fuel 83 (seededGraph inferred (thetaLambdas swap)) (one cap) .head (args count 41 spare) 20
+
+example (fuel after cap count : Nat) :
+    ∃ left right, runTheta false fuel cap count 4 = .ok left ∧ runTheta false fuel cap count 40 = .ok right ∧
+      PrefixObservationsAgree actions requested after left right :=
+  Ordered.Prefix.Export.linked_prefixes_agree (actions := actions) (summary := (thetaBinding false).summary)
+    requested fuel after 83 (seededGraph inferred (thetaLambdas false)) (one cap) (one cap)
+    (args count 41 4) (args count 41 40) 20 (thetaExport cap) (thetaAgreed cap count)
+
+#guard (runTheta false 80 2 1 4).toOption.bind wrapperResult == some (41, 45)
+#guard (runTheta false 80 2 1 40).toOption.bind wrapperResult == some (41, 45)
+#guard (runTheta true 80 2 0 4).toOption.bind wrapperResult == some (41, 44)
+#guard (runTheta true 80 2 1 4).toOption.bind wrapperResult == some (0, 46)
+
+private def thetaBlock (count spare : Nat) : Option (Nat × Nat) :=
+  match runTheta false 80 0 count spare with
+  | .ok (.blocked ⟨⟨_, _, .probe, _, _, .cons (.data cap) .nil⟩, _⟩ store) => some (cap, store)
+  | _ => none
+
+#guard thetaBlock 0 4 == some (0, 22)
+#guard thetaBlock 1 4 == some (0, 23)
+#guard thetaBlock 1 40 == some (0, 23)
+#guard (resume (runTheta false 80 0 1 4)).bind wrapperResult == some (41, 70)
+#guard (resume (runTheta false 80 0 1 40)).bind wrapperResult == some (41, 70)
+
 end Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Family.Regression

@@ -78,7 +78,7 @@ def update (job : Task carried) (state : State m.value carried out) : State m.va
   set state job (evaluate m g input job (dependencies m g input state job))
 
 /-- Notify jobs by watched-input changes, including enabling entry, feedback,
-or exit. Producer-fed Φ jobs still conservatively watch the active bank. -/
+or exit. Producer-fed Φ jobs compare only their carried operand support. -/
 def wake (old new : State m.value carried out) (pending : List (Task carried)) : List (Task carried) :=
   FIFO.wake (jobs (dataPorts carried).length)
     (fun job => decide (dependencies m g input new job ≠ dependencies m g input old job)) pending

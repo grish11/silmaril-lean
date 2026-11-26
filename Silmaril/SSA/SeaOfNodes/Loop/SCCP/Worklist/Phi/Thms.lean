@@ -18,9 +18,17 @@ universe u v w
 variable {Data : Type u} {Op : Signature.{u, v} Data}
 variable {inputs carried : List (ValueSort Data)} {entrySigs headerSigs : List (List (Ty Data))}
 variable {out : ValueSort Data} {value : Data → Type w}
-variable {m : Model.{u, v, w} Op} [BankDecidableEq m.value (dataPorts carried)]
+variable {m : Model.{u, v, w} Op}
 variable {g : Graph Op inputs carried entrySigs headerSigs out}
 variable {input : Tuple (Fact m.value) (dataPorts inputs)}
+
+/-- Agreement on the transitive support suffices for the original feedback fact. -/
+theorem feedback_agrees (job : Job carried) {left right : BankFacts m.value (dataPorts carried)}
+    (same : ∀ i ∈ feedbackSupport g job, left i = right i) :
+    (headerFacts m g input left).feedback job = (headerFacts m g input right).feedback job :=
+  Proofs.feedback_agrees job same
+
+variable [BankDecidableEq m.value (dataPorts carried)]
 
 /-- Reading a job from one snapshot yields exactly its simultaneous right-hand side. -/
 theorem evaluate_eq (job : Job carried) (state : State m.value carried out) :

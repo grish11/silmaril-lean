@@ -2,12 +2,12 @@ module
 
 import Silmaril.SSA.PEG.Simple.Revert.While.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Thms
-import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Thms
+import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Automatic.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Thms
 import Silmaril.SSA.PEG.Simple.Thms
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Defs
-meta import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Defs
+meta import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Automatic.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Defs
 
 namespace Silmaril.SSA.PEG.Simple.Revert.While.Tests
@@ -587,5 +587,37 @@ example (i : Index form.size) : ∃ k final,
     WhileTrace model form.outerGuard form.body k (outerStore 3 0) final ∧
       final.get form.returnSlot = ⟨10⟩ :=
   cert.trace_of_defined model (outerStore 3 0) total (fun _ => rfl) i (observedTen i)
+
+private def runDiscovered {n : Nat} (g : Graph Op Outer [.count] n n)
+    (outerFuel innerFuel n0 acc : Nat) : Option Nat := do
+  let accepted ← Automatic.extract g
+  (accepted.form.runFuel model outerFuel innerFuel (outerStore n0 acc)).map ULift.down
+
+-- Same graph as the supplied check, with the form now recovered by the graph-only API.
+-- Capturing a different in-scope old value defines a second valid input graph.
+/-- info: (some 10, some 5) -/
+#guard_msgs in
+#eval (runDiscovered form.compile 3 3 3 0, runDiscovered wrongCapture.compile 2 2 2 1)
+
+-- The child initializer bypasses the old outer θ and reads its parameter
+-- directly. The modified edge is well sorted, but escapes the capture scope.
+private def bypassCapture {n : Nat} (g : Graph Op Outer [.count] n n) :
+    Graph Op Outer [.count] n n :=
+  { g with node := fun i =>
+      let row := g.node i
+      match row with
+      | ⟨_, .theta loop, args⟩ =>
+        if (g.forest.parent loop).isSome then
+          match Region.nodeAt g (args.get .head) with
+          | ⟨_, .theta _, outerArgs⟩ =>
+            .ofLabel (.theta loop) (.cons (outerArgs.get .head) (.cons (args.get (.tail .head)) .nil))
+          | _ => row
+        else row
+      | _ => row }
+
+/-- info: (true, true) -/
+#guard_msgs in
+#eval ((Automatic.extract (bypassCapture form.compile)).isNone,
+  (Automatic.extract wrongParent).isNone)
 
 end Silmaril.SSA.PEG.Simple.Revert.While.Nested.Tests

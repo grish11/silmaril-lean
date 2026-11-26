@@ -53,10 +53,6 @@ abbrev GroupKey (V S : Type u) := List (Function V S) × Ports (Ty V S)
 def Group.key {members : List (Function V S)} (group : Group m members) : GroupKey V S :=
   (members, group.context)
 
-def memberKey {port : Ty V S} : m.Val port → Option (GroupKey V S)
-  | .member (members := members) (context := context) _ _ _ => some (members, context)
-  | _ => none
-
 /-- Extend a checked family with the actual member values of one group. -/
 inductive WithGroup (earlier : Family m) {members : List (Function V S)} (group : Group m members) : Family m where
   | inherited {port : Ty V S} {value : m.Val port} (known : earlier value) : WithGroup earlier group value
@@ -149,6 +145,25 @@ body checker still verifies execution order. -/
 def outerProfile (code : OpcodeCode (Instruction Op)) {sigs : List (Ports (Ty V S))}
     (body : Graph Op args [] sigs outs) : Multiset (LabelCode V S code.Key) :=
   Multiset.ofList (outerLabels code body)
+
+/-- Every fixed member slot contributes the multiset of typed outer labels
+of its definition. Slot order is significant, and vertex numbering is forgotten. -/
+abbrev GroupProfile (V S : Type u) (Key : Type v) :=
+  GroupKey V S × List (Multiset (LabelCode V S Key))
+
+def definitionProfiles (code : OpcodeCode (Instruction Op)) {context : Ports (Ty V S)}
+    {members : List (Function V S)} (table : MemberTable Op context members) :
+    List (Multiset (LabelCode V S code.Key)) :=
+  List.ofFn fun slot => outerProfile code (table slot).body
+
+def Group.profile (code : OpcodeCode (Instruction Op)) {members : List (Function V S)}
+    (group : Group m members) : GroupProfile V S code.Key :=
+  (group.key, definitionProfiles code group.definitions)
+
+def memberProfile (code : OpcodeCode (Instruction Op)) {port : Ty V S} : m.Val port → Option (GroupProfile V S code.Key)
+  | .member (members := members) (context := context) _ table _ =>
+    some ((members, context), definitionProfiles code table)
+  | _ => none
 
 /-- Observable projections of typed data and state. An omitted projection
 leaves that value inconclusive. Equal runtime values always have equal codes. -/
@@ -281,10 +296,10 @@ structure LambdaKeys (V S : Type u) (Key : Type v) (Capture : Type w) where
   right : List (LambdaKey V S Key Capture)
 
 structure DispatchKeys (V S : Type u) (Key : Type v) (Capture : Type w) extends LambdaKeys V S Key Capture where
-  groupsL : List (GroupKey V S)
-  groupsR : List (GroupKey V S)
+  groupsL : List (GroupProfile V S Key)
+  groupsR : List (GroupProfile V S Key)
 
-def DispatchKeys.seed {Key : Type v} {Capture : Type w} (left right : GroupKey V S) :
+def DispatchKeys.seed {Key : Type v} {Capture : Type w} (left right : GroupProfile V S Key) :
     DispatchKeys V S Key Capture :=
   ⟨⟨[], []⟩, [left], [right]⟩
 
@@ -293,7 +308,7 @@ def DispatchKeys.addLambda {Key : Type v} {Capture : Type w} (prior : DispatchKe
   { prior with left := left :: prior.left, right := right :: prior.right }
 
 def DispatchKeys.addGroup {Key : Type v} {Capture : Type w} (prior : DispatchKeys V S Key Capture)
-    (left right : GroupKey V S) : DispatchKeys V S Key Capture :=
+    (left right : GroupProfile V S Key) : DispatchKeys V S Key Capture :=
   { prior with groupsL := left :: prior.groupsL, groupsR := right :: prior.groupsR }
 
 /-- A checked finite prefix with separate dispatch keys for λs and φ groups. -/
@@ -307,10 +322,10 @@ structure LinkedFamily (primitives : Primitives m σ) (ids : GlobalRel)
     left value → lambdaKey code captureCode value = some key → key ∈ keys.left.map LambdaKey.summary
   keysR : ∀ {port : Ty V S} {value : m.Val port} {key : LambdaSummary V S code.Key captureCode.Key},
     right value → lambdaKey code captureCode value = some key → key ∈ keys.right.map LambdaKey.summary
-  groupsL : ∀ {port : Ty V S} {value : m.Val port} {key : GroupKey V S},
-    left value → memberKey value = some key → key ∈ keys.groupsL
-  groupsR : ∀ {port : Ty V S} {value : m.Val port} {key : GroupKey V S},
-    right value → memberKey value = some key → key ∈ keys.groupsR
+  groupsL : ∀ {port : Ty V S} {value : m.Val port} {key : GroupProfile V S code.Key},
+    left value → memberProfile code value = some key → key ∈ keys.groupsL
+  groupsR : ∀ {port : Ty V S} {value : m.Val port} {key : GroupProfile V S code.Key},
+    right value → memberProfile code value = some key → key ∈ keys.groupsR
 
 variable {imports : Ports (Ty V S)} {past : List (Ports (Ty V S))}
 

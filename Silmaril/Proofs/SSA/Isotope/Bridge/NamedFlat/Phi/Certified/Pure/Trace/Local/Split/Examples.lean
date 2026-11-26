@@ -1,10 +1,10 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Split.Thms
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Split.Extended.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Split.Comparison.Thms
 
-/-! A visible loop swaps two live values on the split edge. The distinct
-latch fixture also compares the admitted entry tables at a supplied record. -/
+/-! A visible loop swaps two live values on the split edge. The admitted
+entry fixtures also exercise a second split after extending the record. -/
 
 namespace Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.PureCapture.Local.Split.Examples
 
@@ -21,7 +21,7 @@ open LambdaSSA.Semantics.Interaction.Typed (AtomValues ModelTree Compatible)
 open LambdaSSA.Semantics.Interaction.Typed.Ordered
 open Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry
 open CategoryTheory (Discrete)
-open NamedFlat.Entry.Record (Input)
+open NamedFlat.Entry.Record (Input reindex reindex_comp)
 
 attribute [local instance] LambdaSSA.Semantics.Interaction.Typed.typeModel
 
@@ -389,17 +389,103 @@ theorem appended_split_satisfies (ambient : Env Runtime) :
   split_related_satisfies seedOriginal plan generated extendedLayout model
     seedRecord extendedRecord extended_retains_seed ambient
 
-theorem appended_split_swap (ambient : Env Runtime) :
-    HasTrace (seedSplit.observePacked model extendedRecord ambient) swappedTrace := by
+private theorem seed_packed_swap (ambient : Env Runtime) :
+    HasTrace (seedOriginal.observePacked model seedRecord ambient) swappedTrace := by
   have shared := seedOriginal.observe_toFlat_of_capture model seedRecord ambient originalStore
     (fun i => Fin.cases rfl (Fin.cases rfl (fun j => j.elim0)) i)
-  unfold seedSplit
-  rw [← split_packed_reindex seedOriginal plan generated extendedLayout model extendedRecord ambient,
-    extended_retains_seed]
   change HasTrace (region model.raw (extend ambient (encodeValue _ _ seedRecord))
     (Program.ofCFGEntry seedOriginal.toSSA.table.typed).code) _
   rw [← shared]
   exact source_swap
+
+theorem appended_split_swap (ambient : Env Runtime) :
+    HasTrace (seedSplit.observePacked model extendedRecord ambient) swappedTrace := by
+  unfold seedSplit
+  rw [← split_packed_reindex seedOriginal plan generated extendedLayout model extendedRecord ambient,
+    extended_retains_seed]
+  exact seed_packed_swap ambient
+
+/-! ## The generated backedge split followed by an entry-edge split -/
+
+private def secondPlan : Plan Reg Reg (Option Key) (Option (Option Key)) where
+  register := Equiv.refl _
+  label := ⟨some, fun _ _ h => Option.some.inj h⟩
+  header := plan.label header
+  predecessor := none
+  forward := none
+  fresh := fun _ => Option.some_ne_none _
+
+private def transportedArrivals := splitCertificate plan source arrivals
+
+private theorem transportedArrivals_check :
+    CFG.Cyclic.Phi.GlobalSSA.check seedSplit.source seedSplit.inputs transportedArrivals = true :=
+  splitCertificate_check (plan := plan) (certificate := arrivals)
+    (by decide) generated.checked.edge generated.checked.targetNormalized
+
+private def secondCandidate :=
+  (profileCandidate secondPlan seedSplit.source extendedLayout.captures.names seedSplit.internal).get
+    (by decide)
+
+private theorem secondGeneration :
+    (generate secondPlan seedSplit.admission transportedArrivals).isSome := by
+  rw [generate_eq_of_profile seedSplit.admission (candidate := secondCandidate)
+    transportedArrivals_check (by decide) (by decide) rfl]
+  decide
+
+private def generatedSecond := (generate secondPlan seedSplit.admission transportedArrivals).get secondGeneration
+
+private theorem secondLayout : ExtendedLayout secondPlan extendedLayout.captures generatedSecond.extra := by decide
+
+private def finalSplit : Admitted signature secondLayout.captures (Option (Option Key)) exits :=
+  seedSplit.ofExtended secondPlan generatedSecond secondLayout
+
+-- The first split adds two fields. The second keeps all four fields and
+-- checks the new entry forwarder at that context.
+example : generatedSecond.extra = [] := by decide
+
+private def finalRecord : Input (extendedTypes (extendedTypes seedTypes generated.extra) generatedSecond.extra) :=
+  extendedRecord
+
+private def firstComparison : EntryComparison Event seedOriginal seedSplit :=
+  .ofSplit seedOriginal plan generated extendedLayout
+
+private def secondComparison : EntryComparison Event seedSplit finalSplit :=
+  .ofSplit seedSplit secondPlan generatedSecond secondLayout
+
+private def composedComparison : EntryComparison Event seedOriginal finalSplit :=
+  firstComparison.comp secondComparison
+
+private theorem composed_retains_seed : reindex composedComparison.slots finalRecord = seedRecord :=
+  (reindex_comp firstComparison.slots secondComparison.slots finalRecord).trans extended_retains_seed
+
+theorem two_splits_visible_order (ambient : Env Runtime) :
+    HasTrace (finalSplit.toSSA.observe model finalRecord) swappedTrace ∧
+    HasTrace (finalSplit.observePacked model finalRecord ambient) swappedTrace := by
+  apply (composedComparison.satisfies_iff model finalRecord ambient
+    (fun tree => HasTrace tree swappedTrace) (fun tree => HasTrace tree swappedTrace)).mpr
+  rw [composed_retains_seed]
+  exact ⟨(NamedFlat.Entry.SSA.observe_tree model seedOriginal.toSSA seedRecord (fun _ => .unit)).symm ▸
+    seed_packed_swap (fun _ => .unit), seed_packed_swap ambient⟩
+
+theorem two_splits_trace_order (ambient : Env Runtime) :
+    let beforeNamed := seedOriginal.toSSA.observe model seedRecord
+    let afterNamed := finalSplit.toSSA.observe model finalRecord
+    let beforePacked := seedOriginal.observePacked model seedRecord ambient
+    let afterPacked := finalSplit.observePacked model finalRecord ambient
+    (TraceLE beforeNamed afterNamed ∧ TraceLE beforePacked afterPacked) ∧
+      (TraceLE afterNamed beforeNamed ∧ TraceLE afterPacked beforePacked) := by
+  dsimp only
+  constructor
+  · apply (composedComparison.satisfies_iff model finalRecord ambient
+      (TraceLE (seedOriginal.toSSA.observe model seedRecord))
+      (TraceLE (seedOriginal.observePacked model seedRecord ambient))).mpr
+    rw [composed_retains_seed]
+    exact ⟨TraceLE.refl _, TraceLE.refl _⟩
+  · apply (composedComparison.satisfies_iff model finalRecord ambient
+      (fun t => TraceLE t (seedOriginal.toSSA.observe model seedRecord))
+      (fun t => TraceLE t (seedOriginal.observePacked model seedRecord ambient))).mpr
+    rw [composed_retains_seed]
+    exact ⟨TraceLE.refl _, TraceLE.refl _⟩
 
 private def entryCandidate := (profileCandidate entryPlan source seedCaptures originalProfile).get (by decide)
 

@@ -138,3 +138,39 @@ word that an unchecked deletion would cause.
 make check CHECK_TARGETS='+Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Forwarding.Disjoint.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.DeadStore.Regression'
 lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Regression.lean
 ```
+
+## Repeat checked deletion
+
+`DeadStore.Search.Selection.Readers.Repeat.rewrite` takes a graph and its
+typed input tuple. It reruns the oldest-first selector after each deletion
+on the newly numbered graph, discovering and checking reader obligations
+at every step. It returns the final graph and the number of Stores deleted.
+Simple chapter 10 registers dependencies on other uses of an earlier Store
+so that its local rewrite can be retried when those uses disappear. Here,
+the native ordered table is rescanned after each successful deletion.
+[Pinned Simple source](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/src/main/java/com/seaofnodes/simple/node/StoreNode.java#L39-L65) ·
+[Pass definitions](../../Silmaril/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Repeat/Defs.lean)
+
+Each step removes exactly one Store. The initial Store count is therefore
+enough to exhaust the selector, and `rewrite_exhausted` states that the
+selector returns `none` on the final graph at the checked input. This
+guarantee concerns eligibility under the existing checked selector in
+initialized straight-line memory. The operation projection keeps the
+typed scalar operands while forgetting memory edge numbers. The order
+theorem shows that only Store occurrences disappear from this list. The
+return and full final heap are preserved for every initial heap at the
+checked input.
+[Pass theorems](../../Silmaril/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Repeat/Thms.lean)
+
+The runnable example prints `(2, true, 1)`, giving the deletion count at
+a disjoint input, the final selector's refusal, and the deletion count at
+an aliasing input. The second successful step uses the renumbered Store
+versions `(2, 3)`. With aliasing, the intervening Load observes the first
+Store and that Store survives. The regression checks both exact output
+graphs and both complete heap observations.
+[Repeat regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Repeat/Regression.lean)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Forwarding.Disjoint.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.DeadStore.Regression'
+lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Repeat/Regression.lean
+```

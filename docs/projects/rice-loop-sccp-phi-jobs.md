@@ -10,8 +10,9 @@ the feedback dependency.
 For an argument wire the job watches that wire's abstract fact. If it
 reads a captured argument, the fact is fixed for that solve. If it reads
 a carried argument, changes to other carried fields leave it alone.
-For a producer result the job conservatively watches the entire bank
-and uses the existing abstract producer evaluator when popped.
+For a producer result the job watches the carried arguments in its
+[transitive operand support](rice-loop-sccp-phi-support.md) and uses
+the existing abstract producer evaluator when popped.
 
 `evaluate_eq` and `update_eq` identify a visit with the same coordinate
 of the simultaneous transfer on its pre-pop snapshot.
@@ -49,11 +50,9 @@ Click's *Combining Analyses, Combining Optimizations* §3.5,
 printed p. 25, updates one equation variable and requeues equations
 that read the changed variable. This increment splits the Φ equation
 into typed destinations and supplies the local transfer and pending
-invariant for integrating them with the existing control and result
-jobs. The existing three-job solver retains its whole-run fixed-point
-proof. The split step scans Φ destinations, and producer dependencies
-remain conservative. An integrated split solver, transitive producer
-def-use indexing, general CFG SCCP, and Rice's complexity bound are
-outside this increment.
+invariant used by the [integrated mixed FIFO](rice-loop-sccp-split-fifo.md).
+The step scans Φ destinations when waking jobs. Reverse notification
+indexing, general CFG SCCP, and Rice's complexity bound are outside
+this profile.
 [Rice dissertation](https://hdl.handle.net/1911/16807) ·
 [Existing cyclic solver](rice-loop-sccp-worklist.md)

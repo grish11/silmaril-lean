@@ -5,6 +5,7 @@ import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Column
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Execution
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.FeedbackRow
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Frame
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Fuel
 
 /-! # Exact typed column emission and routed-loop execution -/
 
@@ -14,7 +15,7 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing
 
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.RTL (Frame)
-open Silmaril.Machine.RTL.SSA (Activation Block Label Op Prog State Steps step transfer)
+open Silmaril.Machine.RTL.SSA (Activation Block Label Op Prog State Steps StepsNWithin run step transfer)
 open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp emitOpsWith model)
 open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow Val read)
 open Silmaril.SSA.SeaOfNodes.Loop (Incoming appendTuple)
@@ -44,6 +45,18 @@ theorem row_reads_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts
         (appendTuple old input) locals)) :=
   Proofs.row_reads_at slot updates past input old fr locals agree wire
 
+theorem row_stepsN_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (p : Prog Reg) (block : Block Reg) (found : p.block? 0 1 = some block)
+    (input old : WordTuple arity) (mem : Memory)
+    (updates : List (FeedbackUpdate fields)) (past : List (List PortTy))
+    (prefixOps : List (Op Reg)) (prefixLength : prefixOps.length = past.length)
+    (tailOps : List (Op Reg))
+    (ops : block.ops = prefixOps ++ (emitOpsWith (fun p => .arg p.index) (rowSuffixAt slot past updates) ++ tailOps))
+    (fr : Frame Reg) (agree : ArgsMatch fr (appendTuple old input)) :
+    StepsNWithin p [] updates.length ⟨⟨0, 1, past.length⟩, fr, [], mem⟩
+      ⟨⟨0, 1, past.length + updates.length⟩, rowFrameAt slot old past.length fr updates, [], mem⟩ :=
+  Proofs.row_stepsN_at slot p block found input old mem updates past prefixOps prefixLength tailOps ops fr agree
+
 theorem row_steps_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
     (p : Prog Reg) (block : Block Reg) (found : p.block? 0 1 = some block)
     (input old : WordTuple arity) (mem : Memory)
@@ -65,6 +78,40 @@ theorem suffix_get {pre tail : List PortTy} {t : PortTy}
     (left : Tuple (Val model.value) pre) (right : Tuple (Val model.value) tail) (p : Port tail t) :
     (appendTuple right left).get (suffixPort pre p) = right.get p :=
   Proofs.suffix_get left right p
+
+theorem bindWords_write {arity : Nat} (base : Nat) (fr : Frame Reg) (values : WordTuple arity) :
+    fr.writeAll (paramRegs base arity) (words values) = some (bindWords base fr values) :=
+  Proofs.bindWords_write base fr values
+
+theorem bindWords_args {arity : Nat} (values : WordTuple arity) :
+    ArgsMatch (bindWords 0 Frame.empty values) values :=
+  Proofs.bindWords_args values
+
+theorem bank_matches_at {arity : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    (agree : ArgsMatch fr input) (values : WordTuple arity) :
+    ArgsMatch (bindWords arity fr values) (appendTuple values input) :=
+  Proofs.bank_matches_at agree values
+
+theorem input_matches_at {arity : Nat} {fr : Frame Reg} {input old : WordTuple arity}
+    (agree : ArgsMatch fr (appendTuple old input)) : ArgsMatch fr input :=
+  Proofs.input_matches_at agree
+
+theorem run_after_prefix {program : Prog Reg} {steps : Nat} {s finish : State Reg}
+    (prefixPath : StepsNWithin program [] steps s finish) {fuel : Nat} {returned : List Word} {final : Memory}
+    (observed : run program fuel s = .returned returned final) :
+    ∃ remaining, fuel = steps + remaining ∧ run program remaining finish = .returned returned final :=
+  Proofs.run_after_prefix prefixPath observed
+
+theorem fuel_of_steps {program : Prog Reg} {s finish : State Reg}
+    (path : Steps program s finish) {returned : List Word} {final : Memory}
+    (observed : step program finish = .returned returned final) :
+    ∃ fuel, run program fuel s = .returned returned final :=
+  Proofs.fuel_of_steps path observed
+
+theorem run_through_prefix {program : Prog Reg} {steps : Nat} {s finish : State Reg}
+    (path : StepsNWithin program [] steps s finish) (remaining : Nat) :
+    run program (steps + remaining) s = run program remaining finish :=
+  Proofs.run_through_prefix path remaining
 
 theorem checkColumn_registers {scope arity : Nat} {indices : List Nat}
     {wires : ArgumentColumn scope arity} (ok : checkColumn scope arity indices = some wires) :

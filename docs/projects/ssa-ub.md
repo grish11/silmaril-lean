@@ -512,6 +512,30 @@ faulting at state twelve, or diverging in the second step. From state
 two it has an infinite chain of repeats.
 [Preservation][ssa-ub-paper-iteration] [Regression][ssa-ub-paper-iteration-regression]
 
+### Iteration refinement
+
+The empty-capture `iterateSum` is monotone at each shaped model for
+pointwise inclusion of complete step behaviours over typed inputs and
+machine states. More permissive behaviours are on the right. Ordinary
+outcomes use subset inclusion, and fresh UB is greatest. Retagging
+preserves this order, so the repeated-observation comparison transports
+the existing feedback monotonicity theorem to the guarded iterator.
+An `Overlay.Refines` proof on typed step representatives supplies the
+pointwise hypothesis in every shaped model.
+
+A fault is a finite outcome at its exact final state. Divergence has
+its own observation and can arise in a finite reached step or from an
+infinite chain of repeats. With an ordinary upper behaviour each path
+is matched at the same payload and intermediate state. If a reached
+upper step exposes fresh UB, the upper closure is top.
+
+The regression adds a fault while keeping the repeat to state one and
+checks that the return survives. A second comparison matches every
+step after erasing only the repeat's final state. Changing that state
+from one to two removes the original return and reaches a fault
+instead, so the erased comparison does not imply iterator refinement.
+[Monotonicity][ssa-ub-paper-iteration] [Refinement regression][ssa-ub-paper-iteration-refinement]
+
 ## Coverage and gaps
 
 | Language | Refinement and institutions in the repository | UB construction and remaining hypotheses |
@@ -549,6 +573,7 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.ExactSum.Regression
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Product.Regression
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Iteration.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Iteration.Refinement.Regression
 ```
 
 [ordered]: ../../Silmaril/Raw/SSA/Isotope/Institution/Refinement/Ordered.lean
@@ -627,3 +652,4 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-paper-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Regression.lean
 [ssa-ub-paper-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Thms.lean
 [ssa-ub-paper-iteration-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Regression.lean
+[ssa-ub-paper-iteration-refinement]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Refinement/Regression.lean

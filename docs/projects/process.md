@@ -29,3 +29,6 @@ The public headers are `Silmaril.Process.Defs` and `Silmaril.Process.Thms`.
 Long proofs remain in their source topic modules so reviewers can promote them
 incrementally.  The source repository's full replay check is still pending
 because its latest run exhausted the runner while checking the complete tree.
+
+Preinstalled files and connected streams also have single-threaded and scheduled
+interaction-tree models. [Abstract Linux I/O](process-abstract-io.md)

@@ -167,4 +167,178 @@ example : ∃ out, Runs program slot ⟨grown, caller, [.source (.call ⟨0⟩)]
     (args := []) (caller := caller) checked (layout.with_bytes grown) rfl rfl).mp grownCall
   exact ⟨out, trace, eq⟩
 
+private def mode := MemoryMode.growing memory.max
+private def growerAddress : FuncAddr := ⟨1⟩
+private def grower : Function :=
+  ⟨⟨{ memories := [slot] }, ⟨0⟩, [.int .i32], [], [.int .i32]⟩,
+    0, [], [.ranked (.numeric (.get ⟨0⟩)), .grow]⟩
+private def growTarget : CallTarget := ⟨⟨0⟩, growerAddress, grower.declaration⟩
+private def observer : Function :=
+  ⟨⟨{ memories := [slot], funcs := [growerAddress] }, ⟨0⟩, [.int .i32], [.int .i32, .int .i32], [.int .i32]⟩,
+    1, [firstOfSecond], [.ranked (.numeric (.get ⟨0⟩)), .ranked (.call growTarget),
+      .ranked (.set ⟨1⟩), .size, .ranked (.set ⟨2⟩), .load 0]⟩
+private def graph : Program := ⟨[some observer, some grower]⟩
+private def graphBase : Store Unit :=
+  { memories := [sentinel, memory], funcs := [observer, grower].map
+      (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }
+private def graphGrown := storeWithBytes graphBase slot memory grown
+private theorem graphChecked : graph.checkV1 slot mode = true := rfl
+private theorem graphLayout : Layout graph graphBase slot memory where
+  memory := rfl
+  functions := by
+    intro a target found
+    rcases a with ⟨_ | _ | n⟩ <;> simp [Program.lookup, graph] at found
+    all_goals subst target; rfl
+
+example : graph.checkV1 slot = false := rfl
+example : Function.checkV1 { grower with declaration := { grower.declaration with params := [.int .i64] } }
+    slot mode = false := rfl
+example : (Program.mk [some { observer with rank := 0 }, some grower]).checkV1 slot mode = false := rfl
+example : graph.checkV1 ⟨0⟩ mode = false := rfl
+
+private def observerFrame (delta : BitVec 32) := observer.declaration.frame [i32 delta]
+private def growerFrame (delta : BitVec 32) := grower.declaration.frame [i32 delta]
+private def observedFrame (delta result : BitVec 32) : Frame :=
+  { observerFrame delta with locals := [i32 delta, i32 result, i32 0] }
+private def afterSize : List Admin := [.source (.localSet ⟨2⟩), .source ((Op.load 0).v1)]
+private def afterCall : List Admin := [.source (.localSet ⟨1⟩), .source .memorySize] ++ afterSize
+
+private def graphInput (delta : BitVec 32) : State :=
+  ⟨memory.data, caller, values [i32 delta] ++ [.source (.call ⟨0⟩)]⟩
+
+private def inObserver (c : Config Unit) : Config Unit :=
+  ⟨c.store, caller, [.frame 1 c.frame [.label 1 [] c.code]]⟩
+private def inGrower (delta : BitVec 32) (s : Store Unit) (code : List Admin) : Config Unit :=
+  inObserver ⟨s, observerFrame delta,
+    MemoryWrite.v1ActivationCode (some (.int .i32)) (growerFrame delta) [firstOfSecond] afterCall code⟩
+
+private theorem observerStep {s s' : Store Unit} {f f' : Frame} {a b : List Admin}
+    (step : Step CallFrame.v1NoHost ⟨s, f, a⟩ ⟨s', f', b⟩) :
+    Step CallFrame.v1NoHost (inObserver ⟨s, f, a⟩) (inObserver ⟨s', f', b⟩) :=
+  .frame (.label step 1 []) 1 caller
+
+private theorem growerStep {delta : BitVec 32} {s s' : Store Unit} {a b : List Admin}
+    (step : Step CallFrame.v1NoHost ⟨s, growerFrame delta, a⟩ ⟨s', growerFrame delta, b⟩) :
+    Step CallFrame.v1NoHost (inGrower delta s a) (inGrower delta s' b) :=
+  observerStep (.context (.frame (.label step 1 []) 1 (observerFrame delta)) [firstOfSecond] afterCall)
+
+private def request (delta : BitVec 32) : Config Unit :=
+  inGrower delta graphBase (values [i32 delta] ++ [.source .memoryGrow])
+
+private theorem reachGrow (delta : BitVec 32) :
+    Steps CallFrame.v1NoHost ⟨graphBase, caller, (graphInput delta).code⟩ (request delta) := by
+  have resolved : Step CallFrame.v1NoHost ⟨graphBase, caller, (graphInput delta).code⟩
+      ⟨graphBase, caller, values [i32 delta] ++ [.invoke address]⟩ :=
+    .context (.call _ _ ⟨0⟩ address rfl) [i32 delta] []
+  have entered := (Relation.ReflTransGen.single resolved).tail
+    (graphLayout.enter graphChecked (address := address) (fn := observer) rfl graphLayout.initial_shared
+      (saved := []) (args := [i32 delta]) (tail := []) rfl)
+  have arg := entered.tail (observerStep (.context (.localGet _ _ ⟨0⟩ (i32 delta) rfl)
+    [firstOfSecond] ([.source (.call ⟨0⟩)] ++ afterCall)))
+  have resolveChild := arg.tail (observerStep (.context (.call _ _ ⟨0⟩ growerAddress rfl)
+    [firstOfSecond, i32 delta] afterCall))
+  have enterChild := resolveChild.tail (observerStep (graphLayout.enter graphChecked
+    (address := growerAddress) (fn := grower) rfl graphLayout.initial_shared
+    (saved := [firstOfSecond]) (args := [i32 delta]) (tail := afterCall) rfl))
+  exact enterChild.tail (growerStep (.context (.localGet _ _ ⟨0⟩ (i32 delta) rfl) [] [.source .memoryGrow]))
+
+private theorem growSuccess :
+    Step CallFrame.v1NoHost (request 1) (inGrower 1 graphGrown (values [i32 1])) := by
+  have leaf := MemoryGrow.v1_sound (host := CallFrame.v1NoHost)
+    (show Wasm.V1.Execution.frameMemory graphBase (growerFrame 1) = some (slot, memory) from rfl) growEdge
+  simp only [MemoryGrow.v1Config, oldPages] at leaf
+  exact growerStep leaf
+
+private theorem growFailure (delta : BitVec 32) :
+    Step CallFrame.v1NoHost (request delta) (inGrower delta graphBase (values [i32 (-1)])) :=
+  growerStep (MemoryGrow.v1_sound
+    (show Wasm.V1.Execution.frameMemory graphBase (growerFrame delta) = some (slot, memory) from rfl)
+    (MemoryGrow.fact (.fail delta)))
+
+private def sizeObserved (delta result pages : BitVec 32) (s : Store Unit) : Config Unit :=
+  inObserver ⟨s, observedFrame delta result, values [firstOfSecond, i32 pages] ++ afterSize⟩
+
+private theorem observeSize {delta result : BitVec 32} {s : Store Unit} {m : MemInst}
+    (lookup : Wasm.V1.Execution.frameMemory s (observedFrame delta result) = some (slot, m)) :
+    Steps CallFrame.v1NoHost (inGrower delta s (values [i32 result]))
+      (sizeObserved delta result (BitVec.ofNat 32 (Memory.size m.data)) s) := by
+  have leaveLabel := observerStep (.context (.frame (.pure (host := CallFrame.v1NoHost) s
+    (growerFrame delta) (.labelDone 1 [] [i32 result])) 1 (observerFrame delta)) [firstOfSecond] afterCall)
+  have leaveFrame := (Relation.ReflTransGen.single leaveLabel).tail (observerStep
+    (.context (.pure _ _ (.frameDone 1 (growerFrame delta) [i32 result] rfl)) [firstOfSecond] afterCall))
+  have recordResult := leaveFrame.tail (observerStep (.context (.localSet _ _ ⟨1⟩ (i32 result) (i32 0) rfl)
+    [firstOfSecond] ([.source .memorySize] ++ afterSize)))
+  exact recordResult.tail (observerStep
+    (.context ((MemoryGrow.v1_size_cases_iff lookup).mpr rfl) [firstOfSecond] afterSize))
+
+private theorem readGraph {delta : BitVec 32} {dst : Config Unit}
+    (path : Steps CallFrame.v1NoHost ⟨graphBase, caller, (graphInput delta).code⟩ dst) :
+    ∃ out, RunsAt mode graph slot (graphInput delta) out ∧ ReadyAt mode graph slot 2 memory.data.size out ∧
+      dst = render graphBase slot memory out :=
+  (v1_growing_call_run_iff (root := address) (fn := observer) (index := ⟨0⟩) (args := [i32 delta])
+    (caller := caller) graphChecked graphLayout initialExtent.2 rfl rfl).mp path
+
+-- Exact readback sees both allocation outcomes from the same suspended caller.
+example : ∃ start success failure,
+    RunsAt mode graph slot (graphInput 1) start ∧
+    EdgeAt mode graph slot start success ∧ EdgeAt mode graph slot start failure ∧
+    request 1 = render graphBase slot memory start ∧
+    inGrower 1 graphGrown (values [i32 1]) = render graphBase slot memory success ∧
+    inGrower 1 graphBase (values [i32 (-1)]) = render graphBase slot memory failure := by
+  obtain ⟨start, prefixRun, ready, eq⟩ := readGraph (reachGrow 1)
+  have reflect := fun {dst : Config Unit} => (v1_step_iff_at (dst := dst) graphChecked graphLayout rfl ready).mp
+  obtain ⟨success, grows, _, grownEq⟩ := reflect (eq ▸ growSuccess)
+  obtain ⟨failure, fails, _, failEq⟩ := reflect (eq ▸ growFailure 1)
+  exact ⟨start, success, failure, prefixRun, grows, fails, eq, grownEq, failEq⟩
+
+private theorem seesGrowth :
+    Steps CallFrame.v1NoHost ⟨graphBase, caller, (graphInput 1).code⟩ (sizeObserved 1 1 2 graphGrown) := by
+  have resumed := observeSize (delta := 1) (result := 1)
+    (show Wasm.V1.Execution.frameMemory graphGrown (observedFrame 1 1) = some (slot, current) from rfl)
+  change Steps CallFrame.v1NoHost _ (sizeObserved 1 1 (BitVec.ofNat 32 (Memory.size grown)) graphGrown) at resumed
+  rw [newPages] at resumed
+  exact ((reachGrow 1).tail growSuccess).trans resumed
+
+example : ∃ out, RunsAt mode graph slot (graphInput 1) out ∧
+    sizeObserved 1 1 2 graphGrown = render graphBase slot memory out := by
+  obtain ⟨out, prefixRun, _, eq⟩ := readGraph seesGrowth
+  exact ⟨out, prefixRun, eq⟩
+
+example : ∃ out, RunsAt mode graph slot (graphInput 1) out ∧
+    (⟨graphGrown, caller, values [i32 0]⟩ : Config Unit) = render graphBase slot memory out ∧
+      GrowingStore graphBase slot memory graphGrown := by
+  let updated := ({ observedFrame 1 1 with locals := [i32 1, i32 1, i32 2] } : Frame)
+  have recordSize := seesGrowth.tail (observerStep (.context (.localSet _ _ ⟨2⟩ (i32 2) (i32 0) rfl)
+    [firstOfSecond] [.source ((Op.load 0).v1)]))
+  have load := (MemoryWrite.v1_context_load_step_iff_at (host := CallFrame.v1NoHost) (immediate := immediate 0)
+    (address := BitVec.ofNat 32 Memory.pageSize) (saved := []) (tail := [])
+    (show Wasm.V1.Execution.frameMemory graphGrown updated = some (slot, current) from rfl)).mpr
+    ⟨.value 0, MemoryQuery.fact_at (.load _ _ zeros), rfl⟩
+  have result := recordSize.tail (observerStep load)
+  have done := (result.tail (.frame (.pure _ _ (.labelDone 1 [] [i32 0])) 1 caller)).tail
+    (.pure _ _ (.frameDone 1 updated [i32 0] rfl))
+  obtain ⟨out, trace, ready, eq⟩ := readGraph done
+  have shared := render_growing (base := graphBase) ready
+  rw [← eq] at shared
+  exact ⟨out, trace, eq, shared⟩
+
+-- Failure preserves the live bytes and the caller observes the old page count.
+-- This prefix applies to both an in-limit failure and a limit failure.
+example (delta : BitVec 32) : ∃ out, RunsAt mode graph slot (graphInput delta) out ∧
+    sizeObserved delta (-1) 1 graphBase = render graphBase slot memory out := by
+  have resumed := observeSize (delta := delta) (result := -1)
+    (show Wasm.V1.Execution.frameMemory graphBase (observedFrame delta (-1)) = some (slot, memory) from rfl)
+  rw [oldPages] at resumed
+  obtain ⟨out, trace, _, eq⟩ := readGraph (((reachGrow delta).tail (growFailure delta)).trans resumed)
+  exact ⟨out, trace, eq⟩
+
+-- The callee at the limit-test site has only the native failure successor.
+example {dst : Config Unit} (step : Step CallFrame.v1NoHost
+    (MemoryGrow.v1Config graphBase (growerFrame 2) slot memory (.request 2)) dst) :
+    dst = MemoryGrow.v1Config graphBase (growerFrame 2) slot memory .failed := by
+  have found : Wasm.V1.Execution.frameMemory graphBase (growerFrame 2) = some (slot, memory) := rfl
+  rcases (MemoryGrow.v1_request_cases_iff found).mp step with failure | ⟨permitted, _⟩
+  · exact failure
+  · exact (overLimit permitted).elim
+
 end Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32

@@ -16,14 +16,19 @@ namespace Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.UnitFoldUniformity
 
 universe u v w
 variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
-  {ε : Type w} [HasEff Φ ε] (pe : ε)
 
 local notation "P" => Paper.TypeCategory (τ := τ) Φ
-local notation "Seed" => Paper.WithCaseReturns.JoinedStep (τ := τ) (Φ := Φ) pe
-local notation "Q" => TypeCategory Seed
-local notation "F" => projection Seed
 local notation "sunit" => (Silmaril.unit : τ)
 local notation "U" => Paper.TypeCategory.ofType (Φ := Φ) sunit
+
+section UnitPower
+
+variable (Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+  (includeUnit : ∀ {Γ : VCtx τ} {r s : Region Φ} {L : LCtx τ},
+    Paper.WithUnitEta.Step Γ r s L → Seed Γ r s L)
+
+local notation "Q" => TypeCategory Seed
+local notation "F" => projection Seed
 local notation "T" => Paper.TypeCategory.ofType (Φ := Φ) (Silmaril.coprod sunit sunit)
 local notation "reset" => Paper.TypeCategory.discardArrow (Φ := Φ) sunit
 local notation "drop" => Paper.TypeCategory.discardArrow (Φ := Φ) (Silmaril.coprod sunit sunit)
@@ -88,10 +93,11 @@ private theorem mapSnd {X Y Z : P} (h : X ⟶ Y) :
   rw [← (F).map_id Z]
   exact coprodComparison_inv_map Seed (𝟙 Z) h
 
+include includeUnit in
 private theorem projectedUnitStep {B : P} (b : U ⟶ B ⨿ U) :
     projectStep Seed (boundedUnitStep b) = projectStep Seed b := by
   have unitEta : (F).map reset = 𝟙 _ :=
-    unit_eta_of_include Seed (Paper.WithCaseReturns.includeUnit pe)
+    unit_eta_of_include Seed includeUnit
   have comm : (F).map (b ≫ coprod.map (𝟙 B) reset) = (F).map (reset ≫ boundedUnitStep b) := by
     change (F).map (b ≫ coprod.map (𝟙 B) reset) =
       (F).map (reset ≫ reset ≫ b ≫ coprod.map (𝟙 B) reset)
@@ -105,7 +111,7 @@ private noncomputable abbrev unitSumIso : (F).obj U ⨿ (F).obj U ≅ (F).obj T 
 
 set_option backward.isDefEq.respectTransparency false in
 private theorem unitSumIso_inl :
-    coprod.inl ≫ (unitSumIso (τ := τ) (Φ := Φ) pe).hom = (F).map tagL := by
+    coprod.inl ≫ (unitSumIso (τ := τ) (Φ := Φ) Seed).hom = (F).map tagL := by
   have tagCmp : tagL ≫ (Paper.TypeCategory.sumIso (Φ := Φ) sunit sunit).hom = coprod.inl :=
     Paper.TypeCategory.sumCofan_inl_sumIso_hom sunit sunit
   change coprod.inl ≫ (c U U).hom ≫ (F).map (Paper.TypeCategory.sumIso sunit sunit).inv = _
@@ -114,26 +120,32 @@ private theorem unitSumIso_inl :
 
 set_option backward.isDefEq.respectTransparency false in
 private theorem unitSumIso_inr :
-    coprod.inr ≫ (unitSumIso (τ := τ) (Φ := Φ) pe).hom = (F).map tagR := by
+    coprod.inr ≫ (unitSumIso (τ := τ) (Φ := Φ) Seed).hom = (F).map tagR := by
   have tagCmp : tagR ≫ (Paper.TypeCategory.sumIso (Φ := Φ) sunit sunit).hom = coprod.inr :=
     Paper.TypeCategory.sumCofan_inr_sumIso_hom sunit sunit
   change coprod.inr ≫ (c U U).hom ≫ (F).map (Paper.TypeCategory.sumIso sunit sunit).inv = _
   rw [PreservesColimitPair.iso_hom, inr_coprodComparison_assoc, ← Functor.map_comp,
     ← tagCmp, Category.assoc, Iso.hom_inv_id, Category.comp_id]
 
+local notation "QU" => ofType Seed sunit
+
+private noncomputable abbrev alternate {B : Q} (g : QU ⟶ B ⨿ QU) :
+    QU ⨿ QU ⟶ B ⨿ (QU ⨿ QU) :=
+  coprod.desc (g ≫ coprod.map (𝟙 B) coprod.inr) (g ≫ coprod.map (𝟙 B) coprod.inl)
+
 set_option backward.isDefEq.respectTransparency false in
 private theorem transported_alternate {B : P} (b : U ⟶ B ⨿ U) :
-    (unitSumIso pe).hom ≫ projectStep Seed (alternatingUnitStep b) =
-      alternatingStep pe (projectStep Seed (boundedUnitStep b)) ≫
-        coprod.map (𝟙 ((F).obj B)) (unitSumIso pe).hom := by
+    (unitSumIso Seed).hom ≫ projectStep Seed (alternatingUnitStep b) =
+      alternate Seed (projectStep Seed (boundedUnitStep b)) ≫
+        coprod.map (𝟙 ((F).obj B)) (unitSumIso Seed).hom := by
   apply coprod.hom_ext
-  · rw [← Category.assoc, unitSumIso_inl, alternatingStep, coprod.inl_desc_assoc, Category.assoc,
+  · rw [← Category.assoc, unitSumIso_inl, alternate, coprod.inl_desc_assoc, Category.assoc,
       coprod.map_map, Category.id_comp, unitSumIso_inr]
     change (F).map tagL ≫ (F).map (alternatingUnitStep b) ≫ (c B T).inv =
       ((F).map (boundedUnitStep b) ≫ (c B U).inv) ≫ _
     rw [← Functor.map_comp_assoc, tagL_alternate, Functor.map_comp, Category.assoc,
       Category.assoc, mapSnd]
-  · rw [← Category.assoc, unitSumIso_inr, alternatingStep, coprod.inr_desc_assoc, Category.assoc,
+  · rw [← Category.assoc, unitSumIso_inr, alternate, coprod.inr_desc_assoc, Category.assoc,
       coprod.map_map, Category.id_comp, unitSumIso_inl]
     change (F).map tagR ≫ (F).map (alternatingUnitStep b) ≫ (c B T).inv =
       ((F).map (boundedUnitStep b) ≫ (c B U).inv) ≫ _
@@ -141,27 +153,40 @@ private theorem transported_alternate {B : P} (b : U ⟶ B ⨿ U) :
       Category.assoc, mapSnd]
 
 set_option backward.isDefEq.respectTransparency false in
+include includeUnit in
 private theorem transported_drop :
-    (unitSumIso pe).hom ≫ (F).map drop = coprod.desc (𝟙 ((F).obj U)) (𝟙 ((F).obj U)) := by
-  have eta : (F).map reset = 𝟙 _ := unit_eta_of_include Seed (Paper.WithCaseReturns.includeUnit pe)
+    (unitSumIso Seed).hom ≫ (F).map drop = coprod.desc (𝟙 ((F).obj U)) (𝟙 ((F).obj U)) := by
+  have eta : (F).map reset = 𝟙 _ := unit_eta_of_include Seed includeUnit
   apply coprod.hom_ext
   · rw [← Category.assoc, unitSumIso_inl, ← Functor.map_comp, tagL_drop, eta, coprod.inl_desc]
   · rw [← Category.assoc, unitSumIso_inr, ← Functor.map_comp, tagR_drop, eta, coprod.inr_desc]
 
 set_option backward.isDefEq.respectTransparency false in
-theorem unit_alternate_power {B : Q} (g : (F).obj U ⟶ B ⨿ (F).obj U) :
+include includeUnit in
+theorem unit_alternate_power_of_seed {B : Q} (g : (F).obj U ⟶ B ⨿ (F).obj U) :
     iterateChosen Seed (g ≫ coprod.desc coprod.inl g) = iterateChosen Seed g := by
   obtain ⟨b, hb⟩ := (F).map_surjective (X := U) (Y := B.as ⨿ U) (g ≫ (c B.as U).hom)
   have bEq : projectStep Seed b = g := by
     change (F).map b ≫ (c B.as U).inv = g
     rw [hb, Category.assoc, Iso.hom_inv_id, Category.comp_id]
-  have gEq := (projectedUnitStep pe b).trans bEq
+  have gEq := (projectedUnitStep Seed includeUnit b).trans bEq
   have eq := uniformity_of_constructor_square Seed
     (show Paper.TypeCategory.ConstructorReturn (drop : T ⟶ U) from ⟨.unit, .unit, rfl⟩)
     (alternatingUnitStep b) (boundedUnitStep b) (paper_discard_square b)
-  have transIso := uniformity_of_iso Seed (unitSumIso pe) _ _ (transported_alternate pe b).symm
-  rw [eq, ← Category.assoc, transported_drop, gEq] at transIso
-  exact (alternating_fold_iff_double pe g).1 transIso
+  have transIso := uniformity_of_iso Seed (unitSumIso Seed) _ _ (transported_alternate Seed b).symm
+  rw [eq, ← Category.assoc, transported_drop Seed includeUnit, gEq] at transIso
+  exact (alternating_fold_iff_double_of_seed Seed g).1 transIso
+
+end UnitPower
+
+variable {ε : Type w} [HasEff Φ ε] (pe : ε)
+
+local notation "Seed" => Paper.WithCaseReturns.JoinedStep (τ := τ) (Φ := Φ) pe
+local notation "Q" => TypeCategory Seed
+
+theorem unit_alternate_power {B : Q} (g : ofType Seed sunit ⟶ B ⨿ ofType Seed sunit) :
+    iterateChosen Seed (g ≫ coprod.desc coprod.inl g) = iterateChosen Seed g :=
+  unit_alternate_power_of_seed Seed (Paper.WithCaseReturns.includeUnit pe) g
 
 local notation "Obj" => ofType Seed
 local notation "I" => iterateChosen Seed

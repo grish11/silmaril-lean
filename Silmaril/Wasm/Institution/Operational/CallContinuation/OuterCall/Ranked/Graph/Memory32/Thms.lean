@@ -20,6 +20,20 @@ theorem Function.load_typed {fn : Function} {stack : List Value} {offset : Fin (
       ∀ bits : BitVec 32, fn.WellTyped (saved ++ [Value.int .i32 bits]) rest :=
   Proofs.load_typed checked
 
+/-- Growth consumes an i32 delta and returns an i32 on both native outcomes. -/
+theorem Function.grow_typed {fn : Function} {stack : List Value} {rest : List Op}
+    (checked : fn.WellTyped stack (.grow :: rest)) :
+    ∃ (saved : List Value) (delta : BitVec 32),
+      stack = saved ++ [Value.int .i32 delta] ∧
+      ∀ result : BitVec 32, fn.WellTyped (saved ++ [Value.int .i32 result]) rest :=
+  Proofs.grow_typed checked
+
+/-- Size appends an i32 page count above the saved operands. -/
+theorem Function.size_typed {fn : Function} {stack : List Value} {rest : List Op}
+    (checked : fn.WellTyped stack (.size :: rest)) (pages : BitVec 32) :
+    fn.WellTyped (stack ++ [Value.int .i32 pages]) rest :=
+  Proofs.size_typed checked pages
+
 /-- An admitted store consumes the address and then the word in operand delivery order. -/
 theorem Function.store_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} {rest : List Op}
     (checked : fn.WellTyped stack (.store offset :: rest)) :
@@ -92,14 +106,16 @@ theorem Program.lookup_table (program : Program) (address : FuncAddr) :
   Proofs.lookup_table program address
 
 /-- Recover the V1 arity, source, stack, and shared-memory slot checks. -/
-theorem Program.function_checked {program : Program} {memory : MemAddr} (checked : program.checkV1 memory = true)
+theorem Program.function_checked {program : Program} {memory : MemAddr} {mode : MemoryMode}
+    (checked : program.checkV1 memory mode = true)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn) :
-    fn.declaration.results.length ≤ 1 ∧ fn.code.all fn.supports = true ∧
+    fn.declaration.results.length ≤ 1 ∧ fn.code.all (fun op => fn.supports op mode) = true ∧
       fn.WellTyped fn.initial fn.code ∧ fn.declaration.module.memories[0]? = some memory :=
   Proofs.function_checked checked found
 
 /-- A checked call resolves to the declared callee at a strictly smaller rank. -/
-theorem Program.linked_target {program : Program} {memory : MemAddr} (checked : program.checkV1 memory = true)
+theorem Program.linked_target {program : Program} {memory : MemAddr} {mode : MemoryMode}
+    (checked : program.checkV1 memory mode = true)
     {address : FuncAddr} {fn : Function} {target : CallTarget}
     (found : program.lookup address = some fn) (used : target ∈ fn.targets) :
     ∃ callee, program.lookup target.address = some callee ∧
@@ -118,12 +134,19 @@ theorem Layout.with_bytes {H : Type} {program : Program} {base : Store H} {a : M
     Layout program (storeWithBytes base a initial bytes) a { initial with data := bytes } :=
   Proofs.layout_with_bytes layout bytes
 
+/-- Successful growth preserves the numeric bounds on the selected extent. -/
+theorem BoundedExtent.grow {minimum : Nat} {maximum : Option Nat} {bytes grown : ByteArray} {delta : BitVec 32}
+    (extent : BoundedExtent minimum maximum bytes)
+    (edge : MemoryGrow.Edge ⟨bytes, maximum⟩ (.request delta) (.grown grown)) :
+    BoundedExtent minimum maximum grown :=
+  Proofs.bounded_extent_grow extent edge
+
 /-- Successful growth preserves the aligned, bounded, nondecreasing extent. -/
 theorem GrowthExtent.grow {initial : MemInst} {bytes grown : ByteArray} {delta : BitVec 32}
     (extent : GrowthExtent initial bytes)
     (edge : MemoryGrow.Edge { initial with data := bytes } (.request delta) (.grown grown)) :
     GrowthExtent initial grown :=
-  Proofs.growth_extent extent edge
+  Proofs.bounded_extent_grow extent edge
 
 /-- A native growth result uses the same store representation at its new extent. -/
 theorem GrowingStore.grow {H : Type} {base : Store H} {a : MemAddr} {initial : MemInst}
@@ -144,7 +167,7 @@ theorem GrowingStore.write {H : Type} {base : Store H} {a : MemAddr} {initial : 
 
 /-- Any checked activation selects the same current memory at slot zero. -/
 theorem Layout.frame_memory {H : Type} {program : Program} {base : Store H} {a : MemAddr} {initial : MemInst}
-    (checked : program.checkV1 a = true) (layout : Layout program base a initial)
+    {mode : MemoryMode} (checked : program.checkV1 a mode = true) (layout : Layout program base a initial)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn)
     (locals : List Value) (bytes : ByteArray) :
     frameMemory (storeWithBytes base a initial bytes) (Graph.currentFrame fn.declaration locals) =
@@ -175,7 +198,7 @@ theorem Function.body_expression (fn : Function) :
 
 /-- Enter the allocated V1 function with the shared store intact and its scalar arity. -/
 theorem Layout.enter {H : Type} {program : Program} {base live : Store H} {a : MemAddr} {initial : MemInst}
-    (checked : program.checkV1 a = true) (layout : Layout program base a initial)
+    {mode : MemoryMode} (checked : program.checkV1 a mode = true) (layout : Layout program base a initial)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn)
     (shared : SharedStore base a initial live) {caller : Frame} {saved args : List Value} {tail : List Admin}
     (typed : args.map Value.type = fn.declaration.params) :
@@ -186,7 +209,7 @@ theorem Layout.enter {H : Type} {program : Program} {base live : Store H} {a : M
 
 /-- Exact native contextual readback preserves shared allocation and extent on write or trap. -/
 theorem Layout.store_activation_shared {H : Type} {program : Program} {base live : Store H}
-    {a : MemAddr} {initial : MemInst} (checked : program.checkV1 a = true)
+    {a : MemAddr} {initial : MemInst} {mode : MemoryMode} (checked : program.checkV1 a mode = true)
     (layout : Layout program base a initial) {address : FuncAddr} {fn : Function}
     (found : program.lookup address = some fn) (shared : SharedStore base a initial live)
     {caller : Frame} {locals callerSaved saved : List Value} {callerTail tail : List Admin}
@@ -200,7 +223,7 @@ theorem Layout.store_activation_shared {H : Type} {program : Program} {base live
 
 /-- A native load or load trap under the activation preserves the entire current store. -/
 theorem Layout.load_activation_store {H : Type} {program : Program} {base live : Store H}
-    {a : MemAddr} {initial : MemInst} (checked : program.checkV1 a = true)
+    {a : MemAddr} {initial : MemInst} {mode : MemoryMode} (checked : program.checkV1 a mode = true)
     (layout : Layout program base a initial) {address : FuncAddr} {fn : Function}
     (found : program.lookup address = some fn) (shared : SharedStore base a initial live)
     {caller : Frame} {locals callerSaved saved : List Value} {callerTail tail : List Admin}

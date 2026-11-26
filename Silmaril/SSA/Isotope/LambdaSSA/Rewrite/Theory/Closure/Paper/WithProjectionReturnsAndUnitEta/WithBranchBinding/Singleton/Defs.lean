@@ -17,15 +17,17 @@ open OrderedPairSingleton (Rep)
 /-- A seed together with the exact normalization criterion for its raw relation. -/
 structure NormalizedSeed (τ : Type u) [TypeFormers τ] (Φ : Type v) [HasTy Φ τ] where
   step : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop
+  /-- The raw generators may have unbound branch arguments. -/
+  rawStep : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop := AddBinding step
   eqv_iff_normalized {Γ r s L} (hr : HasType Γ r L) (hs : HasType Γ s L) :
-    Extension.Eqv (AddBinding step) Γ r s L ↔
+    Extension.Eqv rawStep Γ r s L ↔
       Extension.Eqv step Γ r.bindBranchArguments s.bindBranchArguments L
 
 variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ] (S : NormalizedSeed τ Φ)
   {A B : τ}
 
 def rawSetoid (A B : τ) : Setoid (Rep (Φ := Φ) A B) where
-  r r s := Extension.Eqv (AddBinding S.step) [A] r.val s.val [B]
+  r r s := Extension.Eqv S.rawStep [A] r.val s.val [B]
   iseqv := ⟨fun r => Extension.Eqv.refl r.property, Extension.Eqv.symm, Extension.Eqv.trans⟩
 
 abbrev RawHom (A B : τ) := Quotient (rawSetoid S A B)

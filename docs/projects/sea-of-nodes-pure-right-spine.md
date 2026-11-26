@@ -55,8 +55,9 @@ wraparound in the private sum, and a downstream multiplication that
 still reads the original right add. It also checks refusal for the
 earlier swap, a non-add right operand, same-source doubling, and an
 add that the literal scan predicts to be zero. This step performs at
-most one rotation. Non-add-left swaps, ordered left-spine rotations,
-and Phi push-through remain separate.
+most one rotation. The [left-spine step](sea-of-nodes-pure-left-spine.md)
+handles the later non-Φ comparator branch. Non-add-left swaps and
+Phi push-through remain open.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Pure/ConstantFold/RightSpine/Regression.lean) ·
 [Chapter 8 coverage](sea-of-nodes-pure-sub-self.md#chapter-8-rule-coverage)
 

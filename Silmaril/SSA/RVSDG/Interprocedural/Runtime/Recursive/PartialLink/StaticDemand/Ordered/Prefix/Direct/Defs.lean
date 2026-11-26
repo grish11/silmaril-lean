@@ -32,13 +32,22 @@ def captureBoundary {Ty : Type u} {imports context params : Ports Ty} {past : Li
     (wires : Wires imports past context) : Boundary imports (context ++ params) past :=
   ⟨fun p => (capturePort context p).map fun q => wires.get q⟩
 
-/-- Follow the actual γ boundary wires into the enclosing entry. Outputs
+/-- Follow the actual region boundary wires into the enclosing entry. Outputs
 of earlier local bindings have no tracked linker origin. -/
 def Boundary.forward {Ty : Type u} {imports entry child : Ports Ty} {outer past : List (Ports Ty)}
     (source : Boundary imports entry outer) (wires : Wires entry past child) : Boundary imports child outer :=
   ⟨fun p => match wires.get p with
     | .arg q => source.get q
     | .output _ _ => none⟩
+
+/-- Keep only origins that the θ body returns from the same carried port.
+Computed results and permutations have no provenance at the next entry. -/
+def Boundary.feedback {carried : Ports (Ty V S)} {outer sigs : List (Ports (Ty V S))}
+    {member : Option (MemberSummaries V S)} (source : Boundary imports carried outer)
+    (body : Code Op carried [] sigs (Theta.BodyResults carried) true member) : Boundary imports carried outer :=
+  ⟨fun p => match body.returnArg (.tail p) with
+    | some q => if q.index = p.index then source.get p else none
+    | none => none⟩
 
 /-- Project the requested operands through the boundary map. Untracked
 ports elsewhere on the boundary do not prevent projection. -/
@@ -123,7 +132,8 @@ def TrackedSite (checked : scope.Checked actions) (routes : Routes inputsL input
     (checked.state.right.available (entry := inputsR) Known.ordinary (sources.get .head)).isSome = true
 
 /-- Direct forwarding derivations. A γ requires tracking at every arm
-under its actual composed boundary and at the suffix. -/
+under its composed boundary. A θ tracks only same-port feedback sources in
+its body. Both require tracked suffixes under the enclosing boundary. -/
 inductive Tracked (checked : scope.Checked actions) (routes : Routes inputsL inputsR scope) :
     {entry outs : Ports (Ty V S)} → {past sigs : List (Ports (Ty V S))} →
     Boundary imports entry scope.past → Code Op entry past sigs outs true (some scope.table) → Prop where
@@ -148,6 +158,12 @@ inductive Tracked (checked : scope.Checked actions) (routes : Routes inputsL inp
       {rest : Code Op entry (past ++ [outputs]) sigs outs true (some scope.table)} :
       (∀ i, Tracked checked routes (Boundary.forward source wires) (arms i)) → Tracked checked routes source rest →
       Tracked checked routes source (.gamma extra armSigs selector wires arms rest)
+  | theta {entry carried outs : Ports (Ty V S)} {past sigs bodySigs : List (Ports (Ty V S))}
+      {source : Boundary imports entry scope.past} {wires : Wires entry past carried}
+      {body : Code Op carried [] bodySigs (Theta.BodyResults carried) true (some scope.table)}
+      {rest : Code Op entry (past ++ [carried]) sigs outs true (some scope.table)} :
+      Tracked checked routes ((source.forward wires).feedback body) body → Tracked checked routes source rest →
+      Tracked checked routes source (.theta wires body rest)
 
 end Tracking
 

@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Category.Iteration.Defs
+public import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Category.Iteration.Thms
 public import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.ExactSum.Thms
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Singleton.Iteration.Defs
 import Silmaril.Proofs.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Iteration.Preservation
@@ -29,6 +29,28 @@ theorem singleton_map_iterateSum :
     ((singletonInterpretation M).map (iterateSum f)).run (0 : Fin 1) a s =
       iterateObservations ((singletonInterpretation M).map f) a s :=
   Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Paper.Category.Iteration.map_iterateSum M f a s
+
+/-- The installed iterator is monotone in the shaped observation order.
+Larger behaviour includes additional ordinary outcomes or fresh top. -/
+theorem singleton_map_iterateSum_mono {g : ofType (Φ := Φ) A ⟶ ofType (.coprod B A)}
+    (le : ∀ (b : singlePayload (atomType := M.atomType) A) (t : M.raw.σ),
+      ((singletonInterpretation M).map f).run (0 : Fin 1) b t ≤
+        ((singletonInterpretation M).map g).run (0 : Fin 1) b t) :
+    ((singletonInterpretation M).map (iterateSum f)).run (0 : Fin 1) a s ≤
+      ((singletonInterpretation M).map (iterateSum g)).run (0 : Fin 1) a s := by
+  exact (singleton_map_iterateSum M f a s).trans_le
+    ((Shape.Category.iterateObservations_mono le a s).trans_eq (singleton_map_iterateSum M g a s).symm)
+
+/-- An existing overlay refinement of native representatives implies ordered
+iteration in every shaped model of the same universe. -/
+theorem singleton_map_iterateSum_mono_of_refines {r t : LambdaSSA.Region Φ}
+    (hr : r.ValueBranches [A] [.coprod B A]) (ht : t.ValueBranches [A] [.coprod B A])
+    (le : Refines.{u,v,w,x} (.native ⟨r, hr.hasType⟩) (.native ⟨t, ht.hasType⟩)) :
+    ((singletonInterpretation M).map (iterateSum (LambdaSSA.Region.Paper.TypeCategory.ofRegion hr))).run
+        (0 : Fin 1) a s ≤
+      ((singletonInterpretation M).map (iterateSum (LambdaSSA.Region.Paper.TypeCategory.ofRegion ht))).run
+        (0 : Fin 1) a s :=
+  singleton_map_iterateSum_mono M _ a s fun b t => le (M.extend b.property).raw t
 
 /-- Unfold the interpreted iterator into one step followed by the selected
 arm. The right arm starts the remainder at that step's final state. -/

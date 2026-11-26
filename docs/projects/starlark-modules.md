@@ -641,37 +641,40 @@ outside the compositional body profile.
 
 ## Enclosing captures in defaulted bodies
 
-The multiple-callee trace also admits the existing one-parameter escaping
-wrapper with a compositional child body. The child's only free binding
-in this profile is the wrapper parameter. The independent lexical read
-and binder judgments select that capture, and `Defaults.Escape.Scoped.checked_site`
-identifies the emitted child declaration and capture list at its final
-table index.
+The multiple-callee trace admits an escaping wrapper with required
+positional parameters and a compositional child body. The independent
+lexical read and binder judgments select the child's free references.
+The child can capture any subset of the wrapper's parameters.
+`Defaults.Escape.Scoped.checked_site` identifies the emitted declaration
+and its ordered capture list at the final table index.
 
-The wrapper activates with a fresh parameter cell. It evaluates defaults
-in that frame, installs the child's capture using the reached slot
-address, rebinds the parameter, and restores the caller when returning the
-child. `returned_frame` relates the escaped closure's address, saved values
-and capture cell to the child's activation frame. In the module trace,
-live callable provenance preserves the closure record through aliases and
-later commands. Each child call uses the same saved-default binder and
-compositional body rules as the root case. The checked module result gives
-exact operational and denotational agreement, including publication and
-reachable freezing on success and the first reached error, retained heap,
-and restored caller on failure.
+`activate_installs` derives the vector by visiting the declaration's
+free references in order and looking up their owned slots in the
+reached wrapper activation. `capture_order` proves that the installed
+bindings match that order and have no duplicates, so repeated source
+reads use the same child slot. Defaults still evaluate in the reached
+wrapper frame. The wrapper installs the child, rebinds its first
+parameter, and restores the caller. `returned_frame` relates the escaped
+closure's record, including both saved values and live cells, to the
+compositional child frame. The module theorem carries that record
+through aliases and later calls and gives exact operational and
+denotational agreement on publication and freezing or the first
+reached error with the retained heap and restored caller.
 
-The controls save the original list as a default while reading the
-rebound parameter as an index. They exercise two independent wrapper
-activations, repeated calls through an alias, an explicit override, and
-a failed override after local effects. The Lean control checks the exact
-capture addresses and residual cells. The pinned Go control compares
-returned values, visible failure state and publication freezing. Go's
-public interface does not expose the private capture cells or the failed
-child's local allocations.
+The two-capture fixture reads the second parameter first and reads it
+again after reading the first parameter. The first parameter holds a
+list at definition time and is rebound to an integer before escape.
+Two wrapper activations have different second-parameter values and
+disjoint capture cells. Lean checks the exact ordered addresses,
+deduplication, saved values, and residual cells on a failed override.
+The pinned Go control compares returned values, visible failure state,
+and publication freezing. The private capture vector and the failed
+child's local allocations are checked in Lean.
 
-Additional enclosing levels, multiple captures in this wrapper profile,
-wider bodies, untracked callable provenance, keywords and spreads, loads,
-and text parsing remain outside this integration.
+Additional enclosing levels, capture of the child-name or module slots
+in this wrapper profile, wider bodies, untracked callable provenance,
+keywords and spreads, loads, and text parsing remain outside this
+integration.
 [Source rules](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Scoped/Defs.lean) · [Capture and frame theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Scoped/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Scoped/Checks.lean) · [Pinned Go comparison](../../scripts/starlark/nested-default-body/check.go)
 
 ## Finite-manifest loader

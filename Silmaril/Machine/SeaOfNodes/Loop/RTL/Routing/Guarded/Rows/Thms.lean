@@ -14,7 +14,7 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows
 
 open Silmaril.Machine.Lir (Memory)
 open Silmaril.Machine.RTL (Frame)
-open Silmaril.Machine.RTL.SSA (Prog Steps)
+open Silmaril.Machine.RTL.SSA (Prog Steps StepsNWithin)
 open Silmaril.Machine.SeaOfNodes.Diamond.RTL (Reg model word)
 open Silmaril.SSA
 open Silmaril.SSA.SeaOfNodes.Loop (Incoming appendTuple)
@@ -59,6 +59,16 @@ theorem native_step {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
     p.graph.step model input old =
       if p.guardWord old = 0 then .inl (p.exitValue old) else .inr (p.nextBank input old) :=
   Proofs.native_step p input old fr agree
+
+theorem testFrame_args {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
+    (fr : Frame Reg) (agree : ArgsMatch fr (appendTuple old input)) :
+    ArgsMatch (p.testFrame fr old) (appendTuple old input) :=
+  Proofs.testFrame_args p input old fr agree
+
+theorem header_activation_steps {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
+    (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
+    StepsNWithin (lowerBank p.graph) [] p.activationSteps ⟨⟨0, 1, 0⟩, fr, [], mem⟩ (p.successor input old fr mem) :=
+  Proofs.header_activation_steps p input old fr mem agree
 
 theorem header_activation {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
     (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :

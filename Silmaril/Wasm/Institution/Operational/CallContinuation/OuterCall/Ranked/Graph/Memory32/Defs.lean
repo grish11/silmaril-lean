@@ -20,34 +20,51 @@ namespace Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranke
 open Execution.Runtime (Frame FuncAddr MemAddr MemInst Value)
 open Computed
 
+/-- The original fixed-extent profile or growth with the allocated page limit. -/
+inductive MemoryMode where
+  | fixed
+  | growing (maximum : Option Nat)
+
+def MemoryMode.growthEnabled : MemoryMode → Bool
+  | .fixed => false
+  | .growing _ => true
+
+def MemoryMode.matches (mode : MemoryMode) (initial : MemInst) : Prop :=
+  match mode with
+  | .fixed => True
+  | .growing maximum => initial.max = maximum
+
 /-- Full-width Memory32 operations and parameterless scalar structured instructions. -/
 inductive Op where
   | ranked (op : Graph.Op)
   | load (offset : Fin (2 ^ 32))
   | store (offset : Fin (2 ^ 32))
+  | size
+  | grow
   | block (result : Option NumType) (body : List Op)
   | loop (result : Option NumType) (body : List Op)
   | if_ (result : Option NumType) (thenBody elseBody : List Op)
 
 mutual
 
-def supportedCode : List Op → (labels : List (List NumType) := []) → Bool
-  | [], _ => true
-  | op :: rest, labels => op.supportedIn labels && supportedCode rest labels
+def supportedCode : List Op → (labels : List (List NumType) := []) → (mode : MemoryMode := .fixed) → Bool
+  | [], _, _ => true
+  | op :: rest, labels, mode => op.supportedIn labels mode && supportedCode rest labels mode
 
-def Op.supportedIn : Op → List (List NumType) → Bool
-  | .load _, _ | .store _, _ => true
-  | .ranked (.numeric _), _ | .ranked (.set _), _ | .ranked (.tee _), _
-  | .ranked (.call _), _ | .ranked .return_, _ | .ranked .unreachable, _ => true
-  | .ranked (.br depth result), labels | .ranked (.brIf depth result), labels =>
+def Op.supportedIn : Op → List (List NumType) → (mode : MemoryMode := .fixed) → Bool
+  | .load _, _, _ | .store _, _, _ => true
+  | .size, _, mode | .grow, _, mode => mode.growthEnabled
+  | .ranked (.numeric _), _, _ | .ranked (.set _), _, _ | .ranked (.tee _), _, _
+  | .ranked (.call _), _, _ | .ranked .return_, _, _ | .ranked .unreachable, _, _ => true
+  | .ranked (.br depth result), labels, _ | .ranked (.brIf depth result), labels, _ =>
     decide (labels[depth.toNat]? = some result)
-  | .ranked (.brTable depths fallback result), labels =>
+  | .ranked (.brTable depths fallback result), labels, _ =>
     (fallback :: depths).all fun depth => decide (labels[depth.toNat]? = some result)
-  | .ranked _, _ => false
-  | .block result body, labels => supportedCode body (result.toList :: labels)
-  | .loop _ body, labels => supportedCode body ([] :: labels)
-  | .if_ result left right, labels =>
-    supportedCode left (result.toList :: labels) && supportedCode right (result.toList :: labels)
+  | .ranked _, _, _ => false
+  | .block result body, labels, mode => supportedCode body (result.toList :: labels) mode
+  | .loop _ body, labels, mode => supportedCode body ([] :: labels) mode
+  | .if_ result left right, labels, mode =>
+    supportedCode left (result.toList :: labels) mode && supportedCode right (result.toList :: labels) mode
 
 end
 
@@ -61,7 +78,7 @@ def codeTargets : List Op → List CallTarget
 
 def Op.targets : Op → List CallTarget
   | .ranked op => op.targets
-  | .load _ | .store _ => []
+  | .load _ | .store _ | .size | .grow => []
   | .block _ body | .loop _ body => codeTargets body
   | .if_ _ left right => codeTargets left ++ codeTargets right
 
@@ -80,6 +97,8 @@ def Op.v1 : Op → Wasm.V1.Instr
   | .ranked op => op.emit Graph.v1CodeSyntax
   | .load offset => .intLoad .i32 none (immediate offset)
   | .store offset => .intStore .i32 none (immediate offset)
+  | .size => .memorySize
+  | .grow => .memoryGrow
   | .block result body => .block result (v1Code body)
   | .loop result body => .loop result (v1Code body)
   | .if_ result left right => .if_ result (v1Code left) (v1Code right)
@@ -104,8 +123,8 @@ def Function.v1Func (fn : Function) : Wasm.V1.Func :=
 invocation. Explicit block and conditional labels extend this context. -/
 def Function.entryLabels (fn : Function) : List (List NumType) := [fn.declaration.results]
 
-def Function.supports (fn : Function) (op : Op) : Bool :=
-  op.supportedIn fn.entryLabels
+def Function.supports (fn : Function) (op : Op) (mode : MemoryMode := .fixed) : Bool :=
+  op.supportedIn fn.entryLabels mode
 
 mutual
 
@@ -124,7 +143,8 @@ def Function.checkRegionOp (fn : Function) (stack : List NumType) (labels : List
   | .ranked op =>
     Graph.checkOp fn.targets (fn.declaration.params ++ fn.declaration.locals) fn.declaration.results
       labels stack fn.declaration.module.types resume op
-  | .load _ => Graph.checkCondition stack (fun saved => resume (.int .i32 :: saved))
+  | .load _ | .grow => Graph.checkCondition stack (fun saved => resume (.int .i32 :: saved))
+  | .size => resume (.int .i32 :: stack)
   | .store _ => Graph.checkCondition stack (fun args => Graph.checkCondition args resume)
   | .block result body =>
     fn.checkRegion [] result.toList body (result.toList :: labels) && resume (result.toList.reverse ++ stack)
@@ -146,9 +166,9 @@ def Function.WellTyped (fn : Function) (stack : List Value) (code : List Op) : P
 
 /-- Syntax and declared branch targets are checked throughout the body. Stack
 checking follows the admitted continuations. -/
-def Function.checkV1 (fn : Function) (memory : MemAddr) : Bool :=
+def Function.checkV1 (fn : Function) (memory : MemAddr) (mode : MemoryMode := .fixed) : Bool :=
   decide (fn.declaration.results.length ≤ 1) &&
-    fn.code.all fn.supports &&
+    fn.code.all (fun op => fn.supports op mode) &&
     fn.checkCode (Prefix.stackTypes fn.initial) fn.code &&
     decide (fn.declaration.module.memories[0]? = some memory)
 
@@ -161,9 +181,9 @@ def Program.lookup (program : Program) (address : FuncAddr) : Option Function :=
 def Program.table (program : Program) : Table :=
   ⟨program.functions.map (Option.map Function.entry)⟩
 
-def Program.checkV1 (program : Program) (memory : MemAddr) : Bool :=
+def Program.checkV1 (program : Program) (memory : MemAddr) (mode : MemoryMode := .fixed) : Bool :=
   program.table.check &&
-    program.functions.all (fun slot => (slot.map (fun fn => fn.checkV1 memory)).getD true)
+    program.functions.all (fun slot => (slot.map (fun fn => fn.checkV1 memory mode)).getD true)
 
 /-- Native allocation is fixed outside the selected memory's bytes. -/
 structure Layout {H : Type} (program : Program) (base : Wasm.V1.Execution.Store H)
@@ -184,8 +204,16 @@ def SharedStore {H : Type} (base : Wasm.V1.Execution.Store H) (address : MemAddr
 
 /-- The live bytes remain page-aligned, within the fixed limits, and at least
 as large as the initial extent. -/
-def GrowthExtent (initial : MemInst) (bytes : ByteArray) : Prop :=
-  initial.data.size ≤ bytes.size ∧ MemoryGrow.SizeAllows { initial with data := bytes } 0
+def BoundedExtent (minimum : Nat) (maximum : Option Nat) (bytes : ByteArray) : Prop :=
+  minimum ≤ bytes.size ∧ MemoryGrow.SizeAllows ⟨bytes, maximum⟩ 0
+
+abbrev GrowthExtent (initial : MemInst) (bytes : ByteArray) : Prop :=
+  BoundedExtent initial.data.size initial.max bytes
+
+def MemoryMode.extent (mode : MemoryMode) (minimum : Nat) (bytes : ByteArray) : Prop :=
+  match mode with
+  | .fixed => bytes.size = minimum
+  | .growing maximum => BoundedExtent minimum maximum bytes
 
 /-- The selected byte array can grow while the rest of the store and the
 selected memory's limit remain fixed. -/

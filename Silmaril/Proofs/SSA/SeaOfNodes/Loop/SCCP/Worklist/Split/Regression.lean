@@ -3,6 +3,7 @@ module
 import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Split.Example.Defs
 import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Split.Thms
 meta import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Split.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Phi.Example.Defs
 
 namespace Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Split
 
@@ -26,8 +27,8 @@ example : enableExitWake = [.result] := rfl
     (true, true, (.overdefined, .overdefined), .overdefined)
 
 -- The second pop sees the flag published by the first one.
-example : observe (runSteps model (graph true) (facts false 0) 2 Phi.Example.crossSnapshot
-    [.phi (0 : Fin 2), .phi (1 : Fin 2)]).state.2.1 = (.constant true, .constant 1) := rfl
+#guard observe (runSteps model (graph true) (facts false 0) 2 Phi.Example.crossSnapshot
+    [.phi (0 : Fin 2), .phi (1 : Fin 2)]).state.2.1 = (.constant true, .constant 1)
 
 example : report (graph false) true 5 =
     ([.control, .control, .phi 0, .phi 1, .control, .result],

@@ -20,7 +20,7 @@ theorem call_ready {p : Program} {m : MemAddr} {addr : FuncAddr} {fn : Function}
     {caller : Frame} {index : FuncIdx} (found : p.lookup addr = some fn)
     (resolved : caller.module.funcs[index.toNat]? = some addr) (args : List Value) (bytes : ByteArray) :
     Ready p m (fn.rank + 1) bytes.size ⟨bytes, caller, values args ++ [.source (.call index)]⟩ :=
-  RunProofs.initial_call found resolved args bytes
+  RunProofs.initial_call found resolved args bytes rfl
 
 theorem Edge.module_eq {p : Program} {m : MemAddr} {src dst : State} (edge : Edge p m src dst) :
     dst.frame.module = src.frame.module :=
@@ -28,7 +28,7 @@ theorem Edge.module_eq {p : Program} {m : MemAddr} {src dst : State} (edge : Edg
 
 theorem Edge.extent_eq {p : Program} {m : MemAddr} {src dst : State} (edge : Edge p m src dst) :
     dst.bytes.size = src.bytes.size :=
-  RunProofs.edge_extent edge
+  RunProofs.extent_preserved edge rfl
 
 theorem Edge.ready {p : Program} {m : MemAddr} {src dst : State} {rank extent : Nat}
     (edge : Edge p m src dst) (checked : p.checkV1 m = true) (ready : Ready p m rank extent src) :
@@ -46,7 +46,7 @@ theorem v1_step_iff {H : Type} {p : Program} {m : MemAddr} {base : Store H} {ini
     (ready : Ready p m rank initial.data.size src) {dst : Config H} :
     Step CallFrame.v1NoHost (render base m initial src) dst ↔
       ∃ out, Edge p m src out ∧ Ready p m rank initial.data.size out ∧ dst = render base m initial out :=
-  RunProofs.step_iff checked layout ready
+  RunProofs.step_iff checked layout trivial ready
 
 /-- Each finite native prefix reflects to a run whose exact store, locals and
 administrative code render the endpoint. The endpoint need not have returned. -/
@@ -55,7 +55,7 @@ theorem v1_run_iff {H : Type} {p : Program} {m : MemAddr} {base : Store H} {init
     (ready : Ready p m rank initial.data.size src) {dst : Config H} :
     Steps CallFrame.v1NoHost (render base m initial src) dst ↔
       ∃ out, Runs p m src out ∧ Ready p m rank initial.data.size out ∧ dst = render base m initial out :=
-  RunProofs.run_iff checked layout ready
+  RunProofs.run_iff checked layout trivial ready
 
 /-- Ordinary entry from an external caller resolving a checked root. -/
 theorem v1_call_run_iff {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
@@ -68,6 +68,59 @@ theorem v1_call_run_iff {H : Type} {p : Program} {m : MemAddr} {base : Store H} 
         Ready p m (fn.rank + 1) initial.data.size out ∧ dst = render base m initial out := by
   have exactRun := v1_run_iff (dst := dst) checked layout (call_ready found resolved args initial.data)
   simpa only [render, layout.initial_store] using exactRun
+
+/-- The extent never decreases, including across a growing child frame. -/
+theorem EdgeAt.extent_mono {mode : MemoryMode} {p : Program} {m : MemAddr} {src dst : State}
+    (edge : EdgeAt mode p m src dst) : src.bytes.size ≤ dst.bytes.size :=
+  RunProofs.extent_mono edge
+
+theorem RunsAt.extent_mono {mode : MemoryMode} {p : Program} {m : MemAddr} {src dst : State}
+    (run : RunsAt mode p m src dst) : src.bytes.size ≤ dst.bytes.size := by
+  induction run with
+  | refl => exact Nat.le_refl _
+  | tail _ edge ih => exact ih.trans edge.extent_mono
+
+theorem EdgeAt.ready {mode : MemoryMode} {p : Program} {m : MemAddr} {src dst : State} {rank minimum : Nat}
+    (edge : EdgeAt mode p m src dst) (checked : p.checkV1 m mode = true)
+    (ready : ReadyAt mode p m rank minimum src) : ReadyAt mode p m rank minimum dst :=
+  ⟨RunProofs.extent_preserved edge ready.1, RunProofs.preserve checked edge ready.2⟩
+
+theorem render_growing {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
+    {src : State} {rank : Nat} (ready : ReadyAt (.growing initial.max) p m rank initial.data.size src) :
+    GrowingStore base m initial (render base m initial src).store :=
+  ⟨src.bytes, ready.1, rfl⟩
+
+/-- Exact successors in either profile. Growth has separate success and failure edges. -/
+theorem v1_step_iff_at {H : Type} {mode : MemoryMode} {p : Program} {m : MemAddr}
+    {base : Store H} {initial : MemInst} (checked : p.checkV1 m mode = true) (layout : Layout p base m initial)
+    (matched : mode.matches initial) {src : State} {rank : Nat} (ready : ReadyAt mode p m rank initial.data.size src)
+    {dst : Config H} :
+    Step CallFrame.v1NoHost (render base m initial src) dst ↔
+      ∃ out, EdgeAt mode p m src out ∧ ReadyAt mode p m rank initial.data.size out ∧ dst = render base m initial out :=
+  RunProofs.step_iff checked layout matched ready
+
+/-- Relational finite-prefix correspondence, including native allocation failure. -/
+theorem v1_run_iff_at {H : Type} {mode : MemoryMode} {p : Program} {m : MemAddr}
+    {base : Store H} {initial : MemInst} (checked : p.checkV1 m mode = true) (layout : Layout p base m initial)
+    (matched : mode.matches initial) {src : State} {rank : Nat} (ready : ReadyAt mode p m rank initial.data.size src)
+    {dst : Config H} :
+    Steps CallFrame.v1NoHost (render base m initial src) dst ↔
+      ∃ out, RunsAt mode p m src out ∧ ReadyAt mode p m rank initial.data.size out ∧ dst = render base m initial out :=
+  RunProofs.run_iff checked layout matched ready
+
+/-- A growing graph starts with a page-aligned, in-limit allocation. -/
+theorem v1_growing_call_run_iff {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
+    (checked : p.checkV1 m (.growing initial.max) = true) (layout : Layout p base m initial)
+    (extent : MemoryGrow.SizeAllows initial 0)
+    {root : FuncAddr} {fn : Function} {caller : Frame} {index : FuncIdx} {args : List Value}
+    (found : p.lookup root = some fn) (resolved : caller.module.funcs[index.toNat]? = some root)
+    {dst : Config H} :
+    Steps CallFrame.v1NoHost ⟨base, caller, values args ++ [.source (.call index)]⟩ dst ↔
+      ∃ out, RunsAt (.growing initial.max) p m ⟨initial.data, caller, values args ++ [.source (.call index)]⟩ out ∧
+        ReadyAt (.growing initial.max) p m (fn.rank + 1) initial.data.size out ∧ dst = render base m initial out := by
+  have ready := RunProofs.initial_call (mode := .growing initial.max) (m := m) found resolved args initial.data
+    (show GrowthExtent initial initial.data from ⟨Nat.le_refl _, extent⟩)
+  simpa only [render, layout.initial_store] using v1_run_iff_at (dst := dst) checked layout rfl ready
 
 /-- A depth-zero backedge restores the loop source. Re-entry then opens a
 new zero-input label with the same current frame and store. -/

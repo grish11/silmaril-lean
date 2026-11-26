@@ -38,6 +38,19 @@ theorem load_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} 
   refine ⟨saved, address, rfl, fun bits => ?_⟩
   simpa [Function.WellTyped, Prefix.stackTypes, Value.int, List.reverse_append] using resume
 
+theorem grow_typed {fn : Function} {stack : List Value} {rest : List Op}
+    (checked : fn.WellTyped stack (.grow :: rest)) :
+    ∃ (saved : List Value) (delta : BitVec 32),
+      stack = saved ++ [Value.int .i32 delta] ∧
+      ∀ result : BitVec 32, fn.WellTyped (saved ++ [Value.int .i32 result]) rest :=
+  load_typed (offset := 0) checked
+
+theorem size_typed {fn : Function} {stack : List Value} {rest : List Op}
+    (checked : fn.WellTyped stack (.size :: rest)) (pages : BitVec 32) :
+    fn.WellTyped (stack ++ [Value.int .i32 pages]) rest := by
+  change fn.checkCode (.int .i32 :: Prefix.stackTypes stack) rest = true at checked
+  simpa [Function.WellTyped, Prefix.stackTypes, List.reverse_append, Value.int] using checked
+
 theorem store_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} {rest : List Op}
     (checked : fn.WellTyped stack (.store offset :: rest)) :
     ∃ (saved : List Value) (address word : BitVec 32),
@@ -143,9 +156,10 @@ private theorem lookup_mem {program : Program} {address : FuncAddr} {fn : Functi
     have eq : slot = some fn := by simpa [h] using found
     exact List.mem_of_getElem? (eq ▸ h)
 
-theorem function_checked {program : Program} {memory : MemAddr} (checked : program.checkV1 memory = true)
+theorem function_checked {program : Program} {memory : MemAddr} {mode : MemoryMode}
+    (checked : program.checkV1 memory mode = true)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn) :
-    fn.declaration.results.length ≤ 1 ∧ fn.code.all fn.supports = true ∧
+    fn.declaration.results.length ≤ 1 ∧ fn.code.all (fun op => fn.supports op mode) = true ∧
       fn.WellTyped fn.initial fn.code ∧ fn.declaration.module.memories[0]? = some memory := by
   have each := (Bool.and_eq_true_iff.mp checked).2
   have body := List.all_eq_true.mp each (some fn) (lookup_mem found)
@@ -153,7 +167,8 @@ theorem function_checked {program : Program} {memory : MemAddr} (checked : progr
     decide_eq_true_eq, Function.WellTyped] at body ⊢
   exact ⟨body.1.1.1, body.1.1.2, body.1.2, body.2⟩
 
-theorem linked_target {program : Program} {memory : MemAddr} (checked : program.checkV1 memory = true)
+theorem linked_target {program : Program} {memory : MemAddr} {mode : MemoryMode}
+    (checked : program.checkV1 memory mode = true)
     {address : FuncAddr} {fn : Function} {target : CallTarget}
     (found : program.lookup address = some fn) (used : target ∈ fn.targets) :
     ∃ callee, program.lookup target.address = some callee ∧

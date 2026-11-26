@@ -173,9 +173,29 @@ private theorem group_has_no_key (code : OpcodeCode (Instruction Op)) (captureCo
   | ordinary _ plain => cases value <;> first | rfl | cases plain
   | member => rfl
 
-private theorem group_key_of_known {group : Group m members}
-    {port : Ty V S} {value : m.Val port} {key : GroupKey V S}
-    (known : group.In value) (found : memberKey value = some key) : key = group.key := by
+private theorem ofFn_equiv {α : Type*} {n k : Nat} (vertices : Fin n ≃ Fin k) (labels : Fin k → α) :
+    (List.ofFn (labels ∘ vertices)).Perm (List.ofFn labels) := by
+  have size : n = k := Fin.equiv_iff_eq.mp ⟨vertices⟩
+  subst k
+  exact Equiv.Perm.ofFn_comp_perm vertices labels
+
+theorem outer_profile (code : OpcodeCode (Instruction Op))
+    {argsL argsR outsL outsR : Ports (Ty V S)} {sigsL sigsR : List (Ports (Ty V S))}
+    {left : Graph Op argsL [] sigsL outsL} {right : Graph Op argsR [] sigsR outsR}
+    (iso : NestedTheta.Graph.Isomorphic (Instruction Op) left right) :
+    outerProfile code left = outerProfile code right := by
+  cases iso with
+  | intro _ _ vertices labels _ _ _ =>
+    apply Multiset.coe_eq_coe.mpr
+    have same : (fun i => labelCode code (left.nodes i).label) =
+        (fun i => labelCode code (right.nodes (vertices i)).label) :=
+      funext fun i => congrArg (labelCode code) (labels i)
+    rw [outerLabels, outerLabels, same]
+    exact ofFn_equiv vertices (fun i => labelCode code (right.nodes i).label)
+
+private theorem group_profile_of_known (code : OpcodeCode (Instruction Op)) {group : Group m members}
+    {port : Ty V S} {value : m.Val port} {profile : GroupProfile V S code.Key}
+    (known : group.In value) (found : memberProfile code value = some profile) : profile = group.profile code := by
   cases known with
   | ordinary _ plain =>
     cases value with
@@ -183,19 +203,26 @@ private theorem group_key_of_known {group : Group m members}
     | _ => cases found
   | member => exact (Option.some.inj found).symm
 
-private theorem memberKey_of_callable {group : Group m members} {args outs : Ports (Ty V S)}
-    {value : m.Val (.value (.function args outs))} (known : group.In value) : memberKey value = some group.key := by
+private theorem memberProfile_of_callable (code : OpcodeCode (Instruction Op))
+    {group : Group m members} {args outs : Ports (Ty V S)}
+    {value : m.Val (.value (.function args outs))} (known : group.In value) :
+    memberProfile code value = some (group.profile code) := by
   cases known with
   | ordinary _ plain => cases plain
   | member => rfl
 
-private theorem related_memberKey {port : Ty V S} {left right : m.Val port}
-    (related : ValueRelated m ids left right) : memberKey left = memberKey right := by
-  cases related <;> rfl
+theorem related_memberProfile (code : OpcodeCode (Instruction Op))
+    {port : Ty V S} {left right : m.Val port} (related : ValueRelated m ids left right) :
+    memberProfile code left = memberProfile code right := by
+  cases related with
+  | member _ definitions _ =>
+    simp only [memberProfile, Option.some.injEq, Prod.mk.injEq, true_and, definitionProfiles]
+    exact congrArg List.ofFn (funext fun slot => outer_profile code (definitions slot).2)
+  | _ => rfl
 
-private theorem lambda_has_no_memberKey {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m}
+private theorem lambda_has_no_memberProfile {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m}
     {port : Ty V S} {value : m.Val port} {key : LambdaSummary V S code.Key captureCode.Key}
-    (found : lambdaKey code captureCode value = some key) : memberKey value = none := by
+    (found : lambdaKey code captureCode value = some key) : memberProfile code value = none := by
   cases value <;> first | rfl | cases found
 
 variable [DecidableEq (Ty V S)] {keys : OpcodeCode (Instruction Op)} [DecidableEq keys.Key]
@@ -278,15 +305,15 @@ theorem checkExport_sound (ordinary : OrdinaryOutputs Op) {args outs : Ports (Ty
 
 theorem linked_groups (captureCode : CaptureCode m) (ordinary : OrdinaryOutputs Op) {membersL membersR : List (Function V S)}
     (left : Group m membersL) (right : Group m membersR)
-    (accepted : checkGroupPair keys left right = true) : LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed left.key right.key) where
+    (accepted : checkGroupPair keys left right = true) : LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed (left.profile keys) (right.profile keys)) where
   checked := checked_group_pair ordinary left right accepted
   ordinaryL := Group.In.ordinary
   ordinaryR := Group.In.ordinary
   keysL known key := by rw [group_has_no_key keys captureCode known] at key; cases key
   keysR known key := by rw [group_has_no_key keys captureCode known] at key; cases key
 
-  groupsL known found := by rw [group_key_of_known known found]; exact List.mem_cons_self
-  groupsR known found := by rw [group_key_of_known known found]; exact List.mem_cons_self
+  groupsL known found := by rw [group_profile_of_known keys known found]; exact List.mem_cons_self
+  groupsR known found := by rw [group_profile_of_known keys known found]; exact List.mem_cons_self
 
 omit [DecidableEq (Ty V S)] in
 private theorem closed_with_group (ordinary : OrdinaryOutputs Op) {family : Family m} (group : Group m members)
@@ -302,11 +329,11 @@ private theorem closed_with_group (ordinary : OrdinaryOutputs Op) {family : Fami
 theorem linked_group_extension (ordinary : OrdinaryOutputs Op) {captureCode : CaptureCode m}
     {familyL familyR : Family m} {prior : DispatchKeys V S keys.Key captureCode.Key}
     (earlier : LinkedFamily primitives ids keys captureCode familyL familyR prior) (left right : Group m members)
-    (fresh : left.key ∉ prior.groupsR ∧ right.key ∉ prior.groupsL)
+    (fresh : left.profile keys ∉ prior.groupsR ∧ right.profile keys ∉ prior.groupsL)
     (outerL : TupleIn familyL left.values) (outerR : TupleIn familyR right.values)
     (bodies : checkGroupBodies keys left right = true) :
     LinkedFamily primitives ids keys captureCode (WithGroup familyL left) (WithGroup familyR right)
-      (prior.addGroup left.key right.key) where
+      (prior.addGroup (left.profile keys) (right.profile keys)) where
   checked :=
     { closedL := closed_with_group ordinary left earlier.ordinaryL earlier.checked.closedL outerL
       closedR := closed_with_group ordinary right earlier.ordinaryR earlier.checked.closedR outerR
@@ -320,11 +347,11 @@ theorem linked_group_extension (ordinary : OrdinaryOutputs Op) {captureCode : Ca
           cases knownR with
           | inherited known => exact .inl known
           | member slot => exact .inr (.member slot)
-        have same := related_memberKey related
+        have same := related_memberProfile keys related
         rcases leftCases with oldL | newL <;> rcases rightCases with oldR | newR
         · exact earlier.checked.graphs oldL oldR related
-        · exact (fresh.2 (earlier.groupsL oldL (same.trans (memberKey_of_callable newR)))).elim
-        · exact (fresh.1 (earlier.groupsR oldR (same.symm.trans (memberKey_of_callable newL)))).elim
+        · exact (fresh.2 (earlier.groupsL oldL (same.trans (memberProfile_of_callable keys newR)))).elim
+        · exact (fresh.1 (earlier.groupsR oldR (same.symm.trans (memberProfile_of_callable keys newL)))).elim
         · exact checked_member_bodies left right bodies newL newR related }
   ordinaryL value plain := .inherited (earlier.ordinaryL value plain)
   ordinaryR value plain := .inherited (earlier.ordinaryR value plain)
@@ -344,27 +371,6 @@ theorem linked_group_extension (ordinary : OrdinaryOutputs Op) {captureCode : Ca
     cases known with
     | inherited old => exact List.mem_cons_of_mem _ (earlier.groupsR old found)
     | member => cases found; exact List.mem_cons_self
-
-private theorem ofFn_equiv {α : Type*} {n k : Nat} (vertices : Fin n ≃ Fin k) (labels : Fin k → α) :
-    (List.ofFn (labels ∘ vertices)).Perm (List.ofFn labels) := by
-  have size : n = k := Fin.equiv_iff_eq.mp ⟨vertices⟩
-  subst k
-  exact Equiv.Perm.ofFn_comp_perm vertices labels
-
-omit [DecidableEq (Ty V S)] in
-theorem outer_profile (code : OpcodeCode (Instruction Op))
-    {argsL argsR outsL outsR : Ports (Ty V S)} {sigsL sigsR : List (Ports (Ty V S))}
-    {left : Graph Op argsL [] sigsL outsL} {right : Graph Op argsR [] sigsR outsR}
-    (iso : NestedTheta.Graph.Isomorphic (Instruction Op) left right) :
-    outerProfile code left = outerProfile code right := by
-  cases iso with
-  | intro _ _ vertices labels _ _ _ =>
-    apply Multiset.coe_eq_coe.mpr
-    have same : (fun i => labelCode code (left.nodes i).label) =
-        (fun i => labelCode code (right.nodes (vertices i)).label) :=
-      funext fun i => congrArg (labelCode code) (labels i)
-    rw [outerLabels, outerLabels, same]
-    exact ofFn_equiv vertices (fun i => labelCode code (right.nodes i).label)
 
 omit [DecidableEq (Ty V S)] in
 private theorem capture_value_eq (code : CaptureCode m) :
@@ -439,11 +445,11 @@ theorem linked_extension (ordinary : OrdinaryOutputs Op)
   groupsL known found := by
     cases known with
     | inherited old => exact earlier.groupsL old found
-    | exported => cases (lambda_has_no_memberKey keyL).symm.trans found
+    | exported => cases (lambda_has_no_memberProfile keyL).symm.trans found
   groupsR known found := by
     cases known with
     | inherited old => exact earlier.groupsR old found
-    | exported => cases (lambda_has_no_memberKey keyR).symm.trans found
+    | exported => cases (lambda_has_no_memberProfile keyR).symm.trans found
 
 omit [DecidableEq (Ty V S)] in
 theorem linked_exports {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : DispatchKeys V S code.Key captureCode.Key}

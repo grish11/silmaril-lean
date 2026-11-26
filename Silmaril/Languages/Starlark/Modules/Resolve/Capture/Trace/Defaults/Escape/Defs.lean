@@ -68,13 +68,14 @@ structure Spec where
 
 @[expose] def Spec.body (wrapper : Spec) : Statement := wrapper.bodyWith wrapper.childBody
 
-@[expose] def Spec.commandWith (wrapper : Spec) (childBody : Statement) : Command :=
-  .define wrapper.name (.required [wrapper.parameter]) (wrapper.bodyWith childBody)
+@[expose] def Spec.commandWith (wrapper : Spec) (childBody : Statement)
+    (additional : List String := []) : Command :=
+  .define wrapper.name (.required (wrapper.parameter :: additional)) (wrapper.bodyWith childBody)
 
 @[expose] def Spec.command (wrapper : Spec) : Command := wrapper.commandWith wrapper.childBody
 
-@[expose] def Spec.frame (wrapper : Spec) (childId : Nat) : Forwarding.Frame :=
-  ⟨[wrapper.parameter], [wrapper.childName], [],
+@[expose] def Spec.frame (wrapper : Spec) (childId : Nat) (additional : List String := []) : Forwarding.Frame :=
+  ⟨wrapper.parameter :: additional, [wrapper.childName], [],
     .seq (.define (fileSlot wrapper.childName) childId)
       (.seq (.assignExpr (fileSlot wrapper.parameter) (.atom (.scalar (.int wrapper.rebound))))
         (.returnExpr (Leaf.readOperand (fileSlot wrapper.childName))))⟩
@@ -119,18 +120,16 @@ inductive DefaultsIn (parameter : String) : State → List Operand → Outcome (
 /-- The shared wrapper rules install captures in the reached defining
 frame. A failed default cannot reach installation or the rebinding. -/
 inductive ReturnsWith (wrapper : Spec) (childId : Nat) (free : List FreeName)
-    (caller : State) (argument : Value) : Outcome Value → Prop where
+    (caller active : State) : Outcome Value → Prop where
   | failed {error : Lists.Error} {final : State} :
-      DefaultsIn wrapper.parameter
-        (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
+      DefaultsIn wrapper.parameter active
         (wrapper.defaults.map Prod.snd) (.error error final) →
-      ReturnsWith wrapper childId free caller argument (.error error (restoreCaller caller final))
+      ReturnsWith wrapper childId free caller active (.error error (restoreCaller caller final))
   | child {values : List Value} {final : State} {captures : List Lists.Capture} :
-      DefaultsIn wrapper.parameter
-        (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
+      DefaultsIn wrapper.parameter active
         (wrapper.defaults.map Prod.snd) (.ok values final) →
       Installs final free captures →
-      ReturnsWith wrapper childId free caller argument (.ok (.function final.heap.size)
+      ReturnsWith wrapper childId free caller active (.ok (.function final.heap.size)
         (restoreCaller caller ((Defaults.install (fileSlot wrapper.childName) childId captures (wrapper.saved values) final).write
           (fileSlot wrapper.parameter) (.scalar (.int wrapper.rebound)))))
 

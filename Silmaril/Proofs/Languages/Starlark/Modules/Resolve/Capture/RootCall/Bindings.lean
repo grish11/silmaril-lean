@@ -54,6 +54,25 @@ private theorem write_slots (state : State) (binding : Binding) (value : Value) 
   split <;> try rfl
   split <;> rfl
 
+theorem activation_distinct (state : State) (declaration : Declaration)
+    (captures : List Capture) (assigned : List (Binding × Value)) :
+    DistinctOwned (activate state declaration captures assigned) := by
+  have distinctWrites (arguments : List (Binding × Value)) (frame : State) (distinct : DistinctOwned frame) :
+      DistinctOwned (arguments.foldl (fun next (binding, value) => next.write binding value) frame) := by
+    induction arguments generalizing frame with
+    | nil => exact distinct
+    | cons argument rest ih =>
+      apply ih
+      simpa only [DistinctOwned, write_slots] using distinct
+  apply distinctWrites
+  apply distinct_after_allocate
+  · intro a b address owned _
+    change capturedSlots captures a = some (.owned address) at owned
+    cases found : captures.find? (fun entry => entry.binding == a) <;> simp [capturedSlots, found] at owned
+  · intro name address owned
+    change capturedSlots captures name = some (.owned address) at owned
+    cases found : captures.find? (fun entry => entry.binding == name) <;> simp [capturedSlots, found] at owned
+
 theorem write_other_cell (state : State) (binding : Binding) (value : Value) (address : Address)
     (other : state.slots binding ≠ some (.owned address)) :
     (state.write binding value).heap[address]? = state.heap[address]? := by

@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Defs
+public import Silmaril.SSA.Isotope.LetIter.Monadic.Reindex.Structured.Thms
 public import Silmaril.Semantics.ITree.Reindex.Thms
 public import Silmaril.Semantics.Reindex.Thms
 public import Mathlib.Logic.Equiv.Option
@@ -12,7 +12,7 @@ public import Mathlib.Logic.Equiv.Option
 namespace Silmaril.Isotope.LetIter.Heap
 
 open Silmaril.Isotope.Semantics Silmaril.Elgot
-open PaperExpression.Source.FreeTree.Response.Structured (toSmall)
+open PaperExpression.Source.FreeTree.Response.Structured (Lifted)
 
 
 inductive Prim where
@@ -54,13 +54,13 @@ abbrev setEvent {I : Type} (i : I) (v : Value I) : Event I PUnit :=
 abbrev freeEvent {I : Type} (i : I) : Event I PUnit :=
   PaperExpression.Source.FreeTree.Response.Structured.Event.call (V := Carrier I) Prim.free i
 
+/-- Heap values at the universe of the native evaluator. -/
+abbrev EvalType (I : Type) := Ty.denote (Lifted (Carrier I))
+
 /-- LetIter's direct monadic evaluator invokes these typed requests. The
 heap handler separately determines which replies are admissible. -/
-def instructions (I : Type) :
-    InstructionModel (Ty.denote (fun _ : Unit => ULift.{1} I)) Prim (ITree.Tree (Event I)) where
-  eval f x :=
-    ITree.vis (.call f (toSmall (Carrier I) (instrSrc f) x))
-      (fun r => ITree.ret ((toSmall (Carrier I) (instrTrg f)).symm r))
+def instructions (I : Type) : InstructionModel (EvalType I) Prim (ITree.Tree (Event I)) :=
+  Reindex.Structured.callInstructions (Carrier I)
 
 /-- A partial store. Its live domain consists of the indices with a value. -/
 abbrev Store (I : Type) := I → Option (Value I)
@@ -88,40 +88,18 @@ def valueEquiv (e : I ≃ J) : Value I ≃ Value J := Equiv.sumCongr (Equiv.refl
 def storeEquiv (e : I ≃ J) : Store I ≃ Store J :=
   Reindex.function e (Equiv.optionCongr (valueEquiv e))
 
-def renameRequest (e : I ≃ J) : ITree.Request (Event I) → ITree.Request (Event J)
-  | ⟨_, .call .alloc v⟩ => ⟨_, .call .alloc (valueEquiv e v)⟩
-  | ⟨_, .call .get i⟩ => ⟨_, .call .get (e i)⟩
-  | ⟨_, .call .set x⟩ => ⟨_, .call .set (e x.1, valueEquiv e x.2)⟩
-  | ⟨_, .call .free i⟩ => ⟨_, .call .free (e i)⟩
+/-- Representation change for the evaluator's entire type grammar. -/
+def resultEquiv (e : I ≃ J) (A : Ty Unit) : EvalType I A ≃ EvalType J A :=
+  Reindex.typeEquiv (Reindex.Structured.liftedEquiv (fun _ => e)) A
+
+def signatureEquiv (e : I ≃ J) : ITree.SignatureEquiv (Event I) (Event J) :=
+  Reindex.Structured.signatureEquiv (fun _ => e)
+
+def renameRequest (e : I ≃ J) : ITree.Request (Event I) → ITree.Request (Event J) :=
+  (signatureEquiv e).request
 
 theorem renameRequest_inverse (e : I ≃ J) (q : ITree.Request (Event I)) :
-    renameRequest e.symm (renameRequest e q) = q := by
-  rcases q with ⟨_, ⟨f, x⟩⟩
-  have h : (valueEquiv e.symm : Value J ≃ Value I) = (valueEquiv e).symm := rfl
-  cases f
-  · change Value I at x
-    exact congrArg (fun v : Value I => (⟨I, allocEvent v⟩ : ITree.Request (Event I)))
-      (h.symm ▸ (valueEquiv e).symm_apply_apply x)
-  · change I at x
-    exact congrArg (fun i : I => (⟨Value I, getEvent i⟩ : ITree.Request (Event I)))
-      (e.symm_apply_apply x)
-  · change I × Value I at x
-    obtain ⟨i, v⟩ := x
-    have hi := e.symm_apply_apply i
-    have hv : valueEquiv e.symm (valueEquiv e v) = v :=
-      h.symm ▸ (valueEquiv e).symm_apply_apply v
-    exact congrArg₂ (fun i : I => fun v : Value I =>
-      (⟨PUnit, setEvent i v⟩ : ITree.Request (Event I))) hi hv
-  · change I at x
-    exact congrArg (fun i : I => (⟨PUnit, freeEvent i⟩ : ITree.Request (Event I)))
-      (e.symm_apply_apply x)
-
-def signatureEquiv (e : I ≃ J) : ITree.SignatureEquiv (Event I) (Event J) where
-  request := ⟨renameRequest e, renameRequest e.symm, renameRequest_inverse e,
-    fun q => by simpa only [Equiv.symm_symm] using renameRequest_inverse e.symm q⟩
-  reply
-    | ⟨_, .call .alloc _⟩ => e
-    | ⟨_, .call .get _⟩ => valueEquiv e
-    | ⟨_, .call .set _⟩ | ⟨_, .call .free _⟩ => Equiv.refl _
+    renameRequest e.symm (renameRequest e q) = q :=
+  Reindex.Structured.request_inverse (fun _ => e) q
 
 end Silmaril.Isotope.LetIter.Heap

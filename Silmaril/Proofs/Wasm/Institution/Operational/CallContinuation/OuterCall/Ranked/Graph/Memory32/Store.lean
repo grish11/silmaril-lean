@@ -31,22 +31,22 @@ theorem layout_with_bytes {H : Type} {program : Program} {base : Store H} {a : M
   refine ⟨?_, layout.functions⟩
   simp [storeWithBytes, setMemory, bound]
 
-theorem growth_extent {initial : MemInst} {bytes grown : ByteArray} {delta : BitVec 32}
-    (extent : GrowthExtent initial bytes)
-    (edge : MemoryGrow.Edge { initial with data := bytes } (.request delta) (.grown grown)) :
-    GrowthExtent initial grown := by
+theorem bounded_extent_grow {minimum : Nat} {maximum : Option Nat} {bytes grown : ByteArray} {delta : BitVec 32}
+    (extent : BoundedExtent minimum maximum bytes)
+    (edge : MemoryGrow.Edge ⟨bytes, maximum⟩ (.request delta) (.grown grown)) :
+    BoundedExtent minimum maximum grown := by
   have pages : Execution.Memory.size grown = Execution.Memory.size bytes + delta.toNat := MemoryGrow.grown_pages edge
   cases MemoryGrow.invert edge with
   | grow _ _ grew =>
     have ⟨⟨aligned, bound, limit⟩, _⟩ :=
-      (MemoryGrow.grow_eq_some_iff (m := { initial with data := bytes })).mp grew
+      (MemoryGrow.grow_eq_some_iff (m := ⟨bytes, maximum⟩)).mp grew
     have extentEq := Execution.Memory.grow_size _ _ _ _ grew
     change grown.size = bytes.size + delta.toNat * Execution.Memory.pageSize at extentEq
     have increased : bytes.size ≤ grown.size := by rw [extentEq]; exact Nat.le_add_right _ _
     refine ⟨extent.1.trans increased, ?_⟩
     change grown.size % Execution.Memory.pageSize = 0 ∧
       Execution.Memory.size grown + 0 ≤ Execution.Memory.maxPages ∧
-      (initial.max.isNone ∨ Execution.Memory.size grown + 0 ≤ initial.max.getD 0)
+      (maximum.isNone ∨ Execution.Memory.size grown + 0 ≤ maximum.getD 0)
     simp only [pages, Nat.add_zero, extentEq, Nat.add_mul_mod_self_right]
     exact ⟨aligned, bound, limit⟩
 
@@ -58,10 +58,10 @@ theorem growth_write {H : Type} {base : Store H} {a : MemAddr} {initial : MemIns
       { initial with data := written }) := by
   refine ⟨written, ?_, by simp [storeWithBytes, setMemory, List.set_set]⟩
   have sizeEq : written.size = bytes.size := MemoryWrite.closed_at edge
-  simpa only [GrowthExtent, MemoryGrow.SizeAllows, Execution.Memory.size, sizeEq] using extent
+  simpa only [BoundedExtent, MemoryGrow.SizeAllows, Execution.Memory.size, sizeEq] using extent
 
 theorem frame_memory {H : Type} {program : Program} {base : Store H} {a : MemAddr} {initial : MemInst}
-    (checked : program.checkV1 a = true) (layout : Layout program base a initial)
+    {mode : MemoryMode} (checked : program.checkV1 a mode = true) (layout : Layout program base a initial)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn)
     (locals : List Value) (bytes : ByteArray) :
     frameMemory (storeWithBytes base a initial bytes) (Graph.currentFrame fn.declaration locals) =
@@ -100,7 +100,7 @@ theorem body_expression (fn : Function) :
   cases t <;> rfl
 
 theorem enter {H : Type} {program : Program} {base live : Store H} {a : MemAddr} {initial : MemInst}
-    (checked : program.checkV1 a = true) (layout : Layout program base a initial)
+    {mode : MemoryMode} (checked : program.checkV1 a mode = true) (layout : Layout program base a initial)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn)
     (shared : SharedStore base a initial live) {caller : Frame} {saved args : List Value} {tail : List Admin}
     (typed : args.map Value.type = fn.declaration.params) :
@@ -119,7 +119,7 @@ theorem enter {H : Type} {program : Program} {base live : Store H} {a : MemAddr}
     scalar, Declaration.type, Declaration.frame, Function.v1Func] using Step.context start saved tail
 
 theorem store_activation_shared {H : Type} {program : Program} {base live : Store H}
-    {a : MemAddr} {initial : MemInst} (checked : program.checkV1 a = true)
+    {a : MemAddr} {initial : MemInst} {mode : MemoryMode} (checked : program.checkV1 a mode = true)
     (layout : Layout program base a initial) {address : FuncAddr} {fn : Function}
     (found : program.lookup address = some fn) (shared : SharedStore base a initial live)
     {caller : Frame} {locals callerSaved saved : List Value} {callerTail tail : List Admin}
@@ -139,7 +139,7 @@ theorem store_activation_shared {H : Type} {program : Program} {base live : Stor
   | trap => exact ⟨⟨bytes, extent, rfl⟩, rfl⟩
 
 theorem load_activation_store {H : Type} {program : Program} {base live : Store H}
-    {a : MemAddr} {initial : MemInst} (checked : program.checkV1 a = true)
+    {a : MemAddr} {initial : MemInst} {mode : MemoryMode} (checked : program.checkV1 a mode = true)
     (layout : Layout program base a initial) {address : FuncAddr} {fn : Function}
     (found : program.lookup address = some fn) (shared : SharedStore base a initial live)
     {caller : Frame} {locals callerSaved saved : List Value} {callerTail tail : List Admin}

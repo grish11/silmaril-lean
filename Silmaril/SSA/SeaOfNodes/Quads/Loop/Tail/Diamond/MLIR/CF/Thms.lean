@@ -9,14 +9,79 @@ public section
 
 namespace Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF
 
-open SeaOfNodes.Diamond (ValueSort)
-open SeaOfNodes.Loop.MLIR.CF (Op evalOp model)
-open SeaOfNodes.MLIR.Lowering (encodeValues valueBits)
+open SeaOfNodes.Diamond (Dataflow Val ValueSort dataPorts)
+open SeaOfNodes.Loop.MLIR.CF (Op TargetOp evalOp model opcode)
+open SeaOfNodes.MLIR.Lowering (NamesAgree Scope encodeValues lowerCode valueBits valueWidth)
 open Silmaril.MLIR.Arith (Width Env)
+open Silmaril.MLIR.CF (Block Cfg Frame)
+open SeaOfNodes.MLIR (Word)
+open RVSDG (Locals Tuple Wires extend)
 open Blocks (Bank)
 
 variable {regs : List (ValueSort Width)} {out : ValueSort Width} {size : Nat}
 variable {src : Source Op regs out size} {entry : Fin size}
+section Emission
+
+theorem entryNames_agree (bank : Bank (regs := regs) model) :
+    NamesAgree (encodeValues bank) (entryNames regs) bank :=
+  Proofs.entryNames_agree bank
+
+theorem blockNames_agree {extra : List Width} (captures : Env extra)
+    (bank : Bank (regs := regs) model) :
+    NamesAgree ((encodeValues bank).append captures) (blockNames extra regs) bank :=
+  Proofs.blockNames_agree captures bank
+
+variable {Labels : List Width → Type} {jump : JumpTo regs size Labels}
+variable {frame : Fin size → Bank (regs := regs) model → Frame Labels}
+variable {exit : Labels [valueWidth out]}
+
+/-- Execute an existing producer transfer and route its final bank. The
+transfer may start with a different typed bank than the one it produces. -/
+theorem transfer_eval {Γ : List Width} {args : List (SeaOfNodes.Diamond.Ty Width)}
+    {past sigs : List (List (SeaOfNodes.Diamond.Ty Width))}
+    {scope : Scope args past Γ} {env : Env Γ} {input : Tuple (Val Word) args}
+    {locals : Locals (Val Word) past}
+    (routes : JumpAgrees jump frame) (ok : scope.Agrees env input locals)
+    (flow : Dataflow Op args past sigs) (versions : Wires args (extend past sigs) (dataPorts regs))
+    (term : Tail.Terminator regs out size) :
+    (lowerCode opcode flow scope (fun final => lowerTerminatorWith jump exit final versions term)).eval
+        evalOp (fun term env => term.eval env) env =
+      let bank := versions.read input (flow.eval model input locals)
+      .inl (destinationFrameWith frame (returnFrame exit) bank (term.select model bank)) :=
+  Proofs.transfer_eval routes ok flow versions term
+
+theorem block_eval_with {Γ : List Width} (routes : JumpAgrees jump frame)
+    (block : SourceBlock Op regs out size) (scope : Scope (dataPorts regs) [] Γ)
+    (env : Env Γ) (old : Bank (regs := regs) model) (ok : NamesAgree env scope.inputs old) :
+    (lowerBlockWith jump exit block scope).eval evalOp (fun term env => term.eval env) env =
+      let bank := block.body.eval model old
+      .inl (destinationFrameWith frame (returnFrame exit) bank (block.terminator.select model bank)) :=
+  Proofs.block_eval_with routes block scope env old ok
+
+/-- Reuse the source fuel proof for any emission with exact successor frames
+and the same one-block CF return. -/
+theorem runBlock_eq_of_frames (cfg : Cfg TargetOp Labels (Widths regs) [valueWidth out])
+    (input : Bank (regs := regs) model)
+    (frame : Fin size → Bank (regs := regs) model → Frame Labels) (exit : Labels [valueWidth out])
+    (siteEval : ∀ id old,
+      let current := frame id old
+      let next := (src id).body.eval model old
+      (cfg.block current.label).eval evalOp (fun term env => term.eval env)
+          (current.args.append (encodeValues input)) =
+        .inl (destinationFrameWith frame (returnFrame exit) next ((src id).terminator.select model next)))
+    (exitBlock : cfg.block exit = .terminator (.ret (.cons .here .nil)))
+    (fuel : Nat) (id : Fin size) (old : Bank (regs := regs) model)
+    {Γ : List Width} (block : Block TargetOp Labels Γ [valueWidth out]) (env : Env Γ)
+    (step :
+      let next := (src id).body.eval model old
+      block.eval evalOp (fun term env => term.eval env) env =
+        .inl (destinationFrameWith frame (returnFrame exit) next ((src id).terminator.select model next))) :
+    cfg.runBlock evalOp (encodeValues input) (fuel + 1) block env =
+      (src.runFrom model fuel id old).map (fun value => Env.cons (valueBits value) .nil) :=
+  Proofs.runBlock_eq_of_frames cfg input frame exit siteEval exitBlock fuel id old block env step
+
+end Emission
+
 variable (p : Program src entry)
 
 /-- The emitted split takes the source occurrence, testing the post-header bank. -/

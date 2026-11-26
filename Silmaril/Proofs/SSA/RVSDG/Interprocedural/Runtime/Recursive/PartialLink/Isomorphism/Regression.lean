@@ -636,9 +636,13 @@ private def baseR : RecursiveCall.Code Op captured [] [[], [num]] [num] :=
   .bind inertNode (fun _ => .ret .nil) <| .bind finishNode (fun i => i.elim0) <|
     .ret (.cons (.output (1 : Fin 2) .head) .nil)
 
-private def addAfter {entry : Ports T} : RecursiveCall.Code Op entry [[num]] [[num]] [num] :=
-  .bind (RecursiveCall.simple (.primitive Op.seed) (.cons (.output (0 : Fin 1) .head) .nil) (fun i => i.elim0))
+private def addAfterWith {entry : Ports T} (opcode : Op [num] [num]) :
+    RecursiveCall.Code Op entry [[num]] [[num]] [num] :=
+  .bind (RecursiveCall.simple (.primitive opcode) (.cons (.output (0 : Fin 1) .head) .nil) (fun i => i.elim0))
     (fun i => i.elim0) (.ret (.cons (.output (1 : Fin 2) .head) .nil))
+
+private abbrev addAfter {entry : Ports T} : RecursiveCall.Code Op entry [[num]] [[num]] [num] :=
+  addAfterWith .seed
 
 -- Pass the carried exit selector to the recursive call, then use its
 -- returned tuple in a state-changing suffix.
@@ -661,10 +665,16 @@ private def branchChildren {capture : T} {sigs : List (Ports T)} (base : Recursi
   Fin.cases (n := 1) (motive := fun i => RecursiveCall.Code Op (capturedWith capture) [] (branchSigs sigs i) [num])
     base (fun _ => recurArm) tag
 
-private def branchBody {capture : T} {sigs : List (Ports T)} (base : RecursiveCall.Code Op (capturedWith capture) [] sigs [num]) :
+private def branchBodyWith {capture : T} {sigs : List (Ports T)}
+    (base : RecursiveCall.Code Op (capturedWith capture) [] sigs [num]) (opcode : Op [num] [num]) :
     RecursiveCall.Code Op (branchEntryWith capture) [] [[num], [num]] [num] :=
   .bind (RecursiveCall.gammaNode (extra := 0) (entry := capturedWith capture) (outs := [num])
-    branchWires (branchSigs sigs)) (branchChildren base) addAfter
+    branchWires (branchSigs sigs)) (branchChildren base) (addAfterWith opcode)
+
+private abbrev branchBody {capture : T} {sigs : List (Ports T)}
+    (base : RecursiveCall.Code Op (capturedWith capture) [] sigs [num]) :
+    RecursiveCall.Code Op (branchEntryWith capture) [] [[num], [num]] [num] :=
+  branchBodyWith base .seed
 
 local instance : DecidableEq (Ty Unit Unit) := RecursiveCall.Numbered.decidePort
 
@@ -1496,6 +1506,84 @@ example : Executable.run actions 80 73 mixedModule.toGraph (number 1) mixedPort 
   unfold Executable.run Executable.start
   rw [mixedLink]
   cbv
+
+private def profiledBody (right : Bool) (opcode : Op [num] [num]) :
+    RecursiveCall.Code Op (branchEntryWith global) [] [[num], [num]] [num] :=
+  if right then branchBodyWith baseR opcode else branchBodyWith baseL opcode
+
+private def firstProfileGroup (right : Bool) :=
+  selfGroup branchFn (.output (0 : Fin 2) .head : Origin args [[global], [global]] global)
+    (profiledBody right .seed)
+
+private def secondProfileGroup (right gain : Bool) :=
+  selfGroup branchFn (.output (1 : Fin 3) .head : Origin args [[global], [global], [branchFn.port]] global)
+    (profiledBody right (if gain then .gain else .seed))
+
+private def profileModule (right gain : Bool) :
+    OmegaTerm Op args captureExports [[global], [global], [branchFn.port], [branchFn.port], [branchFn.port]] :=
+  ⟨.bind (.delta (seedDelta [])) <| .bind (.delta finishL) <| .bind (.phi (firstProfileGroup right)) <|
+    .bind (.phi (secondProfileGroup right gain)) <|
+    .bind (.lambda (combined (.output (2 : Fin 4) .head) (.output (3 : Fin 4) .head))) <|
+    .ret (.cons (.output (2 : Fin 5) .head) (.cons (.output (3 : Fin 5) .head)
+      (.cons (.output (4 : Fin 5) .head) .nil)))⟩
+
+private def profilePlan (gain : Bool) :
+    Plan Op args args captureExports false (profileModule false gain).region (profileModule true gain).region :=
+  .skipL (.skipR (.skipL (.skipR (.seed (.phi (.lambda .done))))))
+
+private def profileAdmission (gain : Bool) :=
+  admit instructionKeys actions Eq ordinaryOutputs 73 73 (number 1) (number 1)
+    (profileModule false gain) (profileModule true gain) (profilePlan gain) (fn := branchFn)
+    (.tail (.tail .head)) 20 20
+
+-- Both groups have the same declared function and the same outer capture
+-- type. Changing the outer suffix opcode separates their definitions.
+#guard (profileAdmission true).isSome
+#guard (profileAdmission false).isNone
+
+private def firstProfileRef (right : Bool) : machine.Val branchFn.port :=
+  .member (.cons (globalValue 0 8) .nil) (firstProfileGroup right).toGraph.definitions 0
+
+private def secondProfileRef (right gain : Bool) : machine.Val branchFn.port :=
+  .member (.cons (globalValue 1 9) .nil) (secondProfileGroup right gain).toGraph.definitions 0
+
+example (right : Bool) : Executable.link actions 73 (profileModule right true).toGraph (number 1) 20 =
+    .linked (.cons (firstProfileRef right) (.cons (secondProfileRef right true)
+      (.cons (.closure (.cons (firstProfileRef right) (.cons (secondProfileRef right true) .nil)) combinedBody.toGraph)
+        .nil))) 28 := by
+  cases right <;> cbv
+
+-- Each export recurses, runs its own effectful suffix, and returns.
+-- The caller captures both actual members and consumes both results.
+example (right : Bool) :
+    Executable.run actions 100 73 (profileModule right true).toGraph (number 1) .head (branchArgs 1) 20 =
+      .ok (.returned (number 30) 42) ∧
+    Executable.run actions 100 73 (profileModule right true).toGraph (number 1) (.tail .head) (branchArgs 1) 20 =
+      .ok (.returned (number 45) 48) ∧
+    Executable.run actions 100 73 (profileModule right true).toGraph (number 1) (.tail (.tail .head)) (branchArgs 1) 20 =
+      .ok (.returned (number 52) 65) := by
+  cases right <;> exact ⟨by cbv, by cbv, by cbv⟩
+
+-- The checker still rejects equal profiles even when different captured
+-- payloads make the groups observationally distinct on this invocation.
+example : Executable.run actions 100 73 (profileModule false false).toGraph (number 1) (.tail .head)
+    (branchArgs 1) 20 = .ok (.returned (number 31) 42) := by cbv
+
+open RecursiveCall.Numbered (GroupProfile LabelCode memberProfile memberProfile_eq)
+
+private def outerSeedCounts (profile : Option (GroupProfile Unit Unit instructionKeys.Key)) : Option (List Nat) :=
+  letI : DecidableEq (LabelCode Unit Unit instructionKeys.Key) := inferInstance
+  profile.map fun group => group.2.map fun labels => labels.count ([num], [num], .primitive (instructionKeys.encode (.primitive Op.seed)))
+
+-- The runtime relation itself excludes a mixed dispatch, independently
+-- of the differing captured payloads in the executable fixture.
+example : ¬ValueRelated machine Eq (firstProfileRef false) (secondProfileRef true true) := by
+  intro related
+  have counts := congrArg outerSeedCounts (memberProfile_eq instructionKeys related)
+  have first : outerSeedCounts (memberProfile instructionKeys (firstProfileRef false)) = some [1] := by cbv
+  have second : outerSeedCounts (memberProfile instructionKeys (secondProfileRef true true)) = some [0] := by cbv
+  rw [first, second] at counts
+  cases counts
 
 private abbrev seedRow {past : List (Ports T)} : NestedTheta.Node (Instruction Op) [global, num] past [num] :=
   RecursiveCall.simple (.primitive Op.seed) (.cons (.arg (.tail .head)) .nil) (fun i => i.elim0)

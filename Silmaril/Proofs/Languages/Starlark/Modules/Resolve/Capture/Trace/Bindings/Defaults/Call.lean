@@ -163,18 +163,13 @@ theorem step_sound {commands : List Command} {linked : Program} {resolved : Reso
       cases bodyOut <;> exact ⟨_, site, .exec (code := .assignExpr _ _) (.assignExpr expression)⟩
   | @scopedCall _ callee destination spec arguments actuals values out root site related operands evaluated calls =>
     cases calls with
-    | @rejected _ error bound =>
+    | @rejected error bound =>
       have expression := RootCall.checked_invocation_expr checked related operands root.live.binding root.live.cell
         root.parentCode evaluated bound (.error error state) (by intro assigned impossible; cases impossible)
       exact ⟨_, site, .exec (code := .assignExpr _ _) (.assignExpr expression)⟩
-    | @entered argument out returned =>
-      have bound : Entry.Binds [spec.wrapper.parameter] [argument] (.ok [(fileSlot spec.wrapper.parameter, argument)]) :=
-        .success (.cons .nil)
-      obtain ⟨bodyOut, ran, same⟩ := Defaults.Escape.returns_with_sound resolved.program
-        (withoutDeclaration available (root.childId + 1)) spec.wrapper root.names root.childId
-        (root.plan.body.declaration spec.wrapper.codes) root.childCode rfl state argument
-        (Defaults.Escape.Scoped.capturesAt spec state.heap.size)
-        (fun _ owned => Defaults.Escape.Scoped.installs_at root.plan _ _ owned) returned
+    | @entered assigned out bound returned =>
+      obtain ⟨bodyOut, ran, same⟩ := Defaults.Escape.Scoped.returns_sound root.names root.plan resolved.program
+        (withoutDeclaration available (root.childId + 1)) root.childId root.childCode state assigned returned
       have expression := RootCall.checked_invocation_expr checked related operands root.live.binding root.live.cell
         root.parentCode evaluated bound bodyOut (by intro assigned equal; cases equal; exact ran)
       subst out

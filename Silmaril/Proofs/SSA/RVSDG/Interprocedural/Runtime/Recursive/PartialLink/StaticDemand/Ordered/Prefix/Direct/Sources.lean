@@ -67,6 +67,40 @@ theorem forward_reads {Ty : Type u} {F : Ty → Type w} {imports entry child : P
   | arg q => exact reads q (by simpa [Boundary.forward, wire] using found)
   | output => simp [Boundary.forward, wire] at found
 
+private theorem same_port {carried : Ports (Ty V S)} {ty : Ty V S} (p q : Port carried ty)
+    (same : p.index = q.index) : p = q := by
+  have wires : (Tuple.cons (.arg p) .nil : Wires carried [] [ty]) = .cons (.arg q) .nil :=
+    NestedTheta.Equality.addresses_injective _ _ (by simp [Wires.addresses, Origin.address, same])
+  exact Origin.arg.inj (Tuple.cons.inj wires).1
+
+private theorem feedback_source {carried : Ports (Ty V S)} {outer sigs : List (Ports (Ty V S))}
+    {member : Option (MemberSummaries V S)} (source : Boundary imports carried outer)
+    (body : Code Op carried [] sigs (Theta.BodyResults carried) true member)
+    {ty : Ty V S} (p : Port carried ty) {origin : Origin imports outer ty}
+    (found : (source.feedback body).get p = some origin) :
+    source.get p = some origin ∧ body.returnArg (.tail p) = some p := by
+  cases returned : body.returnArg (.tail p) with
+  | none => simp [Boundary.feedback, returned] at found
+  | some q =>
+    by_cases same : q.index = p.index
+    · exact ⟨by simpa [Boundary.feedback, returned, same] using found, congrArg some (same_port q p same)⟩
+    · simp [Boundary.feedback, returned, same] at found
+
+theorem feedback_initial {carried : Ports (Ty V S)} {outer sigs : List (Ports (Ty V S))}
+    {member : Option (MemberSummaries V S)} (source : Boundary imports carried outer)
+    (body : Code Op carried [] sigs (Theta.BodyResults carried) true member)
+    (inputs : Tuple m.Val imports) (locals : Locals m.Val outer) (current : Tuple m.Val carried)
+    (reads : source.Reads inputs locals current) : (source.feedback body).Reads inputs locals current :=
+  fun {_} p {_} found => reads p (feedback_source source body p found).1
+
+theorem feedback_preserves {carried : Ports (Ty V S)} {outer sigs : List (Ports (Ty V S))}
+    {member : Option (MemberSummaries V S)} (source : Boundary imports carried outer)
+    (body : Code Op carried [] sigs (Theta.BodyResults carried) true member)
+    (inputs : Tuple m.Val imports) (locals : Locals m.Val outer) (current next : Tuple m.Val carried)
+    (reads : (source.feedback body).Reads inputs locals current) (stable : body.Stable current next) :
+    (source.feedback body).Reads inputs locals next :=
+  fun {_} p {_} found => (stable p (feedback_source source body p found).2).trans (reads p found)
+
 theorem boundary_project_read {Ty : Type u} {F : Ty → Type w} {imports entry users : Ports Ty}
     {outer past : List (Ports Ty)} (source : Boundary imports entry outer)
     (requested : Wires entry past users) (sources : Wires imports outer users)

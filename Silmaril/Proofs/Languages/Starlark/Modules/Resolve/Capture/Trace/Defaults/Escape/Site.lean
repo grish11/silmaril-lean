@@ -66,52 +66,60 @@ theorem code_length (wrapper : Spec) : wrapper.codes.length = wrapper.child.para
 
 /-- Compile the existing wrapper around any child declaration whose
 definition-time reads belong to the wrapper parameter. -/
-theorem wrap_emission (wrapper : Spec) (admitted : WrapperNames wrapper) (globals : List String)
+theorem wrap_emission (wrapper : Spec) (admitted : WrapperNames wrapper) (globals additional : List String)
+    (childFresh : wrapper.childName ∉ additional)
     (childBody : Statement) (child : Declaration) (reads : List Binding)
-    (owned : ∀ binding ∈ reads, binding = fileSlot wrapper.parameter)
-    (childStep : ∀ program, compileBody ⟨⟨[wrapper.parameter, wrapper.childName], globals⟩, .local⟩
+    (owned : ∀ binding ∈ reads, ∃ name ∈ wrapper.parameter :: additional, binding = fileSlot name)
+    (childStep : ∀ program, compileBody ⟨⟨(wrapper.parameter :: additional) ++ [wrapper.childName], globals⟩, .local⟩
         (.define wrapper.childName wrapper.child.parameters.source childBody) program =
       .ok (⟨.define (fileSlot wrapper.childName) program.size, reads⟩, program.push child))
     (program : Program) :
-    elaborateCommand ⟨⟨[], globals⟩, .global⟩ (wrapper.commandWith childBody) program =
+    elaborateCommand ⟨⟨[], globals⟩, .global⟩ (wrapper.commandWith childBody additional) program =
       .ok (.exec (.define wrapper.name (program.size + 1)),
-        (program.push child).push (wrapper.frame program.size).declaration) := by
+        (program.push child).push (wrapper.frame program.size additional).declaration) := by
+  let parameters := wrapper.parameter :: additional
   let outer : BlockContext := ⟨⟨[], globals⟩, .global⟩
-  let context : BlockContext := ⟨⟨[wrapper.parameter, wrapper.childName], globals⟩, .local⟩
+  let context : BlockContext := ⟨⟨parameters ++ [wrapper.childName], globals⟩, .local⟩
   let parentLayout : FunctionLayout := ⟨[wrapper.childName], context⟩
-  have parentCollected : collectFunctionLayout outer.reads (.required [wrapper.parameter]) (wrapper.bodyWith childBody) =
+  have parameterNames : (SourceSignature.required parameters).parameterNames = parameters := by
+    simp [SourceSignature.required, SourceSignature.parameterNames, List.map_map, Function.comp_def]
+  have parentCollected : collectFunctionLayout outer.reads (.required parameters) (wrapper.bodyWith childBody) =
       .ok parentLayout := by
     simp [collectFunctionLayout, Statement.localNames, Spec.bodyWith, functionLayout,
-      SourceSignature.required, SourceSignature.parameterNames, parentLayout, outer, context,
-      List.eraseDups_cons, Ne.symm admitted.distinct, Except.map, bind, Except.bind, pure, Except.pure]
+      parameterNames, parentLayout, outer, context, parameters,
+      List.eraseDups_cons, admitted.distinct, Ne.symm admitted.distinct, childFresh, Except.map, bind, Except.bind, pure, Except.pure]
   let grown := program.push child
   have rebound := compileBody_plainAssign context wrapper.parameter (.scalar (.int wrapper.rebound)) _ _ grown
-    (default_read context.reads wrapper.parameter (by simp [context]) admitted.parameterLegal (.integer wrapper.rebound))
+    (default_read context.reads wrapper.parameter (by simp [context, parameters]) admitted.parameterLegal (.integer wrapper.rebound))
   have tail := compileBody_seqReturn context (.assign wrapper.parameter (.scalar (.int wrapper.rebound)))
     (.scalar (.read wrapper.childName)) grown grown _ _ _ rebound
     (local_read context.reads wrapper.childName (by simp [context]) admitted.childLegal)
   have body := compileBody_plainSeq context _ _ program grown grown _ _ (childStep program) tail
-  have captures : captureNames [wrapper.parameter, wrapper.childName]
+  have captures : captureNames (parameters ++ [wrapper.childName])
       (reads ++ [fileSlot wrapper.childName]) = [] := by
     unfold captureNames
     suffices removed : ((reads ++ [fileSlot wrapper.childName]).eraseDups.filter
-        fun binding => binding.scope == .global || ![wrapper.parameter, wrapper.childName].contains binding.name) = [] by
+        fun binding => binding.scope == .global || !(parameters ++ [wrapper.childName]).contains binding.name) = [] by
       rw [removed]
       rfl
     apply List.filter_eq_nil_iff.mpr
     intro binding mem
     have present := List.mem_eraseDups.mp mem
     rcases List.mem_append.mp present with earlier | returned
-    · rw [owned binding earlier]
-      simp [fileSlot]
+    · obtain ⟨name, parameter, rfl⟩ := owned binding earlier
+      have localName : name ∈ parameters ++ [wrapper.childName] := List.mem_append_left _ parameter
+      change ¬(false || !(parameters ++ [wrapper.childName]).contains name) = true
+      rw [List.contains_iff_mem.mpr localName]
+      decide
     · have same : binding = fileSlot wrapper.childName := by simpa using returned
       simp [same, fileSlot]
-  have compiled := compileBody_requiredDefinition outer wrapper.name [wrapper.parameter] (wrapper.bodyWith childBody) program grown
+  have compiled := compileBody_requiredDefinition outer wrapper.name parameters (wrapper.bodyWith childBody) program grown
       parentLayout _ parentCollected body
-  have root := elaborateCommand_requiredDefinition outer .global wrapper.name [wrapper.parameter] (wrapper.bodyWith childBody) program _ _ _ compiled
-  simpa [Spec.commandWith, Spec.frame, Forwarding.Frame.declaration, outer, parentLayout, grown,
-    Operand.code, Operand.reads, List.nil_append, captures] using root
-
+  have root := elaborateCommand_requiredDefinition outer .global wrapper.name parameters (wrapper.bodyWith childBody) program _ _ _ compiled
+  have empty : captureNames (wrapper.parameter :: (additional ++ [wrapper.childName]))
+      (reads ++ [fileSlot wrapper.childName]) = [] := captures
+  simpa [Spec.commandWith, Spec.frame, Forwarding.Frame.declaration, outer, parentLayout, grown, parameters,
+    Operand.code, Operand.reads, List.nil_append, empty] using root
 
 theorem emission (wrapper : Spec) (admitted : Admitted wrapper) (globals : List String) (program : Program) :
     elaborateCommand ⟨⟨[], globals⟩, .global⟩ wrapper.command program =
@@ -147,11 +155,12 @@ theorem emission (wrapper : Spec) (admitted : Admitted wrapper) (globals : List 
     simp [defaults, planned, Spec.child, Spec.codes, List.map_map, Function.comp_def,
       List.zip_map', PlainPositionalDefault.resolved]
   let child := wrapper.child.emitted wrapper.codes
-  exact wrap_emission wrapper admitted.wrapperNames globals wrapper.childBody child
-    (defaults.flatMap PlainPositionalDefault.reads) (fun _ member => only_parameter wrapper member) (fun seed => by
+  exact wrap_emission wrapper admitted.wrapperNames globals [] (by simp) wrapper.childBody child
+    (defaults.flatMap PlainPositionalDefault.reads) (fun _ member => ⟨_, by simp, only_parameter wrapper member⟩) (fun seed => by
       have compiled := compileBody_plainReturn inner (.scalar (.read wrapper.returned)) _ _ seed childRead
       have definition := compileBody_plainPositionalDefinition context wrapper.childName wrapper.required defaults
         wrapper.childBody seed seed childLayout _ defaultsRead childCollected compiled
+      change compileBody context (.define wrapper.childName wrapper.child.parameters.source wrapper.childBody) seed = _
       rw [signature, definition, optionalCodes]
       simp only [childLayout, List.map_nil, List.append_nil, paramNames, childCaptures]
       rfl) program

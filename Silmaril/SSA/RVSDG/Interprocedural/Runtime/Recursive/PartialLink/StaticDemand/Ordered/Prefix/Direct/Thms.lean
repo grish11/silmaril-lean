@@ -49,6 +49,31 @@ theorem forward_reads {F : Ty V S → Type w} {entry child : Ports (Ty V S)}
     Boundary.Reads (Boundary.forward source wires) inputs locals (wires.read values childLocals) :=
   Proofs.forward_reads source wires inputs locals values reads childLocals
 
+theorem feedback_initial {carried : Ports (Ty V S)} {outer sigs : List (Ports (Ty V S))}
+    {member : Option (MemberSummaries V S)} (source : Boundary imports carried outer)
+    (body : Code Op carried [] sigs (Theta.BodyResults carried) true member)
+    (inputs : Tuple m.Val imports) (locals : Locals m.Val outer) (current : Tuple m.Val carried)
+    (reads : source.Reads inputs locals current) : (source.feedback body).Reads inputs locals current :=
+  Proofs.feedback_initial source body inputs locals current reads
+
+theorem feedback_preserves {carried : Ports (Ty V S)} {outer sigs : List (Ports (Ty V S))}
+    {member : Option (MemberSummaries V S)} (source : Boundary imports carried outer)
+    (body : Code Op carried [] sigs (Theta.BodyResults carried) true member)
+    (inputs : Tuple m.Val imports) (locals : Locals m.Val outer) (current next : Tuple m.Val carried)
+    (reads : (source.feedback body).Reads inputs locals current) (stable : body.Stable current next) :
+    (source.feedback body).Reads inputs locals next :=
+  Proofs.feedback_preserves source body inputs locals current next reads stable
+
+/-- A returned body packet preserves the tracked origins on the next
+activation, by the actual result wires. The decision is independent. -/
+theorem feedback_return_reads {carried : Ports (Ty V S)} {outer sigs : List (Ports (Ty V S))}
+    {member : Option (MemberSummaries V S)} (source : Boundary imports carried outer)
+    (body : Code Op carried [] sigs (Theta.BodyResults carried) true member)
+    (inputs : Tuple m.Val imports) (locals : Locals m.Val outer) {current next : Tuple m.Val carried}
+    {decision : m.Val (.control 2)} (reads : (source.feedback body).Reads inputs locals current)
+    (returned : body.Forwards current (.cons decision next)) : (source.feedback body).Reads inputs locals next :=
+  feedback_preserves source body inputs locals current next reads (fun p passes => returned (.tail p) p passes)
+
 theorem boundary_call {entry : Ports (Ty V S)} (source : Boundary imports entry scope.past)
     (i : Fin scope.table.members.length)
     (target : Port entry (scope.table.at i).fn.port)
@@ -163,7 +188,8 @@ for each checked link. Untracked ports may have arbitrary runtime values. -/
 
 /-- Check direct calls structurally. At each γ, compose the child boundary
 map with the actual argument wires and certify all arms and the suffix.
-θ and inline closure descriptions require supplied resolution. -/
+At a θ, retain only same-port feedback sources while checking the body.
+Inline closure descriptions require supplied resolution. -/
 @[expose] def synthesizeAt (checked : scope.Checked actions) (routes : Routes inputsL inputsR scope) :
     {entry outs : Ports (Ty V S)} → {past sigs : List (Ports (Ty V S))} →
     {loops : Bool} → {member : Option (MemberSummaries V S)} →
@@ -184,6 +210,24 @@ map with the actual argument wires and certify all arms and the suffix.
       (children.down i).1 _ (forward_reads source wires inputsL scope.localsL values reads locals), later.down.1 values reads⟩,
       fun values reads => ⟨fun locals i =>
         (children.down i).2 _ (forward_reads source wires inputsR scope.localsR values reads locals), later.down.2 values reads⟩⟩
+  | _, _, _, _, _, _, source, .theta wires body rest, known => do
+    let entered := source.forward wires
+    let checkedBody ← synthesizeAt checked routes (entered.feedback body) body known
+    let later ← synthesizeAt checked routes source rest known
+    pure ⟨fun values reads => ⟨fun locals next stable =>
+      let current := wires.read values locals
+      let initial : (entered.feedback body).Reads inputsL scope.localsL current :=
+        feedback_initial entered body inputsL scope.localsL current
+          (forward_reads source wires inputsL scope.localsL values reads locals)
+      checkedBody.down.1 next (feedback_preserves entered body inputsL scope.localsL current next initial stable),
+      later.down.1 values reads⟩,
+      fun values reads => ⟨fun locals next stable =>
+        let current := wires.read values locals
+        let initial : (entered.feedback body).Reads inputsR scope.localsR current :=
+          feedback_initial entered body inputsR scope.localsR current
+            (forward_reads source wires inputsR scope.localsR values reads locals)
+        checkedBody.down.2 next (feedback_preserves entered body inputsR scope.localsR current next initial stable),
+        later.down.2 values reads⟩⟩
   | _, _, _, _, _, _, _, _, _ => none
 termination_by structural _ _ _ _ _ _ _ code _ => code
 

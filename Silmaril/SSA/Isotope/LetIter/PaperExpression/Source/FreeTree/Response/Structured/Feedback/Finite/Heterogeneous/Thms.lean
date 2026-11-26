@@ -56,6 +56,11 @@ for this form of replay on the synchronized reachable pairs. -/
 theorem Cover.aligned (C : Cover L R s₀ t₀) : ReplyAligned L R s₀ t₀ :=
   Proofs.aligned_of_cover C
 
+/-- A rendered row references only the local reply variable. -/
+theorem Row.source_subst (row : Row F S B) (σ : Nat → Expr (Opcode F)) :
+    row.source.subst σ = row.source :=
+  Proofs.row_closed row σ
+
 variable {ε : Type} [HasEff (Opcode F) ε] [SemilatticeSup ε] [OrderBot ε]
   {e : ε} {s : S.Value} {t : T.Value}
 
@@ -65,6 +70,11 @@ local notation "D" => Ty.denote (Lifted carriers)
 local notation "γ" => (fun x : Empty => x.elim)
 local notation "ρ₀" => (fun i : Fin 0 => i.elim0)
 local notation "slot[" c "]" => (Code.ty c, (⊥ : ε))
+
+/-- A rendered row has its declared control result in any ambient context. -/
+theorem Row.source_wf (row : Row F S B) (hf : ∀ f : Ops, instrEff f ≤ e)
+    {Γ : EffectCtx (Ty Unit) ε} : Wf Γ row.source (Code.sum B S).ty e :=
+  Proofs.row_wf row hf
 
 /-- The rendered body has its declared control result at the supplied bound. -/
 theorem Table.step_wf (L : Table F S B) (hf : ∀ f : Ops, instrEff f ≤ e) :

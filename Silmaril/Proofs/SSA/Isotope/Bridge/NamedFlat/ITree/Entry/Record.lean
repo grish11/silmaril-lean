@@ -11,7 +11,7 @@ open Silmaril.Isotope.Bridge.NamedFlat.Entry (inputEnv)
 open Silmaril.Isotope.Bridge.NamedFlat.Entry.Record
 open LambdaSSA.Semantics (extend_zero extend_succ)
 open LambdaSSA.Semantics.Interaction.Typed (AtomValues)
-open Silmaril.Isotope.Semantics (encodeValue)
+open Silmaril.Isotope.Semantics (encodeValue encodeValue_injective)
 
 universe u
 variable {κ : Type (u + 1)} [AtomValues κ] {n m : Nat}
@@ -42,5 +42,27 @@ theorem inputEnv_reindex {β : BoundCtx (Ty κ) n} {γ : BoundCtx (Ty κ) m}
     inputEnv β (reindex slots record) i.val = inputEnv γ record (slots.toFun i).val := by
   rw [inputEnv_field β, inputEnv_field γ, reindex, field_ofFields]
   exact encode_cast (slots.typed i) _
+
+private theorem eq_of_inputEnv (β : BoundCtx (Ty κ) n) (left right : Input β)
+    (agrees : ∀ i : Fin n, inputEnv β left i.val = inputEnv β right i.val) : left = right := by
+  induction β with
+  | nil =>
+    change PUnit at left right
+    exact Subsingleton.elim left right
+  | snoc β A ih =>
+    exact Prod.ext (ih left.1 right.1 (fun i => agrees i.succ))
+      (encodeValue_injective C A (agrees 0))
+
+theorem reindex_id (β : BoundCtx (Ty κ) n) (record : Input β) :
+    reindex (.id β) record = record :=
+  eq_of_inputEnv β _ _ (inputEnv_reindex (.id β) record)
+
+theorem reindex_comp {β : BoundCtx (Ty κ) n} {γ : BoundCtx (Ty κ) m}
+    {k : Nat} {δ : BoundCtx (Ty κ) k} (first : BoundCtx.Renaming β γ)
+    (second : BoundCtx.Renaming γ δ) (record : Input δ) :
+    reindex (first.comp second) record = reindex first (reindex second record) :=
+  eq_of_inputEnv β _ _ fun i => (inputEnv_reindex (first.comp second) record i).trans
+    (((inputEnv_reindex first (reindex second record) i).trans
+      (inputEnv_reindex second record (first.toFun i))).symm)
 
 end Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Record

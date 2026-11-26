@@ -38,6 +38,37 @@ including empty participant lists. These monoid observations commute with
 the corresponding thread and event maps. `swap_eq_iff` uses the local and
 global observations to characterize commutation of two singleton traces.
 
+## Threaded computations and prefix ideals
+
+Import [`Silmaril.Semantics.ConcurrentTrace.EventSync.Thms`][event-sync]
+for the threaded state and nondeterminism instances over this alphabet.
+`quotientOutput` sends free-monoid output to `Trace`. Its action on
+allocative computations commutes with bind and with output relabelling.
+`completeEquiv` identifies computations with finite trace output with the
+raw computations that contain all output representatives at each fixed
+result and final used-name set.
+
+`wordMap` equips the finite trace monoid with the prefix order given by
+left divisibility. `includeFinite` embeds a finite class with optional
+completion as a principal ideal with that completion. In particular, the
+raw completed branch and the branch routed through the finite quotient
+give the same ideal observation, with both the result and the final used
+set retained. `mapPrefix_includeFinite` commutes with injective thread
+maps, arbitrary event maps and result maps. On the whole ideal quotient,
+`observe_mapPrefix` describes this action by taking the downward closure
+of the image of an ideal.
+
+The output relabelling square holds at the same current thread and used-name
+input. A binder-level alpha quotient still needs a proof that changing
+fresh-name representatives respects dependent sequencing, with the
+stabilizer updated to account for the continuation's used names.
+The completed-branch comparison and the [ideal model][ideals] leave
+divergence-observing nondeterministic bind and the complete Elgot laws open.
+The [Brookes adapter][brookes] treats finite open behaviors and contiguous
+endpoints under their respective descent hypotheses. A VM connection would
+require an event/sync labelling of VM steps and a proof relating those
+steps and their observations to the selected trace interpretation.
+
 The trace monoid uses the partially commutative monoid construction of Pierre
 Cartier and Dominique Foata, *Problèmes combinatoires de commutation et
 réarrangements*, Lecture Notes in Mathematics 85 (1969), Chapter I §2 and
@@ -51,9 +82,14 @@ Lemma 1.1. The July 2006 electronic reedition PDF has SHA-256
 lake build --wfail +Silmaril.Semantics.ConcurrentTrace.Thms \
   +Silmaril.Proofs.Semantics.ConcurrentTrace.Regression
 make check CHECK_TARGETS='+Silmaril.Semantics.ConcurrentTrace.Thms +Silmaril.Proofs.Semantics.ConcurrentTrace.Regression'
+lake build --wfail +Silmaril.Semantics.ConcurrentTrace.EventSync.Thms \
+  +Silmaril.Proofs.Semantics.ConcurrentTrace.EventSync.Regression
 ```
 
 [defs]: ../../Silmaril/Semantics/ConcurrentTrace/Defs.lean
 [thms]: ../../Silmaril/Semantics/ConcurrentTrace/Thms.lean
+[event-sync]: ../../Silmaril/Semantics/ConcurrentTrace/EventSync/Thms.lean
+[ideals]: concurrent-trace-ideals.md
+[brookes]: brookes-concurrent-words.md
 [doi]: https://doi.org/10.1007/BFb0079468
 [pdf]: https://www.mat.univie.ac.at/~slc/books/cartfoa.pdf

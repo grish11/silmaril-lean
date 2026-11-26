@@ -29,6 +29,33 @@ they name. The value sum keeps the fixed unit payload separate from the
 reference case, which transports along with store keys, request operands and
 replies.
 
+## Native evaluator naturality
+
+`LetIter.Reindex.typeEquiv` extends a family of base-carrier equivalences
+through products, sums, unit and empty. `freeEnvEquiv` maps the values of
+visible free names at their declared types, and `boundEnvEquiv` transports
+each bound slot. Extending a bound valuation commutes with this transport.
+
+`LetIter.Reindex.denote_natural` compares direct monadic evaluation of the
+same native typing derivation in two set interpretations into weak ITrees.
+The event signatures can differ. The required primitive law says that
+evaluating a primitive at the transported operand gives the transported
+tree, with the return value mapped at the declared result type.
+
+`SignatureEquiv.tree_bind` transports sequencing when the continuations
+agree at corresponding inputs. `SignatureEquiv.tree_iter` transports both
+feedback and exit values. Its proof works at every finite observation
+depth, where `Part` iteration resolves silent feedback and the induction
+hypothesis handles the next visible layer. It applies to arbitrary loop
+bodies, including silently divergent ones. These two laws let the proof
+recurse over all native syntax, including case, abort and iteration.
+
+For structured calls, the signature equivalence keeps the primitive symbol,
+transports its operand and reply at their declared types, and commutes with
+the evaluator's universe lifting. The resulting primitive square discharges
+the hypothesis for all four heap instructions. `Heap.denote_natural` and
+`Heap.denoteClosed_natural` give native heap evaluator naturality.
+
 ## Checked observation and reuse
 
 An admitted observation is an existing `ITree.Trace` together with a
@@ -48,15 +75,20 @@ store and observation. `trace_image` identifies the entire transported
 language. For a permutation fixing the program denotation and store,
 `trace_fixed_iff` gives invariance of that program's language.
 
-The regression checks a closed native LetIter term with allocation, write and
-read. It stores and reads a self-reference. It verifies that the same term's
-denotations are related by tree transport, including a swap on `Fin 2` and a
-change of carrier to `Bool`. It also checks finite exhaustion, visibility of
-the pending allocation, and allocation after freeing a cell. The general trace
-theorem takes a tree as input. Naturality of the native evaluator for every
-typing derivation, including its iteration operation, is outside this result.
-The observations are finite and the development supplies no infinite-trace,
-eutt or concurrency theorem.
+`Heap.denote_trace_equivariant` compares finite trace membership for native
+open terms after transporting the valuation, store and observation.
+`Heap.denoteClosed_trace_image` gives the whole target language for closed
+terms and any transported initial store. An empty store is fixed by every
+pointer permutation, so `Heap.denoteClosed_trace_rename_iff` gives invariance
+for each closed term started in the empty store. All results use the weak
+tree and finite handled observations.
+
+The regression keeps the allocation, read, write, exhaustion, pending request
+and reuse-after-free checks. A second closed native term reads a stored
+self-reference as iteration feedback, frees that pointer on the next step,
+and returns it. The checked trace renames the allocation reply, request
+operands, read reply and final result. The examples check both a swap on
+`Fin 2` and transport from `Fin 2` to `Bool`.
 
 ## Further models
 
@@ -84,5 +116,8 @@ sentences, models, reindexing functors and satisfaction. See the existing
 [institution facade](logic-inst.md) and
 [Goguen and Burstall](https://doi.org/10.1145/147508.147524).
 
-Run the focused regression with
-`lake build --wfail +Silmaril.Proofs.SSA.Isotope.LetIter.Heap.Regression`.
+Run the regression with the pinned Lake toolchain.
+
+```sh
+make check CHECK_TARGETS=+Silmaril.Proofs.SSA.Isotope.LetIter.Heap.Regression
+```

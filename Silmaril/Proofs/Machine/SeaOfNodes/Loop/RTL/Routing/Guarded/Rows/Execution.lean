@@ -239,16 +239,31 @@ private theorem branch {arity : Nat} (p : Plan arity) (input old : WordTuple ari
     rw [Plan.successor, ite_eq_right halt]
     exact transfer_bank p.graph _ _ _ rfl reads
 
-theorem header_activation {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
+theorem testFrame_args {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
+    (fr : Frame Reg) (agree : ArgsMatch fr (appendTuple old input)) :
+    ArgsMatch (p.testFrame fr old) (appendTuple old input) := by
+  intro port
+  exact (test_frame_read p fr old (.arg port)).trans (row_word_reads p input old fr agree (.arg port))
+
+private theorem counted_append {program : Prog Reg} {n k : Nat} {s middle finish : State Reg}
+    (first : StepsNWithin program [] n s middle) (rest : StepsNWithin program [] k middle finish) :
+    StepsNWithin program [] (n + k) s finish := by
+  induction first with
+  | refl => simpa only [Nat.zero_add] using rest
+  | head step _ ih =>
+    rw [Nat.succ_add]
+    exact .head step (ih rest)
+
+theorem header_activation_steps {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
     (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
-    Steps (lowerBank p.graph) ⟨⟨0, 1, 0⟩, fr, [], mem⟩ (p.successor input old fr mem) := by
+    StepsNWithin (lowerBank p.graph) [] p.activationSteps ⟨⟨0, 1, 0⟩, fr, [], mem⟩ (p.successor input old fr mem) := by
   let pc := p.updates.length
   let row := p.rowFrame fr old
   let limited := row.set (.node pc) p.limit
   let lit : Op Reg := .const (.node pc) p.limit
   let cmp : Op Reg := .binary (.cmp p.comparison.target) (.node (pc + 1)) (.node p.guardIndex.val) (.node pc)
   have block : (lowerBank p.graph).block? 0 1 = some (bankHeader p.graph) := rfl
-  have prefixPath := row_steps_at (argumentPort arity) (lowerBank p.graph) (bankHeader p.graph)
+  have prefixPath := row_stepsN_at (argumentPort arity) (lowerBank p.graph) (bankHeader p.graph)
     block input old mem p.updates [] [] rfl [lit, cmp] (emitted_ops p) fr agree
   have prefixLength : (emitOpsWith (fun p => .arg p.index) p.row).length = pc :=
     emit_row_length (argumentPort arity) [] p.updates
@@ -276,8 +291,14 @@ theorem header_activation {arity : Nat} (p : Plan arity) (input old : WordTuple 
     (Prog.fetch_op block fetchCmp) cmpExec
   have branchStep := branch p input old fr mem agree
   rw [length] at branchStep
-  have toTest : Steps (lowerBank p.graph) ⟨⟨0, 1, 0⟩, fr, [], mem⟩ ⟨⟨0, 1, pc⟩, row, [], mem⟩ := by
+  have toTest : StepsNWithin (lowerBank p.graph) [] pc ⟨⟨0, 1, 0⟩, fr, [], mem⟩ ⟨⟨0, 1, pc⟩, row, [], mem⟩ := by
     simpa only [List.length_nil, Nat.zero_add, pc, row, Plan.rowFrame] using prefixPath
-  exact toTest.trans (.head constStep.step_eq (.head compareStep.step_eq (.head branchStep .refl)))
+  exact counted_append toTest (.head ⟨constStep.step_eq, List.nil_suffix⟩
+    (.head ⟨compareStep.step_eq, List.nil_suffix⟩ (.head ⟨branchStep, List.nil_suffix⟩ .refl)))
+
+theorem header_activation {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
+    (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
+    Steps (lowerBank p.graph) ⟨⟨0, 1, 0⟩, fr, [], mem⟩ (p.successor input old fr mem) :=
+  (header_activation_steps p input old fr mem agree).toStepsWithin.toSteps
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Proofs

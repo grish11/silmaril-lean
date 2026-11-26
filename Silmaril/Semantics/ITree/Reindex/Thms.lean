@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Semantics.ITree.Reindex.Defs
 import Silmaril.Proofs.Semantics.ITree.Reindex.Transport
+import Silmaril.Proofs.Semantics.ITree.Reindex.Evaluation
 
 public section
 
@@ -42,6 +43,22 @@ theorem SignatureEquiv.out_tree (e : SignatureEquiv E F) (a : A ≃ B) (t : Tree
 
 @[simp] theorem SignatureEquiv.tree_tau (e : SignatureEquiv E F) (a : A ≃ B) (t : Tree E A) :
     e.tree a (tau t) = tau (e.tree a t) := rfl
+
+/-- Reindexing commutes with sequencing when the continuations agree at
+corresponding input values. -/
+theorem SignatureEquiv.tree_bind {A' B' : Type v} (e : SignatureEquiv E F)
+    (a : A ≃ A') (b : B ≃ B') (t : Tree E A)
+    (k : A → Tree E B) (l : A' → Tree F B') (h : ∀ z, e.tree b (k z) = l (a z)) :
+    e.tree b (t >>= k) = (e.tree a t >>= l) :=
+  Silmaril.Proofs.ITree.Reindex.tree_bind e a b t k l h
+
+/-- Reindex both the loop state and the exit value. This holds for arbitrary
+weak-tree bodies, including silent feedback and divergence. -/
+theorem SignatureEquiv.tree_iter {A' B' : Type v} (e : SignatureEquiv E F)
+    (a : A ≃ A') (b : B ≃ B') (f : A → Tree E (B ⊕ A)) (g : A' → Tree F (B' ⊕ A'))
+    (h : ∀ z, e.tree (Equiv.sumCongr b a) (f z) = g (a z)) (x : A) :
+    e.tree b (Elgot.iter f x) = Elgot.iter g (a x) :=
+  Silmaril.Proofs.ITree.Reindex.tree_iter e a b f g h x
 
 theorem SignatureEquiv.trace_surjective (e : SignatureEquiv E F) (a : A ≃ B) :
     Function.Surjective (e.trace a) :=

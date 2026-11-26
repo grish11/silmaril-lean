@@ -47,8 +47,8 @@ position, an unknown outer right wire, and a two-literal inner add.
 The source slice covers one rewrite on explicit literals. The
 [doubling rule](sea-of-nodes-pure-doubling.md) and
 [right-spine rotation](sea-of-nodes-pure-right-spine.md) share the same
-insertion and routing. Left-spine ordering by node ID and
-Phi-of-constants push-through remain open.
+insertion and routing with the [left-spine step](sea-of-nodes-pure-left-spine.md).
+Phi-of-constants push-through remains open.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Pure/ConstantFold/AddChain/Regression.lean) ·
 [Chapter 8 coverage](sea-of-nodes-pure-sub-self.md#chapter-8-rule-coverage)
 

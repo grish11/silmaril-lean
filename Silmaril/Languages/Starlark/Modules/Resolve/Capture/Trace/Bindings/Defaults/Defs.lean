@@ -129,10 +129,10 @@ structure ScopedRoot (globals : List String) (program : Program) (state : State)
     (spec : Defaults.Escape.Scoped.Spec) where
   childId : Nat
   address : Lists.Address
-  names : Defaults.Escape.WrapperNames spec.wrapper
+  names : Defaults.Escape.Scoped.Names spec
   plan : Defaults.Escape.Scoped.Plan globals spec
   childCode : program[childId]? = some (plan.body.declaration spec.wrapper.codes)
-  parentCode : program[childId + 1]? = some (spec.wrapper.frame childId).declaration
+  parentCode : program[childId + 1]? = some (spec.frame childId).declaration
   live : RootCall.Live state name address (childId + 1) [] false
 
 @[expose] def LiveBinding (globals : List String) (program : Program) (state : State)
@@ -197,14 +197,15 @@ inductive CallsBody {globals : List String} {program : Program} {state : State} 
         definition.body saved.plan.code out →
       CallsBody saved values (Leaf.returnTo state out)
 
-inductive CallsScoped (state : State) (wrapper : Defaults.Escape.Spec) (childId : Nat)
-    (free : List FreeName) : List Value → Outcome Value → Prop where
-  | rejected {values : List Value} {error : Lists.Error} :
-      Entry.Binds [wrapper.parameter] values (.error error) →
-      CallsScoped state wrapper childId free values (.error error state)
-  | entered {argument : Value} {out : Outcome Value} :
-      Defaults.Escape.ReturnsWith wrapper childId free state argument out →
-      CallsScoped state wrapper childId free [argument] out
+inductive CallsScoped (state : State) (spec : Defaults.Escape.Scoped.Spec) (childId : Nat)
+    (free : List FreeName) (values : List Value) : Outcome Value → Prop where
+  | rejected {error : Lists.Error} :
+      Entry.Binds spec.parameters values (.error error) →
+      CallsScoped state spec childId free values (.error error state)
+  | entered {assigned : List (Binding × Value)} {out : Outcome Value} :
+      Entry.Binds spec.parameters values (.ok assigned) →
+      Defaults.Escape.ReturnsWith spec.wrapper childId free state (activate state (spec.frame childId).declaration [] assigned) out →
+      CallsScoped state spec childId free values out
 
 inductive Step (resolved : ResolvedModule) (globals : List String) :
     Nat → State → Command → Modules.Result Unit → Prop where
@@ -257,7 +258,7 @@ inductive Step (resolved : ResolvedModule) (globals : List String) :
       RootCall.Operand globals (.scalar (.read callee)) (Leaf.readOperand (globalSlot callee)) →
       Assignment.InOrder (RootCall.Operand globals) arguments actuals →
       RootCall.EvaluatesOperands state arguments (.ok values state) →
-      CallsScoped state spec.wrapper root.childId root.plan.body.free values out →
+      CallsScoped state spec root.childId root.plan.body.free values out →
       Step resolved globals index state (invocation callee destination arguments) (Leaf.assignResult destination out)
 
 end Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.WithDefaults

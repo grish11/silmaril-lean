@@ -12,8 +12,10 @@ After a pop, the queue keeps its pending prefix and appends jobs with
 changed watched inputs in control, numbered Φ, result order. Entry
 enables the entry Φ operands and control's bank read. Enabling feedback
 adds each destination's feedback watch. Enabling exit adds only result's
-bank watch. Direct wires watch their typed values, and producer-fed jobs
-conservatively watch the whole active bank.
+bank watch. Direct wires watch their typed values, and producer-fed
+Φ jobs watch the carried arguments in their
+[transitive operand support](rice-loop-sccp-phi-support.md). Control
+and result retain their gated whole-bank watches.
 
 `step_stable` keeps every unqueued equation satisfied. On a strict
 assignment ascent, the remaining rank pays for at most the number of
@@ -64,9 +66,8 @@ Click's *Combining Analyses, Combining Optimizations* §3.5, printed
 p. 25, computes one equation variable and requeues equations that use
 it. This solver instantiates that pattern for the typed pure single-loop
 profile in the dual order. Each wake scans the finite job roster.
-Producer-fed dependencies stay conservative. The proof and traces
-cover the carried-bank loop. General CFG SCCP, transitive producer
-def-use indexing, and the dissertation's complexity bound are outside
-this slice.
+The proof and traces cover the carried-bank loop. Reverse notification
+indexing, general CFG SCCP, and the dissertation's complexity bound
+are outside this slice.
 [Rice dissertation](https://hdl.handle.net/1911/16807) ·
 [Original FIFO](rice-loop-sccp-worklist.md)

@@ -379,3 +379,29 @@ for the two appended fields. It checks both directions and observes
 `tick 2 5` followed by `tick 5 2` through the packed program.
 [Split comparison](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Split/Extended/Thms.lean)
 · [Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Composing generated splits
+
+`Record.reindex_id` preserves a supplied record, and
+`Record.reindex_comp` reindexes along the composite slot map by
+projecting successively from the final context back to the original
+one. Both operations read fields already supplied in the input record.
+
+`EntryComparison.ofSplit` packages the checked slot map and the
+observation equality of a generated split. `EntryComparison.comp`
+requires the exact same admitted table at the shared endpoint.
+`EntryComparison.satisfies_iff` pulls predicates on the admitted named
+and packed observations back along the composed projection at each
+supplied final record. This covers either direction of pointwise
+trace inclusion by fixing the other observation. The final record
+supplies the typed values for all appended fields.
+[Composition and satisfaction](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Split/Comparison/Thms.lean)
+
+The cyclic fixture splits the swap backedge, adding two capture fields,
+then splits the entry edge into the renamed header. The second generator
+uses the first generated admission and the checked transported arrival
+table. It retains the four-field context. The fixture projects the final
+record to the original two seeds, checks trace inclusion in both
+directions, and preserves `tick 2 5`, a continuing reply, then
+`tick 5 2` in both evaluators.
+[Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)

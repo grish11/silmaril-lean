@@ -1,5 +1,7 @@
 module
 
+import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Reverse.Thms
+meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Reverse.Defs
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Thms
 import Silmaril.SSA.RVSDG.LambdaSSA.NestedFeedback.Reverse.Thms
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.WithNestedFeedback.Reverse.Renumbered.Thms
@@ -962,6 +964,75 @@ example (coherent : Coherent) :
 
 example (coherent : Coherent) : Flat.Serial.observe (ε := Bool) wiredRoute.1 (99 : Nat) 0 = Part.none :=
   (wiredRoute.2.region_undefined_iff coherent (PUnit.unit, (99 : Nat)) 0).mpr (routedConsumerUndefined coherent)
+
+open Flat.Serial.Routed.Reverse (CanonicalTerm View Fibre recover complete_generated recognize)
+
+-- Rebuild the table and enter through the checked view API. In this
+-- one-token layout, topological positions are forced by dependency.
+private def rebuiltRoute := wiredRoute.1.toTerm.toGraph
+
+private def routeView : View rebuiltRoute where
+  representative := wiredRoute.1
+  numbering := by
+    rw [rebuiltRoute, NestedTheta.Graph.toGraph_toTerm]
+    exact NestedTheta.Graph.Isomorphic.refl _
+
+private theorem routeChains : wiredRoute.1.ScopeChains := by
+  have linked := NestedTheta.ExplicitRuntime.EntryChecked.scopeChains wiredRoute.2.checked
+  rw [NestedTheta.Graph.toGraph_toTerm] at linked
+  exact linked
+
+example : ¬ ∀ i : Fin 3, (wiredRoute.1.nodes i).inputs.addresses.map
+    (Address.rename (renameVertex (Equiv.swap (0 : Fin 3) 1))) =
+    (wiredRoute.1.nodes (Equiv.swap (0 : Fin 3) 1 i)).inputs.addresses :=
+  rejectSwap wiredRoute.1 routeChains.here (0 : Fin 3) (1 : Fin 3) (by decide)
+
+private def recoveredRoute : Fibre rebuiltRoute :=
+  (recover routeView).get (complete_generated routed routeView.numbering)
+
+private theorem recoveredRouteReturns (coherent : Coherent) (input token : Nat) (exit : RoutedExit)
+    (h : Flat.Serial.returns (ε := Bool) wiredRoute.1 input 0 exit token) :
+    (Region.denote (ε := Bool) (m := Runtime) recoveredRoute.2.typing (PUnit.unit,input)).run 0 =
+      Part.some (exit, token) :=
+  (recoveredRoute.2.region_returns_iff coherent (PUnit.unit,input) exit 0 token).mp
+    ((NestedTheta.Partial.returns_iso_iff routeView.numbering (Wires.wireModel (ε := Bool)) _ _).mpr h)
+
+example (coherent : Coherent) :
+    (Region.denote (ε := Bool) (m := Runtime) recoveredRoute.2.typing (PUnit.unit,(0 : Nat))).run 0 =
+      Part.some ((.inl PUnit.unit : RoutedExit), 1) :=
+  recoveredRouteReturns coherent 0 1 _ <|
+    (wiredRoute.2.region_returns_iff coherent (PUnit.unit, (0 : Nat)) _ 0 1).mpr (routedBypass coherent)
+
+example (coherent : Coherent) :
+    (Region.denote (ε := Bool) (m := Runtime) recoveredRoute.2.typing (PUnit.unit,(1 : Nat))).run 0 =
+      Part.some ((.inr (.inl (9 : Nat)) : RoutedExit), 93) :=
+  recoveredRouteReturns coherent 1 93 _ <|
+    (wiredRoute.2.region_returns_iff coherent (PUnit.unit, (1 : Nat)) _ 0 93).mpr (routedConsumerReturns coherent)
+
+example (coherent : Coherent) :
+    (Region.denote (ε := Bool) (m := Runtime) recoveredRoute.2.typing (PUnit.unit,(99 : Nat))).run 0 =
+      Part.none :=
+  (recoveredRoute.2.region_undefined_iff coherent (PUnit.unit,(99 : Nat)) 0).mp
+    ((NestedTheta.Partial.observe_iso routeView.numbering (Wires.wireModel (ε := Bool)) _).trans
+      ((wiredRoute.2.region_undefined_iff coherent (PUnit.unit,(99 : Nat)) 0).mpr
+        (routedConsumerUndefined coherent)))
+
+-- Retain the completed payload, but read the original token at the cut.
+private def staleRouteTerm (t : CanonicalTerm Op number .unit number number) :
+    CanonicalTerm Op number .unit number number :=
+  match t with
+  | .bind producer body (.bind route children rest) =>
+    let inputs := route.inputs.map fun port origin =>
+      if h : runtime = port then h ▸ .arg (.tail .head) else origin
+    .bind producer body (.bind {route with inputs} children rest)
+
+private def staleRoute := (staleRouteTerm rebuiltRoute.toTerm).toGraph
+
+#eval show IO Unit from do
+  unless (recover routeView).isSome && (recognize rebuiltRoute).isSome do
+    throw (IO.userError "could not recover the routed γ")
+  unless (Flat.Serial.Routed.Reverse.candidate staleRoute).isSome && (recognize staleRoute).isNone do
+    throw (IO.userError "the routed γ did not reject a stale token after parsing")
 
 end Composition
 

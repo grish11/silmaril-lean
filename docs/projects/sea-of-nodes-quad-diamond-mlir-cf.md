@@ -30,9 +30,8 @@ the intervening visits and `latch_frame` identifies both feedback and
 exit packets. For every source budget `n`, `lower_run` equates the
 original source run and the typed CF run at `n + 1`, including exhausted
 runs. `native_run` connects the existing numbered γ/θ graph at its
-activation budget by adding one to the sum of source visits. The CF
-bank is unpruned. [#3570's carried projection](sea-of-nodes-quad-diamond-phi-pruning.md)
-applies to the numbered RVSDG target.
+activation budget by adding one to the sum of source visits. This
+entry point carries the full bank.
 [Proof interface](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Thms.lean)
 
 Build the fixture with
@@ -59,3 +58,52 @@ feedback edges. The branch predicate is overwritten after feedback.
 The regression checks the actual emitted CF edges and their argument
 banks independently of the displayed source trace.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Regression.lean)
+
+## Prune the carried header arguments
+
+`CF.Pruned.lower` consumes the same
+[checked projection](sea-of-nodes-quad-diamond-phi-pruning.md) as the
+numbered RVSDG emitter. Entry and latch feedback project their outgoing
+version maps in register order. The header uses the checked renamed
+producer table to reconstruct the entire post-header bank. The two
+arms, common merge and latch keep their original block IDs and full
+argument banks. The checker retains any field needed to reconstruct
+that bank, including fields used later in an arm or by the latch.
+[Pruned emitter](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Defs.lean)
+
+`entry_frame` and `latch_frame` identify the actual projected frames,
+and `site_frame` gives exact successor routing and arguments at every
+original block. `lower_run` preserves return and exhaustion at source
+fuel `n` and CF fuel `n + 1`. `run_agrees` compares both CF emitters at
+any common fuel. The scope is the same checked pure diamond and one
+tested latch. The projection shrinks only the carried header bank.
+[Proof interface](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Thms.lean)
+
+Build with
+`lake build --wfail +Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Defs`.
+Paste the block into `PrunedQuadDiamondCF.lean` and run
+`lake env lean -DwarningAsError=true PrunedQuadDiamondCF.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF
+
+#eval Pruned.Example.headerArities                       -- (some 7, some 6)
+#eval Example.predecessors 3                             -- [6, 0, 6]
+#eval Example.runSource 15                               -- some 22
+#eval Pruned.Example.runCF 16                            -- some 22
+#eval Pruned.Example.runCF 15                            -- none
+#eval (Pruned.Example.rejects Example.stride.index,
+  Pruned.Example.rejects Example.count.index)            -- (true, true)
+```
+
+The removed header argument is the old predicate, which the header
+overwrites. The stride reaches the longer arm and the counter reaches
+the latch, so proposing to drop either one fails the existing check.
+The regression checks both incoming merge packets and both projected
+feedback frames in the emitted CFG.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Regression.lean)

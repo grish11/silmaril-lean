@@ -145,6 +145,15 @@ def Plan.successor (input old : WordTuple arity) (fr : Frame Reg) (mem : Memory)
   else
     ⟨⟨0, 1, 0⟩, bindWords arity after (p.nextBank input old), [], mem⟩
 
+/-- One machine activation executes the row, the limit and comparison,
+and the conditional terminator. -/
+def Plan.activationSteps : Nat := p.updates.length + 3
+
+/-- Machine fuel for at most this many backedges, including the entry jump,
+the terminating header activation, and the return step. -/
+def Plan.rtlFuel (backedges : Nat) : Nat :=
+  p.activationSteps * (backedges + 1) + 2
+
 def lowerChecked (arity : Nat) (spec : Spec) : Option Checked.Phi.Targets :=
   (checkPlan arity spec).bind fun p =>
     if (lowerBankFunc p.graph).WellFormed then some (lowerBank p.graph, Generic.lower p.graph) else none

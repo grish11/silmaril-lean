@@ -52,5 +52,7 @@ theorem tracked_complete {code : Code Op entry past sigs outs true (some scope.t
     exact bind_complete (site_complete site) (fun _ => bind_complete suffix (fun _ => rfl))
   | gamma _ _ arms suffix =>
     exact bind_complete (collect_complete _ arms) (fun _ => bind_complete suffix (fun _ => rfl))
+  | theta _ _ body suffix =>
+    exact bind_complete body (fun _ => bind_complete suffix (fun _ => rfl))
 
 end Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Direct.Proofs
