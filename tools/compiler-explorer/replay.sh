@@ -45,6 +45,14 @@ if [ -z "$selection" ]; then
   exit 1
 fi
 mapfile -t selected <<< "$selection"
+queued=${#selected[@]}
+# The validated decimals have no leading zeros. Compare widths, then digits
+# in ASCII order, so even a limit beyond Bash's integer range clamps safely.
+if (( ${#jobs} > ${#queued} )) ||
+  { (( ${#jobs} == ${#queued} )) && test "$jobs" \> "$queued"; }; then
+  jobs=$queued
+fi
+
 # Discovery can return the longest replay last. Start it first and let xargs
 # refill each slot as soon as its worker exits.
 ordered=()
