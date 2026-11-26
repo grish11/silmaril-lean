@@ -1,4 +1,4 @@
-# Arrow IPC V5 stream reader
+# Arrow IPC V5 stream reader and writer
 
 `Silmaril.Formats.Arrow.readStream` reads an in-memory
 `KBytes` stream into an ordered schema and body-backed record batches. The
@@ -142,10 +142,47 @@ metadata AST. PyArrow reads those exact byte windows as arrays and checks
 ordered rows, null counts, and full array validity.
 [Independent buffer checks](../../tests/formats/arrow-ipc/read_writer_fixtures.py)
 
+## FlatBuffers and stream writer
+
+`MetadataWriter.serialize` emits the Arrow V5 Message, Schema, Field, Int,
+Utf8, and RecordBatch tables. It uses forward relative uoffsets and
+non-deduplicated vtables. It checks signed wire ranges and the configured
+metadata, row and field limits before emitting bytes. Table positions and
+inline struct alignment are relative to the metadata slice.
+`MetadataWriter.emit` checks exact AST recovery using the existing reader on
+that slice. The `serialize_extent` and `wireSize_aligned` laws hold independently of
+that check.
+[Metadata definitions](../../Silmaril/Formats/Arrow/MetadataWriter/Defs.lean)
+[Metadata theorems](../../Silmaril/Formats/Arrow/MetadataWriter/Thms.lean)
+
+`StreamWriter.emit` writes a bodyless schema, a list of batches in order,
+and the modern EOS marker. It requires matching schemas and checks the
+batch count and aggregate observation budgets. `StreamWriter.emitFrame_exact`
+proves that the framing, metadata and body readers recover the original
+message and exact body octets from a successful frame write.
+`StreamWriter.read_eos` proves recognition of the emitted EOS.
+[Stream definitions](../../Silmaril/Formats/Arrow/StreamWriter/Defs.lean)
+[Framing theorems](../../Silmaril/Formats/Arrow/StreamWriter/Thms.lean)
+
+With the hash-pinned PyArrow environment above, the following commands
+exercise the native reader and write complete IPC streams for independent
+readback. PyArrow's IPC reader checks the field order, types, nullability,
+ordered nullable values and explicit batch row counts. The cases include
+mixed and empty batches in one stream, a schema with zero batches, and
+a zero-column schema with three-row and zero-row batches.
+
+```sh
+lake build --wfail +Silmaril.Formats.Arrow.StreamWriter.Thms arrow_ipc_metadata_tests
+.lake/build/bin/arrow_ipc_metadata_tests --write-stream-fixtures /tmp/arrow-streams
+python3 -I tests/formats/arrow-ipc/read_writer_fixtures.py --streams /tmp/arrow-streams
+```
+
+[Independent IPC checks](../../tests/formats/arrow-ipc/read_writer_fixtures.py)
+
 ## Remaining scope
 
-The stream reader and physical batch writer cover flat nullable and required
-Int32 and UTF-8. FlatBuffers metadata serialization, stream framing and EOS
-writing, incremental I/O, and a general whole-stream rechunking proof remain
-open. Stream interoperability from Lean bytes will use PyArrow's IPC reader
-after the metadata and framing writer is available.
+The profile covers flat nullable and required Int32 and UTF-8. Nested fields,
+dictionaries, and compression are outside it. The general ordered row proof
+covers physical batches. Native and PyArrow fixture runs cover ordered rows
+through the complete stream. A general whole-stream read/write law,
+incremental I/O and whole-stream rechunking remain open.

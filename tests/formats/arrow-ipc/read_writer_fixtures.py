@@ -1,4 +1,4 @@
-"""Check Lean-written physical batch bodies with the pinned PyArrow reader."""
+"""Check Lean-written Arrow IPC bodies or streams with the pinned PyArrow reader."""
 import argparse
 import hashlib
 import json
@@ -65,14 +65,43 @@ def check(directory, name, schema, expected):
     print(f"{name}: {row_count} rows, {len(body)} body bytes, SHA-256 {hashlib.sha256(body).hexdigest()}")
 
 
+def check_stream(directory, name, fields, expected_batches):
+    source = (directory / f"{name}.arrows").read_bytes()
+    assert len(source) % 8 == 0
+    assert source[:4] == b"\xff" * 4 and source[-8:] == b"\xff" * 4 + b"\0" * 4
+    with pa.ipc.open_stream(source) as reader:
+        assert reader.schema == pa.schema([
+            pa.field(field, TYPES[kind][0], nullable=nullable)
+            for field, nullable, kind in fields
+        ])
+        for batch, expected in zip(reader, expected_batches, strict=True):
+            batch.validate(full=True)
+            assert batch.num_rows == len(expected)
+            rows = [tuple(column[row].as_py() for column in batch.columns)
+                    for row in range(batch.num_rows)]
+            assert rows == expected
+    print(f"{name}: batch row counts {[len(rows) for rows in expected_batches]}, "
+          f"{len(source)} stream bytes, SHA-256 {hashlib.sha256(source).hexdigest()}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
+    parser.add_argument("--streams", action="store_true", help="read complete IPC streams")
     args = parser.parse_args()
     assert pa.__version__ == pa.cpp_build_info.version == PRODUCER["version"]
     assert np.__version__ == PRODUCER["numpy_version"]
-    for name, (schema, expected) in CASES.items():
-        check(args.directory, name, schema, expected)
+    if args.streams:
+        fields, mixed = CASES["mixed"]
+        check_stream(args.directory, "mixed", fields, [mixed, [], mixed])
+        fields, empty = CASES["empty"]
+        check_stream(args.directory, "empty", fields, [empty])
+        fields, zero_columns = CASES["zero-columns"]
+        check_stream(args.directory, "zero-columns", fields, [zero_columns, []])
+        check_stream(args.directory, "schema-only", [("", False, "utf8")], [])
+    else:
+        for name, (schema, expected) in CASES.items():
+            check(args.directory, name, schema, expected)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@ import Silmaril.Formats.Arrow.Framing.Thms
 import Silmaril.Formats.Arrow.Layout.Thms
 import Silmaril.Formats.Arrow.Body.Thms
 import Silmaril.Formats.Arrow.Writer.Thms
+import Silmaril.Formats.Arrow.MetadataWriter.Thms
+import Silmaril.Formats.Arrow.StreamWriter.Thms
 
 open Silmaril Silmaril.Formats.Arrow
 
@@ -36,3 +38,9 @@ example : Body.validAt (.leaf 2 0x0100) 8 = some true := by rfl
 #print axioms Writer.packBuffers_exact
 #print axioms Writer.emitBatch_of_admitted
 #print axioms Writer.emitBatch_roundtrip
+
+#print axioms MetadataWriter.wireSize_aligned
+#print axioms MetadataWriter.serialize_extent
+#print axioms MetadataWriter.emit_exact
+#print axioms StreamWriter.read_eos
+#print axioms StreamWriter.emitFrame_exact
