@@ -13,7 +13,10 @@ The world has two threads, one natural-number cell, one mutex, and no
 external operations. Loads, stores, acquire, and release use the
 [fixed-world SC primitives][primitives]. Pairing uses closed shuffle and
 iteration uses the omega union of finite completed approximants
-from the [Brookes model][iteration].
+from the [Brookes model][iteration]. To reuse the adapter for another store
+type, import `Silmaril.Semantics.Brookes.Parallel.Pairing.Defs` and pass
+`Behavior.parallelPairing Store` to the consumer. Its fields are the pure-map
+and tuple laws exercised by the [ordered Freyd probe][probe].
 
 - The `InstructionModel` has a pure identity on words. Its
   `denote_pure` field proves agreement with monadic return at effect
@@ -43,10 +46,11 @@ This is finite completed SC. The observation model has no fair infinite
 traces, divergent prefixes, or must-termination observations.
 
 ```sh
-make check CHECK_TARGETS='+Silmaril.SSA.Isotope.BrookesLetParIter.Thms +Silmaril.Proofs.SSA.Isotope.BrookesLetParIter.Regression LetParIterTests'
+make check CHECK_TARGETS='+Silmaril.SSA.Isotope.BrookesLetParIter.Thms +Silmaril.Proofs.SSA.Isotope.BrookesLetParIter.Regression LetIterWeakTreeSoundnessTests +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.Terms +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.PairingModel'
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/BrookesLetParIterAxioms.lean
 ```
 
 [primitives]: brookes-sc-concrete.md
 [iteration]: sc-brookes-iteration.md
 [regression]: ../../Silmaril/Proofs/SSA/Isotope/BrookesLetParIter/Regression.lean
+[probe]: https://github.com/hiloopai/silmaril-lean/blob/5fda52f53b1cc6bcff1e1affca9cb60617216028/docs/projects/letpariter-ordered-freyd.md#L295-L304

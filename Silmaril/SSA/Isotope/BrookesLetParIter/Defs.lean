@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Logic.BrookesSC.Concrete.Defs
 public import Silmaril.Semantics.Brookes.Iteration.Thms
+public import Silmaril.Semantics.Brookes.Parallel.Pairing.Defs
 public import Silmaril.SSA.Isotope.LetParIter.Interpretation.Defs
 
 /-! # A concrete SC instruction model for LetParIter -/
@@ -109,22 +110,8 @@ instance : InstructionModel Instr SCType Bool M where
     · rfl
     all_goals cases h
 
-theorem map_eq_mapResult {A B : Type} (f : A → B) (p : M A) :
-    f <$> p = p.mapResult f :=
-  (Behavior.mapResult_eq_bind f p).symm
-
-def pairing : ParallelPairing M where
-  pair := Behavior.parallel
-  natural f g p q := by
-    simpa only [map_eq_mapResult] using Behavior.parallel_natural f g p q
-  swap p q := by
-    simpa only [map_eq_mapResult] using Behavior.parallel_symm p q
-  assoc p q r := by
-    simpa only [map_eq_mapResult] using Behavior.parallel_assoc p q r
-  rightUnit p := by
-    change Prod.fst <$> p.parallel (Behavior.ret (PUnit.unit : PUnit.{1})) = p
-    rw [map_eq_mapResult, Behavior.parallel_ret_right, Behavior.mapResult_comp]
-    exact (map_eq_mapResult id p).symm.trans (id_map p)
+/-- The general closed-shuffle pairing specialized to this SC world. -/
+abbrev pairing : ParallelPairing M := Behavior.parallelPairing Store
 
 /-- A store with the given cell value and mutex owner. -/
 def state (wordValue : Nat) (owner : Option Bool) : Store :=

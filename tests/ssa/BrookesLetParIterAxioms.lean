@@ -8,6 +8,8 @@ open Silmaril.Isotope.BrookesLetParIter Silmaril.Isotope.BrookesLetParIter.Regre
 #print axioms instLawfulTypeModelSCType
 #print axioms instInstructionModelInstrSCTypeBoolM
 #print axioms pure_instruction_iff
+#print axioms Silmaril.Semantics.Brookes.Behavior.map_eq_mapResult
+#print axioms Silmaril.Semantics.Brookes.Behavior.parallelPairing
 #print axioms pairing
 #print axioms abort_empty
 #print axioms acquire_free
