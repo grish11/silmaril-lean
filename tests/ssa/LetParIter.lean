@@ -21,6 +21,19 @@ instance : HasEff Instr (Bool × Bool) := ⟨fun _ => (true, false)⟩
 abbrev Γ : Ctx Empty Obj := .nil
 abbrev U : Obj := unit
 
+example (s : LetSeq.LocallyNameless.Tm Empty Instr 0) :
+    LetParIter.embed (Morphism.CaseIter.embed (Morphism.SeqCase.embed s)) =
+      LetParIter.ofLetPar (LetPar.embed s) :=
+  LetParIter.embed_seqIter s
+
+example : Function.Injective (LetParIter.ofLetParCase :
+    LetParCase.Tm Empty Instr 0 → LetParIter.Tm Empty Instr 0) :=
+  LetParIter.ofLetParCase_injective
+
+example : Function.Injective (LetParIter.ofLetPar :
+    LetPar.Tm Empty Instr 0 → LetParIter.Tm Empty Instr 0) :=
+  LetParIter.ofLetPar_injective
+
 def native : LetIter.LocallyNameless.Tm Empty Instr 0 := .iter .unit (.inl (.bv 0))
 
 def nativeTyped : LetIter.LocallyNameless.Derivation Instr Γ .nil native U :=
