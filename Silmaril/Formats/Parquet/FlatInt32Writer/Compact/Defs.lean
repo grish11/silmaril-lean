@@ -2,7 +2,7 @@ module
 
 public import Silmaril.Formats.Parquet.Footer.Defs
 
-/-! Bounded Compact serialization for the one-row-group flat INT32 footer. -/
+/-! Bounded Compact serialization for flat INT32 footers. -/
 
 @[expose] public section
 
@@ -137,8 +137,8 @@ def group (rows : Nat) (columns : List ColumnIndex) : Write Unit := do
   integer .i64 rows
   octet 0
 
-def footerAnnotated (annotation : LeafAnnotation) (rows : Nat) (columns : List ColumnIndex) :
-    Write Unit := do
+def Internal.footerGroups (annotation : LeafAnnotation) (columns : List ColumnIndex)
+    (groups : List (Nat × List ColumnIndex)) : Write Unit := do
   field 1 5
   integer .i32 1
   field 1 9
@@ -146,11 +146,20 @@ def footerAnnotated (annotation : LeafAnnotation) (rows : Nat) (columns : List C
   root columns.length
   for column in columns do leafAnnotated annotation column
   field 1 6
-  integer .i64 rows
+  integer .i64 (groups.map Prod.fst).sum
   field 1 9
-  listHeader 12 1
-  group rows columns
+  listHeader 12 groups.length
+  for (rows, chunks) in groups do group rows chunks
   octet 0
+
+/-- Encode one shared schema and the ordered list of row counts and chunk indices. -/
+def encodeGroups (annotation : LeafAnnotation) (limit : Nat) (columns : List ColumnIndex)
+    (groups : List (Nat × List ColumnIndex)) : Except Error Bytes :=
+  ((Internal.footerGroups annotation columns groups).run ⟨limit, .empty⟩).map (·.2.bytes)
+
+def footerAnnotated (annotation : LeafAnnotation) (rows : Nat) (columns : List ColumnIndex) :
+    Write Unit :=
+  Internal.footerGroups annotation columns [(rows, columns)]
 
 def footer (rows : Nat) (columns : List ColumnIndex) : Write Unit :=
   footerAnnotated .unannotated rows columns
@@ -158,7 +167,7 @@ def footer (rows : Nat) (columns : List ColumnIndex) : Write Unit :=
 /-- Each write consumes part of the caller's exact Compact byte budget. -/
 def encodeAnnotated (annotation : LeafAnnotation) (limit rows : Nat) (columns : List ColumnIndex) :
     Except Error Bytes :=
-  ((footerAnnotated annotation rows columns).run ⟨limit, .empty⟩).map (·.2.bytes)
+  encodeGroups annotation limit columns [(rows, columns)]
 
 def encode (limit rows : Nat) (columns : List ColumnIndex) : Except Error Bytes :=
   encodeAnnotated .unannotated limit rows columns
