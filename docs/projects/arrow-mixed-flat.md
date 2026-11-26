@@ -333,3 +333,44 @@ column. With no projected columns the batch row counts are still
 make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.File.Window.Projection.Strict.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Window.Projection.Strict.Axioms'
 python3 -I scripts/arrow-mixed-flat/file_fixtures.py
 ```
+
+### Strict file events
+
+`MixedFlat.File.Events.read` eagerly decodes the strict file into the
+existing Arrow event model. The source schema contains the exact ordered
+footer declarations, and the trace contains one aligned event per footer
+entry followed by EOS. Explicit empty batches remain in the trace. A
+zero-column batch carries its row count without allocating cells.
+Primitive slots, BinaryView octets and Utf8View strings retain their
+values and nulls.
+
+File admission and per-batch decoding use the existing limits. The adapter
+also checks the running total rows and cells after decoding each candidate
+batch and before retaining it. This may decode one candidate beyond the
+aggregate observation budget under the per-batch limits. Byte budgets
+apply per message or column as in the existing decoder. Admission or
+decode failure returns the original file error, with a footer ordinal for
+a failed record. An aggregate limit error carries the candidate's
+ordinal. Each failure is atomic and yields no schema or prefix trace.
+
+`Events.read_exact` derives the alignment from the strict decoder's field
+and slot-count laws. `Events.read_projectedAt_scan` uses this alignment to
+compare the existing keep-all event scan with indexed projection over the
+full carrier window. For every ordinal it identifies the same presence,
+explicit row count, output width, ordered descriptors and nullable slots.
+The law applies after a successful eager read. An independent indexed
+read can still reach a valid batch in a damaged file.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/File/Events/Defs.lean) ·
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/File/Events/Thms.lean)
+
+The Lean guards use the original pinned mixed and schema-only files and the
+existing pinned zero-column file with counts `[3, 0]`. They compare
+indexed reads with the actual event scan at repeated and empty positions,
+and exercise a late wire error and both aggregate budget errors.
+[Lean guards](../../Silmaril/Formats/Arrow/MixedFlat/File/Events/Examples.lean)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.File.Events.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Events.Axioms'
+python3 -I scripts/arrow-mixed-flat/file_fixtures.py
+python3 -I tests/formats/arrow-ipc/file_fixture.py --regenerate
+```
