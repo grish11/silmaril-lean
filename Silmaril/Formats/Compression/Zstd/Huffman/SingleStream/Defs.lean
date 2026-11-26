@@ -116,6 +116,13 @@ def readSymbols (entries : List Entry) :
     | none => .error .incompleteCode
     | some (symbol, rest) => readSymbols entries count rest (symbol :: acc)
 
+/-- Open and exhaust one stream with an already built table. The caller
+    checks the stream extent and output budget before using this operation. -/
+def readStream (table : Table) (expected : Nat) (input : List UInt8) :
+    Except Error (List UInt8) := do
+  let some cursor := ReverseBits.start input | throw .badEndMarker
+  readSymbols table.entries expected cursor []
+
 end Internal
 
 /-- Construct a canonical table from weights satisfying the direct tree
@@ -132,7 +139,6 @@ def decode (limits : Limits) (tree : Tree) (expected : Nat) (input : List UInt8)
   else if limits.outputSymbols < expected then .error .outputLimit
   else do
     let table ← build limits.tree tree
-    let some cursor := ReverseBits.start input | throw .badEndMarker
-    Internal.readSymbols table.entries expected cursor []
+    Internal.readStream table expected input
 
 end Silmaril.Formats.Compression.Zstd.Huffman.SingleStream

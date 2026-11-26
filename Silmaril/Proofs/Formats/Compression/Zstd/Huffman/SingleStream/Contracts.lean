@@ -176,6 +176,19 @@ private theorem readSymbols_sound {entries : List Entry} {expected : Nat} {curso
       · rw [layout]
         exact .symbol member width code wire
 
+theorem readStream_sound {table : Table} {expected : Nat} {input out : List UInt8}
+    (success : readStream table expected input = .ok out) :
+    out.length = expected ∧ ∃ cursor, ReverseBits.StartWire input cursor ∧
+      StreamWire table.entries cursor.bits out := by
+  cases started : ReverseBits.start input with
+  | none => simp [readStream, started, throw] at success
+  | some cursor =>
+    simp only [readStream, started] at success
+    obtain ⟨decoded, shape, length, wire⟩ := readSymbols_sound success
+    have same : out = decoded := by simpa using shape
+    subst out
+    exact ⟨length, cursor, ReverseBits.start_sound started, wire⟩
+
 theorem decode_sound {limits : Limits} {tree : Tree} {expected : Nat} {input out : List UInt8}
     (success : decode limits tree expected input = .ok out) :
     input.length ≤ limits.inputBytes ∧ out.length = expected ∧ expected ≤ limits.outputSymbols ∧
@@ -192,15 +205,10 @@ theorem decode_sound {limits : Limits} {tree : Tree} {expected : Nat} {input out
   cases built : build limits.tree tree with
   | error reason => simp [built, bind, Except.bind] at success
   | ok table =>
-    cases started : ReverseBits.start input with
-    | none => simp [built, started, throw, bind, Except.bind] at success
-    | some cursor =>
-      simp only [built, started, bind, Except.bind] at success
-      obtain ⟨decoded, shape, length, wire⟩ := readSymbols_sound success
-      have same : out = decoded := by simpa using shape
-      subst out
-      obtain ⟨valid, canonical⟩ := build_sound built
-      exact ⟨List.drop_eq_nil_iff.mp (Classical.not_not.mp bytesFit), length, Nat.le_of_not_gt symbolsFit,
-        valid, table, cursor, canonical, ReverseBits.start_sound started, wire⟩
+    simp only [built, bind, Except.bind] at success
+    obtain ⟨length, cursor, marker, wire⟩ := readStream_sound success
+    obtain ⟨valid, canonical⟩ := build_sound built
+    exact ⟨List.drop_eq_nil_iff.mp (Classical.not_not.mp bytesFit), length, Nat.le_of_not_gt symbolsFit,
+      valid, table, cursor, canonical, marker, wire⟩
 
 end Silmaril.Proofs.Formats.Compression.Zstd.Huffman.SingleStream

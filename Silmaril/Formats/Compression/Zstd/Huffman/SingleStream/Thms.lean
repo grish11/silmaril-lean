@@ -20,6 +20,14 @@ theorem table_intervals {tree : DirectWeights.Tree} {table : Table} (wire : Tabl
     table.entries.Pairwise (fun left right => left.finish table.depth ≤ right.start table.depth) :=
   Proofs.Formats.Compression.Zstd.Huffman.SingleStream.table_intervals wire
 
+/-- A bounded caller may reuse the same table for independent streams.
+    Each success gives the exact symbol count and exhausts its own stream. -/
+theorem readStream_sound {table : Table} {expected : Nat} {input out : List UInt8}
+    (success : Internal.readStream table expected input = .ok out) :
+    out.length = expected ∧ ∃ cursor, ReverseBits.StartWire input cursor ∧
+      StreamWire table.entries cursor.bits out :=
+  Proofs.Formats.Compression.Zstd.Huffman.SingleStream.readStream_sound success
+
 /-- Accepting a stream accounts for the marker and every payload bit with
     the canonical table, and produces exactly the requested symbol count. -/
 theorem decode_sound {limits : Limits} {tree : DirectWeights.Tree} {expected : Nat}
