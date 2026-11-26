@@ -74,6 +74,7 @@ CHECK_TARGETS += PEGStructuredThetaTests
 CHECK_TARGETS += arrow_ipc_metadata_tests
 CHECK_TARGETS += +Silmaril.Formats.Parquet.Footer.Thms parquet-footer-regression
 CHECK_TARGETS += +Silmaril.Formats.Parquet.Page.Thms parquet-page-regression
+CHECK_TARGETS += +Silmaril.Formats.Parquet.FlatScan.Thms parquet-flat-scan-regression
 
 # The release suites run when CHECK_TARGETS holds the executables. A change scoped to a library
 # that wasm-opt imports puts only wasm-opt in scope, so the other release binaries are built first.
@@ -123,6 +124,7 @@ check-runtime:
 	$(if $(filter sqlite_file_format_compatibility,$(CHECK_TARGETS)),bash tests/formats/sqlite-tranche/run.sh)
 	$(if $(filter parquet-footer-regression,$(CHECK_TARGETS)),printf '%s\n' '12a618d20a59ee0967fef45e7ec1ff6d451e724838edc1bbeac780ca15e8fcc4  tools/parquet-footer/fixtures/alltypes_plain.parquet' | sha256sum -c - && .lake/build/bin/parquet-footer-regression)
 	$(if $(filter parquet-page-regression,$(CHECK_TARGETS)),printf '%s\n' '12a618d20a59ee0967fef45e7ec1ff6d451e724838edc1bbeac780ca15e8fcc4  tools/parquet-footer/fixtures/alltypes_plain.parquet' '44f29191b5fa8cfe0ab848495bd8ef89344ac0d8f87b3dff12e267631e2b5c03  tools/parquet-page/fixtures/datapage_v2.snappy.parquet' | sha256sum -c - && .lake/build/bin/parquet-page-regression)
+	$(if $(filter parquet-flat-scan-regression,$(CHECK_TARGETS)),printf '%s\n' '3f7e748761fafc49e50ec4362925c8d6f70f2255bdd352f4a009df1b2f14deeb  tools/parquet-flat-scan/fixtures/flat-plain-v1.parquet' '725a8bd282efdb86d8c01e74a85615c0f05684737757ea003405adc7e120dfc2  tools/parquet-flat-scan/fixtures/flat-plain-v2.parquet' | sha256sum -c - && .lake/build/bin/parquet-flat-scan-regression)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.NestedTheta.Isomorphism.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.Isomorphism.% +Silmaril.SSA.RVSDG.NestedTheta.Partial.Isomorphism.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.Partial.Isomorphism.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.NestedTheta.Partial.Isomorphism.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedThetaIsomorphism.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.NestedTheta.Petri.Isomorphism.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.Petri.Isomorphism.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.NestedTheta.Petri.Isomorphism.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedPetriIsomorphism.lean)
 	$(if $(filter sqlite_lean,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Cli.Spec.LeanSqliteShell.Thms && $(PYTHON) -I tests/formats/sqlite-shell/check.py)
