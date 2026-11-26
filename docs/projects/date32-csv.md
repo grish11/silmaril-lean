@@ -113,3 +113,50 @@ make check CHECK_TARGETS="$targets"
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/date32-from-csv/Axioms.lean
 python3 -I scripts/date32-from-csv-oracle/check.py
 ```
+
+## Export from native Date32 IPC and round trips
+
+`Arrow.DateStream.ToCsv.convert` consumes a checked one-column IPC stream
+through EOS under the supplied IPC limits. The exact field name,
+nullability and DAY unit must match the caller's declaration. It accepts
+one explicit batch, including an empty batch, and reports the actual batch
+count for schema-only or multibatch input. It checks the CSV row cap before
+formatting and checks the canonical CSV byte count before returning bytes.
+A present Date32 day outside −719528 through 2932896 returns the existing
+typed cell print error. Nullable nulls and four-digit Gregorian spellings
+use the same `N` and `TYYYY-MM-DD` grammar as the importer. The header and
+cells must also be representable in the existing CSV wire profile.
+[Export definitions](../../Silmaril/Formats/Arrow/DateStream/ToCsv/Defs.lean)
+
+`readColumn_eq_ok_iff` and `convert_eq_ok_iff` characterize the admitted
+IPC observation and canonical CSV output. Both round trips use the same
+declared header and nullability, CSV caps, and IPC readback limits.
+`csv_roundtrip` recovers the exact decoded CSV rows and succeeds when the
+canonical output fits the byte cap. Quote-all framing and a final CRLF
+can enlarge a valid input. `canonical_csv_roundtrip` proves byte equality
+for a successful import of already canonical CSV. `ipc_roundtrip` requires
+both legs to succeed and preserves the exact checked descriptor and one
+ordered batch of nullable signed days. Its equality is on the checked IPC
+observation. IPC metadata and padding bytes may differ.
+[Theorem header](../../Silmaril/Formats/Arrow/DateStream/ToCsv/Thms.lean)
+
+The oracle generates an optional Date32 IPC stream with both admitted
+endpoints, a pre-epoch date, null, a leap day and year zero, and a required
+stream with one explicit empty batch. PyArrow 26.0.1 supplies signed date
+storage and the year-zero spelling. CPython 3.13.5 supplies both CSV
+quoting modes and independently reads the canonical CSV output. PyArrow
+reads the IPC emitted by both cycles and checks the exact schema, batch
+count and signed slots. Seven PyArrow refusal fixtures cover adjacent
+out-of-profile days, schema-only and multibatch input, Date64, and mismatched
+name and nullability. Native guards exercise the row cap and a canonical
+CSV expansion that exceeds the original byte cap.
+[Fixture hashes](../../scripts/date32-ipc-csv-oracle/fixtures.json)
+· [Oracle](../../scripts/date32-ipc-csv-oracle/check.py)
+
+```sh
+targets='+Silmaril.Formats.Arrow.DateStream.ToCsv.Thms +Silmaril.Formats.Arrow.DateStream.ToCsv.Tests'
+lake build --wfail $targets
+make check CHECK_TARGETS="$targets"
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/date32-ipc-csv/Axioms.lean
+python3 -I scripts/date32-ipc-csv-oracle/check.py
+```
