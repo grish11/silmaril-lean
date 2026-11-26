@@ -133,6 +133,60 @@ declared type (no effect) and a replaced value (a different conclusion), and sev
 of the real file (a duplicated record, a forward reference, a self-reference, an unknown field,
 `mdata`, a wrong format version, an empty line), each refused with its reason.
 
+### Named declarations in extensional MLTT
+
+`Silmaril.ProofFormats.LeanNDJSON.MLTT.Decode.Defs` provides `importBytes` and `importEvents`.
+The caller supplies the number of declaration records in the signature prefix. Its safe
+`axiom` records supply typed symbols, and its safe `def` records supply definitions. Subsequent
+`def` and `thm` records each give a value and a type to check against the signature. A query
+can refer to the signature alone. Declarations in the prefix can refer to earlier declarations
+in that prefix. The adapter resolves structured `Lean.Name` values in both cases, retaining
+numeric components and dots within string components. Multiple table ids for the same
+structured name resolve to the same slot. Repeated declarations of that name are rejected.
+
+The expression fragment has positive sorts, closed successor/max universe levels, monomorphic
+constants, bound variables, application, lambda and dependent function types. `Sort (n + 1)`
+maps to MLTT `Uₙ`. `Prop`, `imax`, universe parameters and arguments, lets, projections,
+literals, opaque declarations, quotients, inductives, unsafe or partial code, and mutual
+groups are outside this translation. Binder names, binder information and reduction hints
+carry no MLTT meaning. The configurable node budget bounds expansion of the expression DAG.
+
+`MLTT.Signature.WellTyped` asks that the compiled declaration context form. A definition
+contributes both a typed variable and an identity-type witness equating it to its body.
+`MLTT.Sentence.Valid` asks for a reflexive typing judgment in the event's declaration scope.
+These propositions are separate from codec and reference validation. Successful import
+can return an ill-typed query. `derives_iff_mltt` relates consequence with extra event
+hypotheses to the existing extensional MLTT logic. `piOver` builds the π-institution over
+any signature diagram. Prefix inclusions preserve lookup and retain the event's original
+context, which gives `derives_weaken_iff`.
+
+`budgetOver` gives the ordinary institution over the same signature diagrams. A model
+supplies a finite tower and its level count. Its satisfaction tests the translated judgment's
+whole syntax against that count and then interprets it under every assignment satisfying
+the event's declaration context. The bound includes definition bodies and types in that
+context. Satisfaction is natural under prefix extension. As for any context-conditional
+judgment, semantic validity can hold vacuously when a context has no satisfying assignment.
+`BudgetModel.satisfies_of_bounded_derivation` uses the existing uniformly bounded MLTT rules
+and finite-tower soundness. A syntax bound alone gives neither a bound on an arbitrary
+derivation nor a consistency result. The interpretation makes no claim about Lean kernel
+replay or compatibility with Lean's conversion rules.
+
+For graph integration, specialize `pi` and `budget` to `Lean.Name`. Register the fixed
+slice `fixedBudget Lean.Name n` as the source of `toFiniteMLTT Lean.Name n`, targeting
+`logic.type_theory.extensional_mltt.finite.bundled` at the same `n`.
+Use `toFiniteMLTT_modelExpansive` as the edge fact. The existing unbounded extensional
+MLTT logic comparison is `derives_iff_mltt`.
+
+`Silmaril.ProofFormats.LeanNDJSON.MLTT.Examples` tests the byte adapter against a real export
+and checks distinct structured names, malformed references, unsupported syntax, and finite
+bandwidth examples. Run `make lean-ndjson-check` to verify the export is reproducible. The
+fixture SHA-256 is `430735306302d3e8d637f0c6e1aa8fa8b5027921b52b50e35b98f9d0074dd1eb`.
+[Fixture source](../../tests/lean-ndjson/LeanNDJSONFixture.lean) · [NDJSON export](../../tests/lean-ndjson/mltt-fragment.ndjson)
+
+```sh
+lake build --wfail +Silmaril.ProofFormats.LeanNDJSON.MLTT.Examples
+```
+
 ## Alethe: a propositional fragment, with real cvc5 proofs (`Silmaril.ProofFormats.Alethe`)
 
 **The clause system** (`Silmaril.Logic.Consequence.Resolution`): judgments are clauses of SMT terms;
