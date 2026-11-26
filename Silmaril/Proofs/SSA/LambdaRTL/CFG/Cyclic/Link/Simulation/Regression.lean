@@ -3,9 +3,9 @@ module
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Thms
 import Mathlib.Data.Nat.Pairing
 
-/-! The cyclic forwarding loop strictly refines the wire. In contrast, an
-acyclic register copy with the same observation as the wire cannot be
-certified by the two local rules. Both examples use an empty alphabet. -/
+/-! A forwarding loop strictly refines the wire. An ordered register copy
+certifies against the wire, including after linking. These examples use an
+empty alphabet. -/
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link
 
@@ -26,6 +26,13 @@ private def move : Graph Bool Empty 1 1 where
   block _ := ⟨false, .let1 true (.val (.var false)) (.term (.br (.inr 0) (.var true)))⟩
   closed _ := by simp [Body.toRegion, Term.toRegion, Region.fv, Op.fv, Val.fv]
 
+private def altered : Graph Bool Empty 1 1 where
+  locals := 1
+  entry _ := .inl 0
+  block _ := ⟨false, .let1 true (.val (.var false))
+    (.term (.br (.inr 0) (.pair (.var true) .unit)))⟩
+  closed _ := by simp [Body.toRegion, Term.toRegion, Region.fv, Op.fv, Val.fv]
+
 private def model : PairModel Empty Part Nat :=
   ⟨{ unit := 0
      pair := Nat.pair
@@ -43,8 +50,30 @@ private def spinToWire : Simulation spin wire :=
 private def wireToWire : Simulation wire wire :=
   Simulation.ofCheck wire wire Fin.elim0 (by decide)
 
+private def moveToWire : Simulation move wire :=
+  Simulation.ofCheck move wire (fun _ => .inr 0) (by decide)
+
 example : Simulation.check (spin.link wire) (wire.link wire)
     (spinToWire.link wireToWire).address = true := by decide
+
+example : Simulation.check (move.link wire) (wire.link wire)
+    (moveToWire.link wireToWire).address = true := by decide
+
+example : Simulation.check altered wire (fun _ => .inr 0) = false := by decide
+
+example : (altered.block (0 : Fin 1)).body.evalJump model.val (upd (fun _ => 0) false 2) =
+    Part.some (.inr 0, 6) := by
+  simp [altered, model, Body.evalJump, Body.exec, Term.exec, Op.eval, Val.eval, upd,
+    Nat.pair, Part.pure_eq_some]
+
+private def ordered : Body Nat Unit Empty :=
+  .let1 1 (.val (.var 0)) (.let1 2 (.val (.var 1)) (.term (.br () (.var 2))))
+
+private def reordered : Body Nat Unit Empty :=
+  .let1 2 (.val (.var 1)) (.let1 1 (.val (.var 0)) (.term (.br () (.var 2))))
+
+example : PacketCopy.target? {0} ordered = some () := by decide
+example : PacketCopy.target? {0} reordered = none := by decide
 
 private theorem spin_none (m : Model Empty Part Nat) (packet : Nat) :
     spin.denote m (0, packet) = Part.none := by
@@ -82,16 +111,15 @@ private theorem move_denote (m : Model Empty Part Nat) (input : Fin 1 × Nat) :
   rw [congrFun (LawfulElgotMonad.fixpoint _) _]
   simp [Graph.step, Subsingleton.elim (0 : Fin 1) input.1]
 
-theorem one_block_incomplete : Refines moveClass wireClass ∧ ¬ Nonempty (Simulation move wire) := by
-  constructor
-  · intro m input
-    have same : move.denote m.val input = wire.denote m.val input := by
-      rw [move_denote, wire, Graph.denote_wiring]
-      rfl
-    exact same.le
-  · rintro ⟨sim⟩
-    cases sim.block (0 : Fin 1) with
-    | copy target => exact Fin.elim0 target
-    | forward _ shape => cases shape
+theorem one_copy_refines : Refines moveClass wireClass := moveToWire.refines
+
+example : Simulation move wire :=
+  directCopies_complete model move (fun _ => 0)
+    (fun _ => PacketCopy.target?_eq_some_iff.mp (by simp [move, PacketCopy.target?])) id (by
+      intro m input
+      have same : move.denote m.val input = wire.denote m.val input := by
+        rw [move_denote, wire, Graph.denote_wiring]
+        rfl
+      exact same.le)
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link

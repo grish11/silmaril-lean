@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Defs
+import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.PacketCopy
 
 @[expose] public section
 
@@ -43,6 +44,10 @@ private theorem liftMatch {n a b N A B : Nat} {right : Graph V F a b} {linked : 
   | forward target body address =>
     refine .forward (sourceLabel target) ?_ ((congrArg targetLabel address).trans (commute target).symm)
     simp [Block.relabel, body, Body.relabel, Term.relabel]
+  | forwardCopies target copies address =>
+    exact .forwardCopies (sourceLabel target)
+      (Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.PacketCopy.relabel copies sourceLabel)
+      ((congrArg targetLabel address).trans (commute target).symm)
 
 variable {a b c : Nat}
   {left left' : Graph V F a b} {right right' : Graph V F b c}

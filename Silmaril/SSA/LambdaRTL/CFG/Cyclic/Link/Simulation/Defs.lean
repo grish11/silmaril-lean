@@ -5,7 +5,8 @@ public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Institution.Thms
 /-! A syntactic forward simulation of named packet CFGs. A private address
 may be mapped to a private address or a public port. Copying matches the
 whole labelled body after renaming. Skipping is allowed for a jump that
-forwards its parameter unchanged and stays at the same mapped address. -/
+forwards its parameter unchanged and stays at the same mapped address,
+including after a sequence of typed register copies. -/
 
 @[expose] public section
 
@@ -20,13 +21,39 @@ def Graph.wiring (wire : Fin a → Fin b) : Graph V F a b where
   block := Fin.elim0
   closed i := Fin.elim0 i
 
-/-- The two local syntactic simulation rules. -/
+namespace PacketCopy
+
+variable {K : Type}
+
+/-- The read context contains the registers typed as holding the incoming
+packet. A copy types its destination only after its source has been read. -/
+inductive Forwards : Finset V → Body V K F → K → Prop
+  | jump {available : Finset V} {src : V} {target : K} (read : src ∈ available) :
+      Forwards available (.term (.br target (.var src))) target
+  | copy {available : Finset V} {src dst : V} {rest : Body V K F} {target : K}
+      (read : src ∈ available) (next : Forwards (insert dst available) rest target) :
+      Forwards available (.let1 dst (.val (.var src)) rest) target
+
+/-- Check reads in program order and return the only possible jump target. -/
+def target? (available : Finset V) : Body V K F → Option K
+  | .let1 dst (.val (.var src)) rest =>
+      if src ∈ available then target? (insert dst available) rest else none
+  | .term (.br target (.var src)) =>
+      if src ∈ available then some target else none
+  | _ => none
+
+end PacketCopy
+
+/-- The local syntactic simulation rules. -/
 inductive BlockMatch (right : Graph V F a b) (route : Label n b → Label right.locals b)
     (source : Block V (Label n b) F) (image : Label right.locals b) : Prop
   | copy (target : Fin right.locals) (address : image = .inl target)
       (body : source.relabel route = right.block target) : BlockMatch right route source image
   | forward (target : Label n b)
       (body : source.body = .term (.br target (.var source.param)))
+      (address : image = route target) : BlockMatch right route source image
+  | forwardCopies (target : Label n b)
+      (copies : PacketCopy.Forwards {source.param} source.body target)
       (address : image = route target) : BlockMatch right route source image
 
 /-- The certificate maps private labels and leaves public exits unchanged. -/
@@ -58,8 +85,9 @@ def checkBlock [DecidableEq F] (right : Graph V F a b) (route : Label n b → La
   let copy := match image with
     | .inl target => decide (source.relabel route = right.block target)
     | .inr _ => false
-  copy || source.body.targets.any fun target =>
-    decide (source.body = .term (.br target (.var source.param)) ∧ image = route target)
+  copy || match PacketCopy.target? {source.param} source.body with
+    | some target => decide (image = route target)
+    | none => false
 
 /-- Check a finite certificate over all input ports and private blocks. -/
 def check [DecidableEq F] (left right : Graph V F a b)

@@ -188,13 +188,21 @@ so the resulting syntax can have a wider entry interface than a single wire.
 [Syntactic packet CFG simulation](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Link/Simulation/Thms.lean)
 checks a finite map on private labels and preserves public exits. A source
 block either matches a target block after relabelling or forwards its packet
-unchanged to the same mapped address. These rules preserve every terminating
-result, and the executable linker combines the certificates, including at
-handoff blocks. Direct wiring is complete when a common model exists.
-A [one-block register copy](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/Link/Simulation/Regression.lean)
-has the same observation as a wire but falls outside the certificate rules.
-The same regression checks strict refinement from a cyclic forwarding loop
-to a returning wire.
+unchanged to the same mapped address. The forwarding check tracks which
+registers hold the packet, starting with the block parameter. A copy reads
+from that context before adding its destination. A final variable jump must
+read from the resulting context. The typed body returns exactly the checked
+jump target and incoming packet in every lawful monad. The simulation preserves
+every terminating `Part` result, and the executable linker combines the
+certificates, including at handoff blocks.
+
+Against direct wiring, refinement gives a certificate if a common pair-lawful
+`Part` model exists and every source private block is a typed forwarding body
+that jumps directly to a public port. The
+[regressions](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/Link/Simulation/Regression.lean)
+certify a one-block register copy before and after linking, reject a read
+before its defining copy and an altered payload, and check strict refinement
+from a cyclic forwarding loop to a returning wire.
 
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
