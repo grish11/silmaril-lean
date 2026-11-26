@@ -892,6 +892,14 @@ which gives the category laws and joint monotonicity. The quotient is
 semantic in the chosen model.
 [Typed handled-trace category](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Category/Thms.lean)
 
+Native sums give ordered binary coproducts in this category. The written
+injections are pure returns. The written case evaluates only the arm
+selected by the typed tag. Restricting a sum arrow along its two
+injections is an order isomorphism to the pair of arm homs, with native
+copairing as its inverse. The native empty type is initial, with the
+written abort on its input slot as the chosen arrow.
+[Ordered native coproducts](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Category/Coproduct/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment

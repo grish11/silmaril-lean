@@ -22,6 +22,12 @@ namespace Program
 
 variable {A B C : τ}
 
+/-- Inserting an older input slot below the body's input preserves its native run. -/
+theorem run_underBinder (q : Program Φ B C) (a : D A) (b : D B) :
+    q.2.underBinder.denote D M (fun x => Empty.elim x)
+      ((BoundEnv.snoc (β := .nil) (fun i => i.elim0) a).snoc b) = q.run M b :=
+  Proofs.run_underBinder q a b
+
 /-- Native sequencing implements ITree bind on the complete intermediate value. -/
 theorem run_seq (p : Program Φ A B) (q : Program Φ B C) (a : D A) :
     (p.seq q).run M a = (p.run M a >>= q.run M) :=

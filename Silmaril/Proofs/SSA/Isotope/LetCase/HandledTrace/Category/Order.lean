@@ -67,16 +67,19 @@ private theorem denote_rename {n m : Nat} {β : BoundCtx τ n} {δ : BoundCtx τ
 
 variable {A B C F : τ}
 
+/-- The selected body sees its native single input even under an older slot. -/
+theorem run_underBinder (q : Program Φ B C) (a : D A) (b : D B) :
+    q.2.underBinder.denote D M (fun x => Empty.elim x)
+      ((BoundEnv.snoc (β := .nil) (fun i => i.elim0) a).snoc b) = q.run M b :=
+  denote_rename q.2 (BoundCtx.Renaming.underBinder .nil A B) _ _
+    (Fin.cases HEq.rfl (fun i => i.elim0))
+
 set_option backward.isDefEq.respectTransparency false in
 theorem run_seq (p : Program Φ A B) (q : Program Φ B C) (a : D A) :
     (p.seq q).run M a = (p.run M a >>= q.run M) := by
-  let env {A : τ} (a : D A) := BoundEnv.snoc (β := .nil) (fun i => i.elim0) a
-  let ren := BoundCtx.Renaming.underBinder .nil A B
-  change (p.run M a >>= fun b =>
-    (q.2.rename ren).denote D M (fun x => Empty.elim x) ((env a).snoc b)) = (p.run M a >>= q.run M)
-  apply bind_congr
-  intro b
-  exact denote_rename q.2 ren (env b) ((env a).snoc b) (Fin.cases HEq.rfl (fun i => i.elim0))
+  change (p.run M a >>= fun b => q.2.underBinder.denote D M (fun x => Empty.elim x)
+    ((BoundEnv.snoc (β := .nil) (fun i => i.elim0) a).snoc b)) = (p.run M a >>= q.run M)
+  exact bind_congr (run_underBinder q a)
 
 theorem seq_mono {p p' : Program Φ A B} {q q' : Program Φ B C}
     (hp : Program.Refines M policy p p') (hq : Program.Refines M policy q q') :
