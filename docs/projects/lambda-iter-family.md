@@ -21,6 +21,7 @@ comparisons.
 | Flat typed SSA | [`FiniteCFG.HasType` and `erase_hasType_iff`](../../Silmaril/Raw/SSA/Isotope/LambdaSSA/Flat.lean) relate heterogeneous block arguments and typed exits to ordinary λSSA CFG typing. [`encodeCFG_hasType`](../../Silmaril/Raw/SSA/Isotope/Morphism/SSAIter/Encode.lean) checks the finite-sum LetIter encoding. | [`encodeCFG_eval`](../../Silmaril/Raw/SSA/Isotope/Morphism/SSAIter/Correctness.lean) preserves finite evaluation under matching captured environments and the same primitive relation. [`encodeCFG_diverges`](../../Silmaril/Raw/SSA/Isotope/Morphism/SSAIter/Divergence.lean) is the forward divergence comparison. A translation between this representation and the named forward graph is absent from the cited modules. A separate flat institution and an ITree-specific adequacy result were not audited. |
 | Forward flat SSA / mutable RTL | [`CFG`, `flatten`, `toRegion`, `run`](../../Silmaril/SSA/LambdaRTL/CFG/Defs.lean) operate on explicit block arguments. [`run_flatten` and `run_eq_toRegion`](../../Silmaril/SSA/LambdaRTL/CFG/Thms.lean) preserve the full mutable result in a lawful monad. | [`validate_obs_eq_evalSSA`](../../Silmaril/SSA/LambdaRTL/CFG/Version/Thms.lean) requires validator acceptance and a dominance-scoped source region. `validate_versionTop_obs` replaces source SSA with the pair law and version-zero input. Both compare to the existing **region** semantics. At the audited baseline, a direct lexical runner for forward blocks was absent. Classical φ syntax, global name uniqueness and a flat CFG institution are outside this bridge. |
 | Cyclic named flat RTL and SSA | [`Cyclic.step` and `Cyclic.run`](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Defs.lean) search the full table for each jump and iterate on the incoming label, payload and store. [`Versioning.compile`](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Version/Defs.lean) generates a flat table with block-local SSA and packed edge arguments. | [`Cyclic.run_eq_forward`](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Thms.lean) compares the full outcome when table and suffix lookup agree on every named block's syntactic targets. [`Versioning.run_commutes`](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Version/Thms.lean) compares exit and payload for the compiled graph, with version-zero inputs, a lawful Elgot monad and the pair law. |
+| Named compiler to typed Isotope | [`NamedFlat.compileTyped`](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Thms.lean) elaborates the generated named table and checks exact capture, packet and exit types for the product and primitive fragment, including case on primitive sums. | [`entry_iff` and `step_iff`](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Thms.lean) compare finite entry and internal-step outcomes with numbered Isotope labels. The comparison uses shared stateless partial primitives and tagged values. |
 
 The public thesis formalization provides a separate reference point. Its
 [`TypedDominanceWellFormedFlat`](https://github.com/imbrem/thesis/blob/69a8126f2d3eb6d32050e0bd9511251b33dbcea7/formalization/thesis/Isotope/TAC/Bridge/DomFlatSemantics.lean)
@@ -128,5 +129,46 @@ has a separate syntax and interface.
 
 ```sh
 lake build --wfail Silmaril.SSA.LambdaRTL.CFG.Cyclic.Version.Thms \
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Examples.Thms
+```
+
+### Named compiler to typed Isotope
+
+`NamedFlat.compileTyped` runs the named cyclic compiler before scoping and
+checking its output. Callers supply the version-zero capture names and their
+types, the ordered external labels, the heterogeneous packet and exit
+profiles, and each primitive's exact source and result types. First-match
+lookup numbers the named blocks before the external labels. Blocks can
+access their packet parameter and the locals they bind. Their shared
+Isotope capture slots remain inaccessible to source block code. A packet
+type uses products for the original payload and the destination's slots.
+The fragment accepts variables, unit, products, primitive applications,
+single and pair bindings, and cases on sum-valued operands. Explicit
+injections and abort are rejected by this adapter, and callers supply the
+profile for the checker.
+[Scoped elaboration and type checking](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Thms.lean)
+
+The finite semantic comparison uses tagged Isotope values for the named
+model, with ordinary partial pair and sum destructors. The primitive
+relation is membership in the shared `Part` implementation, with
+`Unit` state. Entry environments agree at the named captures. An internal
+step runs the selected block with the same incoming packet in both
+presentations. These are comparisons with erased `Region.Eval`; a typed
+model also needs primitives that respect the supplied type profile.
+The countdown's original implicit numeric split has a checked obstruction
+for every common finite countdown type in its packet profiles. The
+discriminant type would have to be its own right summand. Exposing
+classification as a `num → num + num` primitive on the same source loop
+allows the generated table to check. Its entry and the `20 → 10`
+transfer agree at the numbered label and updated packet.
+[Countdown interface regression](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Examples/Thms.lean)
+
+The adapted countdown has two entry captures. Applying a capture-free
+guarded dispatcher requires a separate input-closing step. Isotope
+divergence and the comparison with typed monadic denotations are outside
+the finite, operational interface here.
+
+```sh
+lake build --wfail Silmaril.SSA.Isotope.Bridge.NamedFlat.Thms \
   Silmaril.SSA.LambdaRTL.CFG.Cyclic.Examples.Thms
 ```
