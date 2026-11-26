@@ -50,6 +50,19 @@ def writerInput (schema : Scan.Schema String Unit) (rows : Csv.Typed.Table (csvS
     FlatInt32Writer.Input :=
   ⟨rows.length, List.ofFn fun i => ⟨(schema.kind i).1, .optional (rows.map (· i))⟩⟩
 
+/-- Write already checked typed rows and return the named update only after
+the Parquet writer succeeds. -/
+def convertRows {Name : Type*} [DecidableEq Name] (db : Packed Name Csv.Field Cell) (name : Name)
+    (schema : Scan.Schema String Unit) (limits : FlatInt32Writer.Limits)
+    (rows : Csv.Typed.Table (csvSchema schema) Cell) : Except Error (Result Name) :=
+  match importCollected (Error := Csv.Typed.Error) db name (csvSchema schema)
+      (.ok ⟨⟨csvSchema schema, rows⟩, .eos⟩) with
+  | .error reason => .error (.destination reason)
+  | .ok inserted =>
+    match FlatInt32Writer.emit limits (writerInput schema rows) with
+    | .error reason => .error (.parquet reason)
+    | .ok encoded => .ok ⟨inserted, encoded.bytes⟩
+
 /-- Return the exact named insertion and complete Parquet bytes together.
 An occupied name takes precedence; other failures return only their error. -/
 def convert {Name : Type*} [DecidableEq Name] (db : Packed Name Csv.Field Cell) (name : Name)
@@ -59,13 +72,6 @@ def convert {Name : Type*} [DecidableEq Name] (db : Packed Name Csv.Field Cell) 
   else
     match readCsv csvLimits schema wire with
     | .error reason => .error reason
-    | .ok rows =>
-      match importCollected (Error := Csv.Typed.Error) db name (csvSchema schema)
-          (.ok ⟨⟨csvSchema schema, rows⟩, .eos⟩) with
-      | .error reason => .error (.destination reason)
-      | .ok inserted =>
-        match FlatInt32Writer.emit parquetLimits (writerInput schema rows) with
-        | .error reason => .error (.parquet reason)
-        | .ok encoded => .ok ⟨inserted, encoded.bytes⟩
+    | .ok rows => convertRows db name schema parquetLimits rows
 
 end Silmaril.Formats.Parquet.FlatInt32Writer.FromCsv

@@ -70,34 +70,6 @@ private theorem decode_ipc_rows (schema : Scan.Schema String Unit) (wire : Csv.B
   rw [ipcSchema_eq]
   rfl
 
-/-- The Parquet writer's slot fold accumulates each original row in reverse
-column order before its final reversal. -/
-private theorem fold_slots {n : Nat} (indices : List (Fin n))
-    (rows : List (Fin n → Option Int32)) (initial : (Fin n → Option Int32) → List (Option Int32)) :
-    (indices.map fun i => rows.map (· i)).foldl (List.zipWith fun row cell => cell :: row)
-        (rows.map initial) =
-      rows.map fun row => (indices.reverse.map row) ++ initial row := by
-  induction indices generalizing initial with
-  | nil => simp
-  | cons i indices ih =>
-    simp only [List.map_cons, List.foldl_cons, List.zipWith_map, List.zipWith_self]
-    rw [ih]
-    simp [List.reverse_cons, List.map_append]
-
-private theorem writer_rows {schema : Scan.Schema String Unit}
-    (rows : Csv.Typed.Table (csvSchema schema) Cell) :
-    (FlatInt32Writer.FromCsv.writerInput schema rows).rows = rows.map List.ofFn := by
-  change List (Fin schema.width → Option Int32) at rows
-  unfold FlatInt32Writer.Input.rows FlatInt32Writer.FromCsv.writerInput FlatInt32Writer.rowsFromSlots
-  simp only [List.map_ofFn, Function.comp_def, Parquet.PlainV1Writer.Input.slots]
-  change ((List.ofFn (fun i : Fin schema.width => rows.map (· i))).foldl
-      (List.zipWith fun row cell => cell :: row) (List.replicate rows.length [])).map List.reverse =
-    rows.map (fun row => List.ofFn row)
-  rw [show List.ofFn (fun i : Fin schema.width => rows.map (· i)) =
-    (List.ofFn id).map (fun i => rows.map (· i)) by rw [List.map_ofFn]; rfl]
-  rw [← List.map_const', fold_slots]
-  simp [List.map_map, Function.comp_def, List.map_ofFn]
-
 private theorem writer_schema {schema : Scan.Schema String Unit}
     (rows : Csv.Typed.Table (csvSchema schema) Cell) :
     (FlatInt32Writer.FromCsv.writerInput schema rows).arrowSchema = schema := by
@@ -128,7 +100,7 @@ private theorem writer_collect {schema : Scan.Schema String Unit} {limits : Flat
   dsimp only
   let snapshot := limits.snapshotLimits (FlatInt32Writer.FromCsv.writerInput schema rows)
   obtain ⟨openedRows, observed, _, opened⟩ := FlatInt32Writer.emit_snapshot_readAll written
-  rw [writer_rows] at observed
+  rw [FlatInt32Writer.FromCsv.writerInput_rows] at observed
   have normalized (readSchema : Scan.Schema String Unit)
       (readRows : List (Fin readSchema.width → Option Int32))
       (sameSchema : readSchema = schema)

@@ -17,6 +17,19 @@ variable {Name : Type*} [DecidableEq Name]
 variable {db : Packed Name Csv.Field Cell} {name : Name} {schema : Scan.Schema String Unit}
 variable {csvLimits : CsvLimits} {parquetLimits : FlatInt32Writer.Limits} {wire : Csv.Bytes}
 
+/-- Row reconstruction of the writer input preserves the checked table. -/
+theorem writerInput_rows (rows : Csv.Typed.Table (csvSchema schema) Cell) :
+    (writerInput schema rows).rows = rows.map List.ofFn :=
+  Proofs.Formats.Parquet.FlatInt32Writer.FromCsv.writerInput_rows rows
+
+/-- A successful typed write fixes the emitted file and the named update. -/
+theorem convertRows_written {rows : Csv.Typed.Table (csvSchema schema) Cell} {result : Result Name}
+    (converted : convertRows db name schema parquetLimits rows = .ok result) :
+    db name = none ∧ ∃ output : FlatInt32Writer.Encoded,
+      FlatInt32Writer.emit parquetLimits (writerInput schema rows) = .ok output ∧
+      result = ⟨Function.update db name (some ⟨csvSchema schema, rows⟩), output.bytes⟩ :=
+  Proofs.Formats.Parquet.FlatInt32Writer.FromCsv.convertRows_written converted
+
 /-- Recover the checked CSV rows and writer result for downstream adapters. -/
 theorem convert_written {result : Result Name}
     (converted : convert db name schema csvLimits parquetLimits wire = .ok result) :

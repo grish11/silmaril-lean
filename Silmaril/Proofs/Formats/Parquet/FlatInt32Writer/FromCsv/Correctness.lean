@@ -53,9 +53,53 @@ theorem convert_parquet_error (vacant : db name = none)
     (read : readCsv csvLimits schema wire = .ok rows)
     (written : FlatInt32Writer.emit parquetLimits (writerInput schema rows) = .error reason) :
     convert db name schema csvLimits parquetLimits wire = .error (.parquet reason) := by
-  simp only [convert, vacant, Option.isSome_none, Bool.false_eq_true, ite_false, read]
+  simp only [convert, vacant, Option.isSome_none, Bool.false_eq_true, ite_false, read, convertRows]
   rw [show _ from install_ok vacant rows]
   rw [written]
+
+/-- The Parquet writer's slot fold accumulates each original row in reverse
+column order before its final reversal. -/
+private theorem fold_slots {n : Nat} (indices : List (Fin n))
+    (rows : List (Fin n → Option Int32)) (initial : (Fin n → Option Int32) → List (Option Int32)) :
+    (indices.map fun i => rows.map (· i)).foldl (List.zipWith fun row cell => cell :: row)
+        (rows.map initial) =
+      rows.map fun row => (indices.reverse.map row) ++ initial row := by
+  induction indices generalizing initial with
+  | nil => simp
+  | cons i indices ih =>
+    simp only [List.map_cons, List.foldl_cons, List.zipWith_map, List.zipWith_self]
+    rw [ih]
+    simp [List.reverse_cons, List.map_append]
+
+theorem writerInput_rows {schema : Scan.Schema String Unit}
+    (rows : Csv.Typed.Table (csvSchema schema) Cell) :
+    (FlatInt32Writer.FromCsv.writerInput schema rows).rows = rows.map List.ofFn := by
+  change List (Fin schema.width → Option Int32) at rows
+  unfold FlatInt32Writer.Input.rows FlatInt32Writer.FromCsv.writerInput FlatInt32Writer.rowsFromSlots
+  simp only [List.map_ofFn, Function.comp_def, Parquet.PlainV1Writer.Input.slots]
+  change ((List.ofFn (fun i : Fin schema.width => rows.map (· i))).foldl
+      (List.zipWith fun row cell => cell :: row) (List.replicate rows.length [])).map List.reverse =
+    rows.map (fun row => List.ofFn row)
+  rw [show List.ofFn (fun i : Fin schema.width => rows.map (· i)) =
+    (List.ofFn id).map (fun i => rows.map (· i)) by rw [List.map_ofFn]; rfl]
+  rw [← List.map_const', fold_slots]
+  simp [List.map_map, Function.comp_def, List.map_ofFn]
+
+theorem convertRows_written {rows : Csv.Typed.Table (csvSchema schema) Cell} {result : Result Name}
+    (converted : convertRows db name schema parquetLimits rows = .ok result) :
+    db name = none ∧ ∃ output : FlatInt32Writer.Encoded,
+      FlatInt32Writer.emit parquetLimits (writerInput schema rows) = .ok output ∧
+      result = ⟨Function.update db name (some ⟨csvSchema schema, rows⟩), output.bytes⟩ := by
+  cases existing : db name with
+  | some table =>
+    simp [convertRows, importCollected, existing] at converted
+  | none =>
+    simp only [convertRows, install_ok existing rows] at converted
+    cases written : FlatInt32Writer.emit parquetLimits (writerInput schema rows) with
+    | error reason => simp [written] at converted
+    | ok encoded =>
+      rw [written] at converted
+      exact ⟨rfl, encoded, rfl, (Except.ok.inj converted).symm⟩
 
 private theorem convert_stages {result : Result Name}
     (converted : convert db name schema csvLimits parquetLimits wire = .ok result) :
@@ -71,16 +115,9 @@ private theorem convert_stages {result : Result Name}
     cases read : readCsv csvLimits schema wire with
     | error reason => simp [read] at converted
     | ok rows =>
-      simp only [read, install_ok existing rows] at converted
-      cases written : FlatInt32Writer.emit parquetLimits (writerInput schema rows) with
-      | error reason => simp [written] at converted
-      | ok encoded =>
-        rw [written] at converted
-        change Except.ok
-          { db := Function.update db name (some ⟨csvSchema schema, rows⟩), bytes := encoded.bytes } =
-          .ok result at converted
-        cases converted
-        exact ⟨rfl, rows, encoded, rfl, written, rfl⟩
+      simp only [read] at converted
+      obtain ⟨_, encoded, written, resultEq⟩ := convertRows_written converted
+      exact ⟨rfl, rows, encoded, rfl, written, resultEq⟩
 
 theorem convert_written {result : Result Name}
     (converted : convert db name schema csvLimits parquetLimits wire = .ok result) :
