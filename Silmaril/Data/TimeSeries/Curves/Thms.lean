@@ -10,8 +10,11 @@ Use Mathlib's `ContinuousMap.comp` and `ContMDiffMap.comp` to precompose
 parametrized curves in time or postcompose them in values. Precomposition by a
 permitted bijection leaves the class unchanged. A general time map, such as a
 restriction to a finite window, acts on the parametrized representative.
-Postcomposition descends using the regularity of the representatives, or using
-any value function after forgetting into plain point sets.
+Smooth and continuous value maps induce postcomposition on their respective
+curve classes. Any value function induces postcomposition after passing to
+the quotient of plain time-to-value maps by time bijections. The trace is the
+point set of attained values. Distinct unparametrized classes may have the same
+trace.
 -/
 
 @[expose] public section
@@ -102,8 +105,9 @@ theorem trace_map (hG : G ≤ G') (F : A → B) (k : X → Y)
     change Set.range (view' (F f)) = k '' Set.range (view f)
     rw [show view' (F f) = k ∘ view f from funext (hF f), Set.range_comp]
 
-/-- Postcomposing values and forgetting into plain point sets commute. Taking
-`k = id` gives the corresponding law for forgetful maps. -/
+/-- Value postcomposition commutes with passing to the quotient of plain
+time-to-value maps by time bijections. Taking `k = id` gives the corresponding
+law for forgetful maps. -/
 theorem toUnparametrized_map (hG : G ≤ G') (F : A → B) (k : X → Y)
     (hF : ∀ f t, view' (F f) t = k (view f t)) (q : CurveClass G view) :
     (map hG F k hF q).toUnparametrized = Unparametrized.postcomp k q.toUnparametrized := by
@@ -122,7 +126,7 @@ end CurveClass
 
 namespace Unparametrized
 
-/-- In the plain quotient any time bijection may witness equality. -/
+/-- Any time bijection may witness equality of unparametrized classes. -/
 theorem mk_eq_mk_iff {f g : T → X} :
     mk f = mk g ↔
       ∃ e : Equiv.Perm T, ∀ t, g t = f (e t) := by

@@ -17,8 +17,8 @@ The value space can have any real model with corners.
 
 A reparametrization class retains a curve up to the chosen time bijections.
 The endpoints descend for oriented windows. More generally, `CurveClass.eval`
-takes a time fixed by every allowed bijection. The trace is the set of values
-attained and discards the order and fibers of the parametrization.
+takes a time fixed by every allowed bijection. The trace is the point set of
+attained values and discards the order and fibers of the parametrization.
 -/
 
 @[expose] public section
@@ -174,9 +174,9 @@ def reparamSetoid (G : Subgroup (Equiv.Perm T)) (view : A → T → X) : Setoid 
 abbrev CurveClass (G : Subgroup (Equiv.Perm T)) (view : A → T → X) :=
   Quotient (reparamSetoid G view)
 
-/-- Maps into a plain type modulo *arbitrary* bijections of time. No topology is required.
-The class can distinguish functions with the same range, for example an injective
-function and a noninjective function. -/
+/-- The quotient of plain time-to-value maps `T → X` by arbitrary time bijections.
+Distinct classes can share a trace, as with an injective function and a
+noninjective function with the same range. -/
 abbrev Unparametrized (T X : Type*) :=
   CurveClass (⊤ : Subgroup (Equiv.Perm T)) (fun f : T → X => f)
 
@@ -200,11 +200,12 @@ def map {B Y : Type*} {view' : B → T → Y} (hG : G ≤ G') (F : A → B) (k :
 def weaken (hG : G ≤ G') : CurveClass G view → CurveClass G' view :=
   map hG id id fun _ _ => rfl
 
-/-- Forget regularity and allow all time bijections. -/
+/-- Forget regularity and pass to the quotient of plain time-to-value maps by
+arbitrary time bijections. -/
 def toUnparametrized : CurveClass G view → Unparametrized T X :=
   map le_top view id fun _ _ => rfl
 
-/-- Set of values attained by a representative. Every permitted clock is surjective. -/
+/-- Point set of values attained by a representative. Every permitted clock is surjective. -/
 def trace : CurveClass G view → Set X :=
   Quotient.lift (fun f => Set.range (view f)) fun f g h => by
     obtain ⟨e, _, h⟩ := h
