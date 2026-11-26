@@ -174,3 +174,62 @@ python3 -I scripts/arrow-binary-view/batch_fixtures.py
 python3 -I scripts/arrow-binary-view/schema_fixtures.py
 python3 -I scripts/arrow-binary-view/stream_fixtures.py
 ```
+
+## Checked physical column writer
+
+`BinaryView.Column.Writer.emitBinary` takes ordered optional `KBytes`.
+`emitUtf8` takes ordered optional Lean strings. Both take the field
+nullability and the existing column limits. They return a `FieldNode`
+and the physical validity, views, and variadic data buffers. This is the
+body-buffer layer for one column.
+[Writer definitions](../../Silmaril/Formats/Arrow/BinaryView/Column/Writer/Defs.lean)
+
+The bitmap has `ceil(rows / 8)` bytes and the views buffer has exactly
+`16 * rows` bytes. A null has a cleared validity bit and a zero slot.
+A valid value of at most 12 bytes is inline and zero-padded. A valid
+value of 13 bytes or more stores the first four payload octets, buffer
+index zero, and its offset in one ordered, packed data buffer. The
+writer emits that buffer only when at least one value needs it. An
+empty column has zero-length validity and views and zero data buffers.
+[Pinned Binary View layout](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/docs/source/format/Columnar.rst#variable-size-binary-view-layout)
+
+Checks precede emission. A required field rejects a null and the binary
+entry point checks input byte-tree extents. The default row cap is
+65,536, the per-value cap is 1 MiB, and the physical and observed-byte
+caps are 64 MiB each. The physical cap includes the bitmap, views, and
+packed long data. The observed-byte cap counts every present value
+once. The packed long-data extent must also be strictly below `2^31`,
+which bounds every stored length and offset. A configured zero data
+buffer cap accepts only columns whose present values fit inline.
+
+`emitBinary_layout` and `emitUtf8_layout` give the exact node counts,
+bitmap, buffer extents, size and location of every slot, and both layouts'
+byte windows. The external case includes the signed offset, the zero
+buffer index, and the exact prefix read at that offset.
+`emitBinary_roundtrip` recovers the same ordered nullable octets even
+when the input and returned byte trees have different shapes.
+`utf8Bytes_valid` and `emitUtf8_roundtrip` give valid UTF-8 and exact
+string readback. The column contract can feed a later RecordBatch
+metadata and stream emitter.
+[Writer theorems](../../Silmaril/Formats/Arrow/BinaryView/Column/Writer/Thms.lean) ·
+[Axiom audit](../../Silmaril/Formats/Arrow/BinaryView/Column/Writer/Axioms.lean)
+
+The pinned PyArrow 26.0.1 oracle independently produces and validates
+eight physical column fixtures. The mixed columns are PyArrow slices
+with a nonzero row offset, and their long values refer to an existing
+data buffer. The oracle shifts the bitmap and selects the views for the
+logical rows while preserving the data offsets. Lean reads the original
+values. In the other direction PyArrow reads the Lean-written physical
+buffers with `Array.from_buffers` and full array validation. The cases
+exercise null versus empty, exactly 12 and 13 bytes, multibyte UTF-8,
+arbitrary binary octets, multiple long values, and empty and all-null
+columns. The Lean writer emits zero data buffers for inline-only
+columns, while the pinned PyArrow builder can supply an empty buffer.
+[Oracle and fixture generator](../../scripts/arrow-binary-view/writer_fixtures.py) ·
+[Lean guards](../../Silmaril/Formats/Arrow/BinaryView/Column/Writer/Examples.lean) ·
+[Pinned wheel hashes](../../tests/formats/arrow-ipc/requirements.txt)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.BinaryView.Column.Writer.Examples +Silmaril.Formats.Arrow.BinaryView.Column.Writer.Axioms'
+python3 -I scripts/arrow-binary-view/writer_fixtures.py --out /tmp/arrow-view-column-writer
+```

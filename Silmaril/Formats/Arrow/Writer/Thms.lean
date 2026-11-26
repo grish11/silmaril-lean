@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Arrow.Writer.Defs
+import Silmaril.Proofs.Formats.Arrow.Writer.Bitmap
 import Silmaril.Proofs.Formats.Arrow.Writer.Buffers
 import Silmaril.Proofs.Formats.Arrow.Writer.RoundTrip
 
@@ -14,6 +15,19 @@ theorem emitWords_wf (width : Nat) (words : List Nat) : (emitWords width words).
 theorem emitWords_length (width : Nat) (words : List Nat) :
     (emitWords width words).len = width * words.length :=
   Proofs.Formats.Arrow.Writer.emitWords_length width words
+
+theorem emitBytes_bytes (bytes : List UInt8) :
+    (emitWords 1 (bytes.map UInt8.toNat)).toList = bytes :=
+  Proofs.Formats.Arrow.Writer.emitBytes_bytes bytes
+
+theorem emitBitmap_length {α : Type} (slots : List (Option α)) :
+    (emitBitmap slots).len = (slots.length + 7) / 8 :=
+  Proofs.Formats.Arrow.Writer.emitBitmap_length slots
+
+theorem emitBitmap_valid {α : Type} (slots : List (Option α)) (index : Nat)
+    (bound : index < slots.length) :
+    Body.validAt (emitBitmap slots) index = some slots[index].isSome :=
+  Proofs.Formats.Arrow.Writer.emitBitmap_valid slots index bound
 
 theorem padding_aligned (size : Nat) : (size + padding size) % 8 = 0 :=
   Proofs.Formats.Arrow.Writer.padding_aligned size
