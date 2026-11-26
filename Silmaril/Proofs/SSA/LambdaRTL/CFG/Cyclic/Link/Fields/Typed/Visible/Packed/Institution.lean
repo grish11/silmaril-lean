@@ -22,9 +22,14 @@ private theorem replay_all {R : Type 1} (trace : Trace (Event signature.Request 
   | «prefix» | request _ | result _ => trivial
   | exchange _ _ _ ih => exact ⟨(), trivial, ih⟩
 
+theorem handledTrace_iff {R : Type 1} (tree : Tree (Event signature.Request signature.Reply) R)
+    (trace : Trace (Event signature.Request signature.Reply) R) :
+    HandledTrace signature.traceModel.step () tree trace ↔ HasTrace tree trace :=
+  ⟨And.left, fun seen => ⟨seen, replay_all trace⟩⟩
+
 private theorem sat_iff {R : Type 1} (source target : Tree (Event signature.Request signature.Reply) R) :
     TraceInstitution.Sat signature.traceModel ⟨R, source, HasTrace target⟩ ↔ TraceLE source target :=
-  ⟨fun sat trace seen => sat () trivial trace ⟨seen, replay_all trace⟩,
+  ⟨fun sat trace seen => sat () trivial trace ((handledTrace_iff source trace).mpr seen),
     fun included _ _ trace seen => included trace seen.1⟩
 
 variable {a b : Nat} {inputs : Fin a → PacketType} {outputs : Fin b → PacketType}
