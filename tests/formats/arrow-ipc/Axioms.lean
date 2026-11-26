@@ -44,3 +44,5 @@ example : Body.validAt (.leaf 2 0x0100) 8 = some true := by rfl
 #print axioms MetadataWriter.emit_exact
 #print axioms StreamWriter.read_eos
 #print axioms StreamWriter.emitFrame_exact
+#print axioms StreamWriter.emit_roundtrip
+#print axioms StreamWriter.emit_readRows

@@ -179,10 +179,31 @@ python3 -I tests/formats/arrow-ipc/read_writer_fixtures.py --streams /tmp/arrow-
 
 [Independent IPC checks](../../tests/formats/arrow-ipc/read_writer_fixtures.py)
 
+## Whole-stream round trip
+
+`StreamWriter.emit_roundtrip` proves that a successful `emit` can be read
+by `readStream` and `readRows` under the same `ObservationLimits`.
+It preserves the declared schema, including nullability, the order and
+boundaries of batches, and all ordered nullable rows. The count in each
+record's metadata and the length of its observed row list both equal the
+declared input count. Thus an empty batch remains in the list, and three
+rows at zero columns read as three empty rows.
+`StreamWriter.emit_readRows` is the direct ordered observation law.
+[Whole-stream theorem](../../Silmaril/Formats/Arrow/StreamWriter/Thms.lean)
+
+The writer checks schema equality, message representability, the per-message
+and batch limits, and aggregate row and cell limits. The proof derives the
+reader's allocation checks from these executable guards and the exact
+recovered metadata. It uses the physical batch round trip after transporting
+buffer reads through the containing stream.
+The law applies to the emitted byte carrier and a successful write at the
+same limits. The native suite also rereads the emitted octets at the exact
+field, row, batch and aggregate limits.
+
 ## Remaining scope
 
 The profile covers flat nullable and required Int32 and UTF-8. Nested fields,
-dictionaries, and compression are outside it. The general ordered row proof
-covers physical batches. Native and PyArrow fixture runs cover ordered rows
-through the complete stream. A general whole-stream read/write law,
-incremental I/O and whole-stream rechunking remain open.
+dictionaries, and compression are outside it. The law concerns the forward
+write/read direction on successful writes. Raw metadata admission
+completeness, arbitrary rechunking of whole streams, and incremental I/O
+remain open.

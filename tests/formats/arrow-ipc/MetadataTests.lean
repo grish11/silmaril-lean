@@ -184,18 +184,24 @@ def runStreams (directory : Option System.FilePath) : IO Unit := do
     ("zero-columns", [], [⟨3, []⟩, ⟨0, []⟩], [[[], [], []], []]),
     ("schema-only", [⟨"", false, .utf8⟩], [], [])]
   for (name, fields, inputs, expected) in specimens do
-    let .ok bytes := StreamWriter.emit {} fields inputs
+    let counts := inputs.map (·.rowCount)
+    let limits : ObservationLimits := {
+      ipc := { fields := fields.length, rows := counts.foldl max 0, batches := inputs.length }
+      totalRows := counts.sum
+      totalCells := fields.length * counts.sum
+    }
+    let .ok bytes := StreamWriter.emit limits fields inputs
       | throw (IO.userError s!"{name}: stream emission failed")
     let wire := packed bytes.toByteArray
-    let .ok stream := readStream {} wire
+    let .ok stream := readStream limits.ipc wire
       | throw (IO.userError s!"{name}: stream metadata read failed")
     check s!"{name}: schema and explicit counts"
-      (stream.fields == fields && stream.batches.map (·.metadata.rowCount) == inputs.map (·.rowCount))
+      (stream.fields == fields && stream.batches.map (·.metadata.rowCount) == counts)
     let .ok expectedMetadata := inputs.mapM (fun input => (emitBatch {} input).map (·.metadata))
       | throw (IO.userError s!"{name}: physical batches failed")
     check s!"{name}: exact record metadata"
       (stream.batches.map (·.metadata) == expectedMetadata)
-    let .ok rows := readRows {} wire
+    let .ok rows := readRows limits wire
       | throw (IO.userError s!"{name}: ordered stream read failed")
     check s!"{name}: ordered rows" (rows == ⟨fields, expected⟩)
     check s!"{name}: continuation and EOS"

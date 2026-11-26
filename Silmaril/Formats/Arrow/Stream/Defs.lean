@@ -11,7 +11,9 @@ public structure Stream where
   fields : List Field
   batches : List (BatchFrame fields)
 
-private def readBatches (limits : Limits) (input : KBytes) (fields : List Field) :
+/-- Read a batch suffix at a known frame boundary. The accumulator holds the
+batches already consumed, in reverse order. -/
+@[expose] public def Stream.readBatches (limits : Limits) (input : KBytes) (fields : List Field) :
     Nat → Nat → List (BatchFrame fields) → Except Error (List (BatchFrame fields))
   | remaining, offset, reversed => do
     match ← readEnvelope limits input offset with
@@ -31,13 +33,13 @@ private def readBatches (limits : Limits) (input : KBytes) (fields : List Field)
 
 /-- Decode an entire stream into its schema and body-backed batch metadata.
 Offsets and limits are checked against the actual byte carrier. -/
-public def readStream (limits : Limits) (input : KBytes) : Except Error Stream := do
+@[expose] public def readStream (limits : Limits) (input : KBytes) : Except Error Stream := do
   if !input.wf then throw (.malformed .source)
   let .metadata size ← readEnvelope limits input 0 | throw (.malformed .schemaOrder)
   let message ← readMessage limits (input.slice 8 size)
   let .schema fields := message.header | throw (.malformed .schemaOrder)
   if message.bodyLength ≠ 0 then throw (.malformed .bodyLength)
-  let batches ← readBatches limits input fields limits.batches (8 + size) []
+  let batches ← Stream.readBatches limits input fields limits.batches (8 + size) []
   return ⟨fields, batches⟩
 
 end Silmaril.Formats.Arrow
