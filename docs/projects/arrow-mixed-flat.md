@@ -123,3 +123,50 @@ indexed length mismatches. [File fixture producer](../../scripts/arrow-mixed-fla
 lake build --wfail +Silmaril.Formats.Arrow.MixedFlat.File.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Axioms
 python3 -I scripts/arrow-mixed-flat/file_fixtures.py
 ```
+
+## Checked Int32 and BinaryView RecordBatch writer
+
+`MixedFlat.Writer.emit` takes one Int32 column, one BinaryView column, an
+explicit common row count, and a choice of field order. Names and
+nullability come from the input. Each field may be nullable or required.
+The result contains V5 RecordBatch metadata bytes, their exact metadata
+AST, and the aligned body. A reader supplies the field declarations in
+the same order because a RecordBatch Message carries no Schema.
+
+The writer reuses the two physical encoders and packs their buffers in
+field order. It writes an explicit signed 64-bit count for the view,
+zero for inline-only and empty columns and one for a column with external
+values. It checks lengths against the common row count and enforces the
+configured field, row, cell, view and byte limits. The padded body
+budget is checked before packing. It certifies the output by parsing the
+RecordBatch metadata, comparing the exact AST, and running
+`MixedFlat.readParsed` and comparing the ordered column observations.
+This entails a full read and value comparison. All byte limits apply to
+this batch.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/Writer/Defs.lean)
+
+`Wire.metadata_extent` gives the exact serialized metadata size.
+`emit_layout` fixes the row count, field nodes, view count, aligned body
+and exact packed descriptor windows. `emit_assignment` gives the
+reader's exhaustive schema-order plan. `emit_partition` identifies the
+two descriptor groups and the view's count in either field order.
+`emit_readback` recovers the exact metadata, row count and ordered
+nullable values. BinaryView equality compares octets per present cell.
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/Writer/Thms.lean)
+
+Pinned PyArrow 26.0.1 reads four standalone Lean-emitted RecordBatch
+Messages with independently supplied field declarations. It checks the
+row and null counts, descriptor order and extents, signed variadic
+count vector, and ordered values. Cases cover both field orders, signed
+Int32 extremes, nullable and required columns, zero rows, and the 12/13
+byte threshold. Lean guards reject inconsistent row counts, nulls in
+required fields, and exhausted body, metadata and data-buffer limits.
+The fixture driver supplies one modern continuation prefix for PyArrow.
+The library API emits the metadata and body of a single RecordBatch.
+[Oracle](../../scripts/arrow-mixed-flat/writer_fixtures.py) ·
+[Lean examples](../../Silmaril/Formats/Arrow/MixedFlat/Writer/Examples.lean)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.Writer.Examples +Silmaril.Formats.Arrow.MixedFlat.Writer.Axioms'
+python3 -I scripts/arrow-mixed-flat/writer_fixtures.py --out /tmp/arrow-mixed-flat-record-writer
+```
