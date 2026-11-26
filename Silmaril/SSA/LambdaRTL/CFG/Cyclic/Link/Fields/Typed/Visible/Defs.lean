@@ -6,6 +6,7 @@ public import Silmaril.Semantics.ITree.Trace.Finite.Defs
 public import Mathlib.Data.Fintype.Sum
 public import Mathlib.Data.Fintype.Prod
 public import Mathlib.Data.Fintype.Sigma
+public import Mathlib.Data.List.ProdSigma
 
 /-! Finite weak trace checking for structural packets with label-indexed types. -/
 
@@ -30,6 +31,14 @@ abbrev Atom := PUnit.{2}
 abbrev Register := ULift.{1} Nat
 
 namespace PacketType
+
+/-- Enumerate structural packet values, in sum and product order. -/
+def enumerate : (ty : PacketType) → List (Denote ty)
+  | .base x => x.elim
+  | .unit => [⟨⟩]
+  | .empty => []
+  | .product x y => (enumerate x).product (enumerate y)
+  | .coprod x y => (enumerate x).map Sum.inl ++ (enumerate y).map Sum.inr
 
 @[instance_reducible] def finite : (ty : PacketType) → Fintype (Denote ty)
   | .base x => x.elim
@@ -250,6 +259,16 @@ def refinement? [DecidableEq F] (right : Program signature inputs outputs) : Boo
 def weakEqAt? [DecidableEq F] (right : Program signature inputs outputs)
     (input : Fin a) (packet : Denote (inputs input)) : Bool :=
   program.refinementAt? right input packet && right.refinementAt? program input packet
+
+/-- Search public entries in order and return an exact typed input that
+distinguishes the programs, if any. -/
+def firstMismatch? [DecidableEq F] (right : Program signature inputs outputs) : Option (PacketAt inputs) :=
+  ((List.finRange a).sigma fun i => PacketType.enumerate (inputs i)).find?
+    (fun p => !(program.weakEqAt? right p.1 p.2))
+
+/-- Decide weak tree equality over every entry and its typed packets. -/
+def weakEq? [DecidableEq F] (right : Program signature inputs outputs) : Bool :=
+  (program.firstMismatch? right).isNone
 
 end Program
 

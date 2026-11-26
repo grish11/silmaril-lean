@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 public import Silmaril.Semantics.ITree.Trace.Finite.Thms
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Named
+import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Interface
 
 @[expose] public section
 
@@ -36,6 +37,23 @@ theorem weakEqAt?_iff [DecidableEq F] (right : Program signature inputs outputs)
     program.weakEqAt? right input packet = true ↔
       program.observe input packet = right.observe input packet := by
   simp only [weakEqAt?, Bool.and_eq_true, refinementAt?_iff, eq_iff_traceLE]
+
+theorem firstMismatch?_none_iff [DecidableEq F] (right : Program signature inputs outputs) :
+    program.firstMismatch? right = none ↔
+      ∀ input packet, program.observe input packet = right.observe input packet := by
+  rw [Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.mismatch_none]
+  simp only [weakEqAt?_iff]
+
+theorem firstMismatch?_sound [DecidableEq F] {right : Program signature inputs outputs}
+    {p : PacketAt inputs} (found : program.firstMismatch? right = some p) :
+    program.observe p.1 p.2 ≠ right.observe p.1 p.2 :=
+  mt (program.weakEqAt?_iff right p.1 p.2).mpr
+    (Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.mismatch_some found)
+
+theorem weakEq?_iff [DecidableEq F] (right : Program signature inputs outputs) :
+    program.weakEq? right = true ↔
+      ∀ input packet, program.observe input packet = right.observe input packet := by
+  rw [weakEq?, Option.isNone_iff_eq_none, firstMismatch?_none_iff]
 
 /-- Exact finite weak trace inclusion over every typed packet at every
 public input. The programs share their signature and ordered external

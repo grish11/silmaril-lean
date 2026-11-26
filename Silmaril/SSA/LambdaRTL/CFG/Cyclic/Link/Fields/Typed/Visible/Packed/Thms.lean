@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Thms
+public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Defs
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Packed.Thms
 
 @[expose] public section
@@ -8,7 +9,7 @@ public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Pack
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program
 
 open Silmaril.Elgot.ITree (TraceLE eq_iff_traceLE)
-open Silmaril.Isotope.LambdaSSA (FiniteCFG)
+open Silmaril.Isotope.LambdaSSA
 open Silmaril.Isotope.LambdaSSA.Semantics.Interaction (region)
 open Silmaril.Isotope.Bridge.NamedFlat
 open Silmaril.Isotope (BoundCtx)
@@ -56,5 +57,44 @@ theorem weakEqAt?_iff_packedOutput [DecidableEq F] (right : Program signature in
       (program.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) =
         (right.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) := by
   simp only [weakEqAt?, Bool.and_eq_true, refinementAt?_iff_packedOutput, eq_iff_traceLE]
+
+theorem PackedEntry.observe_eq {p : Program signature inputs outputs} {input : Fin a}
+    (entry : PackedEntry p input) (packet : Denote (inputs input))
+    (ambient original : Semantics.Env Atom) (agrees : entry.recordAgrees packet original) :
+    entry.observe ambient original =
+      (p.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) :=
+  p.packed_observe input packet entry.captures entry.accepted entry.typed ambient original agrees
+
+theorem weakEq?_iff_packedOutput [DecidableEq F] (right : Program signature inputs outputs) :
+    program.weakEq? right = true ↔ ∀ input packet,
+      (program.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) =
+        (right.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) :=
+  (program.weakEq?_iff right).trans <| forall_congr' fun input => forall_congr' fun packet =>
+    (program.weakEqAt?_iff right input packet).symm.trans
+      (program.weakEqAt?_iff_packedOutput right input packet)
+
+/-- Compare every entry's checked packed execution on the records supplied
+for each typed input. Ordered exit tags are part of the equality. -/
+theorem weakEq?_iff_packed [DecidableEq F] (right : Program signature inputs outputs)
+    (leftEntry : ∀ input, PackedEntry program input) (rightEntry : ∀ input, PackedEntry right input)
+    (leftAmbient rightAmbient : Semantics.Env Atom)
+    (leftRecord rightRecord : ∀ input, Denote (inputs input) → Semantics.Env Atom)
+    (leftAgrees : ∀ input packet, (leftEntry input).recordAgrees packet (leftRecord input packet))
+    (rightAgrees : ∀ input packet, (rightEntry input).recordAgrees packet (rightRecord input packet)) :
+    program.weakEq? right = true ↔ ∀ input packet,
+      (leftEntry input).observe leftAmbient (leftRecord input packet) =
+        (rightEntry input).observe rightAmbient (rightRecord input packet) := by
+  simp only [PackedEntry.observe_eq _ _ _ _ (leftAgrees _ _),
+    PackedEntry.observe_eq _ _ _ _ (rightAgrees _ _), weakEq?_iff_packedOutput]
+
+theorem firstMismatch?_sound_packed [DecidableEq F] {right : Program signature inputs outputs}
+    {p : PacketAt inputs} (found : program.firstMismatch? right = some p)
+    (leftEntry : PackedEntry program p.1) (rightEntry : PackedEntry right p.1)
+    (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom)
+    (leftAgrees : leftEntry.recordAgrees p.2 leftRecord) (rightAgrees : rightEntry.recordAgrees p.2 rightRecord) :
+    leftEntry.observe leftAmbient leftRecord ≠ rightEntry.observe rightAmbient rightRecord := by
+  rw [leftEntry.observe_eq _ _ _ leftAgrees, rightEntry.observe_eq _ _ _ rightAgrees]
+  exact mt (program.weakEqAt?_iff_packedOutput right p.1 p.2).mpr
+    (mt (program.weakEqAt?_iff right p.1 p.2).mp (program.firstMismatch?_sound found))
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program
