@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.LetParIter.Institution.Restrictions.Thms
+import Silmaril.SSA.Isotope.Institution.Thms
 import Silmaril.Semantics.Elgot.Thms
 
 /-! A native loop runs in parallel with a partial instruction. The same
@@ -191,6 +191,11 @@ theorem translated_true : Sat (model true) (equation.map addOpcode) := by
   rintro ⟨⟩ ⟨⟨⟩, seed⟩
   exact (eval_lhs true seed).trans (eval_rhs true seed).symm
 
+theorem shared_true (seed : Bool) :
+    (model true).evalShared (equation.map addOpcode).lhs PUnit.unit (PUnit.unit, seed) =
+      Part.some (PUnit.unit, PUnit.unit) :=
+  ((model true).evalShared_eq_eval _ _ _).trans (eval_lhs true seed)
+
 theorem translated_false : ¬ Sat (model false) (equation.map addOpcode) := by
   intro h
   have hf := h PUnit.unit (PUnit.unit, false)
@@ -204,3 +209,12 @@ theorem reduct_false : ¬ Sat ((model false).reduct addOpcode) equation :=
   fun h => translated_false ((satisfaction addOpcode (model false) equation).mpr h)
 
 end LetParIterInstitution
+
+#print axioms Silmaril.Isotope.LetParIter.Institution.inst
+#print axioms Silmaril.Isotope.LetParIter.Institution.satisfaction_ofLetIter
+#print axioms Silmaril.Isotope.LetParIter.Institution.satisfaction_iff_evalShared
+#print axioms LetParIterInstitution.translated_true
+#print axioms LetParIterInstitution.translated_false
+#print axioms LetParIterInstitution.shared_true
+#print axioms LetParIterInstitution.reduct_true
+#print axioms LetParIterInstitution.reduct_false

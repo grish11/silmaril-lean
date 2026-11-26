@@ -462,10 +462,10 @@ supportInterpreter = true
 name = "WasmAutoTests"
 globs = ["tests.wasm.auto.+", "tests.wasm.auto2.+"]
 
-# Check the typed parallel feedback rules and the parallel model contract.
+# Check typed parallel feedback, the parallel model contract and institution satisfaction.
 [[lean_lib]]
 name = "LetParIterTests"
-globs = ["tests.ssa.LetParIter", "tests.ssa.LetParPairingModel"]
+globs = ["tests.ssa.LetParIter", "tests.ssa.LetParPairingModel", "tests.ssa.LetParIterInstitution"]
 
 # Elaborate the exact and repaired LetIter packing headers together in both import orders.
 [[lean_lib]]

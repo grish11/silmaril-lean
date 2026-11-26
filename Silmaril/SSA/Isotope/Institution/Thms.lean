@@ -4,6 +4,7 @@ public import Silmaril.Raw.SSA.Isotope.Institution.Borrowing
 public import Silmaril.Raw.SSA.Isotope.Institution.Refinement.Comorphism
 public import Silmaril.Raw.SSA.Isotope.Institution.Observational.Isomorphism
 public import Silmaril.Raw.SSA.Isotope.Institution.Observational.Compilations
+public import Silmaril.SSA.Isotope.LetParIter.Institution.Restrictions.Thms
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.LetSeq
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.LetCase
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.LetIter
@@ -55,12 +56,15 @@ public import Silmaril.Raw.SSA.Isotope.Theory.Models.Refinement
 /-!
 # Let-family institutions and syntactic initiality
 
-Re-exports the Raw let-family institution development. Checked results, by name:
+Public entry point for the let-family institutions. Checked results, by name:
 
 * Equational institutions `Silmaril.Isotope.Institution.{LetSeq,LetCase,LetIter}.inst :
   InstrSig τ ε ⥤ Room` over instruction signatures, in a fixed free-variable context `Γ`;
   semantic consequence from the base theory is derivable equivalence
   (`entails_base_iff`, `entails_theory_iff`).
+* Native LetParIter observation institution `Silmaril.Isotope.LetParIter.Institution.inst`
+  compares exact term derivations in lawful Elgot models with parallel pairing.
+  See `docs/projects/letpariter-institution.md`.
 * Comorphisms (and their adjoint morphisms) along the inclusions let-seq ⊆ let-case ⊆ let-iter:
   `seqCaseCoHom`, `caseIterCoHom`, `seqCaseHom`, `caseIterHom`; **borrowing** of consequence
   unconditionally: `seqCase_entails_iff_of_any`, `caseIter_entails_iff_of_any`.
