@@ -10,8 +10,12 @@ namespace Silmaril.Proofs.Semantics.SQLite.Isolation.Api
 open Silmaril.Elgot
 open Silmaril.SQLite.Isolation.Api
 
-theorem treeSafe_ret {A : Type} (profile : AuthorityProfile) (a : A) :
-    TreeSafe profile (ITree.ret a) := by
+private theorem ret_bind {A B : Type} (a : A) (k : A → ApiTree B) :
+    (ITree.ret a >>= k) = k a :=
+  pure_bind a k
+
+theorem treeAvoidsBad_ret {A : Type} (profile : AuthorityProfile) (a : A) :
+    TreeAvoidsBad profile (ITree.ret a) := by
   intro p hp
   cases p with
   | «prefix» => trivial
@@ -25,17 +29,17 @@ theorem treeSafe_ret {A : Type} (profile : AuthorityProfile) (a : A) :
     rw [ITree.out_ret] at hk
     cases Part.some_inj.mp hk
 
-theorem treeSafe_diverge {A : Type} (profile : AuthorityProfile) :
-    TreeSafe profile (ITree.diverge : ApiTree A) := by
+theorem treeAvoidsBad_diverge {A : Type} (profile : AuthorityProfile) :
+    TreeAvoidsBad profile (ITree.diverge : ApiTree A) := by
   intro p hp
   rw [(ITree.hasTrace_diverge_iff p).mp hp]
   trivial
 
-theorem treeSafe_vis {R A : Type} {profile : AuthorityProfile}
+theorem treeAvoidsBad_vis {R A : Type} {profile : AuthorityProfile}
     {e : ApiEvent R} {k : R → ApiTree A}
-    (he : EventAllowed profile ⟨R, e⟩)
-    (hk : ∀ r, TreeSafe profile (k r)) :
-    TreeSafe profile (ITree.vis e k) := by
+    (he : ¬ BadEvent profile ⟨R, e⟩)
+    (hk : ∀ r, TreeAvoidsBad profile (k r)) :
+    TreeAvoidsBad profile (ITree.vis e k) := by
   intro p hp
   cases p with
   | «prefix» => trivial
@@ -43,38 +47,27 @@ theorem treeSafe_vis {R A : Type} {profile : AuthorityProfile}
     rw [ITree.HasTrace, ITree.out_vis] at hp
     cases Part.some_inj.mp hp
   | request d =>
-    obtain ⟨rfl, rfl⟩ := (ITree.hasTrace_vis_request_iff e k d).mp hp
+    obtain ⟨hR, hd⟩ := (ITree.hasTrace_vis_request_iff e k d).mp hp
+    cases hR
+    cases hd
     exact he
   | exchange d r tail =>
-    obtain ⟨rfl, rfl, htail⟩ := (ITree.hasTrace_vis_exchange e k d r tail).mp hp
+    obtain ⟨hR, hd, htail⟩ := (ITree.hasTrace_vis_exchange e k d r tail).mp hp
+    cases hR
+    cases hd
     exact ⟨he, hk r tail htail⟩
 
-theorem treeSafe_guardedCall {R : Type} (profile : AuthorityProfile)
-    (e : ApiEvent (Except ApiError R)) :
-    TreeSafe profile (guardedCall profile e) := by
-  unfold guardedCall
-  cases h : checkEvent profile e with
-  | ok u =>
-    cases u
-    exact treeSafe_vis h (fun r => treeSafe_ret profile r)
-  | error reason =>
-    exact treeSafe_ret profile (Except.error (ApiError.denied reason))
-
-private theorem ret_bind {A B : Type} (a : A) (k : A → ApiTree B) :
-    (ITree.ret a >>= k) = k a :=
-  pure_bind a k
-
-theorem treeSafe_bind {A B : Type} {profile : AuthorityProfile}
+theorem treeAvoidsBad_bind {A B : Type} {profile : AuthorityProfile}
     {t : ApiTree A} {k : A → ApiTree B}
-    (ht : TreeSafe profile t)
-    (hk : ∀ a, TreeSafe profile (k a)) :
-    TreeSafe profile (t >>= k) := by
+    (ht : TreeAvoidsBad profile t)
+    (hk : ∀ a, TreeAvoidsBad profile (k a)) :
+    TreeAvoidsBad profile (t >>= k) := by
   intro p
   induction p generalizing t with
   | «prefix» =>
     intro _
     trivial
-  | result b =>
+  | result _ =>
     intro _
     trivial
   | request d =>
@@ -99,15 +92,15 @@ theorem treeSafe_bind {A B : Type} {profile : AuthorityProfile}
       cases hR
       cases he
       refine ⟨ht (.request d) (ITree.hasTrace_vis_request d next), ?_⟩
-      have hnext : TreeSafe profile (next r) := fun q hq =>
+      have hnext : TreeAvoidsBad profile (next r) := fun q hq =>
         (ht (.exchange d r q) ((ITree.hasTrace_vis_exchange_iff d next r q).mpr hq)).2
       exact ih hnext htail
 
-theorem handledTreeSafe_vis {S R A : Type} {profile : AuthorityProfile}
+theorem handledTreeAvoidsBad_vis {S R A : Type} {profile : AuthorityProfile}
     {step : ApiHandler S} {s : S} {e : ApiEvent R} {k : R → ApiTree A}
-    (he : EventAllowed profile ⟨R, e⟩)
-    (hk : ∀ r s', step ⟨R, e⟩ s r s' → HandledTreeSafe profile step s' (k r)) :
-    HandledTreeSafe profile step s (ITree.vis e k) := by
+    (he : ¬ BadEvent profile ⟨R, e⟩)
+    (hk : ∀ r s', step ⟨R, e⟩ s r s' → HandledTreeAvoidsBad profile step s' (k r)) :
+    HandledTreeAvoidsBad profile step s (ITree.vis e k) := by
   intro p hp
   cases p with
   | «prefix» => trivial
@@ -116,18 +109,22 @@ theorem handledTreeSafe_vis {S R A : Type} {profile : AuthorityProfile}
     rw [ITree.HasTrace, ITree.out_vis] at h1
     cases Part.some_inj.mp h1
   | request d =>
-    obtain ⟨rfl, rfl⟩ := (ITree.hasTrace_vis_request_iff e k d).mp hp.1
+    obtain ⟨hR, hd⟩ := (ITree.hasTrace_vis_request_iff e k d).mp hp.1
+    cases hR
+    cases hd
     exact he
   | exchange d r tail =>
-    obtain ⟨rfl, rfl, htail⟩ := (ITree.hasTrace_vis_exchange e k d r tail).mp hp.1
+    obtain ⟨hR, hd, htail⟩ := (ITree.hasTrace_vis_exchange e k d r tail).mp hp.1
+    cases hR
+    cases hd
     rcases hp.2 with ⟨s', hstep, hrep⟩
     exact ⟨he, hk r s' hstep tail ⟨htail, hrep⟩⟩
 
-theorem handledTreeSafe_bind {S A B : Type} {profile : AuthorityProfile}
+theorem handledTreeAvoidsBad_bind {S A B : Type} {profile : AuthorityProfile}
     {step : ApiHandler S} {s : S} {t : ApiTree A} {k : A → ApiTree B}
-    (ht : HandledTreeSafe profile step s t)
-    (hk : ∀ y a, ITree.ReturnsTo step s t y a → HandledTreeSafe profile step y (k a)) :
-    HandledTreeSafe profile step s (t >>= k) := by
+    (ht : HandledTreeAvoidsBad profile step s t)
+    (hk : ∀ y a, ITree.ReturnsTo step s t y a → HandledTreeAvoidsBad profile step y (k a)) :
+    HandledTreeAvoidsBad profile step s (t >>= k) := by
   intro p
   induction p generalizing s t with
   | «prefix» =>
@@ -159,10 +156,92 @@ theorem handledTreeSafe_bind {S A B : Type} {profile : AuthorityProfile}
       cases he
       rcases hp.2 with ⟨mid, hstep, hrep⟩
       refine ⟨ht (.request d) ⟨ITree.hasTrace_vis_request d next, trivial⟩, ?_⟩
-      have hnext : HandledTreeSafe profile step mid (next r) := fun q hq =>
+      have hnext : HandledTreeAvoidsBad profile step mid (next r) := fun q hq =>
         (ht (.exchange d r q)
           ⟨(ITree.hasTrace_vis_exchange_iff d next r q).mpr hq.1, ⟨mid, hstep, hq.2⟩⟩).2
       exact ih hnext (fun y a hret => hk y a (.exchange hstep hret)) ⟨htail, hrep⟩
+
+/-! ## Arbitrary-tree confinement equations and universal safety -/
+
+theorem confineTree_diverge {A : Type} (profile : AuthorityProfile) (onBad : ApiTree A) :
+    confineTree profile onBad ITree.diverge = ITree.diverge := by
+  apply ITree.Tree.ext
+  intro n
+  cases n with
+  | zero => rfl
+  | succ n => simp [confineTree, Approx.confine, ITree.diverge]
+
+theorem confineTree_ret {A : Type} (profile : AuthorityProfile) (onBad : ApiTree A) (a : A) :
+    confineTree profile onBad (ITree.ret a) = ITree.ret a := by
+  apply ITree.Tree.ext
+  intro n
+  cases n with
+  | zero => rfl
+  | succ n => simp [confineTree, Approx.confine, ITree.ret]
+
+theorem confineTree_vis {R A : Type} (profile : AuthorityProfile) (onBad : ApiTree A)
+    (e : ApiEvent R) (k : R → ApiTree A) :
+    confineTree profile onBad (ITree.vis e k) =
+      if isBadEvent profile e then onBad
+      else ITree.vis e (fun r => confineTree profile onBad (k r)) := by
+  apply ITree.Tree.ext
+  intro n
+  cases n with
+  | zero =>
+    cases isBadEvent profile e <;> rfl
+  | succ n =>
+    cases hbad : isBadEvent profile e <;>
+      simp [confineTree, Approx.confine, ITree.vis, hbad]
+
+/-- Universal arbitrary-tree confinement: for ANY raw tree `t : ApiTree A` (no
+validity, admission, or limit premise) and ANY safe fallback `onBad : ApiTree A`
+(whether returning success, an error, cleanup, or diverging), every finite
+prefix of `confineTree profile onBad t` avoids `BadEvent profile`. -/
+theorem confineTree_avoids_bad {A : Type} (profile : AuthorityProfile)
+    {onBad : ApiTree A} (honBad : TreeAvoidsBad profile onBad) (t : ApiTree A) :
+    TreeAvoidsBad profile (confineTree profile onBad t) := by
+  intro p
+  induction p generalizing t with
+  | «prefix» =>
+    intro _
+    trivial
+  | result _ =>
+    intro _
+    trivial
+  | request d =>
+    intro hp
+    rcases ITree.cases_visible t with rfl | ⟨a, rfl⟩ | ⟨R, e, k, rfl⟩
+    · rw [confineTree_diverge] at hp
+      exact treeAvoidsBad_diverge profile (.request d) hp
+    · rw [confineTree_ret] at hp
+      exact treeAvoidsBad_ret profile a (.request d) hp
+    · rw [confineTree_vis] at hp
+      cases hbad : isBadEvent profile e
+      · simp only [hbad, Bool.false_eq_true, ↓reduceIte] at hp
+        obtain ⟨hR, hd⟩ := (ITree.hasTrace_vis_request_iff e _ d).mp hp
+        cases hR
+        cases hd
+        simp [TraceAvoidsBad, BadEvent, hbad]
+      · simp only [hbad, ↓reduceIte] at hp
+        exact honBad (.request d) hp
+  | exchange d r tail ih =>
+    intro hp
+    rcases ITree.cases_visible t with rfl | ⟨a, rfl⟩ | ⟨R, e, k, rfl⟩
+    · rw [confineTree_diverge] at hp
+      exact treeAvoidsBad_diverge profile (.exchange d r tail) hp
+    · rw [confineTree_ret] at hp
+      exact treeAvoidsBad_ret profile a (.exchange d r tail) hp
+    · rw [confineTree_vis] at hp
+      cases hbad : isBadEvent profile e
+      · simp only [hbad, Bool.false_eq_true, ↓reduceIte] at hp
+        obtain ⟨hR, hd, htail⟩ := (ITree.hasTrace_vis_exchange e _ d r tail).mp hp
+        cases hR
+        cases hd
+        exact ⟨by simp [BadEvent, hbad], ih (k r) htail⟩
+      · simp only [hbad, ↓reduceIte] at hp
+        exact honBad (.exchange d r tail) hp
+
+/-! ## Replay, host-exchange exclusion, and protected-state preservation -/
 
 theorem replayTo_iff_replay {S A : Type} (step : ApiHandler S) (s : S) (p : ApiTrace A) :
     (∃ s', ReplayTo step s p s') ↔ ITree.Replay step s p := by
@@ -181,11 +260,23 @@ theorem replayTo_iff_replay {S A : Type} (step : ApiHandler S) (s : S) (p : ApiT
       obtain ⟨s', htail⟩ := (ih mid).mpr hrep
       exact ⟨s', mid, hstep, htail⟩
 
-theorem replayTo_preserves_protected {S P A : Type} {profile : AuthorityProfile}
-    {step : ApiHandler S} {protectedState : S → P}
+theorem replay_excludes_bad_exchanges {S A : Type} {profile : AuthorityProfile}
+    {step : ApiHandler S} (hexcl : HandlerExcludesBad profile step)
+    {s : S} {p : ApiTrace A} (hrep : ITree.Replay step s p) :
+    ExchangesAvoidBad profile p := by
+  induction p generalizing s with
+  | «prefix» => trivial
+  | request _ => trivial
+  | result _ => trivial
+  | exchange e r tail ih =>
+    rcases hrep with ⟨mid, hstep, htail⟩
+    exact ⟨hexcl ⟨_, e⟩ s mid r hstep, ih htail⟩
+
+theorem exchangesAvoidBad_replayTo_preserves_protected {S P A : Type}
+    {profile : AuthorityProfile} {step : ApiHandler S} {protectedState : S → P}
     (hframe : FrameContract profile step protectedState)
     {s s' : S} {p : ApiTrace A}
-    (hsafe : TraceSafe profile p)
+    (hsafe : ExchangesAvoidBad profile p)
     (hrep : ReplayTo step s p s') :
     protectedState s' = protectedState s := by
   induction p generalizing s with
@@ -197,124 +288,146 @@ theorem replayTo_preserves_protected {S P A : Type} {profile : AuthorityProfile}
     rcases hrep with ⟨mid, hstep, htailRep⟩
     exact (ih htailSafe htailRep).trans (hframe ⟨_, e⟩ s mid r he hstep)
 
+theorem traceAvoidsBad_to_exchangesAvoidBad {A : Type} {profile : AuthorityProfile}
+    {p : ApiTrace A} (h : TraceAvoidsBad profile p) :
+    ExchangesAvoidBad profile p := by
+  induction p with
+  | «prefix» => trivial
+  | request _ => trivial
+  | result _ => trivial
+  | exchange _ _ _ ih => exact ⟨h.1, ih h.2⟩
+
 theorem handled_prefix_preserves_protected {S P A : Type} {profile : AuthorityProfile}
     {step : ApiHandler S} {protectedState : S → P}
     (hframe : FrameContract profile step protectedState)
     {s s' : S} {t : ApiTree A} {p : ApiTrace A}
-    (hsafe : HandledTreeSafe profile step s t)
+    (hsafe : HandledTreeAvoidsBad profile step s t)
     (htrace : ITree.HasTrace t p)
     (hrep : ReplayTo step s p s') :
     protectedState s' = protectedState s :=
-  replayTo_preserves_protected hframe
-    (hsafe p ⟨htrace, (replayTo_iff_replay step s p).mp ⟨s', hrep⟩⟩)
+  exchangesAvoidBad_replayTo_preserves_protected hframe
+    (traceAvoidsBad_to_exchangesAvoidBad
+      (hsafe p ⟨htrace, (replayTo_iff_replay step s p).mp ⟨s', hrep⟩⟩))
     hrep
 
 theorem handled_returnsTo_preserves_protected {S P A : Type} {profile : AuthorityProfile}
     {step : ApiHandler S} {protectedState : S → P}
     (hframe : FrameContract profile step protectedState)
     {s s' : S} {t : ApiTree A} {a : A}
-    (hsafe : HandledTreeSafe profile step s t)
+    (hsafe : HandledTreeAvoidsBad profile step s t)
     (hret : ITree.ReturnsTo step s t s' a) :
     protectedState s' = protectedState s := by
   induction hret with
-  | ret x a => rfl
+  | ret _ _ => rfl
   | @exchange R e k r x y z a hstep hrest ih =>
-    have he : EventAllowed profile ⟨R, e⟩ :=
+    have he : ¬ BadEvent profile ⟨R, e⟩ :=
       hsafe (.request e) ⟨ITree.hasTrace_vis_request e k, trivial⟩
-    have hnext : HandledTreeSafe profile step y (k r) := fun q hq =>
+    have hnext : HandledTreeAvoidsBad profile step y (k r) := fun q hq =>
       (hsafe (.exchange e r q)
         ⟨(ITree.hasTrace_vis_exchange_iff e k r q).mpr hq.1, ⟨y, hstep, hq.2⟩⟩).2
     exact (ih hnext).trans (hframe ⟨R, e⟩ x y r he hstep)
 
-theorem openReadCloseSession_safe (db : DbId) (sql : String) :
-    TreeSafe (readOnlyProfile db) (openReadCloseSession db sql) := by
+/-! ## Worked session and reference handler witnesses -/
+
+theorem openReadCloseSession_avoids_bad (db : DbId) (input : QueryInput) :
+    TreeAvoidsBad (readOnlyProfile db) (openReadCloseSession db input) := by
   unfold openReadCloseSession
-  apply treeSafe_bind
-  · exact treeSafe_vis (by simp [EventAllowed, checkEvent, readOnlyProfile])
-      (fun _ => treeSafe_ret _ _)
+  apply treeAvoidsBad_bind
+  · exact treeAvoidsBad_vis (by simp [BadEvent, isBadEvent, readOnlyProfile])
+      (fun _ => treeAvoidsBad_ret _ _)
   · intro openRes
     cases openRes with
-    | error err => exact treeSafe_ret _ _
+    | error _ => exact treeAvoidsBad_ret _ _
     | ok conn =>
-      apply treeSafe_bind
-      · exact treeSafe_vis (by simp [EventAllowed, checkEvent, readOnlyProfile])
-          (fun _ => treeSafe_ret _ _)
+      apply treeAvoidsBad_bind
+      · exact treeAvoidsBad_vis (by simp [BadEvent, isBadEvent, readOnlyProfile])
+          (fun _ => treeAvoidsBad_ret _ _)
       · intro prepRes
         cases prepRes with
-        | error err =>
-          apply treeSafe_bind
-          · exact treeSafe_vis (by simp [EventAllowed, checkEvent])
-              (fun _ => treeSafe_ret _ _)
+        | error _ =>
+          apply treeAvoidsBad_bind
+          · exact treeAvoidsBad_vis (by simp [BadEvent, isBadEvent])
+              (fun _ => treeAvoidsBad_ret _ _)
           · intro _
-            exact treeSafe_ret _ _
+            exact treeAvoidsBad_ret _ _
         | ok stmt =>
-          apply treeSafe_bind
-          · exact treeSafe_vis (by simp [EventAllowed, checkEvent, readOnlyProfile])
-              (fun _ => treeSafe_ret _ _)
+          apply treeAvoidsBad_bind
+          · exact treeAvoidsBad_vis (by simp [BadEvent, isBadEvent, readOnlyProfile])
+              (fun _ => treeAvoidsBad_ret _ _)
           · intro stepRes
-            apply treeSafe_bind
-            · exact treeSafe_vis (by simp [EventAllowed, checkEvent])
-                (fun _ => treeSafe_ret _ _)
+            apply treeAvoidsBad_bind
+            · exact treeAvoidsBad_vis (by simp [BadEvent, isBadEvent])
+                (fun _ => treeAvoidsBad_ret _ _)
             · intro _
-              apply treeSafe_bind
-              · exact treeSafe_vis (by simp [EventAllowed, checkEvent])
-                  (fun _ => treeSafe_ret _ _)
+              apply treeAvoidsBad_bind
+              · exact treeAvoidsBad_vis (by simp [BadEvent, isBadEvent])
+                  (fun _ => treeAvoidsBad_ret _ _)
               · intro _
                 cases stepRes with
-                | error _ => exact treeSafe_ret _ _
+                | error _ => exact treeAvoidsBad_ret _ _
                 | ok outcome =>
-                  cases outcome <;> exact treeSafe_ret _ _
+                  cases outcome <;> exact treeAvoidsBad_ret _ _
 
-theorem guardedDeniedWriteSession_safe (db : DbId) (offset : Nat) (bytes : List UInt8) :
-    TreeSafe (readOnlyProfile db) (guardedDeniedWriteSession db offset bytes) := by
-  unfold guardedDeniedWriteSession
-  apply treeSafe_bind (treeSafe_guardedCall _ _)
-  intro openRes
-  cases openRes with
-  | error _ => exact treeSafe_ret _ _
-  | ok conn =>
-    apply treeSafe_bind (treeSafe_guardedCall _ _)
-    intro writeRes
-    apply treeSafe_bind (treeSafe_guardedCall _ _)
-    intro _
-    exact treeSafe_ret _ _
-
-theorem referenceHandler_frameContract (db : DbId) :
-    FrameContract (readOnlyProfile db) referenceHandler ReferenceState.protectedDb := by
-  intro q s s' r hall hstep
+theorem readOnlyReferenceHandler_excludesBad (db : DbId) :
+    HandlerExcludesBad (readOnlyProfile db) (readOnlyReferenceHandler db) := by
+  intro q s s' r hstep
   rcases q with ⟨R, e⟩
   cases e with
   | openDb target mode =>
     cases mode with
     | readOnly =>
-      cases r with
-      | error _ => simp [referenceHandler] at hstep; rw [hstep]
-      | ok _ => rcases hstep with ⟨_, _, rfl⟩; rfl
-    | readWrite =>
-      by_cases h : target = db <;> simp [EventAllowed, checkEvent, readOnlyProfile, h] at hall
-  | prepare conn target sql =>
-    cases r with
-    | error _ => simp [referenceHandler] at hstep; rw [hstep]
-    | ok _ => rcases hstep with ⟨_, _, _, rfl⟩; rfl
+      rcases hstep with ⟨rfl, _⟩
+      simp [BadEvent, isBadEvent, readOnlyProfile]
+    | readWrite => exact False.elim hstep
+  | prepare conn target input =>
+    rcases hstep with ⟨rfl, _⟩
+    simp [BadEvent, isBadEvent, readOnlyProfile]
   | stepRead stmt target =>
+    rcases hstep with ⟨rfl, _⟩
+    simp [BadEvent, isBadEvent, readOnlyProfile]
+  | finalize stmt =>
+    simp [BadEvent, isBadEvent]
+  | closeDb conn =>
+    simp [BadEvent, isBadEvent]
+  | writeDb _ _ _ _ => exact False.elim hstep
+  | attachDb _ _ _ => exact False.elim hstep
+  | loadExtension _ _ => exact False.elim hstep
+  | hostEffect _ => exact False.elim hstep
+
+theorem readOnlyReferenceHandler_frameContract (db : DbId) :
+    FrameContract (readOnlyProfile db) (readOnlyReferenceHandler db) ReferenceState.protectedDb := by
+  intro q s s' r _ hstep
+  rcases q with ⟨R, e⟩
+  cases e with
+  | openDb target mode =>
+    cases mode with
+    | readOnly =>
+      rcases hstep with ⟨_, hbody⟩
+      cases r with
+      | error _ => simp only at hbody; rw [hbody]
+      | ok _ => rcases hbody with ⟨_, _, rfl⟩; rfl
+    | readWrite => exact False.elim hstep
+  | prepare conn target input =>
+    rcases hstep with ⟨_, hbody⟩
     cases r with
-    | error _ => simp [referenceHandler] at hstep; rw [hstep]
-    | ok _ => rcases hstep with ⟨_, rfl⟩; rfl
+    | error _ => simp only at hbody; rw [hbody]
+    | ok _ => rcases hbody with ⟨_, _, _, rfl⟩; rfl
+  | stepRead stmt target =>
+    rcases hstep with ⟨_, hbody⟩
+    cases r with
+    | error _ => simp only at hbody; rw [hbody]
+    | ok _ => rcases hbody with ⟨_, rfl⟩; rfl
   | finalize stmt =>
     cases r with
-    | error _ => simp [referenceHandler] at hstep; rw [hstep]
+    | error _ => simp [readOnlyReferenceHandler] at hstep; rw [hstep]
     | ok _ => rcases hstep with ⟨_, rfl⟩; rfl
   | closeDb conn =>
     cases r with
-    | error _ => simp [referenceHandler] at hstep; rw [hstep]
+    | error _ => simp [readOnlyReferenceHandler] at hstep; rw [hstep]
     | ok _ => rcases hstep with ⟨_, rfl⟩; rfl
-  | writeDb conn target off bytes =>
-    by_cases h : target = db <;> simp [EventAllowed, checkEvent, readOnlyProfile, h] at hall
-  | attachDb conn target schema =>
-    simp [EventAllowed, checkEvent, readOnlyProfile] at hall
-  | loadExtension conn path =>
-    simp [EventAllowed, checkEvent, readOnlyProfile] at hall
-  | hostEffect kind =>
-    simp [EventAllowed, checkEvent, readOnlyProfile] at hall
+  | writeDb _ _ _ _ => exact False.elim hstep
+  | attachDb _ _ _ => exact False.elim hstep
+  | loadExtension _ _ => exact False.elim hstep
+  | hostEffect _ => exact False.elim hstep
 
 end Silmaril.Proofs.Semantics.SQLite.Isolation.Api
