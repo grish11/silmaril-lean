@@ -38,7 +38,8 @@ theorem readSchema_iff (limits : Limits) (input : KBytes) (field : DateStream.Fi
               obtain ⟨name, nullable, kind⟩ := first
               cases field
               cases kind <;>
-                simp [readSchema, envelope, schemaRead, bind, Except.bind, Except.mapError]; grind
+                simp [readSchema, envelope, schemaRead, DateBatch.selectDateUnit, bind, Except.bind,
+                  Except.mapError, pure, Except.pure]; grind
 
 theorem readBatch_iff (limits : Limits) (input : KBytes) (field : DateStream.Field)
     (offset size : Nat) (dates : DateValues.Column) (next : Nat) :

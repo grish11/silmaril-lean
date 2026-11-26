@@ -37,6 +37,7 @@ inductive Error where
   | schemaMetadata (cause : Arrow.Error)
   | fieldCount (actual : Nat)
   | fieldType (actual : Arrow.FieldType)
+  | unsupportedFieldType (actual : SchemaReader.FieldType)
   | bigEndian
   | batch (index : Nat) (cause : BatchError)
   deriving DecidableEq, Repr
@@ -54,9 +55,10 @@ def readSchema (limits : Limits) (input : KBytes) : Except Error (Field × Nat) 
   if schema.endianness = .big then .error .bigEndian
   else
     let [field] := schema.fields | .error (.fieldCount schema.fields.length)
-    match field.type with
-    | .primitive kind => .error (.fieldType kind)
-    | .date unit => .ok (⟨field.name, field.nullable, unit⟩, 8 + size)
+    let unit ← (DateBatch.selectDateUnit field.type).mapError fun
+      | .primitive kind => .fieldType kind
+      | .unsupported kind => .unsupportedFieldType kind
+    return (⟨field.name, field.nullable, unit⟩, 8 + size)
 
 /-- Decode the record after admitting its envelope. The record's own declared
 body length determines both this batch's body and the next frame offset. -/

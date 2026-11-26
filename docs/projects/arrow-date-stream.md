@@ -20,7 +20,8 @@ files, writing, and Timestamp are outside this profile.
 [Schema and value binding](arrow-date-batch.md)
 
 An error identifies the source or schema stage, or the batch stage and
-its zero-based index. The first failed batch or expected EOS ends the
+its zero-based index. A normalized schema type outside DATE receives a
+field-type error before slot decoding. The first failed batch or expected EOS ends the
 operation with an error. For example, a truncated body and a Date64
 remainder both identify their batch and preserve their underlying causes.
 

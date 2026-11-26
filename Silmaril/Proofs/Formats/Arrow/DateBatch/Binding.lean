@@ -35,17 +35,17 @@ theorem decode_iff (limits : Limits) (schemaMetadata recordMetadata body : KByte
       | cons next rest => simp [decode, schemaRead, Except.mapError, bind, Except.bind]
       | nil =>
         obtain ⟨name, nullable, kind⟩ := field
-        cases kind with
-        | primitive kind => simp [decode, schemaRead, Except.mapError, bind, Except.bind]
-        | date unit =>
+        cases kind <;> try
+          solve | simp [decode, selectDateUnit, schemaRead, Except.mapError, bind, Except.bind]
+        case date unit =>
           cases recordRead : readMessage limits recordMetadata with
           | error cause =>
-            simp [decode, schemaRead, recordRead, Except.mapError, bind, Except.bind]
+            simp [decode, selectDateUnit, schemaRead, recordRead, Except.mapError, bind, Except.bind]
           | ok message =>
             obtain ⟨header, length⟩ := message
             cases header with
             | schema fields =>
-              simp [decode, schemaRead, recordRead, Except.mapError, bind, Except.bind]
+              simp [decode, selectDateUnit, schemaRead, recordRead, Except.mapError, bind, Except.bind]
             | recordBatch batch =>
               by_cases same : length = body.len
               · subst length
@@ -53,14 +53,14 @@ theorem decode_iff (limits : Limits) (schemaMetadata recordMetadata body : KByte
                 · have bound : decode limits schemaMetadata recordMetadata body =
                       (DateValues.decodeBatch limits (dateDecoder unit)
                         (descriptor endian unit nullable) batch body).mapError Error.values := by
-                    simp [decode, schemaRead, recordRead, aligned, bind, Except.bind, Except.mapError]
+                    simp [decode, selectDateUnit, schemaRead, recordRead, aligned, bind, Except.bind, Except.mapError]
                   rw [bound, mapError_ok_iff]
                   simpa [-Bool.exists_bool, aligned] using
                     (DateValues.decodeBatch_iff limits (dateDecoder unit)
                       (descriptor endian unit nullable) batch body dates)
-                · simp [-Bool.exists_bool, decode, schemaRead, recordRead, aligned, Except.mapError,
+                · simp [-Bool.exists_bool, decode, selectDateUnit, schemaRead, recordRead, aligned, Except.mapError,
                     bind, Except.bind]
-              · simp [-Bool.exists_bool, decode, schemaRead, recordRead, same, Except.mapError,
+              · simp [-Bool.exists_bool, decode, selectDateUnit, schemaRead, recordRead, same, Except.mapError,
                   bind, Except.bind]
 
 theorem decode_counts {limits : Limits} {schemaMetadata recordMetadata body : KBytes}
