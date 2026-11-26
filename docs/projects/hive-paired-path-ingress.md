@@ -46,6 +46,32 @@ cell present. `preparePaths_preserves_paths` preserves the full literal
 occurrence list. `convert_int32_ok_iff` relates every successful cast to the
 exact mathematical integer and `convert_byteArray` specifies the UTF-8 mapping.
 
+## Bounded scan from supplied paths
+
+`Manifest.Int32ByteArray.Ingress.scanPaths` takes the same declarations and an
+explicit open policy. Both policies admit the entire list before applying
+the partition predicate or using the scan-action budget. A malformed path,
+invalid cast, or required-null failure therefore aborts admission even at
+budget zero or when its partition would otherwise be rejected. An ingress
+error carries the original typed cause and produces no trace. After
+admission, lookup and Parquet failures are typed terminal outcomes in the
+trace, which retains whatever selected batches were already emitted.
+
+Strict traversal opens each reached literal occurrence, including rejected
+partitions. Skip-open traversal stably removes rejected occurrences after
+admission. Its budget pays only for the remaining opens, group pulls, and
+explicit file EOS pulls. Repeated retained paths keep separate positions and
+charges. The budget counts logical traversal actions. Path admission has no
+action charge and the budget makes no bound on physical work or bytes.
+
+`scanPaths_error_iff` gives exact ingress failure and `scanPaths_ok_iff`
+identifies the full result with bounded traversal of the admitted list (or
+its stable filter), preserving original path spellings. The existing bounded
+trace, cutoff, and prefix laws apply to that list with the same budget.
+Paired fixture guards distinguish rejected malformed input from an admitted
+rejected file with corrupt Parquet data, and exercise a repeated retained
+literal, empty batches, and the exact EOS cutoff at zero projection width.
+
 ## Independent replay
 
 The [oracle](../../scripts/hive-paired-ingress-oracle/Oracle.py) copies the
