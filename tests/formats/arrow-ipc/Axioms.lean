@@ -3,6 +3,7 @@ module
 import Silmaril.Formats.Arrow.Framing.Thms
 import Silmaril.Formats.Arrow.Layout.Thms
 import Silmaril.Formats.Arrow.Body.Thms
+import Silmaril.Formats.Arrow.Writer.Thms
 
 open Silmaril Silmaril.Formats.Arrow
 
@@ -30,3 +31,8 @@ example : Body.validAt (.leaf 2 0x0100) 8 = some true := by rfl
 #print axioms Body.readColumn_iff
 #print axioms decodeBatch_iff
 #print axioms BatchWire.shape
+
+#print axioms Writer.checkInput_iff
+#print axioms Writer.packBuffers_exact
+#print axioms Writer.emitBatch_of_admitted
+#print axioms Writer.emitBatch_roundtrip

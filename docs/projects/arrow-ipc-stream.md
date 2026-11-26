@@ -106,10 +106,46 @@ generator checks both PyArrow versions, the PyArrow readback and the digest
 before replacing the fixture.
 [PyArrow 26.0.1 distribution](https://pypi.org/project/pyarrow/26.0.1/#files)
 
+## Physical batch writer
+
+`Writer.emitBatch` accepts typed nullable columns, field names and
+nullability, and an explicit row count. It emits the aligned physical body
+and the batch metadata AST as a checked `BatchFrame`. The writer emits
+LSB-first validity, four-byte little-endian Int32 values, and nonnegative
+signed-32 UTF-8 offsets beginning at zero. Null slots use zero or empty
+payloads. Every buffer starts at an eight-byte boundary and its descriptor
+excludes padding. Empty UTF-8 columns have one zero offset. The explicit
+count preserves rows in a zero-column batch.
+[Writer definitions](../../Silmaril/Formats/Arrow/Writer/Defs.lean)
+
+`Writer.checkInput_iff` specifies admission by schema shape, nullability,
+signed offset and batch size ranges, and budgets. `Writer.packBuffers_exact` identifies the
+exact descriptor windows. `Writer.emitBatch_of_admitted` proves every
+admitted input emits a frame with the original count and an aligned body,
+and that the checked reader returns the original ordered nullable
+observation. `Writer.emitBatch_roundtrip` states the same properties for
+every successful emission. The proof uses per-column and packing laws.
+[Writer theorems](../../Silmaril/Formats/Arrow/Writer/Thms.lean)
+
+The native suite checks mixed, empty, and nonempty zero-column batches and
+budget and shape rejection. To verify the emitted physical buffers with the
+pinned PyArrow environment described above, run the following.
+
+```sh
+lake build --wfail +Silmaril.Formats.Arrow.Writer.Thms arrow_ipc_metadata_tests
+.lake/build/bin/arrow_ipc_metadata_tests --write-body-fixtures /tmp/arrow-bodies
+python3 -I tests/formats/arrow-ipc/read_writer_fixtures.py /tmp/arrow-bodies
+```
+
+The fixture driver writes raw body bytes and a JSON representation of the
+metadata AST. PyArrow reads those exact byte windows as arrays and checks
+ordered rows, null counts, and full array validity.
+[Independent buffer checks](../../tests/formats/arrow-ipc/read_writer_fixtures.py)
+
 ## Remaining scope
 
-The profile is a finite in-memory reader for flat nullable and required
-Int32 and Utf8 columns. Validity and UTF-8 checks are applied to every
-decoded batch. Writing, incremental IO, and a general whole-stream
-rechunking proof remain open. The batch observation has no dependency on
-a generic table representation.
+The stream reader and physical batch writer cover flat nullable and required
+Int32 and UTF-8. FlatBuffers metadata serialization, stream framing and EOS
+writing, incremental I/O, and a general whole-stream rechunking proof remain
+open. Stream interoperability from Lean bytes will use PyArrow's IPC reader
+after the metadata and framing writer is available.

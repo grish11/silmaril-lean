@@ -1,6 +1,8 @@
 module
 
 import Silmaril.Formats.Arrow.Body.Defs
+import Silmaril.Formats.Arrow.Writer.Defs
+import Lean.Data.Json.FromToJson.Basic
 
 open Silmaril Silmaril.Formats.Arrow
 
@@ -104,7 +106,80 @@ private def bodyRegressions (bytes : ByteArray) : IO Unit := do
   let .error (.limit .totalRows) := decodeBatch { totalRows := 1 } noColumns
     | throw (IO.userError "zero-column rows must count toward the row budget")
 
-public def main : IO Unit := do
+namespace PhysicalWriterTests
+
+open Silmaril Silmaril.Formats.Arrow Silmaril.Formats.Arrow.Writer
+
+private structure Fixture where
+  name : String
+  input : BatchInput
+  expected : List Row
+
+private def mixed : Fixture :=
+  ⟨"mixed", ⟨9, [
+    ⟨"n", true, .int32 [some (-2147483648), none, some 2147483647, some (-1), some 0,
+      none, some 42, some 17, some 8]⟩,
+    ⟨"téxt", true, .utf8 [some "é", some "", none, some "雪", some "🧪", none,
+      some "a", some "", some "λ"]⟩]⟩,
+    [[some (.int32 (-2147483648)), some (.utf8 "é")],
+     [none, some (.utf8 "")], [some (.int32 2147483647), none],
+     [some (.int32 (-1)), some (.utf8 "雪")], [some (.int32 0), some (.utf8 "🧪")],
+     [none, none], [some (.int32 42), some (.utf8 "a")],
+     [some (.int32 17), some (.utf8 "")], [some (.int32 8), some (.utf8 "λ")]]⟩
+
+private def cases : List Fixture :=
+  [mixed,
+    ⟨"empty", ⟨0, [⟨"n", false, .int32 []⟩, ⟨"téxt", true, .utf8 []⟩]⟩, []⟩,
+    ⟨"zero-columns", ⟨3, []⟩, [[], [], []]⟩]
+
+private def save (directory : System.FilePath) (name : String) {fields : List Field}
+    (frame : BatchFrame fields) : IO Unit := do
+  let metadata := Lean.Json.mkObj [
+    ("rowCount", Lean.toJson frame.metadata.rowCount),
+    ("fields", .arr (fields.map (fun f => Lean.Json.mkObj [
+      ("name", Lean.toJson f.name), ("nullable", Lean.toJson f.nullable),
+      ("type", Lean.toJson (if f.type == .int32 then "int32" else "utf8"))])).toArray),
+    ("nodes", .arr (frame.metadata.nodes.map (fun n => Lean.Json.mkObj [
+      ("length", Lean.toJson n.length), ("nullCount", Lean.toJson n.nullCount)])).toArray),
+    ("buffers", .arr (frame.metadata.buffers.map (fun b => Lean.Json.mkObj [
+      ("offset", Lean.toJson b.offset), ("length", Lean.toJson b.length)])).toArray)]
+  IO.FS.writeBinFile (directory / (name ++ ".body")) frame.body.toByteArray
+  IO.FS.writeFile (directory / (name ++ ".json")) (metadata.compress ++ "\n")
+
+private def assertFailure (limits : ObservationLimits) (input : BatchInput) (error : Error) : IO Unit :=
+  match emitBatch limits input with
+  | .ok _ => throw (IO.userError s!"expected {repr error}")
+  | .error actual =>
+    unless actual == error do throw (IO.userError s!"expected {repr error}, got {repr actual}")
+
+def run (directory : Option System.FilePath) : IO Unit := do
+  if let some path := directory then IO.FS.createDirAll path
+  for fixture in cases do
+    let frame ← match emitBatch {} fixture.input with
+      | .ok frame => pure frame
+      | .error error => throw (IO.userError s!"emit {fixture.name}: {repr error}")
+    unless frame.metadata.rowCount == fixture.input.rowCount && frame.body.len % 8 == 0 do
+      throw (IO.userError s!"{fixture.name}: wrong row count or body alignment")
+    unless (decodeBatch {} frame).toOption == some fixture.expected do
+      throw (IO.userError s!"{fixture.name}: physical body roundtrip")
+    if let some path := directory then save path fixture.name frame
+  assertFailure {} ⟨2, [⟨"n", true, .int32 [some 1]⟩]⟩ (.malformed .batchLayout)
+  assertFailure {} ⟨1, [⟨"n", false, .int32 [none]⟩]⟩ (.malformed .batchLayout)
+  assertFailure { totalRows := 2 } ⟨3, []⟩ (.limit .totalRows)
+  assertFailure { totalCells := 17 } mixed.input (.limit .totalCells)
+  assertFailure { ipc := { bodyBytes := 4 } } mixed.input (.limit .bodyBytes)
+  let tooMany := 2^63
+  assertFailure { ipc := { rows := tooMany }, totalRows := tooMany } ⟨tooMany, []⟩
+    (.malformed .batchLayout)
+  IO.println "Arrow IPC V5 writer: mixed, empty, zero-column and rejection cases passed"
+
+end PhysicalWriterTests
+
+public def main (args : List String) : IO Unit := do
+  let directory ← match args with
+    | [] => pure none
+    | ["--write-body-fixtures", output] => pure (some (System.FilePath.mk output))
+    | _ => throw (IO.userError "usage: arrow_ipc_metadata_tests [--write-body-fixtures DIR]")
   let bytes ← IO.FS.readBinFile "tests/formats/arrow-ipc/nullable-int32-utf8.arrows"
   check "fixture length" (bytes.size == 1128)
   let input := packed bytes
@@ -156,3 +231,4 @@ public def main : IO Unit := do
   IO.println "Arrow IPC V5 metadata: 1129 split points, 1128 truncations, and malformed, unsupported and limit cases passed"
   bodyRegressions bytes
   IO.println "Arrow IPC V5 body: ordered PyArrow rows across 1129 split points and malformed-body and budget cases passed"
+  PhysicalWriterTests.run directory
