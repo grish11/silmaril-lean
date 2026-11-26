@@ -262,6 +262,16 @@ observation theorem also applies to the compiled named SSA classes when
 the designated register holds the packed input. Zero fields encode as unit,
 and all routes to an empty packet agree without a field-separation premise.
 
+`Width.packedSat` uses the existing compiled named SSA sentence sides and
+pair-lawful `Part` models. The checker decides this restricted satisfaction in
+a separating model. Primitive relabelling preserves the verdict, and packed
+satisfaction after relabelling is satisfaction in the reduct. Both laws
+allow noninjective renamings. For compatible intermediate widths, linking
+preserves packed refinement when the source left stage is checked and thus
+produces a packed input for the right stage. All-store satisfaction implies
+packed satisfaction. The converse fails for a one-field block that normalizes
+the tail of a raw pair, while a wire keeps it.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

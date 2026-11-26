@@ -67,6 +67,27 @@ private theorem read_eval {model : Model F M α} {packet : Fin n → α}
 
 variable [DecidableEq V]
 
+private theorem bodyTo_mapOp {F' : Type} (rename : F → F') (width : K → Nat)
+    (env : V → Option (Val (Fin n))) (body : Body V K F) :
+    bodyTo? width env (body.mapOp rename) = bodyTo? width env body := by
+  induction body generalizing env with
+  | let1 dst op tail ih =>
+    cases op with
+    | val value => cases read? env value <;> simp [Body.mapOp, Op.mapOp, bodyTo?, *]
+    | _ => rfl
+  | let2 left right op tail ih =>
+    cases op with
+    | val value =>
+      cases found : read? env value with
+      | none => simp [Body.mapOp, Op.mapOp, bodyTo?, found]
+      | some shape => cases shape <;> simp [Body.mapOp, Op.mapOp, bodyTo?, found, ih]
+    | _ => rfl
+  | term term => cases term <;> rfl
+
+theorem blockTo_mapOp {F' : Type} (rename : F → F') (width : K → Nat) (block : Block V K F) :
+    blockTo? n width (block.mapOp rename) = blockTo? n width block :=
+  bodyTo_mapOp rename width _ block.body
+
 private theorem agrees_upd {model : Model F M α} {packet : Fin n → α}
     {env : V → Option (Val (Fin n))} {store : V → α} (agrees : Agrees model packet env store)
     (dst : V) (shape : Val (Fin n)) :

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Defs
+public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Institution.Defs
 import Mathlib.Data.Finset.Card
 
 @[expose] public section
@@ -56,6 +57,11 @@ def Profile.link (first : Profile left inputs mids) (second : Profile right mids
 end Link
 
 variable {graph : Graph V F a b} {inputs : Fin a → Nat} {outputs : Fin b → Nat}
+
+/-- Primitive relabelling leaves the layout and width certificate intact. -/
+def Profile.mapOp {F' : Type} (profile : Profile graph inputs outputs) (rename : F → F') :
+    Profile (graph.mapOp rename) inputs outputs :=
+  ⟨profile.localWidth, profile.entryWidth⟩
 
 def next? (profile : Profile graph inputs outputs) (index : Fin graph.locals) :
     Option ((target : Label graph.locals b) × Route (profile.localWidth index) (profile.width target)) :=
@@ -126,5 +132,13 @@ def Sat (inputs : Fin a → Nat) (model : PairModel F Part α) (left right : Gra
 
 def Separates (inputs : Fin a → Nat) (outputs : Fin b → Nat) (model : PairModel F Part α) : Prop :=
   ∀ i j, SeparatesWidths (inputs i) (outputs j) model
+
+/-- The usual named SSA comparison, restricted to stores with a packet of
+the given width in the designated register. It uses the existing sentence
+sides and pair-lawful `Part` model. -/
+def packedSat {K : Type} [DecidableEq K] [Inhabited V] (width : Nat) (model : PairModel F Part α)
+    (lhs rhs : SSAClass V K F Part α) : Prop :=
+  ∀ (packet : Fin width → α) (store : V → α), store default = encode model.val packet →
+    ssaClassObserve model lhs store ≤ ssaClassObserve model rhs store
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Width

@@ -13,6 +13,11 @@ open Comparison
 
 variable {V K F α : Type} [DecidableEq V] {n a b : Nat}
 
+/-- Primitive relabelling preserves the pure forwarding check. -/
+theorem blockTo_mapOp {F' : Type} (rename : F → F') (width : K → Nat) (block : Block V K F) :
+    blockTo? n width (block.mapOp rename) = blockTo? n width block :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.blockTo_mapOp rename width block
+
 /-- A symbolic copy/destructure block selects fields at its target's width. -/
 theorem blockTo_evalJump {M : Type → Type} [Monad M] [LawfulMonad M] (model : PairModel F M α)
     (packet : Fin n → α) (width : K → Nat) (block : Block V K F) (store : V → α)
