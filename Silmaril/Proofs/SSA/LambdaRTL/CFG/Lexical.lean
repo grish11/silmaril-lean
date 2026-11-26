@@ -25,7 +25,7 @@ private theorem term_evalJump (model : Model F M α) (term : Term V K F) (input 
     | inl a => exact ihLeft _
     | inr b => exact ihRight _
 
-private theorem body_evalJump (model : Model F M α) (body : Body V K F) (input : V → α) :
+theorem body_evalJump (model : Model F M α) (body : Body V K F) (input : V → α) :
     body.evalJump model input = body.toRegion.evalSSA model input := by
   induction body generalizing input with
   | term term => exact term_evalJump model term input

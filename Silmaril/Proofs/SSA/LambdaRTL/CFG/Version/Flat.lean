@@ -19,7 +19,7 @@ private theorem term_roundtrip (term : Term V K F) :
   | case _ _ _ _ _ ihLeft ihRight =>
     simp [Term.ofRegion?, Term.toRegion, ihLeft, ihRight]
 
-private theorem body_roundtrip (body : Body V K F) :
+theorem body_roundtrip (body : Body V K F) :
     Body.ofRegion? body.toRegion = some body := by
   induction body with
   | term term =>
@@ -71,7 +71,7 @@ private theorem term_readback (region : Region V K F) {term : Term V K F}
     simp [Term.toRegion, ihLeft hLeft, ihRight hRight]
   | let1 | let2 | join => simp [Term.ofRegion?] at parsed
 
-private theorem body_readback (region : Region V K F) {body : Body V K F}
+theorem body_readback (region : Region V K F) {body : Body V K F}
     (parsed : Body.ofRegion? region = some body) : body.toRegion = region := by
   induction region generalizing body with
   | br => cases parsed; rfl
@@ -105,7 +105,7 @@ theorem ofRegion?_eq_some_iff (region : Region V K F) (graph : CFG V K F) :
 
 open Version
 
-private theorem unpack_body (regs : List V) (src : V × Nat) (depth : Nat)
+theorem unpack_body (regs : List V) (src : V × Nat) (depth : Nat)
     (body : Body (V × Nat) K F) :
     ∃ target : Body (V × Nat) K F, target.toRegion = unpack regs src depth body.toRegion := by
   induction regs generalizing src depth with
@@ -135,7 +135,7 @@ private theorem term_version (term : Term V K F)
     exact ⟨.case (rnOp current op) (x, depth + 1) left' (y, depth + 1) right', by
       simp [Term.toRegion, version, hLeft, hRight]⟩
 
-private theorem body_version (body : Body V K F)
+theorem body_version (body : Body V K F)
     (labels : K → Option (List V)) (live : List V) (current : V → Nat) (depth : Nat) :
     ∃ target : Body (V × Nat) K F, target.toRegion = version labels live current depth body.toRegion := by
   induction body generalizing current depth with
