@@ -33,7 +33,7 @@ variable {V : Type u₁} {C : Type u₂} [Category.{v₁} V] [Category.{v₂} C]
   {ν : Type v} [DecidableEq ν] {Φ : Type w} [HasTy Φ τ] [InstructionModel J M Φ]
   {Γ : Ctx ν τ} {n : Nat} {β : BoundCtx τ n}
 
-private theorem denote_underBinder {A X Y : τ} {b : Tm ν Φ (n + 1)}
+theorem denote_underBinder_proof {A X Y : τ} {b : Tm ν Φ (n + 1)}
     (d : Derivation Φ Γ (.snoc β Y) b A) :
     J.map (envSnocIso M Γ (.snoc β X) Y).hom ≫ denote J P M (Typing.underBinder d) =
       J.map (dropSlot M β X ▷ M.obj Y) ≫ J.map (envSnocIso M Γ β Y).hom ≫ denote J P M d := by
@@ -50,7 +50,7 @@ private theorem iterNewest {b : Tm ν Φ (n + 1)} {A B : τ}
   let k := J.map (M.coprodIso B A).hom
   change J.map s ≫ bindArrow J (J.map q) (contextualLoop J
     (J.map (envSnocIso M Γ (.snoc β A) A).hom ≫ denote J P M (Typing.underBinder db) ≫ k)) = _
-  rw [← Category.assoc (J.map (envSnocIso M Γ (.snoc β A) A).hom), denote_underBinder,
+  rw [← Category.assoc (J.map (envSnocIso M Γ (.snoc β A) A).hom), denote_underBinder_proof,
     Category.assoc, contextualLoop_pre_map]
   unfold Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind
   rw [extend_map, ← J.map_comp_assoc, ← J.map_comp_assoc]
@@ -91,7 +91,7 @@ theorem iterFixpoint_sound_proof {a : Tm ν Φ n} {b : Tm ν Φ (n + 1)} {A B : 
   have resume : J.map (s ▷ M.obj A) ≫ contextualLoop J
       (J.map (envSnocIso M Γ δ A).hom ≫ denote J P M db' ≫ k) =
       J.map (fst R (M.obj A) ▷ M.obj A) ≫ contextualLoop J body := by
-    rw [← Category.assoc (J.map (envSnocIso M Γ δ A).hom), denote_underBinder,
+    rw [← Category.assoc (J.map (envSnocIso M Γ δ A).hom), denote_underBinder_proof,
       Category.assoc, contextualLoop_pre_map, ← J.map_comp_assoc,
       ← MonoidalCategory.comp_whiskerRight]
     have drop : s ≫ dropSlot M β A = fst R (M.obj A) := by simp [s, dropSlot, R]

@@ -11,8 +11,8 @@ namespace Silmaril.Isotope.LetParIter.Categorical
 open CategoryTheory CategoryTheory.Limits CartesianMonoidalCategory
 open scoped MonoidalCategory
 open LetIter.Semantics.Categorical
-  (TypeModel ctxObj envObj boundObj boundLookup boundVar envPairHom envSnocIso dropSlot
-    envRenameMap envRenameMap_free envRenameMap_bound envRenameMap_underBinder)
+  (TypeModel ctxObj envObj boundObj boundLookup boundTuple boundVar envPairHom envSnocIso dropSlot
+    envRenameMap envRenameMap_free envRenameMap_bound envRenameMap_underBinder envSubstMap)
 
 set_option backward.isDefEq.respectTransparency false
 
@@ -124,5 +124,89 @@ private theorem pairHom_expand {n : Nat} (β : BoundCtx τ n) (A B : τ) :
   rw [← Category.assoc (α_ _ _ _).inv]
   congr 1
   apply CartesianMonoidalCategory.hom_ext <;> simp
+
+private theorem env_ext {R : V} {n : Nat} {β : BoundCtx τ n} {f g : R ⟶ envObj M Γ β}
+    (free : f ≫ fst _ _ = g ≫ fst _ _)
+    (bound : ∀ i, f ≫ boundVar M i = g ≫ boundVar M i) : f = g := by
+  apply CartesianMonoidalCategory.hom_ext f g free
+  apply bound_ext M β
+  intro i
+  simpa only [Category.assoc, boundVar] using bound i
+
+@[reassoc] theorem envSubstMap_bound {n m : Nat} (β : BoundCtx τ n) (δ : BoundCtx τ m)
+    (p : ∀ i, envObj M Γ δ ⟶ M.obj (β.get i)) (i : Fin n) :
+    envSubstMap M Γ β δ p ≫ boundVar M i = p i := by
+  change lift (fst _ _) (boundTuple M β p) ≫ snd _ _ ≫ boundLookup M i = p i
+  rw [lift_snd_assoc]
+  induction β with
+  | nil => exact i.elim0
+  | snoc β A ih =>
+    refine Fin.cases (lift_snd _ _) (fun j => ?_) i
+    change lift (boundTuple M β (fun i => p i.succ)) (p 0) ≫ fst _ _ ≫ boundLookup M j = p j.succ
+    rw [lift_fst_assoc]
+    exact ih _ j
+
+@[reassoc] private theorem dropSlot_free {n : Nat} (β : BoundCtx τ n) (A : τ) :
+    dropSlot M (Γ := Γ) β A ≫ fst _ _ = fst _ _ := by
+  rw [← envRenameMap_succ_proof, envRenameMap_free]
+
+@[reassoc] private theorem dropSlot_bound {n : Nat} (β : BoundCtx τ n) (A : τ) (i : Fin n) :
+    dropSlot M (Γ := Γ) β A ≫ boundVar M i = boundVar M (β := β.snoc A) i.succ := by
+  rw [← envRenameMap_succ_proof, envRenameMap_bound]
+  simp [BoundCtx.Renaming.succ]
+
+/-- Value maps for the substitution lifted under a binder. -/
+@[expose] noncomputable def upValues {n m : Nat} {β : BoundCtx τ n} {δ : BoundCtx τ m}
+    (p : ∀ i, envObj M Γ δ ⟶ M.obj (β.get i)) (A : τ) :
+    ∀ i, envObj M Γ (δ.snoc A) ⟶ M.obj ((β.snoc A).get i) :=
+  Fin.cases (boundVar M 0) (fun i => dropSlot M δ A ≫ p i)
+
+theorem envSubstMap_snoc {n m : Nat} {β : BoundCtx τ n} {δ : BoundCtx τ m}
+    (p : ∀ i, envObj M Γ δ ⟶ M.obj (β.get i)) (A : τ) :
+    (envSnocIso M Γ δ A).hom ≫ envSubstMap M Γ (β.snoc A) (δ.snoc A) (upValues M p A) =
+      (envSubstMap M Γ β δ p ▷ M.obj A) ≫ (envSnocIso M Γ β A).hom := by
+  have snocDrop {k : Nat} (γ : BoundCtx τ k) :
+      (envSnocIso M Γ γ A).hom ≫ dropSlot M γ A = fst _ _ := by
+    simp [dropSlot]
+  have snocFree {k : Nat} (γ : BoundCtx τ k) :
+      (envSnocIso M Γ γ A).hom ≫ fst _ _ = fst (envObj M Γ γ) (M.obj A) ≫ fst _ _ := by
+    rw [← dropSlot_free M γ A, ← Category.assoc, snocDrop]
+  apply env_ext M
+  · simp only [Category.assoc, snocFree, whiskerRight_fst_assoc, envSubstMap, lift_fst]
+  · intro i
+    refine Fin.cases ?_ (fun j => ?_) i
+    · simp only [Category.assoc, envSubstMap_bound, upValues, Fin.cases_zero, envSnoc_zero]
+      exact (whiskerRight_snd _ _).symm
+    · simp only [Category.assoc, envSubstMap_bound, upValues, Fin.cases_succ]
+      rw [← dropSlot_bound M β A j, ← Category.assoc (envSnocIso M Γ δ A).hom,
+        ← Category.assoc (envSnocIso M Γ β A).hom, snocDrop, snocDrop, whiskerRight_fst_assoc,
+        envSubstMap_bound]
+
+theorem envSubstMap_pair {n m : Nat} {β : BoundCtx τ n} {δ : BoundCtx τ m}
+    (p : ∀ i, envObj M Γ δ ⟶ M.obj (β.get i)) (A B : τ) :
+    envPairHom M Γ δ A B ≫ envSubstMap M Γ (β.snoc A |>.snoc B) (δ.snoc A |>.snoc B)
+        (upValues M (upValues M p A) B) =
+      (envSubstMap M Γ β δ p ▷ (M.obj A ⊗ M.obj B)) ≫ envPairHom M Γ β A B := by
+  simp only [pairHom_expand, Category.assoc, envSubstMap_snoc]
+  rw [← MonoidalCategory.comp_whiskerRight_assoc, envSubstMap_snoc,
+    MonoidalCategory.comp_whiskerRight, Category.assoc,
+    MonoidalCategory.associator_inv_naturality_left_assoc]
+
+theorem envSubstMap_instantiate {n : Nat} {β : BoundCtx τ n} {A : τ}
+    (f : envObj M Γ β ⟶ M.obj A) :
+    envSubstMap M Γ (β.snoc A) β (Fin.cases f (boundVar M)) =
+      lift (𝟙 _) f ≫ (envSnocIso M Γ β A).hom := by
+  have drop : lift (𝟙 _) f ≫ (envSnocIso M Γ β A).hom ≫ dropSlot M β A = 𝟙 _ := by
+    simp [dropSlot]
+  apply env_ext M
+  · simp only [envSubstMap, lift_fst, Category.assoc]
+    rw [← dropSlot_free M β A, ← Category.assoc (envSnocIso M Γ β A).hom,
+      ← Category.assoc, drop, Category.id_comp]
+  · intro i
+    refine Fin.cases ?_ (fun j => ?_) i
+    · rw [envSubstMap_bound, Fin.cases_zero, Category.assoc, envSnoc_zero]
+      exact (lift_snd _ _).symm
+    · rw [envSubstMap_bound, Fin.cases_succ, ← dropSlot_bound M β A j, Category.assoc,
+        ← Category.assoc (envSnocIso M Γ β A).hom, ← Category.assoc, drop, Category.id_comp]
 
 end Silmaril.Isotope.LetParIter.Categorical
