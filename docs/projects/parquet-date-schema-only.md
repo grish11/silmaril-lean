@@ -37,6 +37,24 @@ the same logical observation, and a typed DATE EOF trace with zero batches.
 `convert_nonempty` and `convert_readError` fix the refusal results.
 [Public theorem header](../../Silmaril/Formats/Parquet/Date/FromIpc/SchemaOnly/Thms.lean)
 
+## Native IPC and round trips
+
+`Date.Events.ToIpc.convert` already emits a native Date32 schema followed by
+EOS when the checked Parquet footer has zero groups. `zero_group_readback`
+gives the exact field name, nullability and DAY unit, with an empty batch
+list. One explicit zero-row IPC record has a singleton batch list and
+is refused by `SchemaOnly.convert_nonempty` with `batchCount 1`.
+
+The opt-in `RoundTrip.SchemaOnly.ipc_roundtrip` and `parquet_roundtrip`
+compose the landed readback contracts. Both legs must succeed and their
+limits agree on the intermediate file or stream. The former uses the same
+`Date.Limits` at the Parquet boundary. The latter reads with the native
+IPC writer's `ObservationLimits.ipc`. The result is the full same logical
+descriptor with zero explicit batches. Both Parquet observations in
+`parquet_roundtrip` have zero checked footer groups by `parquet_at`.
+[Schema-only round-trip theorems](../../Silmaril/Formats/Parquet/Date/RoundTrip/SchemaOnly/Thms.lean)
+· [Shared observation laws](../../Silmaril/Formats/Parquet/Date/RoundTrip/Thms.lean)
+
 ## Pinned verification
 
 CPython 3.13.5 and PyArrow 26.0.1 produce two genuine zero-group Parquet
@@ -52,10 +70,11 @@ cap versus one byte below it.
 · [Oracle](../../scripts/parquet-date-schema-only-oracle/check.py)
 
 ```sh
-targets='+Silmaril.Formats.Parquet.Date.FromIpc.SchemaOnly.Thms +Silmaril.Formats.Parquet.Date.FromIpc.SchemaOnly.Tests +Silmaril.Formats.Parquet.Date.RoundTrip.Thms +Silmaril.Formats.Parquet.Date.RoundTrip.Tests +Silmaril.Formats.Parquet.Date.FromIpc.Multi.Tests +Silmaril.Formats.Parquet.Date.Events.ToIpc.Tests parquet-flat-scan-regression arrow_ipc_metadata_tests'
+targets='+Silmaril.Formats.Parquet.Date.RoundTrip.SchemaOnly.Thms +Silmaril.Formats.Parquet.Date.FromIpc.SchemaOnly.Thms +Silmaril.Formats.Parquet.Date.FromIpc.SchemaOnly.Tests +Silmaril.Formats.Parquet.Date.RoundTrip.Thms +Silmaril.Formats.Parquet.Date.RoundTrip.Tests +Silmaril.Formats.Parquet.Date.FromIpc.Multi.Tests +Silmaril.Formats.Parquet.Date.Events.ToIpc.Tests parquet-flat-scan-regression arrow_ipc_metadata_tests'
 lake build --wfail $targets
 make check CHECK_TARGETS="$targets"
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/parquet-date-schema-only/Axioms.lean
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/date-schema-only-roundtrip/Axioms.lean
 python3 -I scripts/parquet-date-schema-only-oracle/check.py
 ```
 

@@ -16,7 +16,7 @@ namespace Silmaril.Proofs.Formats.Parquet.Date.RoundTrip
 open Silmaril.Formats Silmaril.Formats.Parquet Silmaril.Formats.Parquet.Date.RoundTrip
 open Silmaril.Relational
 
-private theorem forward_observes {limits : Date.Limits} {ipcLimits : Arrow.ObservationLimits}
+theorem forward_observes {limits : Date.Limits} {ipcLimits : Arrow.ObservationLimits}
     {wire : Bytes} {ipc : KBytes} (written : Date.Events.ToIpc.convert limits ipcLimits wire = .ok ipc) :
     ∃ observation, ParquetObserves limits wire observation ∧
       Arrow.DateStream.read ipcLimits.ipc ipc = .ok observation.ipc := by
@@ -85,7 +85,7 @@ private theorem reverse_observes {readLimits : Arrow.Limits} {writeLimits : Date
       List.map_map, Function.comp_def]
     exact slots.symm
 
-private theorem sameParquet {limits : Date.Limits} {wire : Bytes} {left right : Observation}
+theorem sameParquet {limits : Date.Limits} {wire : Bytes} {left right : Observation}
     (a : ParquetObserves limits wire left) (b : ParquetObserves limits wire right) : left = right := by
   obtain ⟨checked, groups, opened, decoded, rfl⟩ := a
   obtain ⟨other, rest, otherOpen, otherRead, rfl⟩ := b
@@ -95,7 +95,7 @@ private theorem sameParquet {limits : Date.Limits} {wire : Bytes} {left right : 
   subst rest
   rfl
 
-private theorem sameIpc {left right : Observation} (same : left.ipc = right.ipc) : left = right := by
+theorem sameIpc {left right : Observation} (same : left.ipc = right.ipc) : left = right := by
   have field := congrArg Arrow.DateStream.Stream.field same
   have days := congrArg (fun stream : Arrow.DateStream.Stream => stream.batches.map
     (List.map (fun slot => slot.bind DateInterop.Date32.ofCivil?))) same

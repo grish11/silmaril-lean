@@ -7,6 +7,24 @@ public section
 
 namespace Silmaril.Formats.Parquet.Date.RoundTrip
 
+/-- The checked DATE reader and native IPC writer share one logical observation. -/
+theorem forward_observes {limits : Date.Limits} {ipcLimits : Arrow.ObservationLimits}
+    {wire : Bytes} {ipc : KBytes}
+    (written : Date.Events.ToIpc.convert limits ipcLimits wire = .ok ipc) :
+    ∃ observation, ParquetObserves limits wire observation ∧
+      Arrow.DateStream.read ipcLimits.ipc ipc = .ok observation.ipc :=
+  Proofs.Formats.Parquet.Date.RoundTrip.forward_observes written
+
+/-- The same checked input and limits determine a single logical observation. -/
+theorem ParquetObserves.unique {limits : Date.Limits} {wire : Bytes} {left right : Observation}
+    (a : ParquetObserves limits wire left) (b : ParquetObserves limits wire right) : left = right :=
+  Proofs.Formats.Parquet.Date.RoundTrip.sameParquet a b
+
+/-- The IPC observation determines the field and all original signed days. -/
+theorem Observation.ipc_injective {left right : Observation} (same : left.ipc = right.ipc) :
+    left = right :=
+  Proofs.Formats.Parquet.Date.RoundTrip.sameIpc same
+
 /-- Each observed batch index is the original checked footer index, including
 the exact number of slots when the group is empty. -/
 theorem parquet_at {limits : Date.Limits} {wire : Bytes} {observation : Observation}
