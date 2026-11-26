@@ -111,6 +111,9 @@ private def orderedPaths (declared : List String) (bounds : Limits := limits) :=
 #guard orderedPaths mixed.reverse == orderedPaths mixed
 #guard (admitOrdered mixed.reverse).toOption.map observeFiles =
   some ([[some 10, some 7], [some 10, some 7], [some 30, some 9], [some 20, none]], .eos)
+#guard (admitOrdered [other, "year=1/missing.parquet", escaped]).toOption.map observeFiles =
+  some ([[some 10, some 7]],
+    .readError (.open "year=1/missing.parquet" (.input (.lookup "literal path missing"))))
 #guard orderedPaths ["year=7/part-a.parquet", escaped, "year=7/part-a.parquet"] ==
   .ok [escaped, "year=7/part-a.parquet", "year=7/part-a.parquet"]
 #guard orderedPaths ["year=7/_success", "_SUCCESS", "year=7/%5FSUCCESS"] ==

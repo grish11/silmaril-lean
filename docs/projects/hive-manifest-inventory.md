@@ -63,8 +63,9 @@ kept as repeated scan inputs. The typed partition cells travel with each
 file. `Inventory.orderFiles_perm` proves preservation of the full typed list
 up to permutation. `Inventory.orderFiles_paths_eq_of_perm` proves that the
 sorted lookup sequence depends only on the multiset of admitted keys.
-These guarantees concern admitted inputs. Failure precedence follows the
-listing's original order.
+Admission errors follow the listing's original order. A subsequent scan
+opens the admitted files in sorted order, so its emitted prefix and first
+runtime error follow that order.
 
 Callers using the paired checked path ingress can apply `Inventory.orderFiles`
 to its successful result. `Inventory.orderFiles_paths` and the paired ingress
