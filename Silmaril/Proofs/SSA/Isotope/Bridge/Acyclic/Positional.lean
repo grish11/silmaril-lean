@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Categorical.Defs
+public import Silmaril.SSA.Isotope.Bridge.Acyclic.Categorical.Realization.Thms
 public import Silmaril.SSA.Isotope.Bridge.Acyclic.FiniteExit.Categorical.Thms
 public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Categorical.Thms
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Labels.Thms
@@ -124,29 +125,29 @@ private theorem operand_denotes {d : Nat} {β : BoundCtx τ d} {A B : τ}
   obtain ⟨op, rfl, rfl⟩ := op
   exact call_denotes J M ⟨op, rfl, rfl⟩
 
-abbrev LaterCorrect (p : Table Φ L n) (i : Fin n) (later : Later p i) : Prop :=
-  ∀ j (hj : i.val < j.val) {d : Nat} (β : BoundCtx τ d),
-    denoteRegion J M (later j hj β).toSSA_hasType =
+private abbrev LocalContinuationsCorrect (p : Table Φ L n) (targets : List Nat)
+    (next : LocalContinuations p targets) : Prop :=
+  ∀ j (edge : j.val ∈ targets) {d : Nat} (β : BoundCtx τ d),
+    denoteRegion J M (next j edge β).toSSA_hasType =
       J.map (snd (ctxObj M β.toList) (M.obj (p.types j))) ≫ p.resultAt J M j
 
 omit [FreydCategory.CentralUnit J] in
-private theorem compileDestination_denote (p : Table Φ L n) (i : Fin n) {A : τ}
-    (t : Destination p A) (forward : i.val < t.index) {d : Nat} (β : BoundCtx τ d)
-    (later : Later p i) (ih : LaterCorrect J M p i later) :
-    denoteRegion J M (p.compileDestination i t forward β later).toSSA_hasType =
+private theorem compileDestination_denote (p : Table Φ L n) {A : τ} {targets : List Nat}
+    (t : Destination p A) (edge : t.index ∈ targets) {d : Nat} (β : BoundCtx τ d)
+    (next : LocalContinuations p targets) (ih : LocalContinuationsCorrect J M p targets next) :
+    denoteRegion J M (p.compileDestination t edge β next).toSSA_hasType =
       J.map (snd (ctxObj M β.toList) (M.obj A)) ≫ t.result J M := by
   cases t with
   | «local» j ty =>
     cases ty
-    exact ih j forward β
+    exact ih j edge β
   | exit j ty =>
     exact (RegionDenotes.br (h := ty) (Denotes.var (J := J) (M := M) (i := 0) rfl)).eq_denote.symm
 
 private theorem compileBlock_denote (p : Table Φ L n) (i : Fin n)
-    (b : Acyclic.Block Φ (List.ofFn p.types ++ L) (p.types i))
-    (forward : ∀ j ∈ b.targets, i.val < j) {d : Nat} (β : BoundCtx τ d)
-    (later : Later p i) (ih : LaterCorrect J M p i later) :
-    denoteRegion J M (p.compileBlock i b forward β later).toSSA_hasType =
+    (b : Acyclic.Block Φ (List.ofFn p.types ++ L) (p.types i)) {d : Nat} (β : BoundCtx τ d)
+    (next : LocalContinuations p b.targets) (ih : LocalContinuationsCorrect J M p b.targets next) :
+    denoteRegion J M (p.compileBlock i b β next).toSSA_hasType =
       J.map (snd (ctxObj M β.toList) (M.obj (p.types i))) ≫
         Acyclic.Categorical.blockArrow J M (fun _ s => (p.destination s).result J M) b := by
   cases b with
@@ -154,17 +155,17 @@ private theorem compileBlock_denote (p : Table Φ L n) (i : Fin n)
     simp only [Table.compileBlock, Acyclic.Categorical.blockArrow]
     rw [← Category.assoc]
     exact join_payload J M _ _ (operand_denotes J M op) _
-      (compileDestination_denote J M p i _ _ _ later ih)
+      (compileDestination_denote J M p _ _ _ next ih)
   | branch op l r =>
-    have hl := forward l.index (by simp [Acyclic.Block.targets])
-    have hr := forward r.index (by simp [Acyclic.Block.targets])
+    have hl : l.index ∈ (Acyclic.Block.branch op l r).targets := by simp [Acyclic.Block.targets]
+    have hr : r.index ∈ (Acyclic.Block.branch op l r).targets := by simp [Acyclic.Block.targets]
     let γ := β.snoc (p.types i)
-    let left := p.compileTarget i l hl γ later
-    let right := p.compileTarget i r hr γ later
-    have dl := compileDestination_denote J M p i (p.destination l)
-      ((p.destination_index l).symm ▸ hl) γ later ih
-    have dr := compileDestination_denote J M p i (p.destination r)
-      ((p.destination_index r).symm ▸ hr) γ later ih
+    let left := p.compileTarget l hl γ next
+    let right := p.compileTarget r hr γ next
+    have dl := compileDestination_denote J M p (p.destination l)
+      ((p.destination_index l).symm ▸ hl) γ next ih
+    have dr := compileDestination_denote J M p (p.destination r)
+      ((p.destination_index r).symm ▸ hr) γ next ih
     change denoteRegion J M left.toSSA_hasType = _ at dl
     change denoteRegion J M right.toSSA_hasType = _ at dr
     have den := RegionDenotes.case (operand_denotes J M (β := β) op)
@@ -173,16 +174,16 @@ private theorem compileBlock_denote (p : Table Φ L n) (i : Fin n)
     simpa only [Table.compileBlock, Acyclic.Categorical.blockArrow, choice, Category.assoc] using
       den.eq_denote.symm
 
-theorem compileAt_denote_proof (p : Table Φ L n) (ok : p.Forward) (i : Fin n)
+theorem compileRankedAt_denote_proof (p : Table Φ L n) (ranking : Ranking p) (i : Fin n)
     {d : Nat} (β : BoundCtx τ d) :
-    denoteRegion J M (p.compileAt ok i β).toSSA_hasType =
+    denoteRegion J M (p.compileRankedAt ranking i β).toSSA_hasType =
       J.map (snd (ctxObj M β.toList) (M.obj (p.types i))) ≫ p.resultAt J M i := by
-  rw [Table.compileAt, resultAt_step_proof J M p i]
+  rw [Table.compileRankedAt, resultAt_step_proof J M p i]
   apply compileBlock_denote J M
-  intro j hj _ γ
-  exact compileAt_denote_proof p ok j γ
-termination_by n - i.val
-decreasing_by omega
+  intro j edge _ γ
+  exact compileRankedAt_denote_proof p ranking j γ
+termination_by ranking.rank i
+decreasing_by exact ranking.decreases i j ((p.mem_localTargets i j).mpr edge)
 
 theorem toSSA_denote_proof (p : Table Φ L n) {d : Nat} {β : BoundCtx τ d}
     (i : Fin n) (a : Operand Φ β (p.types i)) :
@@ -198,12 +199,35 @@ theorem toSSA_denote_proof (p : Table Φ L n) {d : Nat} {β : BoundCtx τ d}
       (p.blockArrows J M) (fun j => Acyclic.Categorical.block_denotes J M (p.block j) β.toList)
     exact native.eq_denote.symm
 
-theorem toFiniteExit_denote_proof (p : Table Φ L n) (ok : p.Forward)
+theorem toFiniteExitRanked_denote_proof (p : Table Φ L n) (ranking : Ranking p)
     {d : Nat} {β : BoundCtx τ d} (i : Fin n) (a : Operand Φ β (p.types i)) :
-    denoteRegion J M (p.toFiniteExit ok i a).toSSA_hasType =
+    denoteRegion J M (p.toFiniteExitRanked ranking i a).toSSA_hasType =
       denoteRegion J M (p.toSSA_hasType i a) := by
   rw [toSSA_denote_proof J M]
-  exact join_payload J M a (p.compileAt ok i β) (denote_spec J M _) _
-    (compileAt_denote_proof J M p ok i β)
+  exact join_payload J M a (p.compileRankedAt ranking i β) (denote_spec J M _) _
+    (compileRankedAt_denote_proof J M p ranking i β)
+
+theorem toLetCaseRanked_denote_proof (p : Table Φ L n) (ranking : Ranking p)
+    {d : Nat} {β : BoundCtx τ d} (i : Fin n) (a : Operand Φ β (p.types i)) :
+    denoteRegion J M (p.toSSA_hasType i a) =
+      J.map (contextMap M β) ≫ LetCase.Semantics.Categorical.denote J M (p.toLetCaseRanked ranking i a).2 ≫
+        J.map (labelInject M (L := [Region.packedExitType L]) 0 rfl ≫ unpackLabelExit M L) := by
+  let c := p.toFiniteExitRanked ranking i a
+  rw [← toFiniteExitRanked_denote_proof J M p ranking i a, ← FiniteExit.denote_decode_encode J M c,
+    FiniteExit.denote_decode, Code.denote_toSSA J M c.encode (L := [_]) (exit := 0) rfl]
+  simp only [Table.toLetCaseRanked, Category.assoc, ← J.map_comp, c]
+
+theorem toLetCase?_denote_proof (p : Table Φ L n) {d : Nat} {β : BoundCtx τ d}
+    (i : Fin n) (a : Operand Φ β (p.types i)) {term : Operand Φ β (Region.packedExitType L)}
+    (compiled : p.toLetCase? i a = some term) :
+    denoteRegion J M (p.toSSA_hasType i a) =
+      J.map (contextMap M β) ≫ LetCase.Semantics.Categorical.denote J M term.2 ≫
+        J.map (labelInject M (L := [Region.packedExitType L]) 0 rfl ≫ unpackLabelExit M L) := by
+  unfold Table.toLetCase? at compiled
+  split at compiled
+  · rename_i ok
+    obtain rfl := Option.some.inj compiled
+    exact toLetCaseRanked_denote_proof J M p (p.acyclicRanking ok) i a
+  · contradiction
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional

@@ -545,22 +545,23 @@ The continuation cannot jump back to its own label.
   [Finite-exit typing](../../Silmaril/SSA/Isotope/Bridge/Acyclic/FiniteExit/Thms.lean) ·
   [Categorical round trips](../../Silmaril/SSA/Isotope/Bridge/Acyclic/FiniteExit/Categorical/Thms.lean) ·
   [Native institution](../../Silmaril/SSA/Isotope/Bridge/Acyclic/FiniteExit/Institution/Thms.lean)
-- A forward-numbered positional table uses the existing typed jump and
-  case blocks and an executable check of their target lists. All local
-  edges increase in the supplied order, including in unreachable blocks.
-  Every block reads its own payload, and the entry can evaluate an
-  arbitrary exact operand in its surrounding context. The lowering
-  unfolds later blocks into the finite-exit fragment and preserves the
-  actual native positional arrow at the original ordered exits. The
-  LetCase theorem applies the existing context comparison and exit
-  decoder. In the four-block diamond both arms target one shared
-  classifier, and the categorical equation runs only the selected arm
-  before the shared classifier and its two distinct exits. Unfolding can
-  duplicate shared block code. This checker expects a supplied forward
-  order and covers one CFG table of payload-only blocks.
+- A positional table uses the existing typed jump and case blocks. Every
+  block reads its own payload, and the entry can evaluate an arbitrary
+  exact operand in its surrounding context. The executable checker uses
+  Kahn's algorithm on the local targets of **all** blocks. It accepts
+  exactly when the local graph has no directed cycle, including cycles
+  unreachable from the entry. The removal rounds rank the original
+  labels, so even backward numeric edges can be unfolded. The actual
+  native positional arrow is preserved at the original ordered exits.
+  The checked LetCase translation uses the existing context comparison
+  and exit decoder. The diamond regression exercises two incoming paths
+  to one shared classifier and two outward positions, with the selected
+  arm running before that classifier. Unfolding can duplicate shared
+  block code. The fragment covers one CFG table of payload-only blocks.
   [Checker and lowering](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Defs.lean) ·
+  [Cycle criterion](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Thms.lean) ·
   [Denotation](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Categorical/Thms.lean) ·
-  [Diamond regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Regression.lean)
+  [Diamond and cycle regressions](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Regression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
