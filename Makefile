@@ -71,6 +71,7 @@ cache:
 	fi
 
 CHECK_TARGETS += PEGStructuredThetaTests
+CHECK_TARGETS += arrow_ipc_metadata_tests
 CHECK_TARGETS += +Silmaril.Formats.Parquet.Footer.Thms parquet-footer-regression
 
 # The release suites run when CHECK_TARGETS holds the executables. A change scoped to a library
@@ -97,6 +98,7 @@ check:
 .PHONY: check-runtime check-integrations tla-import-check
 check-runtime:
 	$(MAKE) process-gates
+	$(if $(filter arrow_ipc_metadata_tests,$(CHECK_TARGETS)),$(MAKE) arrow-ipc-metadata-check)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Surface.Parser.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-parser/check.py)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Import.% +Silmaril.Logic.Temporal.TLA.Surface.Parser.% +Silmaril.Logic.Temporal.TLA.Elaborator.% +Silmaril.Logic.Temporal.TLA.Kernel.%,$(CHECK_TARGETS)),$(MAKE) tla-import-check)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Institution.% +Silmaril.Proofs.SSA.RVSDG.Institution.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Institution.Categorical.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGInstitution.lean)
@@ -195,6 +197,13 @@ tla-import-check:
 	$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true --run tests/semantics/tla-quint/Import.lean
 	$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/semantics/tla-quint/Temporal.lean
 	$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/semantics/tla-quint/ServiceCycle.lean
+
+.PHONY: arrow-ipc-metadata-check
+arrow-ipc-metadata-check:
+	$(PYTHON) -I tests/formats/arrow-ipc/fixture.py
+	.lake/build/bin/arrow_ipc_metadata_tests
+	$(LAKE) build --wfail +Silmaril.Formats.Arrow.Framing.Thms +Silmaril.Formats.Arrow.Layout.Thms
+	$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/formats/arrow-ipc/Axioms.lean
 
 check-integrations:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.OrderedRuntime.% +Silmaril.Proofs.SSA.RVSDG.OrderedRuntime.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.OrderedRuntime.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGOrderedRuntime.lean)

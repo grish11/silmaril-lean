@@ -115,8 +115,12 @@ def lowerArguments (scope : Scope) : (source : List (Source.ArgumentKind × Sour
     return ⟨operand.val :: tail.val, .cons operand.property tail.property⟩
   | _ => .error .argumentProfile
 
+def flatTupleElementLiteral? : Source.Expr → Option Core.Module.TupleDispatch.Element
+  | .text points => (Core.Text.ofPoints? points).map .text
+  | source => (tupleScalar? source).map .scalar
+
 inductive FlatTupleItem (scope : Scope) : Source.Expr → Core.Closure.GlobalTupleItem → Prop where
-  | literal {source value} (checked : tupleScalar? source = some value) :
+  | literal {source value} (checked : flatTupleElementLiteral? source = some value) :
       FlatTupleItem scope source (.literal value)
   | read (name : Name) (reference : GlobalReference scope name) :
       FlatTupleItem scope (.name name) (.global name)
@@ -127,7 +131,7 @@ def lowerFlatTupleItem (scope : Scope) : (source : Source.Expr) →
     let some reference := globalReference? scope name | throw (.unresolvedGlobal name)
     return ⟨.global name, .read name reference⟩
   | source =>
-    match checked : tupleScalar? source with
+    match checked : flatTupleElementLiteral? source with
     | some value => .ok ⟨.literal value, .literal checked⟩
     | none => .error (.scalar .expressionProfile)
 

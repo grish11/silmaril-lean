@@ -75,12 +75,14 @@ and six. Definedness of the operands alone would allow that mismatch.
 The same worked test passes the actual result of (b→c→d) to the
 [automatic closed-loop reverter](../../Silmaril/SSA/PEG/Simple/Revert/While/Region/Closed/Automatic/Thms.lean).
 The call names only the graph and the instruction identities for zero,
-unit increment and Boolean negation. The first ordered root identifies
-the pass, and that row identifies the exit predicate. Every root must be
-an eval sampling a θ at that pass or a direct reference to that same pass.
-The reverter collects all θ rows in table order, reads their typed initial
-and feedback operands, and looks up each sampled θ in the resulting
-carried vector. Repeated output roots retain their positions.
+unit increment and Boolean negation. The reverter finds the eval and pass
+leaves reached from the ordered roots through primitive operations. It uses
+one leaf to identify the shared pass and reads the exit predicate from that
+pass. The checker requires every reached eval to sample a carried θ at the
+same pass, and every reached pass leaf to name that row. The reverter
+collects all θ rows in table order and reads their typed initial and feedback
+operands. Its exit schedule preserves the order and multiplicity of the
+original roots.
 
 Exactly one carried slot must initialize from the designated zero opcode
 and update through the designated unary increment wired to itself.
@@ -89,9 +91,9 @@ requirements from operands for one round per row, with a strict drop
 on sampling edges, then uses bounded sink ranking on edges that tie in
 phase and loop counter. This admits the retained dead multiplication
 that consumes an eval. The existing closed-loop checker validates the
-proposed rank, the boundary and the primitive schedules over the empty
-initializer scope and the old θ scope. The checker retains proof that
-the emitted program uses the requested opcode roles.
+proposed rank, boundary, and primitive schedules over the parameter,
+old θ, and exit scopes. The checker retains proof that the emitted program
+uses the requested opcode roles.
 
 The emitted syntax initializes `(x, scaled)` to `(0, 0)`, continues while
 `x < 3`, and simultaneously updates `(x, scaled)` to `(x + 1, 5 + scaled)`.
@@ -105,9 +107,9 @@ it drives the exit and is also observed. The emitted update contains
 no multiply, including in its initializer or guard.
 
 `Accepted.observe_of_exec` covers successful finite `Simple.Exec` on the
-closed input. Its assumptions are the checked wiring and demand rank,
-the zero and unit-increment laws for the clock slot, and Boolean negation
-of the cached exit predicate. The execution supplies the defined guard
+same typed input tuple used in the PEG semantics. Its assumptions are the
+checked wiring and demand rank, the zero and unit-increment laws for the
+clock slot, and Boolean negation of the cached exit predicate. The execution supplies the defined guard
 tests and complete simultaneous updates. Its least exit and all earlier
 defined samples justify the Figure 11 evals and raw pass. The fixture
 composes this theorem with the existing (b→c) replay and (c→d)
@@ -119,13 +121,35 @@ predicate. That program returns the same ordered tuple. An eval naming
 a second pass for the same predicate and an increment reading the
 wrong θ both fail extraction despite having valid demand ranks.
 
-The supported shape is a closed, parentless single loop with nonempty
-ordered eval/pass roots, one structurally recognized unit counter, and
-primitive initializer, guard and update slices over the inferred scopes.
-Discovery collects every θ, so unsupported slices in extra carried
-rows can cause rejection. There is no completeness theorem for boundary
-or rank discovery. General CFG reversion, optimizer optimality, runtime
-speedup, and Java, memory, or alias behavior remain outside scope.
+## External parameters
+
+The same entry point accepts a typed parameter list. The
+[parameter scope adapter](../../Silmaril/SSA/PEG/Simple/Revert/While/Region/Parameters/Defs.lean)
+loads each parameter row from the input port named by its label and
+projects those bindings unchanged through each iteration. Distinct rows
+can reference the same input port. The initializer may read parameters.
+The guard and update may read parameters and the current θ vector, and
+the update commits the complete next vector simultaneously. The exit
+schedule may read parameters, eval samples, and the shared pass. At least
+one output dependency must be a pass or eval leaf. The verifier checks
+all four primitive schedules and rejects an initializer that tries to use
+the pass before the loop.
+
+The parameterized regression uses the same graph for zero and three
+trips. Its guard compares the clock with an input limit. Its accumulator
+starts at `base + delta` and adds `delta + oldClock` on each step. The
+ordered outputs include a direct Boolean input, the exit count, the
+sampled accumulator, and a repeated sum of that sample and `delta`.
+With base 2 and delta 4 the four count outputs are `[10, 0, 6, 10]` at
+limit 0 and `[25, 3, 21, 25]` at limit 3. The successful-return theorem
+requires the three opcode role laws. The finite execution supplies
+definedness of the scheduled work, including the exit slice.
+
+Discovery remains limited to a single parentless loop with primitive
+slices and one recognized unit counter. It collects every θ, so unsupported
+slices in extra carried rows can cause rejection. Boundary and rank
+discovery completeness, nested or effectful loops, and general CFG
+reversion remain open for this entry point.
 
 ```sh
 lake build --wfail +Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Automatic.Thms PeggyEggTests

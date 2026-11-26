@@ -115,4 +115,65 @@ example :
 example : (seedBuilt true).checkSeed (fun _ => .pair .unit .unit) ⟨⟩ = true := by decide
 example : (seedBuilt false).checkSeed (fun _ => .pair .unit .unit) ⟨⟩ = false := by decide
 
+private def branchCapture (second : Bool) : Name := if second then ⟨15⟩ else capture
+
+-- The two captures are in the same store. Only the register named by the
+-- right entry changes. Both targets bind the selected live-out to unit.
+private def branchSeedGraph (second : Bool) : CFG Name Name Unit :=
+  ⟨.term (.br ⟨9⟩ (.var (branchCapture second))),
+    [(⟨9⟩, ⟨⟨7⟩, .term (.case (.val (.var ⟨7⟩))
+      ⟨6⟩ (.br ⟨22⟩ .unit) ⟨6⟩ (.br ⟨11⟩ .unit))⟩)]⟩
+
+private def branchBuilt (second : Bool) :
+    Seeded signature (branchSeedGraph second) exits seedFields (branchCapture second) bit seedExits :=
+  (constructSeeded signature (branchSeedGraph second) exits seedFields (branchCapture second)
+    bit (fun _ => bit) seedExits).get (by cases second <;> decide)
+
+private def seedStore : Name → Value Atom :=
+  upd (upd (fun _ => .unit) (branchCapture false) (.inl .unit)) (branchCapture true) (.inr .unit)
+
+example : (seedBuilt true).seed? seedStore = some ⟨⟩ := by decide
+example : (branchBuilt false).seed? seedStore = some (.inl ⟨⟩) := by decide
+example : (branchBuilt true).seed? seedStore = some (.inr ⟨⟩) := by decide
+example : (seedBuilt true).refinementFromStore? (branchBuilt false) (fun _ => .unit) = none := by decide
+
+private abbrev branchInclusion (second : Bool) :=
+  ∀ policy : Silmaril.Logic.ITree.Model.{0,0} signature.traceSignature.toSignature,
+    ∀ x, policy.initial x → ∀ trace,
+      Silmaril.Elgot.ITree.HandledTrace policy.step x
+        (LiveOut.observeRaw signature.primitive exits seedFields (seededGraph true) seedStore) trace →
+      Silmaril.Elgot.ITree.HandledTrace policy.step x
+        (LiveOut.observeRaw signature.primitive exits seedFields (branchSeedGraph second) seedStore) trace
+
+private theorem branchDecision (second : Bool) (verdict : Bool)
+    (computed : (seedBuilt true).refinementFromStore? (branchBuilt second) seedStore = some verdict) :
+    verdict = true ↔ branchInclusion second :=
+  (((seedBuilt true).refinementFromStore?_eq_some_iff (branchBuilt second) seedStore verdict).mp computed).2.2
+
+set_option maxHeartbeats 1000000 in
+private theorem branchAccepts :
+    (seedBuilt true).program.refinementBetween? (branchBuilt false).program 0 ⟨⟩ 0 (.inl ⟨⟩) = true := by cbv
+
+set_option maxHeartbeats 1000000 in
+private theorem branchRejects :
+    (seedBuilt true).program.refinementBetween? (branchBuilt true).program 0 ⟨⟩ 0 (.inr ⟨⟩) = false := by cbv
+
+private theorem storeVerdict (second : Bool) (pkt : Denote bit) (verdict : Bool)
+    (seed : (branchBuilt second).seed? seedStore = some pkt)
+    (compared : (seedBuilt true).program.refinementBetween? (branchBuilt second).program 0 ⟨⟩ 0 pkt = verdict) :
+    (seedBuilt true).refinementFromStore? (branchBuilt second) seedStore = some verdict := by
+  have constant : (seedBuilt true).seed? seedStore = some ⟨⟩ := by decide
+  change ((seedBuilt true).seed? seedStore).bind (fun leftPacket => ((branchBuilt second).seed? seedStore).bind
+    fun rightPacket => some ((seedBuilt true).program.refinementBetween? (branchBuilt second).program
+      0 leftPacket 0 rightPacket)) = some verdict
+  rw [constant, seed]
+  exact congrArg some compared
+
+example : branchInclusion false :=
+  (branchDecision false true (storeVerdict false (.inl ⟨⟩) true (by decide) branchAccepts)).mp rfl
+
+example : ¬ branchInclusion true :=
+  fun included => Bool.noConfusion
+    ((branchDecision true false (storeVerdict true (.inr ⟨⟩) false (by decide) branchRejects)).mpr included)
+
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Public

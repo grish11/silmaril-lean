@@ -226,17 +226,17 @@ theorem wellFormed_reentry (p q : Plan arity entrySigs)
       exact (congrArg (bankHeader q.row.graph).term.args.all sameArity).symm.trans checked
     · rfl
 
-theorem lowerChecked_reindex (perm : InputPermutation arity)
+theorem lowerChecked_mapCaptures (mapping : InputMap arity)
     {g : SourceWithEntry arity entrySigs sigs} {before : Checked.Phi.Targets}
     (accepted : lowerChecked g = some before) :
-    ∃ after, lowerChecked (reindexCaptures perm g) = some after := by
+    ∃ after, lowerChecked (mapCaptures mapping g) = some after := by
   obtain ⟨p, recognized, wf, _⟩ := lowerChecked_sound accepted
-  obtain ⟨column, ok, recognizes⟩ := recognize_reindex perm recognized
+  obtain ⟨column, ok, recognizes⟩ := recognize_mapCaptures mapping recognized
   let q : Plan arity entrySigs :=
-    ⟨reindexFlow perm p.flow, ok, perm.column p.entry, {p.row with entry := column}⟩
-  have found : recognize (reindexCaptures perm g) = some q := recognizes
+    ⟨mapCaptureFlow mapping p.flow, ok, mapping.column p.entry, {p.row with entry := column}⟩
+  have found : recognize (mapCaptures mapping g) = some q := recognizes
   have checked : q.lowerFunc.WellFormed := wellFormed_reentry p q rfl wf
-  exact ⟨(q.rtl, Generic.lower (reindexCaptures perm g)), by
+  exact ⟨(q.rtl, Generic.lower (mapCaptures mapping g)), by
     simp only [lowerChecked, found, Option.bind_some, checked, ite_true]⟩
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Proofs

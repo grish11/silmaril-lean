@@ -42,19 +42,32 @@ theorem lowerChecked_reindex {spec : Spec} {targets : Checked.Phi.Targets}
         some (lowerBank (p.reindexInputs perm).graph, Generic.lower (p.reindexInputs perm).graph) :=
   Proofs.Reindex.lowerChecked_reindex perm accepted
 
-/-- In any producer prefix, renamed capture wires read the pulled valuation;
-earlier producer values come from the same locals. -/
+/-- In any producer prefix, mapped capture wires read the pulled valuation.
+Earlier producer values come from the same locals. -/
+theorem InputMap.read_column (mapping : InputMap arity) {F : PortTy → Type w}
+    {past : List (List PortTy)} {outputs : List PortTy} (input : Tuple F (wordPorts arity))
+    (wires : Wires (wordPorts arity) past outputs) (locals : Locals F past) :
+    (mapping.column wires).read input locals =
+      wires.read (InputPermutation.pullTuple (fun p => mapping.port p) input) locals :=
+  Proofs.Reindex.read_column mapping input wires locals
+
 theorem InputPermutation.read_column (perm : InputPermutation arity) {F : PortTy → Type w}
     {past : List (List PortTy)} {outputs : List PortTy} (input : Tuple F (wordPorts arity))
     (wires : Wires (wordPorts arity) past outputs) (locals : Locals F past) :
     (perm.column wires).read input locals =
       wires.read (pullTuple (fun p => perm.port p) input) locals :=
-  Proofs.Reindex.read_column perm input wires locals
+  InputMap.read_column (fun i => perm i) input wires locals
 
 theorem initial_reindex (p : Plan arity) (perm : InputPermutation arity)
     (m : Model.{0, 0, w} WordOp) (input : Tuple (Val m.value) (wordPorts arity)) :
     (p.reindexInputs perm).graph.initial m input = p.graph.initial m (perm.pull input) :=
   Proofs.Reindex.initial_reindex p perm m input
+
+/-- The checked header reads the carried bank and its local producers. -/
+theorem step_capture_congr (p : Plan arity) (m : Model.{0, 0, w} WordOp)
+    (left right old : Tuple (Val m.value) (wordPorts arity)) :
+    p.graph.step m left old = p.graph.step m right old :=
+  Proofs.Reindex.step_capture_congr m left right old p
 
 theorem step_reindex (p : Plan arity) (perm : InputPermutation arity)
     (m : Model.{0, 0, w} WordOp) (input old : Tuple (Val m.value) (wordPorts arity)) :

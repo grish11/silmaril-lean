@@ -20,6 +20,14 @@ theorem Site.rewriteAt_substVars (root : Region Φ → Option (Region Φ))
     site.rewriteAt root (r.substVars θ) = (site.rewriteAt root r).map (·.substVars θ) :=
   Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.EntryLetTraversal.rewriteAt_substVars root natural site r θ
 
+/-- A root action with a left inverse on successful results has the same
+left inverse at any address. -/
+theorem Site.rewriteAt_undo (forward backward : Region Φ → Option (Region Φ))
+    (undo : ∀ {r s}, forward r = some s → backward s = some r)
+    (site : Site) {r s : Region Φ} (h : site.rewriteAt forward r = some s) :
+    site.rewriteAt backward s = some r :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.EntryLetTraversal.rewriteAt_undo forward backward undo site h
+
 variable {τ : Type u} [TypeFormers τ] [HasTy Φ τ]
   {Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
 

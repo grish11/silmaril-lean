@@ -31,7 +31,7 @@ inductive AssertionArgument where
   | boolean (value : Bool)
   | booleanPair (left right : Bool)
   | textPair (left right : Core.Text)
-  | tuplePair (left right : List Core.Module.Value)
+  | tuplePair (left right : List Core.Module.TupleDispatch.Element)
   deriving DecidableEq, Repr
 
 inductive Raised where
@@ -82,7 +82,7 @@ inductive Value where
   | text (value : Core.Text)
   | none
   | listObject (object : Core.Module.ListObject)
-  | returnedTuple (items : List Core.Module.Value)
+  | returnedTuple (items : List Core.Module.TupleDispatch.Element)
   | tupleObject (object : Core.Module.TupleDispatch.Object)
   | exceptionClass (kind : ExceptionClass)
   | helper (descriptor : Helper)
@@ -101,6 +101,14 @@ def Value.ofScalar : Core.Module.Value → Value
   | .int value => .int value
   | .bool value => .bool value
   | .none => .none
+
+def Value.tupleElement? : Value → Option Core.Module.TupleDispatch.Element
+  | .text value => some (.text value)
+  | value => value.scalar?.map .scalar
+
+def Value.ofTupleElement : Core.Module.TupleDispatch.Element → Value
+  | .scalar value => Value.ofScalar value
+  | .text value => .text value
 
 def Value.stockStr? : Value → Option Core.Text
   | .int value => Core.Text.decimal? value
@@ -150,14 +158,14 @@ inductive Operand (slots : Nat) where
 abbrev Locals (slots : Nat) := Vector (Option Value) slots
 
 def readTupleItem (space : Namespace) : Core.Closure.GlobalTupleItem → Result
-  | .literal value => .ok (Value.ofScalar value)
+  | .literal value => .ok (Value.ofTupleElement value)
   | .global name =>
     (space.lookupGlobal name).elim (.error (.raised (.runtime (.nameError name)))) .ok
   | .read (.local slot) | .read (.owned slot) | .read (.capture slot) => Fin.elim0 slot
 
 def evalTupleContents (space : Namespace) (items : List Core.Closure.GlobalTupleItem) :
-    Except Failure (List Core.Module.Value) :=
-  Core.Closure.assembleFlatTuple (readTupleItem space) Value.scalar? .unsupported items
+    Except Failure (List Core.Module.TupleDispatch.Element) :=
+  Core.Closure.assembleFlatTuple (readTupleItem space) Value.tupleElement? .unsupported items
 
 def Operand.eval {slots : Nat} (space : Namespace) (locals : Locals slots) : Operand slots → Result
   | .literal value => .ok value
@@ -230,7 +238,7 @@ inductive Request (arity : Nat) where
   | compare (left right : Int)
   | compareNumeric (left right : NumericOperand)
   | compareText (left right : Core.Text)
-  | compareTuple (left right : List Core.Module.Value)
+  | compareTuple (left right : List Core.Module.TupleDispatch.Element)
   | textConversion (result : Core.Text)
   | truthConversion (result : Bool)
   | intFromBool (value : Bool)
@@ -239,7 +247,7 @@ inductive Request (arity : Nat) where
   | boolIdentity (left right : Bool)
   | distinctIntBool
   | emptyTuple
-  | copyTuple (items : List Core.Module.Value)
+  | copyTuple (items : List Core.Module.TupleDispatch.Element)
   | copyTupleObject (object : Core.Module.TupleDispatch.Object)
   | expect (expectation : Expectation) (callback : Value) (arguments : List Value)
       (shorter : arguments.length < arity)
@@ -330,9 +338,9 @@ inductive Executes : {arity : Nat} → Request arity → Result → Prop where
   | unequalText {arity : Nat} (left right : Core.Text) (different : left ≠ right) :
       Executes (arity := arity) (.compareText left right)
         (.error (.raised (.assertionError (.textPair left right))))
-  | equalTuple {arity : Nat} (left right : List Core.Module.Value) (same : equalContents left right = true) :
+  | equalTuple {arity : Nat} (left right : List Core.Module.TupleDispatch.Element) (same : equalContents left right = true) :
       Executes (arity := arity) (.compareTuple left right) (.ok .none)
-  | unequalTuple {arity : Nat} (left right : List Core.Module.Value) (different : equalContents left right ≠ true) :
+  | unequalTuple {arity : Nat} (left right : List Core.Module.TupleDispatch.Element) (different : equalContents left right ≠ true) :
       Executes (arity := arity) (.compareTuple left right)
         (.error (.raised (.assertionError (.tuplePair left right))))
   | textConversion {arity : Nat} (value : Core.Text) :
@@ -354,7 +362,7 @@ inductive Executes : {arity : Nat} → Request arity → Result → Prop where
         (.error (.raised (.assertionError (.booleanPair left right))))
   | distinctIntBool {arity : Nat} : Executes (arity := arity) .distinctIntBool (.ok .none)
   | emptyTuple {arity : Nat} : Executes (arity := arity) .emptyTuple (.ok (.returnedTuple []))
-  | copyTuple {arity : Nat} (items : List Core.Module.Value) :
+  | copyTuple {arity : Nat} (items : List Core.Module.TupleDispatch.Element) :
       Executes (arity := arity) (.copyTuple items) (.ok (.returnedTuple items))
   | copyTupleObject {arity : Nat} (object : Core.Module.TupleDispatch.Object) :
       Executes (arity := arity) (.copyTupleObject object) (.ok (.tupleObject object))

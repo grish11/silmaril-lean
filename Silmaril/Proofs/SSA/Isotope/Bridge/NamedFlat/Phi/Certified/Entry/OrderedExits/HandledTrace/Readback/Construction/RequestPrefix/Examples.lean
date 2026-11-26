@@ -141,8 +141,8 @@ private def branching : FiniteCFG Op 3 2 1 where
 private def branchingChecked : Checked sig (.snoc .nil choiceType) branchPackets outputs branching :=
   (check sig (.snoc .nil choiceType) branchPackets outputs branching (some 1)).get (by decide)
 
--- The same loop remains outside the selected-row grammar.
-example : (check sig (.snoc .nil choiceType) branchPackets outputs branching (some 2)).isNone = true := rfl
+-- A pure tail can itself be an old-label self-jump.
+example : (check sig (.snoc .nil choiceType) branchPackets outputs branching (some 2)).isSome = true := rfl
 
 private def branchingBuilt :=
   (construct sig (fun i => (branchingChecked.shape.table i).1) outputs branchingChecked.emitted.code).get (by decide)

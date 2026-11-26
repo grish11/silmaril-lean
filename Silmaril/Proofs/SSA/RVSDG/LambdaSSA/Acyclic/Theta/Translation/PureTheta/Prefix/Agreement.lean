@@ -45,17 +45,27 @@ private theorem adapter_observe (p : ValueTuple (σ := σ) (InputPorts A)) :
       rw [Part.bind_some]
       rfl
 
+theorem enterGraph_observe {raw : NestedTheta.Graph (PureGamma.Op (τ := τ) Φ ε)
+      (InputPorts A) [] sigs (InputPorts A)}
+    (head : NestedTheta.ExplicitRuntime.PurePrefix.EntryChecked
+      (a := carriedData A) (b := carriedData A) raw.toTerm)
+    (input : Tuple (RuntimeValues (TyDen (τ := τ)) σ) (InputPorts A)) :
+    observe (model (Φ := Φ) (ε := ε) (σ := σ)) (enterGraph head X Z) input =
+      Part.map (fun p => point (enter (A := A) (C := X) (D := Z) (p.get .head)) (p.get (.tail .head)))
+        (observe (model (Φ := Φ) (ε := ε) (σ := σ)) raw input) := by
+  unfold enterGraph
+  rw [NestedTheta.ExplicitRuntime.PurePrefix.Splice.graph_observe (OrderedModel (ε := ε)) evalValue,
+    Part.bind_eq_bind, ← Part.bind_some_eq_map]
+  congr 1
+  funext p
+  exact adapter_observe (Φ := Φ) (ε := ε) p
+
 private theorem producer_observe (s : Loop Φ ε A) (pureFirst : Bool) (x : TyDen A) (token : σ)
     (next : ValueTuple (σ := σ) (WirePorts A X Z) → Part (ValueTuple (σ := σ) (WirePorts L E D))) :
     (observe (model (Φ := Φ) (ε := ε) (σ := σ)) (producer s pureFirst X Z) (point x token)).bind next =
       (observe (model (Φ := Φ) (ε := ε) (σ := σ)) (s.compile pureFirst) (point x token)).bind
         (fun p => next (point (enter (p.get .head)) (p.get (.tail .head)))) := by
-  unfold producer
-  rw [NestedTheta.ExplicitRuntime.PurePrefix.Splice.graph_observe (OrderedModel (ε := ε)) evalValue]
-  simp only [Part.bind_eq_bind, Part.bind_assoc]
-  congr 1
-  funext p
-  rw [adapter_observe (Φ := Φ) (ε := ε), Part.bind_some]
+  rw [producer, enterGraph_observe, Part.bind_map]
 
 theorem compile_observe (s : Loop Φ ε A) (pureFirst : Bool)
     (tail : StructuredCFG.WithNestedFeedback.Syntax Φ A X Z L E D sigs) (x : TyDen A) (initial : σ) :

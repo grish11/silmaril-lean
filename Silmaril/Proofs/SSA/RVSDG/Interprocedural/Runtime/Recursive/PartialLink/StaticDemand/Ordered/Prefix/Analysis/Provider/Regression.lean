@@ -1,9 +1,9 @@
 module
 
-import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Analysis.Provider.Relocation.Thms
+import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Analysis.Provider.Named.Thms
 import Silmaril.SSA.RVSDG.Interprocedural.Terms.Thms
 import Silmaril.SSA.RVSDG.NestedTheta.Isomorphism.Thms
-meta import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Analysis.Provider.Relocation.Thms
+meta import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Analysis.Provider.Named.Thms
 
 namespace Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.ProviderRegression
 
@@ -363,5 +363,165 @@ private def relocatedReplacement (shifted : Bool) (cap : Nat) :=
   (relocatedReplacement shifted 0).bind (relocatedBlock shifted) == attempt &&
   relocatedResume shifted (args 4) == resumed &&
   (relocatedReplacement shifted 0).bind (relocatedResume shifted) == resumed
+
+section NamedProviders
+
+open Isomorphism.RecursiveCall.Numbered.Prefix (CheckedProviderAssembly)
+
+private def secondBinding : Binding Op (Scope.ordinary machine).table single [[global]] providerFn where
+  context := [global]
+  captures := .cons (.output (0 : Fin 1) .head) .nil
+  sigs := [[], single]
+  body := .primitive .probe (.cons (.arg .head) .nil)
+    (.primitive .allocate (.cons (.arg (.tail .head)) .nil)
+      (.ret (.cons (.output (1 : Fin 2) .head) .nil)))
+
+private def secondLayout : AllocationPlan Op (Scope.ordinary machine).table single providerFn (.data ()) false :=
+  ⟨providerDelta, secondBinding⟩
+
+private def secondGraph := secondLayout.numbered.toGraph
+
+private def secondChecked (cap : Nat) :=
+  checkGraphProvider keys actions Eq ordinary 84 84 (one cap) (one cap) secondGraph secondGraph
+    (.skipL (.skipR (.start (.lambda .done)))) (providerFn := providerFn) .head 27 27
+
+private def secondInitialized (cap : Nat) : secondLayout.Initialized actions 84 (one cap) (one cap) 27 :=
+  let row : Tuple machine.Val [global] := .cons (.global 84 0 (.data (2 * cap))) .nil
+  ⟨row, row, 27 + cap + 4, rfl, rfl⟩
+
+private def secondSound (cap : Nat) :=
+  ((secondLayout.analyze (Scope.Checked.ordinary actions).state.dispatch 84 (one cap) (one cap) 27
+    (secondInitialized cap) (fun _ => none) (fun _ => none)
+    (fun _ _ _ _ => trivial) (fun _ _ _ _ => trivial)).get (by rfl)).linked
+
+private def namedAssembly (cap : Nat) := do
+  let first ← providerCheck 3
+  let second ← secondChecked cap
+  (CheckedProviderAssembly.start "add-first" first.allocationChain).append
+    "scale-second" second.allocationChain ordinary
+
+private abbrev namedPorts : Ports T := [providerFn.port, providerFn.port]
+private abbrev namedExtra : Ports T := [global, global, num]
+private abbrev namedCaptures : Ports T := namedPorts ++ [global, global, global]
+private abbrev namedEntry := namedCaptures ++ clientFn.args
+private abbrev namedFirstSlots := prepend providerBinding.summary (Scope.ordinary machine).table
+private abbrev secondSlots := prepend secondBinding.summary (Scope.ordinary machine).table
+private abbrev namedSlots := append namedFirstSlots (append secondSlots (Scope.ordinary machine).table)
+
+private def namedLayout : AllocationPlan Op namedSlots (namedPorts ++ namedExtra) clientFn (.data ()) false where
+  init := ⟨single, .cons (.arg (.tail (.tail (.tail (.tail .head))))) .nil, [single], initializer⟩
+  binding :=
+    { context := namedCaptures
+      captures := .cons (.arg .head) (.cons (.arg (.tail .head)) (.cons (.arg (.tail (.tail .head)))
+        (.cons (.arg (.tail (.tail (.tail .head)))) (.cons (.output (0 : Fin 1) .head) .nil))))
+      sigs := [single, single, []]
+      body := .familyCall (table := namedSlots) (0 : Fin 2) .head
+        (.cons (.arg (.tail (.tail .head))) .nil)
+        (.cons (.arg (.tail (.tail (.tail (.tail (.tail .head)))))) .nil)
+        (.familyCall (table := namedSlots) (1 : Fin 2) (.tail .head)
+          (.cons (.arg (.tail (.tail (.tail .head)))) .nil)
+          (.cons (.output (0 : Fin 1) .head) .nil)
+          (.primitive .probe (.cons (.arg (.tail (.tail (.tail (.tail .head))))) .nil)
+            (.ret (.cons (.output (1 : Fin 3) .head) .nil)))) }
+
+private def clientImports (targetA targetB : machine.Val providerFn.port)
+    (witnessA witnessB : machine.Val global) : Tuple machine.Val (namedPorts ++ namedExtra) :=
+  .cons targetA (.cons targetB (.cons witnessA (.cons witnessB (one 2))))
+
+private theorem singletonCapture {p : T} (values : Tuple machine.Val [p]) :
+    Tuple.cons (values.get .head) .nil = values := by
+  cases values with | cons _ tail => cases tail; rfl
+
+private theorem matchedTarget (guard : machine.Val providerFn.port → Tuple machine.Val [global] → Prop)
+    {actual selected : machine.Val providerFn.port} {captures : Tuple machine.Val [global]}
+    (same : actual = selected) (known : guard selected captures) :
+    guard actual (.cons (captures.get .head) .nil) :=
+  (singletonCapture captures).symm ▸ (same.symm ▸ known)
+
+private theorem namedReady (guardA : Guard machine namedFirstSlots) (guardB : Guard machine secondSlots)
+    (empty : Guard machine (Scope.ordinary machine).table)
+    (targetA targetB : machine.Val providerFn.port) (witnessA witnessB : machine.Val global)
+    (locals : Locals machine.Val [[global]])
+    (first : guardA (0 : Fin 1) targetA (.cons witnessA .nil))
+    (second : guardB (0 : Fin 1) targetB (.cons witnessB .nil)) :
+    namedLayout.binding.resolved (guardA.combine (guardB.combine empty))
+      (clientImports targetA targetB witnessA witnessB) locals := by
+  have atFirst : (guardA.combine (guardB.combine empty)) (0 : Fin 2) = guardA (0 : Fin 1) :=
+    Guard.combine_left guardA (guardB.combine empty) (0 : Fin 1)
+  have atSecond : (guardA.combine (guardB.combine empty)) (1 : Fin 2) =
+      (guardB.combine empty) (0 : Fin 1) :=
+    Guard.combine_right guardA (guardB.combine empty) (0 : Fin 1)
+  have atSecondLeft : (guardB.combine empty) (0 : Fin 1) = guardB (0 : Fin 1) :=
+    Guard.combine_left guardB empty (0 : Fin 1)
+  intro _ _
+  exact ⟨atFirst.symm ▸ first, fun _ => ⟨(atSecond.trans atSecondLeft).symm ▸ second, fun _ _ => trivial⟩⟩
+
+private def namedArgs (spare : Nat) : Tuple machine.Val pair := .cons (.data (7 : Nat)) (one spare)
+
+private def namedRun (cap : Nat) (store : Nat) (target : machine.Val clientFn.port)
+    (formals : Tuple machine.Val pair) : Bool :=
+  let observation := Continuation.Partial.Executable.run actions 60 (.call target formals) store
+  if cap == 0 then
+    match observation with
+    | .blocked ⟨⟨_, _, .probe, _, _, .cons (.global unitId vertex (.data payload)) .nil⟩, stack⟩ attempted =>
+      let payload : Nat := payload
+      unitId == 84 && vertex == 0 && payload == 0 && attempted == 43 &&
+        returned (observe actions (runFor actions 60 ⟨.returned .nil stack, 50⟩)) == some (14, 65)
+    | _ => false
+  else
+    returned observation == some (14, 73)
+
+private def checkNamed (cap : Nat) (swapRight : Bool := false) : Option Bool := do
+  let assembly ← namedAssembly cap
+  let first ← assembly.lookup "add-first" providerFn.port
+  let second ← assembly.lookup "scale-second" providerFn.port
+  let firstProof ← matchNamedExport first (providerSound false 3) exact
+  let secondProof ← matchNamedExport second (secondSound cap) exact
+  let sourceA : NamedDemand assembly providerBinding.summary :=
+    ⟨"add-first", first, (providerSound false 3).relink firstProof.down.1 firstProof.down.2⟩
+  let sourceB : NamedDemand assembly secondBinding.summary :=
+    ⟨"scale-second", second, (secondSound cap).relink secondProof.down.1 secondProof.down.2⟩
+  let sources : NamedImports assembly namedPorts := .cons sourceA (.cons sourceB .nil)
+  let importsL := clientImports first.values.left second.values.left
+    (sourceA.sound.capsL.get .head) (sourceB.sound.capsL.get .head)
+  let targetAR := if swapRight then second.values.right else first.values.right
+  let targetBR := if swapRight then first.values.right else second.values.right
+  let importsR := clientImports targetAR targetBR
+    (sourceA.sound.capsR.get .head) (sourceB.sound.capsR.get .head)
+  let initial := assembly.chain.checked.storeL
+  let receipt ← LinkedRows.check
+    (namedLayout.linkDelta actions 85 importsL initial) (namedLayout.linkDelta actions 85 importsR initial)
+  if common : assembly.chain.checked.storeR = initial then
+    let checked ← sources.analyzeAllocating namedLayout exact 85 importsL importsR initial rfl common receipt
+      (fun equal => by
+        refine namedReady sourceA.sound.dispatch.left sourceB.sound.dispatch.left
+          (Scope.Checked.ordinary actions).state.dispatch.left first.values.left second.values.left
+          (sourceA.sound.capsL.get .head) (sourceB.sound.capsL.get .head) (receipt.left, PUnit.unit) ?_ ?_
+        · exact matchedTarget _ equal.1 sourceA.sound.resolvedL
+        · exact matchedTarget _ equal.2.2.1 sourceB.sound.resolvedL)
+      (fun equal => by
+        refine namedReady sourceA.sound.dispatch.right sourceB.sound.dispatch.right
+          (Scope.Checked.ordinary actions).state.dispatch.right targetAR targetBR
+          (sourceA.sound.capsR.get .head) (sourceB.sound.capsR.get .head) (receipt.right, PUnit.unit) ?_ ?_
+        · exact matchedTarget _ equal.2.1 sourceA.sound.resolvedR
+        · exact matchedTarget _ equal.2.2.2.1 sourceB.sound.resolvedR)
+    let original := namedArgs 4
+    let substituted := checked.substituteDeadFormals requested original (namedArgs 40)
+    let spare : Nat := match substituted.get (.tail .head) with | .data n => n
+    have _traceL := Isomorphism.RecursiveCall.Numbered.Prefix.AllocationHistory.link sourceA.historyL checked.linked.linkedL
+    have _traceR := Isomorphism.RecursiveCall.Numbered.Prefix.AllocationHistory.link sourceB.historyR checked.linked.linkedR
+    pure (sourceA.sound.store == 27 && sourceB.sound.store == (27 + cap + 4) &&
+      checked.liveCapture emptyDemand (.tail (.tail .head)) &&
+      checked.liveCapture emptyDemand (.tail (.tail (.tail .head))) &&
+      checked.liveFormal requested .head && !checked.liveFormal requested (.tail .head) && spare == 40 &&
+      namedRun cap checked.linked.store checked.linked.targetL original &&
+      namedRun cap checked.linked.store checked.linked.targetR substituted)
+  else none
+
+#guard checkNamed 5 == some true
+#guard checkNamed 0 == some true
+#guard (checkNamed 5 true).isNone
+
+end NamedProviders
 
 end Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.ProviderRegression

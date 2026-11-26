@@ -31,6 +31,7 @@ inductive OpcodeKey (τ Φ : Type u)
   | nested (key : NestedFeedback.Reverse.Key τ Φ)
   | enterNested (a m : τ)
   | exitNested (a m : τ)
+  | classifyPayload (a : τ) (op : Φ)
   | enterCarrier (a e d : τ)
   | link (a m e d : τ)
   | routeExit (h e m d : τ)
@@ -58,6 +59,7 @@ def loopKey : {ins outs : Ports (OrderedRuntime.Structured.Ty τ)} →
 
 def effectKey : {ins outs : Ports (OrderedRuntime.Structured.Ty τ)} →
     Wires.Effect Φ ins outs → OpcodeKey τ Φ
+  | _, _, .classifyPayload (A := a) p => .classifyPayload a p.op
   | _, _, .enterCarrier (A := a) (E := e) (D := d) => .enterCarrier a e d
   | _, _, .link (A := a) (M := m) (E := e) (D := d) => .link a m e d
   | _, _, .routeExit (H := h) (E := e) (M := m) (D := d) => .routeExit h e m d

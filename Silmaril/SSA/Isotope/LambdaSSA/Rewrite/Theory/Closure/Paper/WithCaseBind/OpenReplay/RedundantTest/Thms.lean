@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.RedundantTest.Defs
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.Frames.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.PacketCases.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Extension.Singleton.Values.Discard.Syntax.Defs
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.RedundantSelectedTest
@@ -94,5 +95,16 @@ theorem quoted_packet {Γ L : List (Ty Empty)} (pos : Position L) (table : Finit
       (.let₁ .unit (.br pos.1 (if table (Fin.cases newer (fun _ => older) ∘ order)
         then .inr (.var 0) else .inl (.var 0)))) L :=
   RedundantSelectedTest.quoted_packet pos table order older newer hu hx hy
+
+/-- A selected quote on structural projections reduces at an actual
+constructor frame to its Boolean row. -/
+theorem quote_frameValue {Γ L : List (Ty Empty)} {n : Nat} {X : Ty Empty} {frame : ReplyFrame X}
+    (pos : Position L) (table : Finite.Table n) (slots : Fin n → ReplyFrame.Slot frame)
+    (v : ReplyFrame.Value Γ frame) :
+    E Γ ((selectTerminal pos (Finite.Expr.quote n table) (fun j => (slots j).term) []).elaborate.val.substVars
+      (Tm.singleSubst v.elaborate.val))
+      (.let₁ .unit (.br pos.1 (if table (fun j => ((slots j).read v).1)
+        then .inr (.var 0) else .inl (.var 0)))) L :=
+  RedundantSelectedTest.quote_frameValue pos table slots v
 
 end Silmaril.Isotope.LambdaSSA.Region.Paper.WithCaseBind.OpenReplay

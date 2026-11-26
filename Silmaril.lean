@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Prelude.Defs
+public import Silmaril.Data.TimeSeries
 
 public import Silmaril.Wasm.Binary.Extensions.SharedMemory.CoreEmbedding
 public import Silmaril.Wasm.Binaryen.ArbitraryProfileCompiler

@@ -151,45 +151,162 @@ inductive Spread (block : LexicalBlock) where
   | none => []
   | some spread => spread.reads
 
-/-- The display is evaluated once. Expansion transports the exact original
-element values in order and leaves the display's reached state intact. -/
-inductive Spreads (block : LexicalBlock) : Option (Spread block) → State → Lists.Outcome (List Value) → Prop where
-  | absent (state : State) : Spreads block none state (.ok [] state)
+/-- Evaluation is separate from expansion so a later mapping operand can fail first. -/
+inductive EvaluatesSpread (block : LexicalBlock) : Option (Spread block) → State → Lists.Outcome (Option Value) → Prop where
+  | absent (state : State) : EvaluatesSpread block none state (.ok none state)
   | list {source codes reads state out} {related : Call.Arguments block source codes reads} :
       Call.Evaluates block state source codes out →
-      Spreads block (some (.list related)) state
+      EvaluatesSpread block (some (.list related)) state
         (out.resume fun values reached =>
-          Lists.Outcome.resume (Lists.allocate values reached) fun _ allocated => .ok values allocated)
+          Lists.Outcome.resume (Lists.allocate values reached) fun value allocated => .ok (some value) allocated)
   | tuple {source codes reads state out} {related : Call.Arguments block source codes reads} :
       Call.Evaluates block state source codes out →
-      Spreads block (some (.tuple related)) state
+      EvaluatesSpread block (some (.tuple related)) state
         (out.resume fun values reached =>
-          Lists.Outcome.resume (Lists.allocateTuple values reached) fun _ allocated => .ok values allocated)
-  | invalid (state : State) (value : Int) : Spreads block (some (.integer value)) state (.error .invalidStar state)
+          Lists.Outcome.resume (Lists.allocateTuple values reached) fun value allocated => .ok (some value) allocated)
+  | integer (state : State) (value : Int) :
+      EvaluatesSpread block (some (.integer value)) state (.ok (some (.scalar (.int value))) state)
+
+inductive ExpandsPositionals (state : State) : Option Value → Lists.Outcome (List Value) → Prop where
+  | absent : ExpandsPositionals state none (.ok [] state)
+  | list (address : Nat) : ExpandsPositionals state (some (.list address)) (Lists.listElements address state)
+  | tuple (address : Nat) : ExpandsPositionals state (some (.tuple address)) (Lists.tupleElements address state)
+  | invalid (value : Int) : ExpandsPositionals state (some (.scalar (.int value))) (.error .invalidStar state)
+
+/-- Dictionary keys and values use the checked body operands and string literals. -/
+inductive DisplayOperand (block : LexicalBlock) : Expr → Lowering.Expr → List Binding → Prop where
+  | plain {source code reads} : Body.Operand block source code reads → DisplayOperand block source code reads
+  | string (text : String) : DisplayOperand block (.string text) (.atom (.string text)) []
+
+inductive DisplayEntries (block : LexicalBlock) :
+    List (Expr × Expr) → List (Lowering.Expr × Lowering.Expr) → List Binding → Prop where
+  | empty : DisplayEntries block [] [] []
+  | entry {key value keyCode valueCode keyReads valueReads rest codes reads} :
+      DisplayOperand block key keyCode keyReads → DisplayOperand block value valueCode valueReads →
+      DisplayEntries block rest codes reads →
+      DisplayEntries block ((key, value) :: rest) ((keyCode, valueCode) :: codes) (keyReads ++ valueReads ++ reads)
+
+structure Mapping (block : LexicalBlock) where
+  entries : List (Expr × Expr)
+  codes : List (Lowering.Expr × Lowering.Expr)
+  reads : List Binding
+  related : DisplayEntries block entries codes reads
+
+@[expose] def Mapping.source {block : LexicalBlock} (mapping : Mapping block) : Expr := .dict mapping.entries
+
+@[expose] def Mapping.code {block : LexicalBlock} (mapping : Mapping block) : Lowering.Expr := .dict mapping.codes
+
+@[expose] def mappingReads {block : LexicalBlock} (mapping : Option (Mapping block)) : List Binding :=
+  (mapping.map Mapping.reads).getD []
+
+inductive EvaluatesDisplayOperand (block : LexicalBlock) :
+    State → Expr → Lowering.Expr → Lists.Outcome Value → Prop where
+  | plain {state source code out} :
+      Body.Evaluates block state source code out → EvaluatesDisplayOperand block state source code out
+  | string (state : State) (text : String) :
+      EvaluatesDisplayOperand block state (.string text) (.atom (.string text)) (.ok (.string text) state)
+
+/-- Evaluate each key and value before attempting that pair's insertion. -/
+inductive EvaluatesEntries (block : LexicalBlock) (address : Nat) :
+    State → List (Expr × Expr) → List (Lowering.Expr × Lowering.Expr) → Lists.Outcome Unit → Prop where
+  | empty (state : State) : EvaluatesEntries block address state [] [] (.ok () state)
+  | keyError {state reached key value keyCode valueCode rest codes error} :
+      EvaluatesDisplayOperand block state key keyCode (.error error reached) →
+      EvaluatesEntries block address state ((key, value) :: rest) ((keyCode, valueCode) :: codes) (.error error reached)
+  | valueError {state keyed reached key value keyCode valueCode rest codes k error} :
+      EvaluatesDisplayOperand block state key keyCode (.ok k keyed) →
+      EvaluatesDisplayOperand block keyed value valueCode (.error error reached) →
+      EvaluatesEntries block address state ((key, value) :: rest) ((keyCode, valueCode) :: codes) (.error error reached)
+  | insertionError {state keyed valued reached key value keyCode valueCode rest codes k v error} :
+      EvaluatesDisplayOperand block state key keyCode (.ok k keyed) →
+      EvaluatesDisplayOperand block keyed value valueCode (.ok v valued) →
+      Lists.insertDisplayEntry (.dict address) k v valued = .error error reached →
+      EvaluatesEntries block address state ((key, value) :: rest) ((keyCode, valueCode) :: codes) (.error error reached)
+  | entry {state keyed valued inserted key value keyCode valueCode rest codes k v out} :
+      EvaluatesDisplayOperand block state key keyCode (.ok k keyed) →
+      EvaluatesDisplayOperand block keyed value valueCode (.ok v valued) →
+      Lists.insertDisplayEntry (.dict address) k v valued = .ok () inserted →
+      EvaluatesEntries block address inserted rest codes out →
+      EvaluatesEntries block address state ((key, value) :: rest) ((keyCode, valueCode) :: codes) out
+
+inductive EvaluatesMapping (block : LexicalBlock) :
+    Option (Mapping block) → State → Lists.Outcome (Option Nat) → Prop where
+  | absent (state : State) : EvaluatesMapping block none state (.ok none state)
+  | dict {mapping state allocated out} :
+      Lists.allocateDict [] state = .ok (.dict state.heap.size) allocated →
+      EvaluatesEntries block state.heap.size allocated mapping.entries mapping.codes out →
+      EvaluatesMapping block (some mapping) state (out.resume fun _ reached => .ok (some state.heap.size) reached)
+
+/-- String validation retains the original value and scans in insertion order. -/
+inductive KeywordEntries : List Lists.Entry → Except Lists.Error Keywords → Prop where
+  | empty : KeywordEntries [] (.ok [])
+  | string {key text value rest result} :
+      KeywordEntries rest result →
+      KeywordEntries (⟨.string text, key, value⟩ :: rest) (result.map ((text, value) :: ·))
+  | nonString {key keyCode value rest} :
+      (∀ text, key ≠ .string text) →
+      KeywordEntries (⟨key, keyCode, value⟩ :: rest) (.error (.keywordMustBeString key))
+
+inductive ExpandsMapping (state : State) : Option Nat → Lists.Outcome Keywords → Prop where
+  | absent : ExpandsMapping state none (.ok [] state)
+  | dict {address entries result} :
+      Lists.dictEntries address state = .ok entries state → KeywordEntries entries result →
+      ExpandsMapping state (some address) (Lists.fromExcept result state)
+  | readError {address error} :
+      Lists.dictEntries address state = .error error state →
+      ExpandsMapping state (some address) (.error error state)
+
 
 @[expose] def expression (name : String) (positional : List Lowering.Expr)
-    (keywords : List (String × Lowering.Expr)) (star : Option Lowering.Expr := none) : Lowering.Expr :=
-  .call (Leaf.readOperand (fileSlot name)) positional keywords star none
+    (keywords : List (String × Lowering.Expr)) (star starStar : Option Lowering.Expr := none) : Lowering.Expr :=
+  .call (Leaf.readOperand (fileSlot name)) positional keywords star starStar
 
-/-- The flattened successful operand values are partitioned by the
-syntactic positional count and paired with the original keyword names. -/
-@[expose] def collect (positional : Nat) (keywords : List String) (values : List Value) (spread : List Value := []) : Actual :=
-  ⟨values.take positional ++ spread, keywords.zip (values.drop positional)⟩
+/-- The operand phase records both terminal carriers before validating either. -/
+structure OperandValues where
+  explicit : List Value
+  star : Option Value
+  mapping : Option Nat
 
-/-- The terminal spread runs after explicit operands and before binding. -/
-inductive Actuals (block : LexicalBlock) (source : List Expr) (codes : List Lowering.Expr)
-    (positional : Nat) (keywords : List String) (star : Option (Spread block)) :
-    State → Lists.Outcome Actual → Prop where
-  | operandError {state final error} : Call.Evaluates block state source codes (.error error final) →
-      Actuals block source codes positional keywords star state (.error error final)
-  | spreadError {state reached final values error} :
+inductive EvaluatesActualOperands (block : LexicalBlock) (source : List Expr) (codes : List Lowering.Expr)
+    (star : Option (Spread block)) (mapping : Option (Mapping block)) :
+    State → Lists.Outcome OperandValues → Prop where
+  | explicitError {state final error} : Call.Evaluates block state source codes (.error error final) →
+      EvaluatesActualOperands block source codes star mapping state (.error error final)
+  | starError {state reached final values error} :
       Call.Evaluates block state source codes (.ok values reached) →
-      Spreads block star reached (.error error final) →
-      Actuals block source codes positional keywords star state (.error error final)
-  | expanded {state reached final values elements} :
+      EvaluatesSpread block star reached (.error error final) →
+      EvaluatesActualOperands block source codes star mapping state (.error error final)
+  | mappingError {state reached middle final values spread error} :
       Call.Evaluates block state source codes (.ok values reached) →
-      Spreads block star reached (.ok elements final) →
-      Actuals block source codes positional keywords star state (.ok (collect positional keywords values elements) final)
+      EvaluatesSpread block star reached (.ok spread middle) →
+      EvaluatesMapping block mapping middle (.error error final) →
+      EvaluatesActualOperands block source codes star mapping state (.error error final)
+  | ready {state reached middle final values spread dictionary} :
+      Call.Evaluates block state source codes (.ok values reached) →
+      EvaluatesSpread block star reached (.ok spread middle) →
+      EvaluatesMapping block mapping middle (.ok dictionary final) →
+      EvaluatesActualOperands block source codes star mapping state (.ok ⟨values, spread, dictionary⟩ final)
+
+/-- Mapping string validation precedes positional expansion. Duplicate
+argument names are still delivered to the binder in explicit-then-map order. -/
+inductive ExpandsActuals (positional : Nat) (keywords : List String) (state : State) (values : OperandValues) :
+    Lists.Outcome Actual → Prop where
+  | badMapping {error final} : ExpandsMapping state values.mapping (.error error final) →
+      ExpandsActuals positional keywords state values (.error error final)
+  | badPositionals {named reached error final} :
+      ExpandsMapping state values.mapping (.ok named reached) →
+      ExpandsPositionals reached values.star (.error error final) →
+      ExpandsActuals positional keywords state values (.error error final)
+  | ready {named reached elements final} :
+      ExpandsMapping state values.mapping (.ok named reached) →
+      ExpandsPositionals reached values.star (.ok elements final) →
+      ExpandsActuals positional keywords state values
+        (.ok ⟨values.explicit.take positional ++ elements, keywords.zip (values.explicit.drop positional) ++ named⟩ final)
+
+abbrev Actuals (block : LexicalBlock) (source : List Expr) (codes : List Lowering.Expr)
+    (positional : Nat) (keywords : List String) (star : Option (Spread block)) (mapping : Option (Mapping block)) :=
+  Call.ReachesActual (EvaluatesActualOperands block source codes star mapping)
+    (fun state values => ExpandsActuals positional keywords state values)
 
 abbrev SiteBinding {parent : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
     (site : Site parent formals varargs kwargs) : Call.BindingRule BoundArguments :=
@@ -200,10 +317,11 @@ abbrev RunsWith {parent : LexicalBlock} {formals : List PlainKeywordParameter} {
     (site : Site parent formals varargs kwargs) (bodyRuns : State → Lists.Outcome Flow → Prop)
     (block : LexicalBlock) (id : DeclarationId) (name : String)
     (arguments : List Expr) (codes : List Lowering.Expr) (keywords : List (String × Expr))
-    (compiled : List (String × Lowering.Expr)) (star : Option (Spread block) := none) :=
+    (compiled : List (String × Lowering.Expr)) (star : Option (Spread block) := none)
+    (mapping : Option (Mapping block) := none) :=
   Call.RunsActual site bodyRuns block id name
     (Actuals block (arguments ++ keywords.map Prod.snd) (codes ++ compiled.map Prod.snd)
-      codes.length (compiled.map Prod.fst) star)
+      codes.length (compiled.map Prod.fst) star mapping)
     (SiteBinding site)
     (Packs site.declaration.signature.varargs site.declaration.signature.kwargs)
 

@@ -504,6 +504,117 @@ result = factory()
 	fmt.Println("PASS the pinned resolver rejects explicit arguments after * and repeated positional spreads")
 }
 
+func checkMappingSpread(opts *syntax.FileOptions) {
+	for _, test := range []struct {
+		mapping string
+		keys    []string
+	}{
+		{"{}", []string{"beta"}},
+		{`{"zeta": data, "key": data, "alpha": data}`, []string{"beta", "zeta", "alpha"}},
+	} {
+		source := fmt.Sprintf(`data = [0, 22]
+def factory(data):
+    def child(first, *rest, key=[31], **extras):
+        return (first, rest, key, extras)
+    copy = child
+    result = copy([17], beta=[61], *[data], **%s)
+    return result
+result = factory(data)
+`, test.mapping)
+		globals, err := starlark.ExecFileOptions(opts, new(starlark.Thread), "tracked-mapping-spread.star", source, nil)
+		require(err == nil, err)
+		slots := globals["result"].(starlark.Tuple)
+		items := slots[3].(*starlark.Dict).Items()
+		require(slots[0].String() == "[17]" && slots[1].(starlark.Tuple)[0] == globals["data"], slots)
+		require(len(items) == len(test.keys), slots)
+		for i, item := range items {
+			require(item[0] == starlark.String(test.keys[i]), items)
+			if i == 0 {
+				require(item[1].String() == "[61]", items)
+			} else {
+				require(item[1] == globals["data"], items)
+			}
+		}
+		if len(items) == 1 {
+			require(slots[2].String() == "[31]", slots)
+		} else {
+			require(slots[2] == globals["data"], slots)
+		}
+	}
+
+	globals, err := starlark.ExecFileOptions(opts, new(starlark.Thread), "fixed-mapping-spread.star", `data = [0, 22]
+def factory(data):
+    def child(value):
+        return value
+    copy = child
+    return copy(**{"value": data})
+result = factory(data)
+`, nil)
+	require(err == nil && globals["result"] == globals["data"], globals)
+	fmt.Println("PASS empty and ordered dictionary spreads preserve original aliases, fixed delivery, saved defaults, and **kwargs order")
+
+	for _, test := range []struct {
+		tail      string
+		order     string
+		errorText string
+	}{
+		{`key=observe(2, [61]), *observe(3, []), **{"key": observe(4, [63]), "later": observe(5, [64])}`,
+			"1,2,3,4,5", `multiple values for parameter "key"`},
+		{`beta=observe(2, [61]), *observe(3, []), **{"beta": observe(4, [63]), "later": observe(5, [64])}`,
+			"1,2,3,4,5", `multiple values for parameter "beta"`},
+		{`key=observe(2, [61]), *observe(3, 7), **{observe(4, "key"): observe(5, []), observe(6, 3): observe(7, []), "last": observe(8, [])}`,
+			"1,2,3,4,5,6,7,8", "keywords must be strings"},
+		{`beta=observe(2, [0])[1], *observe(3, []), **{"unused": observe(4, [])}`,
+			"1,2", "index 1 out of range"},
+		{`beta=observe(2, []), *observe(3, [0])[1], **{"unused": observe(4, [])}`,
+			"1,2,3", "index 1 out of range"},
+		{`beta=observe(2, []), *observe(3, 7), **{3: observe(4, []), "broken": observe(5, [0])[1], "unused": observe(6, [])}`,
+			"1,2,3,4,5", "index 1 out of range"},
+		{`beta=observe(2, []), *observe(3, 7), **{"key": observe(4, [])}`,
+			"1,2,3,4", "argument after * must be iterable"},
+		{`beta=observe(2, []), *observe(3, []), **{"dup": observe(4, []), "dup": observe(5, []), "unused": observe(6, [])}`,
+			"1,2,3,4,5", "duplicate key"},
+		{`beta=observe(2, []), *observe(3, []), **{"key": observe(4, 8)}`,
+			"1,2,3,4,body", "unhandled index operation"},
+	} {
+		var observed []string
+		thread := &starlark.Thread{
+			Print: func(_ *starlark.Thread, msg string) { observed = append(observed, msg) },
+		}
+		source := fmt.Sprintf(`def observe(n, value):
+    print(n)
+    return value
+def factory():
+    def child(first, *rest, key=[31], **extras):
+        print("body")
+        return key[0]
+    copy = child
+    result = copy(observe(1, [17]), %s)
+    print("tail")
+result = factory()
+`, test.tail)
+		_, err := starlark.ExecFileOptions(opts, thread, "mapping-spread-effects.star", source, nil)
+		require(err != nil && strings.Contains(err.Error(), test.errorText), err)
+		require(strings.Join(observed, ",") == test.order, observed)
+	}
+	fmt.Println("PASS operand errors precede expansion, mapping string validation precedes positional expansion, and binding handles duplicate arguments")
+
+	for _, test := range []struct {
+		arguments string
+		errorText string
+	}{
+		{"**{}, named=1", "keyword argument may not follow **kwargs"},
+		{"**{}, 1", "positional argument may not follow **kwargs"},
+		{"**{}, *[]", "*args may not follow **kwargs"},
+		{"**{}, **{}", "multiple **kwargs not allowed"},
+	} {
+		source := fmt.Sprintf("def child(*rest, **extras):\n    pass\nchild(%s)\n", test.arguments)
+		_, _, err := starlark.SourceProgramOptions(opts, "mapping-spread-placement.star", source, nil)
+		require(err != nil && strings.Contains(err.Error(), test.errorText), err)
+	}
+	fmt.Println("PASS the pinned resolver requires a single terminal mapping spread after any positional spread")
+}
+
 func main() {
 	opts := &syntax.FileOptions{}
 	for _, test := range []struct {
@@ -539,5 +650,6 @@ func main() {
 	checkVarargs(opts)
 	checkKwargs(opts)
 	checkPositionalSpread(opts)
+	checkMappingSpread(opts)
 	checkExplicitOperandOrder(opts)
 }

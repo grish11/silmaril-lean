@@ -43,12 +43,22 @@ abbrev Graph (Φ ε : Type u) [HasTy Φ τ] [HasEff Φ ε] [Bot ε] (A X Z L E D
 def adapter (Φ : Type u) [HasTy Φ τ] (A X Z : τ) :=
   bridge (Wires.Effect.enterCarrier (Φ := Φ) (A := A) (E := X) (D := Z))
 
+/-- Extend any checked raw producer with a typed carrier conversion. -/
+def enterGraph {raw : NestedTheta.Graph (PureGamma.Op (τ := τ) Φ ε) (InputPorts A) [] sigs (InputPorts A)}
+    (head : EntryChecked (a := carriedData A) (b := carriedData A) raw.toTerm) (X Z : τ) :=
+  graph head (adapter Φ A X Z).2.collect
+
+def enterGraphChecked {raw : NestedTheta.Graph (PureGamma.Op (τ := τ) Φ ε) (InputPorts A) [] sigs (InputPorts A)}
+    (head : EntryChecked (a := carriedData A) (b := carriedData A) raw.toTerm) (X Z : τ) :
+    EntryChecked (a := carriedData A) (b := payloadData A X Z) (enterGraph head X Z).toTerm :=
+  graphChecked head (adapter Φ A X Z).2.collect
+
 def producer (s : Loop Φ ε A) (pureFirst : Bool) (X Z : τ) :=
-  graph (s.compileChecked pureFirst) (adapter Φ A X Z).2.collect
+  enterGraph (s.compileChecked pureFirst) X Z
 
 def producerChecked (s : Loop Φ ε A) (pureFirst : Bool) (X Z : τ) :
     EntryChecked (a := carriedData A) (b := payloadData A X Z) (producer s pureFirst X Z).toTerm :=
-  graphChecked (s.compileChecked pureFirst) (adapter Φ A X Z).2.collect
+  enterGraphChecked (s.compileChecked pureFirst) X Z
 
 /-- Compile the mixed loop and the existing public structured source into
 one numbered table. The carrier conversion preserves the θ's live token. -/

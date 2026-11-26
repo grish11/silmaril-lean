@@ -1,5 +1,7 @@
 module
 
+import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.PureTheta.Prefix.Structured.Thms
+meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.PureTheta.Prefix.Structured.Defs
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.MixedContinuation.Reverse.Thms
 meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.MixedContinuation.Reverse.Defs
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.PureTheta.Prefix.Thms
@@ -2006,6 +2008,84 @@ private def staleSeam (order : Bool) :
       throw (IO.userError "recovery accepted a stale token at the mixed prefix seam")
 
 end CombinedPrefix
+
+namespace StructuredPrefix
+
+open Translation.PureTheta.Prefix.Structured (Tree ChoiceRows Fibre compile candidate recover)
+open Flat.Serial (WirePorts)
+
+private def tree (order : Bool) : Tree Op Bool number (ChoiceRows number) :=
+  .choice (op .loopDecision) (.theta mixedLoop order)
+    (.choice (op .loopDecision) (.theta mixedLoop (!order)) (.theta mixedLoop order))
+
+private abbrev TailRows := Flat.Serial.Joined number number number
+  [WirePorts number number number] [WirePorts number number number]
+
+private abbrev PipelineGraph := Translation.PureTheta.Prefix.Structured.Graph Op Bool number number number number
+  ((ChoiceRows number ++ [WirePorts number number number]) ++ TailRows)
+
+private def numbered (order : Bool) : PipelineGraph := compile (tree order) orderedTailSyntax
+
+private theorem choiceAction (n : Nat) :
+    callCase (ε := Bool) (m := Runtime) (op .loopDecision) n = instruction .loopDecision n := by
+  unfold callCase
+  rw [call_eq]
+  exact bind_pure _
+
+-- The right arm selects its own right θ. Both classifiers run before the leaf.
+example (coherent : Coherent) (order : Bool) (f : Fibre (numbered order)) :
+    (Region.denote (ε := Bool) (m := Runtime) f.fragment.typing (PUnit.unit, (0 : Nat))).run 2 =
+      Part.some ((.inl (30552 : Nat) : LabelDen [number,number]), 277744) := by
+  have leaf : (iter (mixedLoop.step (σ := Nat)) (0 : Nat)).run 277 = Part.some ((1 : Nat), 2777) := by
+    rw [Elgot.StateT.run_iter, Part.eq_some_iff, Elgot.Part.mem_iter_iff]
+    apply Elgot.Part.Runs.done
+    rw [thetaStep_run]
+    exact Part.mem_some _
+  rw [f.compiled_denote (tree order) orderedTailSyntax coherent, Flat.denote_link _ _ coherent]
+  simp only [tree, Tree.fragment, Flat.denote_forkCase _ _ _ coherent, choiceAction,
+    StateT.run_bind, Part.bind_eq_bind]
+  have outer : (instruction .loopDecision (0 : Nat)).run 2 =
+      Part.some ((.inr (0 : Nat) : Nat ⊕ Nat), 27) := rfl
+  have inner : (instruction .loopDecision (0 : Nat)).run 27 =
+      Part.some ((.inr (0 : Nat) : Nat ⊕ Nat), 277) := rfl
+  simp only [outer, inner, StateT.run_bind, Part.bind_eq_bind, Part.bind_some]
+  change (((Region.denote (ε := Bool) (m := Runtime) mixedLoop.fragment.typing
+    (PUnit.unit, (0 : Nat))).run 277).bind _) = _
+  rw [mixedLoop.fragment_denote coherent, StateT.run_bind, leaf]
+  simp only [Part.bind_eq_bind, Part.bind_some, StateT.run_pure, Part.pure_eq_some, merge]
+  change (Region.denote (ε := Bool) (m := Runtime)
+    (Flat.link (.loop tailLoop) (.loop tailLoop)).typing (PUnit.unit, (1 : Nat))).run 2777 = _
+  rw [Flat.denote_link _ _ coherent]
+  simp only [Flat.Fragment.loop_denote, ExplicitRuntime.denote_rounds _ coherent,
+    StateT.run_bind, tailReturns, Part.bind_eq_bind, Part.bind_some, merge]
+
+private def staleSeam (g : PipelineGraph) : PipelineGraph :=
+  match g.toTerm with
+  | .bind classifier classifierChildren (.bind select arms (.bind convert conversionChildren rest)) =>
+    let inputs := convert.inputs.map fun sort origin =>
+      if h : runtime = sort then h ▸ .arg (runtimePort (carried number)) else origin
+    (NestedTheta.Term.bind classifier classifierChildren
+      (.bind select arms (.bind {convert with inputs} conversionChildren rest))).toGraph
+
+#eval show IO Unit from do
+  for order in [false,true] do
+    let graph := numbered order
+    unless (Translation.PureTheta.Prefix.Structured.recover graph).isSome do
+      throw (IO.userError "could not recover the recursive mixed prefix")
+    let stale := staleSeam graph
+    unless (Translation.PureTheta.Prefix.Structured.candidate stale).isSome &&
+        (Translation.PureTheta.Prefix.Structured.recover stale).isNone do
+      throw (IO.userError "the recursive prefix accepted a stale continuation token")
+    let run := fun (input initial : Nat) =>
+      (NestedTheta.Partial.Executable.run gammaActions graph 3 (point input initial)).map fun output =>
+        (show (Nat ⊕ Nat) ⊕ Nat from output.get .head, show Nat from output.get (.tail .head))
+    match run 0 2, run 0 200 with
+    | some (.inl (.inl 30552), 277744), some (.inl (.inl 220852), 2007744) => pure ()
+    | _, _ => throw (IO.userError "the selected branch lost its payload or live token at the serial suffix")
+    unless (run 98 0).isNone do
+      throw (IO.userError "the late undefined action in the selected mixed leaf returned")
+
+end StructuredPrefix
 
 end MixedThetaReverse
 

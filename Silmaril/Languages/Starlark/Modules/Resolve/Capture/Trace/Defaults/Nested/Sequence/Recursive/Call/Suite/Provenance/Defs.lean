@@ -57,16 +57,18 @@ structure Invocation (block : LexicalBlock) where
   operands : Call.Arguments block arguments codes argumentReads
   keywords : Named.Operands block := Named.Operands.empty
   star : Option (Named.Spread block) := none
+  mapping : Option (Named.Mapping block) := none
 
 @[expose] def Invocation.source {block : LexicalBlock} (call : Invocation block) : Statement :=
-  .assign call.destination (.call (.scalar (.read call.callee)) call.arguments call.keywords.source (call.star.map Named.Spread.source) none)
+  .assign call.destination (.call (.scalar (.read call.callee)) call.arguments call.keywords.source
+    (call.star.map Named.Spread.source) (call.mapping.map Named.Mapping.source))
 
 @[expose] def Invocation.code {block : LexicalBlock} (call : Invocation block) : Functions.Body :=
   .assignExpr (fileSlot call.destination) (Named.expression call.callee call.codes call.keywords.codes
-    (call.star.map Named.Spread.code))
+    (call.star.map Named.Spread.code) (call.mapping.map Named.Mapping.code))
 
 @[expose] def Invocation.reads {block : LexicalBlock} (call : Invocation block) : List Binding :=
-  fileSlot call.callee :: ((call.argumentReads ++ call.keywords.reads) ++ Named.spreadReads call.star)
+  fileSlot call.callee :: ((call.argumentReads ++ call.keywords.reads) ++ Named.spreadReads call.star ++ Named.mappingReads call.mapping)
 
 /-- Each child starts with an empty provenance map. Only reaching a
 local definition or copying a tracked local establishes a known callee. -/

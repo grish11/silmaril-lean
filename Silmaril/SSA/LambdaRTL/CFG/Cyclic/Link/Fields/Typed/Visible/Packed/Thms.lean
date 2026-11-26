@@ -65,6 +65,23 @@ theorem PackedEntry.observe_eq {p : Program signature inputs outputs} {input : F
       (p.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) :=
   p.packed_observe input packet entry.captures entry.accepted entry.typed ambient original agrees
 
+/-- Independent start packets are compared through their actual checked
+packed dispatchers and the same ordered result encoding. -/
+theorem refinementBetween?_iff_packed [DecidableEq F]
+    {c : Nat} {rightInputs : Fin c → PacketType} (right : Program signature rightInputs outputs)
+    {leftInput : Fin a} {rightInput : Fin c}
+    (leftPacket : Denote (inputs leftInput)) (rightPacket : Denote (rightInputs rightInput))
+    (leftEntry : PackedEntry program leftInput) (rightEntry : PackedEntry right rightInput)
+    (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom)
+    (leftAgrees : leftEntry.recordAgrees leftPacket leftRecord)
+    (rightAgrees : rightEntry.recordAgrees rightPacket rightRecord) :
+    program.refinementBetween? right leftInput leftPacket rightInput rightPacket = true ↔
+      TraceLE (leftEntry.observe leftAmbient leftRecord) (rightEntry.observe rightAmbient rightRecord) := by
+  rw [leftEntry.observe_eq _ _ _ leftAgrees, rightEntry.observe_eq _ _ _ rightAgrees,
+    TraceLE.bind_pure_iff
+      Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Program.packedTreeOutput_injective]
+  exact program.refinementBetween?_iff right leftInput leftPacket rightInput rightPacket
+
 theorem weakEq?_iff_packedOutput [DecidableEq F] (right : Program signature inputs outputs) :
     program.weakEq? right = true ↔ ∀ input packet,
       (program.observe input packet >>= fun result => pure (FiniteCFG.packedTreeOutput result)) =

@@ -70,7 +70,7 @@ inductive Value where
   | float64 (value : Silmaril.Numeric.Ieee754.F64.Finite)
   | text (value : Core.Text)
   | function (value : Function)
-  | tuple (items : List Core.Module.Value)
+  | tuple (items : List Core.Module.TupleDispatch.Element)
   | tupleObject (object : Core.Module.TupleDispatch.Object)
   deriving Repr
 
@@ -95,6 +95,14 @@ def Value.ofScalar : Core.Module.Value → Value
   | .bool value => .bool value
   | .none => .none
 
+def Value.tupleElement? : Value → Option Core.Module.TupleDispatch.Element
+  | .text value => some (.text value)
+  | value => value.scalar?.map .scalar
+
+def Value.ofTupleElement : Core.Module.TupleDispatch.Element → Value
+  | .scalar value => Value.ofScalar value
+  | .text value => .text value
+
 /-- Only the canonical empty tuple and tuples allocated by the checked
 module path expose an identity. An address refers to the originating run. -/
 def Value.tupleObject? : Value → Option Core.Module.TupleDispatch.Object
@@ -104,7 +112,7 @@ def Value.tupleObject? : Value → Option Core.Module.TupleDispatch.Object
 
 /-- The checked items of a flat tuple return. -/
 inductive TupleItem (layout : Layout) where
-  | literal (value : Core.Module.Value)
+  | literal (value : Core.Module.TupleDispatch.Element)
   | read (slot : Slot layout)
   | global (name : String)
   deriving Repr
@@ -124,9 +132,9 @@ def GlobalTupleItem.isRead : GlobalTupleItem → Bool
 
 /-- Complete the ordered reads before checking that every reached value
 can be retained as an exact scalar item. -/
-def assembleFlatTuple {Item Payload Error : Type} (read : Item → Except Error Payload)
-    (scalar : Payload → Option Core.Module.Value) (unsupported : Error)
-    (items : List Item) : Except Error (List Core.Module.Value) :=
+def assembleFlatTuple {Item Payload Element Error : Type} (read : Item → Except Error Payload)
+    (scalar : Payload → Option Element) (unsupported : Error)
+    (items : List Item) : Except Error (List Element) :=
   (items.mapM read).bind fun values =>
     match values.mapM scalar with
     | some checked => .ok checked
@@ -239,14 +247,14 @@ def Heap.allocate (heap : Heap) (value : Value) : CellId × Heap :=
 /-- Save a positive witness for the evaluated constant. Its heap slot
 records the descriptor itself, so it is distinct from a fresh-object slot
 holding a tuple payload. Two such witnesses may refer to one Python constant. -/
-def Heap.saveTupleOrigin (heap : Heap) (head : Core.Module.Value) (tail : List Core.Module.Value) :
+def Heap.saveTupleOrigin (heap : Heap) (head : Core.Module.TupleDispatch.Element) (tail : List Core.Module.TupleDispatch.Element) :
     Core.Module.TupleDispatch.Object × Heap :=
   let descriptor : Core.Module.TupleDispatch.Object := ⟨some heap.next, head :: tail⟩
   (descriptor, (heap.allocate (.tupleObject descriptor)).2)
 
 /-- Materialize a new exact tuple. The empty tuple keeps its canonical
 representation and needs no allocation. -/
-def Heap.materializeFreshTuple (heap : Heap) (contents : List Core.Module.Value) : Value × Heap :=
+def Heap.materializeFreshTuple (heap : Heap) (contents : List Core.Module.TupleDispatch.Element) : Value × Heap :=
   match contents with
   | [] => (.tuple [], heap)
   | _ :: _ =>
@@ -257,7 +265,7 @@ def Heap.materializeFreshTuple (heap : Heap) (contents : List Core.Module.Value)
 nonempty display can save its origin when identity is observed. Empty
 tuples need no heap slot. -/
 def Heap.materializeModuleTuple (heap : Heap) (items : List GlobalTupleItem)
-    (contents : List Core.Module.Value) (trackClosed : Bool := false) : Value × Heap :=
+    (contents : List Core.Module.TupleDispatch.Element) (trackClosed : Bool := false) : Value × Heap :=
   match contents with
   | [] => (.tuple [], heap)
   | head :: tail =>

@@ -247,10 +247,18 @@ noncomputable def observe (input : Fin a) (packet : Denote (inputs input)) :
   CFG.Cyclic.runSSA (treeModel.{0, 0} signature.primitive) (program.compile input) (store input packet) >>=
     fun result => pure (treeExitNumber program.exits result)
 
+/-- Compare the two independently typed start configurations. The event
+signature and ordered result types are shared. -/
+def refinementBetween? [DecidableEq F] {c : Nat} {rightInputs : Fin c → PacketType}
+    (right : Program signature rightInputs outputs)
+    (leftInput : Fin a) (leftPacket : Denote (inputs leftInput))
+    (rightInput : Fin c) (rightPacket : Denote (rightInputs rightInput)) : Bool :=
+  Silmaril.Elgot.ITree.Finite.compare program.states right.states program.step right.step
+    (program.start leftInput leftPacket) (right.start rightInput rightPacket)
+
 def refinementAt? [DecidableEq F] (right : Program signature inputs outputs)
     (input : Fin a) (packet : Denote (inputs input)) : Bool :=
-  Silmaril.Elgot.ITree.Finite.compare program.states right.states program.step right.step
-    (program.start input packet) (right.start input packet)
+  program.refinementBetween? right input packet input packet
 
 def refinement? [DecidableEq F] (right : Program signature inputs outputs) : Bool :=
   decide (∀ input (packet : Denote (inputs input)), program.refinementAt? right input packet = true)

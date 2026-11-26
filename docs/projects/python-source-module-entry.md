@@ -324,10 +324,29 @@ out of this conversion. Seeded execution retains the constructor receipt
 and both reached heaps if a later operand fails. Ordinary execution
 retains any reached list on a mask in its explicit namespace.
 
-The six-statement prefix of `tuple-constructors.py` completes with stock
-tuple and the helper in either placement. The text conversion on line 8
-lowers and stops at dispatch. The tuple of text elements on line 9 is the
-first rejected source expression.
+A resolved stock `tuple` descriptor also accepts one checked text value.
+Empty text returns the canonical empty tuple without allocating. Nonempty
+text creates a fresh tuple in the closure heap with one singleton text
+value for each stored Python code point, in order. The checked carrier
+covers U+0000 through U+10FFFF, including lone surrogates represented by
+escapes in Python source. The source adapter passes code points from the
+decoded Python AST. This conversion does not decode bytes, normalize
+text, or segment grapheme clusters.
+
+Checked flat tuple displays and the equality helper accept these text
+elements alongside the existing scalar tags. Text elements compare by
+code-point sequence, and text and scalar elements compare unequal.
+The literal's source site provides no separate identity evidence. When
+a later argument fails, seeded execution preserves the conversion's
+reached heap and receipt, with no outer helper receipt.
+
+The unchanged `tuple-constructors.py` completes in both opt-in
+`legacyTupleIdentitySeed` placements. It reaches the missing equality
+helper in ordinary and empty seeded execution, and the missing stock
+`tuple` in the two legacy helper placements that omit it. The
+CPython 3.13.5 differential also exercises separate fresh conversions,
+constructor aliases, masks, combining marks, a non-BMP point, and
+a lone surrogate.
 
 A scalar comparison chain has at least two links. Every link uses one of
 `==`, `!=`, `<`, `<=`, `>` or `>=` and every operand is an exact

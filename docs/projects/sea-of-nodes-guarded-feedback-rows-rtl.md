@@ -465,6 +465,17 @@ example {targets : Checked.Phi.Targets} (accepted : Table.lowerChecked dependent
     (Generic.Fuel.decodeArgs model [word] packet).map fun fields => Silmaril.SSA.RVSDG.Tuple.get fields .head
   pure (machine.map (List.map BitVec.toInt), typed.map BitVec.toInt)
 -- some (some [7], some 7)
+
+#eval do
+  let identify : Rows.InputMap 3 := fun slot => if slot = 2 then 0 else slot
+  let (rtl, ssa) ← Table.lowerChecked (Table.mapCaptures identify dependent)
+  let input := bank 5 2 6
+  let mem := Memory.ofList 4 [29, 71, 53, 11]
+  let machine := (rtl.runMain 13 0 (words input) mem).returnedValues?
+  let typed := (Generic.Fuel.run model (inputEnv model input) 3 ssa).bind fun (_, packet) =>
+    (Generic.Fuel.decodeArgs model [word] packet).map fun fields => Silmaril.SSA.RVSDG.Tuple.get fields .head
+  pure (machine.map (List.map BitVec.toInt), typed.map BitVec.toInt)
+-- some (some [6], some 6)
 ```
 
 The two results are `6 - 5 = 1` and `1 + 2 = 3`, so the bank enters as
@@ -597,6 +608,28 @@ the entry limit. Input `(5, 2, 6)` now returns 7, and `(1, 1, 0)` reaches
 the fixed point on both targets. The original machine returns 3 at
 `(1, 1, 0)`. A typed table whose entry uses only raw captures is refused
 before and after permutation. [Checked regression][table-regression]
+
+### Identifying dependent-preheader captures
+
+`Rows.InputMap` maps old word slots to new slots in the same typed interface.
+`Table.mapCaptures` applies it to the dependent producer reads and entry
+column. The carried bank retains its width and occurrence routing. In the
+example, old slots 0 and 2 both read new slot 0, leaving new slot 2 unused.
+
+`Table.lowerChecked_mapCaptures` proves forward acceptance through the
+ordinary checker. `Table.reemit_mapped_observations` uses that check to
+compare actual RTL and λSSA observations at the pulled valuation, including
+returns with the whole initial memory and genuine divergence. The inverse
+acceptance and global equation laws above apply to permutations.
+
+`Table.mapCaptures_equation_holds_iff` tests the original equation only on
+the image of `InputMap.pull`. The fixture compares two dependent preheaders
+whose first subtractions read `0 - 2` and `2 - 2`, where the numbers name
+capture slots. At `(6, 2, 5)` they originally return 7 and 6. After capture
+identification they agree at every new valuation because pulled slots 0
+and 2 are equal. At new input `(5, 2, 6)` both emitted targets return 6
+with the whole initial memory. At `(1, 0, 42)` both diverge at the fixed
+point. [Checked regression][table-regression]
 
 ```sh
 lake build --wfail +Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Fuel.Thms \

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.Defs
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.ProductEta.Defs
 
 /-! # Constructor packets for a finite retained Boolean context -/
 
@@ -40,5 +41,13 @@ def packetBase : Nat → Nat → Tm signature.Instr
 /-- The constructor substitution at one row of a case-expanded packet. -/
 def casePacket {n : Nat} (env : Finite.Assignment n) (i : Nat) : Tm signature.Instr :=
   replyPacket env (packetPayload n) (packetBase n i)
+
+/-- The actual tag and payload of a bit constructor. -/
+def replyBitTag (b : Bool) (u : Tm signature.Instr) : Tm signature.Instr :=
+  if b then .inr u else .inl u
+
+/-- Focus on a bit variable and substitute its tagged payload in a case arm. -/
+def bitBranch (i : Nat) (b : Bool) (j : Nat) : Tm signature.Instr :=
+  if j = i then replyBitTag b (.var 0) else .var (j + 1)
 
 end Silmaril.Isotope.LambdaSSA.Region.Paper.WithCaseBind.OpenReplay

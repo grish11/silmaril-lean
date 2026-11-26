@@ -868,16 +868,17 @@ private noncomputable def forkStep : ForkState p q → m (LabelDen [E,D] ⊕ For
 variable (gate : TwoBlock.Instruction Φ A (Carrier Y M M))
 
 omit [Iterate m] [LawfulElgotMonad m] in
-private theorem forkDispatch (i : Fin ((fork p q gate).count)) (x : TyDen ((fork p q gate).localTypes i)) :
-    runBlock (ε := ε) (m := m) (route (forkTypes p q) [E,D] (forkEncode p q)) ((fork p q gate).blocks i) x =
+private theorem forkDispatch (entry : Flat.Block Φ (ForkLabels p q) A)
+    (i : Fin ((forkWith p q entry).count)) (x : TyDen ((forkWith p q entry).localTypes i)) :
+    runBlock (ε := ε) (m := m) (route (forkTypes p q) [E,D] (forkEncode p q)) ((forkWith p q entry).blocks i) x =
       forkStep (ε := ε) p q (forkEncode p q ⟨i,x⟩) := by
   revert x
   refine Fin.addCases (m := p.count) (n := q.count) ?_ ?_ i
   · intro j x
-    simp only [fork, forkEncode, forkAt, Fin.addCases_left, flat_action_cast, forkStep, fragStep]
+    simp only [forkWith, forkEncode, forkAt, Fin.addCases_left, flat_action_cast, forkStep, fragStep]
     exact runBlock_map (ε := ε) (p.blocks j) _ (forkLeft p q) _ _ _ (fork_left_route p q)
   · intro j x
-    simp only [fork, forkEncode, forkAt, Fin.addCases_right, flat_action_cast, forkStep, fragStep]
+    simp only [forkWith, forkEncode, forkAt, Fin.addCases_right, flat_action_cast, forkStep, fragStep]
     exact runBlock_map (ε := ε) (q.blocks j) _ (forkRight p q) _ _ _ (fork_right_route p q)
 
 private theorem forkArm {Z : τ} (arm : Fragment Φ Z E D)
@@ -916,8 +917,8 @@ theorem flat_fork_denote
             (PUnit.unit, Sum.elim id id (TypeModel.coprodEquiv M M x))
         | .inr y => Region.denote (ε := ε) (m := m) q.typing (PUnit.unit, y) := by
   rw [fragment_run (fork p q gate) (forkEncode p q) (forkStep (ε := ε) p q)
-    (forkDispatch p q gate) coherent]
-  simp only [fork, runBlock, bind_assoc]
+    (forkDispatch p q _) coherent]
+  simp only [fork, forkWith, runBlock, bind_assoc]
   congr 1
   funext selected
   cases selected with
@@ -925,6 +926,21 @@ theorem flat_fork_denote
     simp only [Sum.elim_inl]
     cases TypeModel.coprodEquiv M M x <;>
       exact forkArm p q p (forkLeft p q) Sum.inl (fork_left_route p q) (fun _ => rfl) coherent _
+  | inr y => exact forkArm p q q (forkRight p q) Sum.inr (fork_right_route p q) (fun _ => rfl) coherent y
+
+theorem flat_forkCase_denote (gate : TwoBlock.Instruction Φ A (Silmaril.coprod M Y))
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m) (forkCase p q gate).typing env =
+      callCase (ε := ε) gate env.2 >>= fun
+        | .inl x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x)
+        | .inr y => Region.denote (ε := ε) (m := m) q.typing (PUnit.unit,y) := by
+  rw [fragment_run (forkCase p q gate) (forkEncode p q) (forkStep (ε := ε) p q)
+    (forkDispatch p q _) coherent]
+  simp only [forkCase, forkWith, runBlock, bind_assoc]
+  congr 1
+  funext selected
+  cases selected with
+  | inl x => exact forkArm p q p (forkLeft p q) Sum.inl (fork_left_route p q) (fun _ => rfl) coherent x
   | inr y => exact forkArm p q q (forkRight p q) Sum.inr (fork_right_route p q) (fun _ => rfl) coherent y
 
 end FlatFork

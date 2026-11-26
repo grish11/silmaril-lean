@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.RedundantTest.Defs
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.Frames.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.PacketCases.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Extension.Singleton.Values.Discard.Syntax.Defs
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.Thms
@@ -501,5 +502,38 @@ theorem quoted_packet {Γ L : List (Ty Empty)} (pos : Position L) (table : Finit
     · exact hy
     · exact hx
   exact quoted_replyPacket pos table order env payload hu typed
+
+private theorem frameSlot_return {Γ : List (Ty Empty)} {X : Ty Empty} {frame : ReplyFrame X}
+    (slot : ReplyFrame.Slot frame) (v : ReplyFrame.Value Γ frame) :
+    E Γ (returnOnce (slot.term.elaborate.val.subst (Tm.singleSubst v.elaborate.val)))
+      (.br 0 (tag (slot.read v).1 (slot.read v).2.val)) [Bit] := by
+  induction slot with
+  | newest frame =>
+    cases v with
+    | bit older b u =>
+      cases b
+      · exact snd_returnOnce older.elaborate.property (.inl u.property)
+      · exact snd_returnOnce older.elaborate.property (.inr u.property)
+  | retainUnit slot ih =>
+    cases v with
+    | unit older u =>
+      exact (retained_returnOnce slot.term older.elaborate.property u.property).trans (ih older)
+  | retainBit slot ih =>
+    cases v with
+    | bit older b u =>
+      cases b
+      · exact (retained_returnOnce slot.term older.elaborate.property (.inl u.property)).trans (ih older)
+      · exact (retained_returnOnce slot.term older.elaborate.property (.inr u.property)).trans (ih older)
+
+theorem quote_frameValue {Γ L : List (Ty Empty)} {n : Nat} {X : Ty Empty} {frame : ReplyFrame X}
+    (pos : Position L) (table : Finite.Table n) (slots : Fin n → ReplyFrame.Slot frame)
+    (v : ReplyFrame.Value Γ frame) :
+    E Γ ((selectTerminal pos (Finite.Expr.quote n table) (fun j => (slots j).term) []).elaborate.val.substVars
+      (Tm.singleSubst v.elaborate.val))
+      (.let₁ .unit (.br pos.1 (if table (fun j => ((slots j).read v).1)
+        then .inr (.var 0) else .inl (.var 0)))) L :=
+  quote_subst_no_emits pos table _ v.elaborate.property
+    (fun j => ((slots j).read v).1) (fun j => ((slots j).read v).2.val)
+    (fun j => ((slots j).read v).2.property) (fun j => frameSlot_return (slots j) v)
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.RedundantSelectedTest

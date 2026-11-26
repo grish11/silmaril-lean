@@ -37,6 +37,47 @@ different port. The scope is the ordered, initialized word-cell profile
 with one supplied pair of Store versions.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/DeadStore/Regression.lean)
 
+## Check the chapter 10 single-user rule
+
+`DeadStore.SingleUser.rewrite graph version` checks the direct memory
+edge for one nominated Store. Its use census reads each actual
+`MemoryInput.producer` in the typed table, keeping one occurrence
+for each Load, Store, or Return. The following Store must be the
+only user of the nominated version. Both Stores must name the same
+original typed address port. This is the initialized one-memory
+profile of Simple's same-field, same-pointer, typed-pointer test:
+one word-cell address identifies the entire destination.
+[Pinned Simple StoreNode rule](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/src/main/java/com/seaofnodes/simple/node/StoreNode.java#L39-L65) ·
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/DeadStore/SingleUser/Defs.lean)
+
+The broader repeated deletion pass checks an interval and can pass a
+disjoint reader. The single-user check refuses that reader as a second
+use of the old version. Return counts as a use when it exports the
+nominated heap. The table has one explicit Return and a current-version
+admission rule, so this census covers its complete memory-use boundary.
+The profile has no external memory consumers or parser worklist.
+
+On success the adapter replays the existing native edit with the two
+consecutive Store versions and an empty reader certificate. The later
+Store takes the earlier Store's predecessor memory; subsequent edges
+are renumbered while scalar wires stay in place. Cutting each graph
+at the same Load ordinal and running its actual prefix proves that
+every Load reads the same word. The explicit-edge return relation and
+both actual typed MemRef blocks agree on the word and entire final
+buffer for every typed input and initialized heap.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/DeadStore/SingleUser/Thms.lean)
+
+The fixture runs both emitted blocks on a pair whose retained Store
+takes its word from a prefix Load. It checks the second-use and heap
+export refusals, and refuses different pointer ports even when a
+sample valuation maps them to the same cell.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/DeadStore/SingleUser/Regression.lean)
+
+```sh
+lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.SingleUser.Regression
+lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/DeadStore/SingleUser/Regression.lean
+```
+
 ## Discover the overwrite
 
 `DeadStore.Search.discover` takes only the original one-based version

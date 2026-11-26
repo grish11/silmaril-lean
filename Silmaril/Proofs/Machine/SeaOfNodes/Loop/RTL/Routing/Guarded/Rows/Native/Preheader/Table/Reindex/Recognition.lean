@@ -13,20 +13,20 @@ open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow)
 
 variable {arity : Nat} {entrySigs sigs : List (List PortTy)}
 
-private theorem supported_reindex (perm : InputPermutation arity) {past : List (List PortTy)}
+private theorem supported_reindex (mapping : InputMap arity) {past : List (List PortTy)}
     (flow : Dataflow WordOp (wordPorts arity) past sigs) :
-    supported (reindexFlow perm flow) = supported flow := by
+    supported (mapCaptureFlow mapping flow) = supported flow := by
   induction flow with
   | nil => rfl
-  | cons op _ _ ih => cases op <;> simp only [reindexFlow, supported, ih]
+  | cons op _ _ ih => cases op <;> simp only [mapCaptureFlow, supported, ih]
 
-private theorem computed_reindex (perm : InputPermutation arity) {past : List (List PortTy)}
+private theorem computed_reindex (mapping : InputMap arity) {past : List (List PortTy)}
     {ports : List PortTy} (entry : Wires (wordPorts arity) past ports) :
-    (perm.column entry).addresses.any isComputedEntry = entry.addresses.any isComputedEntry := by
+    (mapping.column entry).addresses.any isComputedEntry = entry.addresses.any isComputedEntry := by
   induction entry with
   | nil => rfl
   | cons w _ ih =>
-    cases w <;> simp only [InputPermutation.column, Tuple.map, Wires.addresses, Origin.address,
+    cases w <;> simp only [InputMap.column, Tuple.map, Wires.addresses, Origin.address,
       List.any_cons, isComputedEntry] at ih ⊢ <;> rw [ih]
 
 theorem port_index_lt {n : Nat} {t : PortTy} (port : Port (wordPorts n) t) :
@@ -170,14 +170,14 @@ private theorem native_reentry {g : SourceWithEntry arity entrySigs sigs}
     exact ite_eq_left newCode
   next => cases equal
 
-theorem recognize_reindex (perm : InputPermutation arity) {g : SourceWithEntry arity entrySigs sigs}
+theorem recognize_mapCaptures (mapping : InputMap arity) {g : SourceWithEntry arity entrySigs sigs}
     {p : Plan arity entrySigs} (recognized : recognize g = some p) :
-    ∃ column : ArgumentColumn arity arity, ∃ ok : supported (reindexFlow perm p.flow) = true,
-      recognize (reindexCaptures perm g) =
-        some ⟨reindexFlow perm p.flow, ok, perm.column p.entry, {p.row with entry := column}⟩ := by
+    ∃ column : ArgumentColumn arity arity, ∃ ok : supported (mapCaptureFlow mapping p.flow) = true,
+      recognize (mapCaptures mapping g) =
+        some ⟨mapCaptureFlow mapping p.flow, ok, mapping.column p.entry, {p.row with entry := column}⟩ := by
   let entry : EntryColumnWith arity entrySigs := g.phiInputs .entry
-  have mapped := computed_reindex perm entry
-  have support := supported_reindex perm g.preheader
+  have mapped := computed_reindex mapping entry
+  have support := supported_reindex mapping g.preheader
   by_cases arithmetic : supported g.preheader = true
   · by_cases computes : entry.addresses.any isComputedEntry = true
     · have pos : 0 < arity := by
@@ -188,7 +188,7 @@ theorem recognize_reindex (perm : InputPermutation arity) {g : SourceWithEntry a
           cases computes
         | succ n => exact Nat.zero_lt_succ n
       obtain ⟨oldCol, oldChecked, oldAddresses⟩ := placeholder_checked pos entry
-      obtain ⟨newCol, newChecked, newAddresses⟩ := placeholder_checked pos (perm.column entry)
+      obtain ⟨newCol, newChecked, newAddresses⟩ := placeholder_checked pos (mapping.column entry)
       change (if h : supported g.preheader = true then
         if entry.addresses.any isComputedEntry = true then
           (checkColumn arity arity (entry.addresses.map entryPlaceholder)).bind fun col =>
@@ -200,14 +200,14 @@ theorem recognize_reindex (perm : InputPermutation arity) {g : SourceWithEntry a
       obtain ⟨row, checked, exactPlan⟩ := Option.map_eq_some_iff.mp makePlan
       subst p
       obtain ⟨newNative, newPlan⟩ := native_reentry oldChecked oldAddresses newChecked newAddresses found checked
-      have body : bodyGraph (reindexCaptures perm g) newCol = bodyGraph g newCol := rfl
+      have body : bodyGraph (mapCaptures mapping g) newCol = bodyGraph g newCol := rfl
       refine ⟨newCol, support.trans arithmetic, ?_⟩
-      change (if h : supported (reindexFlow perm g.preheader) = true then
-        if (perm.column entry).addresses.any isComputedEntry = true then
-          (checkColumn arity arity ((perm.column entry).addresses.map entryPlaceholder)).bind fun col =>
-            (Native.recognize (bodyGraph (reindexCaptures perm g) col)).bind fun spec =>
+      change (if h : supported (mapCaptureFlow mapping g.preheader) = true then
+        if (mapping.column entry).addresses.any isComputedEntry = true then
+          (checkColumn arity arity ((mapping.column entry).addresses.map entryPlaceholder)).bind fun col =>
+            (Native.recognize (bodyGraph (mapCaptures mapping g) col)).bind fun spec =>
               (Rows.checkPlan arity spec).map fun row =>
-                (⟨reindexFlow perm g.preheader, h, perm.column entry, row⟩ : Plan arity entrySigs)
+                (⟨mapCaptureFlow mapping g.preheader, h, mapping.column entry, row⟩ : Plan arity entrySigs)
         else none else none) = _
       simp only [support.trans arithmetic, dite_true, mapped, computes, ite_true, newChecked,
         Option.bind_some, body, newNative, newPlan, Option.map_some]

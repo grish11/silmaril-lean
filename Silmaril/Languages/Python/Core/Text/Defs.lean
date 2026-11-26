@@ -29,6 +29,12 @@ def Text.ofString (value : String) : Text :=
 
 def Text.truth (value : Text) : Bool := !value.points.isEmpty
 
+/-- One exact text value per Python code point, in source order. -/
+def Text.singletons (value : Text) : List Text :=
+  value.points.attach.map fun point =>
+    ⟨[point.val], by
+      simpa using List.all_eq_true.mp value.valid point.val point.property⟩
+
 /-- CPython 3.13 accepts at least 640 digits under every valid enabled
 integer-string conversion limit. Test the magnitude before rendering. -/
 def Text.decimal? (value : Int) : Option Text :=

@@ -43,13 +43,13 @@ theorem Heap.allocate_distinct (heap : Heap) (first second : Value) :
 theorem Heap.materializeFreshTuple_empty (heap : Heap) :
     heap.materializeFreshTuple [] = (.tuple [], heap) := rfl
 
-theorem Heap.materializeFreshTuple_nonempty (heap : Heap) (head : Core.Module.Value)
-    (tail : List Core.Module.Value) :
+theorem Heap.materializeFreshTuple_nonempty (heap : Heap) (head : Core.Module.TupleDispatch.Element)
+    (tail : List Core.Module.TupleDispatch.Element) :
     heap.materializeFreshTuple (head :: tail) =
       (.tupleObject ⟨some heap.next, head :: tail⟩, (heap.allocate (.tuple (head :: tail))).2) := rfl
 
-theorem Heap.materializeFreshTuple_distinct (heap : Heap) (first second : Core.Module.Value)
-    (restFirst restSecond : List Core.Module.Value) :
+theorem Heap.materializeFreshTuple_distinct (heap : Heap) (first second : Core.Module.TupleDispatch.Element)
+    (restFirst restSecond : List Core.Module.TupleDispatch.Element) :
     let (object, reached) := heap.materializeFreshTuple (first :: restFirst)
     object ≠ (reached.materializeFreshTuple (second :: restSecond)).1 := by
   simp [Heap.materializeFreshTuple, Heap.allocate, Heap.reserve]
@@ -59,18 +59,18 @@ theorem Heap.moduleTuple_empty (heap : Heap) (items : List GlobalTupleItem) :
       (Value.tuple []).tupleObject? = some ⟨none, []⟩ := ⟨rfl, rfl⟩
 
 theorem Heap.moduleTuple_closed (heap : Heap) (items : List GlobalTupleItem)
-    (values : List Core.Module.Value) (closed : items.any GlobalTupleItem.isRead = false) :
+    (values : List Core.Module.TupleDispatch.Element) (closed : items.any GlobalTupleItem.isRead = false) :
     heap.materializeModuleTuple items values = (.tuple values, heap) := by
   cases values <;> simp [Heap.materializeModuleTuple, closed]
 
 theorem Heap.moduleTuple_closedOrigin (heap : Heap) (items : List GlobalTupleItem)
-    (head : Core.Module.Value) (tail : List Core.Module.Value) (closed : items.any GlobalTupleItem.isRead = false) :
+    (head : Core.Module.TupleDispatch.Element) (tail : List Core.Module.TupleDispatch.Element) (closed : items.any GlobalTupleItem.isRead = false) :
     heap.materializeModuleTuple items (head :: tail) true =
       (.tupleObject (heap.saveTupleOrigin head tail).1, (heap.saveTupleOrigin head tail).2) := by
   simp [Heap.materializeModuleTuple, closed]
 
 theorem Heap.moduleTuple_fresh (heap : Heap) (items : List GlobalTupleItem)
-    (head : Core.Module.Value) (tail : List Core.Module.Value)
+    (head : Core.Module.TupleDispatch.Element) (tail : List Core.Module.TupleDispatch.Element)
     (reads : items.any GlobalTupleItem.isRead = true) :
     heap.materializeModuleTuple items (head :: tail) =
       (.tupleObject ⟨some heap.next, head :: tail⟩, (heap.allocate (.tuple (head :: tail))).2) := by
