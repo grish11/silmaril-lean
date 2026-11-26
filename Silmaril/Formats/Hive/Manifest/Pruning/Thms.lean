@@ -16,6 +16,13 @@ variable (opener : Opener Group physical Value Error)
 variable (projection : Scan.Projection (schema.extend physical))
 variable (predicate : Scan.Predicate schema.toScan Value)
 
+/-- The skip-open trace is the strict trace over retained occurrences, in
+their original order and multiplicity. Rejected files contribute no outcome. -/
+theorem scanSkippingRejected_eq_scan_filter (files : List (File schema Value)) :
+    scanSkippingRejected opener projection predicate files =
+      scan opener projection predicate (files.filter fun file => (predicate file.cells).getD false) :=
+  Proofs.Formats.Hive.Manifest.Pruning.scanSkippingRejected_eq_scan_filter opener projection predicate files
+
 theorem RejectedFilesReachEOF.reached {files : List (File schema Value)}
     (safe : RejectedFilesReachEOF opener projection predicate files) :
     ReachedRejectedFilesReachEOF opener projection predicate files := by

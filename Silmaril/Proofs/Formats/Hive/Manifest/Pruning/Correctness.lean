@@ -36,6 +36,20 @@ private theorem scanFileSkippingRejected_eq_scanFile (file : File schema Value)
   · cases opened : opener file.path.declared <;>
       simp [scanFileSkippingRejected, keep, scanFile, opened, ParquetScan.scanPartition]
 
+theorem scanSkippingRejected_eq_scan_filter (files : List (File schema Value)) :
+    scanSkippingRejected opener projection predicate files =
+      scan opener projection predicate (files.filter fun file => (predicate file.cells).getD false) := by
+  unfold scanSkippingRejected scan
+  induction files with
+  | nil => rfl
+  | cons file rest ih =>
+    cases kept : (predicate file.cells).getD false with
+    | false =>
+      simp [ParquetScan.assemble, scanFileSkippingRejected, kept, ih]
+    | true =>
+      have same := scanFileSkippingRejected_eq_scanFile opener projection predicate file (by simp [kept])
+      simp [ParquetScan.assemble, kept, same, ih]
+
 theorem scanSkippingRejected_eq_scan_of_reached_eof (files : List (File schema Value))
     (safe : ReachedRejectedFilesReachEOF opener projection predicate files) :
     scanSkippingRejected opener projection predicate files = scan opener projection predicate files := by

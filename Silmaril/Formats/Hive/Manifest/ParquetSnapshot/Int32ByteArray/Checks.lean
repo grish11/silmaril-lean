@@ -2,8 +2,11 @@ module
 
 import Silmaril.Data.IncludeBytes
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Bounded.Thms
+import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Pruning.Thms
+import Silmaril.Formats.Hive.Manifest.Pruning.Thms
 meta import Silmaril.Data.IncludeBytes
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Bounded.Defs
+meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Pruning.Defs
 
 namespace Silmaril.Formats.Hive.Manifest
 
@@ -176,11 +179,50 @@ private def reordered : Scan.Projection (years.extend physical) :=
 #guard bounded keys (Scan.Projection.id _) (all keys) 6 [beforeCollision, collision] expectedMiddle
   (.readError (.open collision (.reservedPartition "key")))
 
+private def pruned (partitions : PartitionSchema Kind)
+    (projection : Scan.Projection (partitions.extend physical)) (keep : Scan.Predicate partitions.toScan Value)
+    (budget : Nat) :=
+  observes partitions (scanInt32ByteArraySnapshotsBoundedSkippingRejected {} lookup projection keep budget)
+
+private def keepPresent : Scan.Predicate years.toScan Value :=
+  fun row => (row ⟨0, by decide⟩).map (fun _ => true)
+
+#guard pruned years (Scan.Projection.id _) (fun _ => none) 0 [missing] [] .eos
+#guard pruned years (Scan.Projection.id _) keepExceptEight 9 [first, nullYear, first]
+  (expectedFile (some 7) ++ expectedFile (some 7)) .closed
+#guard pruned years (Scan.Projection.id _) keepExceptEight 10 [first, nullYear, first]
+  (expectedFile (some 7) ++ expectedFile (some 7)) .eos
+#guard bounded years (Scan.Projection.id _) keepExceptEight 10 [first, nullYear, first]
+  (expectedFile (some 7)) .closed
+#guard bounded years (Scan.Projection.id _) keepExceptEight 15 [first, nullYear, first]
+  (expectedFile (some 7) ++ expectedFile (some 7)) .eos
+
+#guard bounded years (Scan.Projection.id _) keepExceptEight 8 [first, late, first]
+  (expectedFile (some 7)) lateError
+#guard pruned years (Scan.Projection.id _) keepExceptEight 8 [first, late, first]
+  (expectedFile (some 7) ++ (expectedFile (some 7)).take 2) .closed
+#guard pruned years (Scan.Projection.id _) keepExceptEight 10 [first, late, first]
+  (expectedFile (some 7) ++ expectedFile (some 7)) .eos
+
+#guard pruned years (Scan.Projection.id _) keepPresent 8 [nullYear, first, late, first]
+  (expectedFile (some 7) ++ [expectedGroup 0 (some 8)]) lateError
+#guard bounded years (Scan.Projection.id _) keepPresent 13 [nullYear, first, late, first]
+  (expectedFile (some 7) ++ [expectedGroup 0 (some 8)]) lateError
+
+#guard pruned years (Scan.Projection.ofArray #[]) keepExceptEight 10 [middle, nullYear, middle]
+  [List.replicate 3 [], [], List.replicate 2 [], List.replicate 3 [], [], List.replicate 2 []] .eos
+
 #print axioms scanInt32ByteArraySnapshots_eq_reference
 #print axioms scanInt32ByteArraySnapshots_collect_eq_rows
 #print axioms int32ByteArraySnapshotOpener_fullConsumption
 #print axioms int32ByteArrayScanCost_exists
 #print axioms scanInt32ByteArraySnapshotsBounded_eq_reference_of_cost
 #print axioms scanInt32ByteArraySnapshotsBounded_exact_boundary
+
+#print axioms scanSkippingRejected_eq_scan_filter
+#print axioms int32ByteArrayPrunedScanCost_exists
+#print axioms scanInt32ByteArraySnapshotsBoundedSkippingRejected_exact_boundary
+#print axioms scanInt32ByteArraySnapshotsBoundedSkippingRejected_eq_scan_of_cost
+#print axioms scanInt32ByteArraySnapshotsBoundedSkippingRejected_eq_strict_of_reached_eof
 
 end Silmaril.Formats.Hive.Manifest

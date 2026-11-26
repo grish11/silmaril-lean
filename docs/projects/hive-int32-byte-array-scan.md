@@ -59,6 +59,39 @@ costs one group pull and keeps its boundary even at zero projected width.
 An empty manifest reaches EOS with zero actions. The budget measures
 these logical actions over supplied immutable snapshots.
 
+## Opt-in skip-open pruning
+
+[`scanInt32ByteArraySnapshotsBoundedSkippingRejected`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Int32ByteArray/Pruning/Defs.lean)
+filters supplied occurrences by the pure partition predicate, then runs
+the existing bounded scan on that list. False and unknown occurrences
+spend no checked-open, group or EOS actions and produce no errors.
+Each retained occurrence keeps its position relative to other retained
+entries and pays its own actions, including repeats. The strict bounded
+entry point keeps its existing error and budget semantics.
+
+[`scanInt32ByteArraySnapshotsBoundedSkippingRejected_exact_boundary`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Int32ByteArray/Pruning/Thms.lean)
+gives the exact cutoff for the retained-occurrence cost. Its emitted
+batches form an ordered prefix of the complete skip-open trace.
+`scanInt32ByteArraySnapshotsBoundedSkippingRejected_eq_scan_of_cost`
+recovers that trace when the retained budget suffices.
+`scanInt32ByteArraySnapshotsBoundedSkippingRejected_eq_strict_of_reached_eof`
+recovers the exact strict full trace with enough budget for the retained
+occurrences and evidence that every reached rejected occurrence would
+complete its checked read through EOS. Here reachability means that the
+strict scan of the preceding occurrences reaches EOS. A retained failure
+still ends the scan with its exact selected prefix. The two bounded
+policies can need different budgets even with this success evidence.
+
+With the pinned three-group files, two retained copies and a clean
+rejected file between them reach EOS at 10 actions under skip-open and
+15 under strict scan. If the rejected file has the selected page failure
+in its second group, the strict scan fails at action 8. At the same
+budget the skip-open scan has reached the second retained copy and
+closes after two of its groups. At 10 actions the skip-open scan reaches
+EOS. The guards compare exact selected batches and terminal outcomes,
+including zero-width batches and an empty retained group. This budget
+counts logical open and pull actions over supplied snapshots.
+
 ## Fixtures
 
 [Lean checks](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Int32ByteArray/Checks.lean)
