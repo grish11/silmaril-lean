@@ -16,12 +16,20 @@ theorem binding_leaf {snapshot : Snapshot.Checked} {selection : Selection}
     binding.leaf.repetition = some selection.layout.repetition :=
   ⟨binding.leafAt, binding.leafName, binding.leafPhysical, binding.leafRepetition⟩
 
+/-- The selected codec profile shares the checked snapshot and ordered page walk. -/
+theorem readColumnFor_wire {snapshot : Snapshot.Checked} {selection : Selection} {α ε : Type}
+    {binding : Binding snapshot selection} {limits : Limits} {policy : Policy} {decode : DecodePage α ε}
+    {codec : CodecProfile} {index : Nat} {slots : List (Option α)}
+    (read : readColumnFor codec binding limits policy decode index = .ok slots) :
+    ∃ group, ColumnWireFor codec binding limits decode index group slots :=
+  Proofs.Formats.Parquet.FlatColumn.readColumnFor_wire read
+
 /-- The original page parse and body-slice callback results occur in wire order,
 and the flattened callback slots have the footer row count. -/
 theorem readColumn_wire {snapshot : Snapshot.Checked} {selection : Selection} {α ε : Type}
     {binding : Binding snapshot selection} {limits : Limits} {policy : Policy} {decode : DecodePage α ε}
     {index : Nat} {slots : List (Option α)} (read : readColumn binding limits policy decode index = .ok slots) :
     ∃ group, ColumnWire binding limits decode index group slots :=
-  Proofs.Formats.Parquet.FlatColumn.readColumn_wire read
+  readColumnFor_wire read
 
 end Silmaril.Formats.Parquet.FlatColumn

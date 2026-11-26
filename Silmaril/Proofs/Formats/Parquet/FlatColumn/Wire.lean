@@ -45,12 +45,12 @@ private theorem runPage_wire {α ε : Type} {decode : DecodePage α ε} {leaf : 
   cases read
   exact ⟨mapError_ok decoded, not_not.mp count⟩
 
-private theorem locateChunk_wire {limits : Limits} {policy : Policy} {selection : Selection}
+private theorem locateChunk_wire {profile : CodecProfile} {limits : Limits} {policy : Policy} {selection : Selection}
     {leaf : Footer.SchemaElement} {group : Footer.RowGroup} {metadata : Footer.ColumnMetadata}
     {footerStart : Nat} {chunk : Footer.Span}
-    (read : locateChunk limits policy selection leaf group metadata footerStart = .ok chunk) :
+    (read : locateChunk profile limits policy selection leaf group metadata footerStart = .ok chunk) :
     metadata.pathInSchema = [leaf.name] ∧ metadata.physicalType = selection.physical ∧
-    metadata.numValues = group.numRows ∧ metadata.codec = 0 ∧
+    metadata.numValues = group.numRows ∧ metadata.codec = profile.id ∧
     Page.columnSpan footerStart metadata = some chunk := by
   unfold locateChunk at read
   split at read <;> try contradiction
@@ -66,11 +66,12 @@ private theorem locateChunk_wire {limits : Limits} {policy : Policy} {selection 
   obtain ⟨path, type, values⟩ := not_not.mp associated
   exact ⟨path, type, values, not_not.mp codec, span⟩
 
-theorem readColumn_wire {snapshot : Snapshot.Checked} {selection : Selection} {α ε : Type}
+theorem readColumnFor_wire {snapshot : Snapshot.Checked} {selection : Selection} {α ε : Type}
     {binding : Binding snapshot selection} {limits : Limits} {policy : Policy} {decode : DecodePage α ε}
-    {index : Nat} {slots : List (Option α)} (read : readColumn binding limits policy decode index = .ok slots) :
-    ∃ group, ColumnWire binding limits decode index group slots := by
-  unfold readColumn at read
+    {codec : CodecProfile} {index : Nat} {slots : List (Option α)}
+    (read : readColumnFor codec binding limits policy decode index = .ok slots) :
+    ∃ group, ColumnWireFor codec binding limits decode index group slots := by
+  unfold readColumnFor at read
   split at read <;> try contradiction
   rename_i group groupAt
   dsimp only at read

@@ -21,6 +21,11 @@ theorem driveGzip_output_le (expected fuel : Nat) (machine : MemberMachine)
     (Internal.driveGzip expected fuel machine).output.length ≤ expected :=
   Proofs.Formats.Parquet.Payload.driveGzip_output_le expected fuel machine fits
 
+/-- The bounded extent test succeeds exactly at the declared input length. -/
+theorem hasLength_iff {n : Nat} {input : List UInt8} :
+    Internal.hasLength n input = true ↔ input.length = n :=
+  Proofs.Formats.Parquet.Payload.hasLength_iff
+
 /-- Success uses the selected codec's exact payload relation, with both
     supplied sizes and bounds. -/
 theorem decode_sound {bounds : Bounds} {codecId : Int} {input out : List UInt8}
