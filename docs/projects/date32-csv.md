@@ -69,3 +69,47 @@ python3 -I scripts/date32-csv-oracle/check.py
 
 The oracle accepts `--pyarrow-path` for a separately unpacked PyArrow wheel.
 The manifest pins the Linux x86-64 CPython 3.13 wheel hash.
+
+## Import to native Date32 IPC
+
+`Arrow.DateStream.FromCsv.convert` takes an explicit UTF-8 field name and
+nullability, a CSV byte cap and row cap, and the native IPC writer's
+observation limits. It admits exactly one CSV column with the matching
+logical header. The typed cell grammar and signed day limits above apply.
+The output is a little-endian V5 Date32 stream with one explicitly written
+batch followed by EOS. Even header-only CSV emits one zero-row batch. A
+file with no header fails the existing CSV schema check.
+
+The byte cap precedes typed CSV decoding, including header, width, cell
+and required-null checks. The row cap applies to the successfully decoded
+table before emission. Writer and certification failures retain the native
+writer error. Every refusal returns a typed error without IPC bytes.
+The converter materializes the bounded input table and emits a complete
+stream. It supports one Date32 column and one batch per call.
+
+`convert_eq_ok_iff` states the precise admission conditions and
+`convert_readback` recovers the exact DAY descriptor and ordered nullable
+signed words in that batch. `convert_csv_error` preserves the existing
+typed decoder error after the byte cap passes.
+[Executable API](../../Silmaril/Formats/Arrow/DateStream/FromCsv/Defs.lean)
+· [Theorem header](../../Silmaril/Formats/Arrow/DateStream/FromCsv/Thms.lean)
+· [Native DATE writer profile](arrow-date32-writer.md)
+
+The independent readback oracle uses CPython 3.13.5 to produce CSV and
+PyArrow 26.0.1 to read the actual Lean IPC output as signed Int32 Date32
+storage. It checks the nullable Unicode header, a required quoted header
+containing a comma, both admitted day endpoints, year zero, pre-epoch
+dates, leap and century dates, and the explicit header-only batch.
+CPython datetime verifies years 0001–9999. PyArrow date formatting supplies
+the year-zero spelling. The pinned refusals cover the adjacent years,
+invalid leap day, required null, and malformed quoting.
+[Fixture hashes](../../scripts/date32-from-csv-oracle/fixtures.json)
+· [Oracle](../../scripts/date32-from-csv-oracle/check.py)
+
+```sh
+targets='+Silmaril.Formats.Arrow.DateStream.FromCsv.Thms +Silmaril.Formats.Arrow.DateStream.FromCsv.Tests'
+lake build --wfail $targets
+make check CHECK_TARGETS="$targets"
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/date32-from-csv/Axioms.lean
+python3 -I scripts/date32-from-csv-oracle/check.py
+```
