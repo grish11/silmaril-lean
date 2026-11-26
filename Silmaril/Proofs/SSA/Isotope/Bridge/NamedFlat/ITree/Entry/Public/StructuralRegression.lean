@@ -1,7 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Thms
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.NamedSSA.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Defs
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
@@ -275,6 +275,35 @@ example (captureType : PacketType) :
   change some (Ty.product captureType captureType) = some (.product narrowBit bit) at same
   obtain ⟨first, second⟩ := Ty.product.inj (Option.some.inj same)
   exact (by decide : narrowBit ≠ bit) (first.symm.trans second)
+
+-- Elaborate and typecheck the actual occurrence-entry graphs.
+private def leftOccurrences := effectLeft.admitOccurrences.get (by decide)
+private def rightOccurrences := effectRight.admitOccurrences.get (by decide)
+
+example : effectLeft.occurrenceContext.toList = [narrowBit, bit] := by decide
+example : effectLeft.occurrenceOperand =
+    Silmaril.SSA.LambdaRTL.Val.pair (.var ⟨0⟩) (.var ⟨1⟩) := by decide
+
+example : effectLeft.occurrenceStore overlapPacket ⟨0⟩ = mismatchingStore shared ∧
+    effectLeft.occurrenceStore overlapPacket ⟨1⟩ = mismatchingStore shared := by decide
+
+-- The wider type would accept the other injection. The repeated capture
+-- still supplies a single value and has to pass both occurrence types.
+example : (effectLeft.seed? (upd mismatchingStore shared (.inr .unit))).isNone = true := by decide
+
+example : effectLeft.observeVersioned mismatchingStore =
+    (LambdaSSA.Semantics.Interaction.region effectSignature.primitive
+      (fun i => effectLeft.occurrenceStore overlapPacket ⟨i⟩) leftOccurrences.code.erase >>=
+      fun out => pure (LambdaSSA.FiniteCFG.packedTreeOutput out)) :=
+  (effectLeft.observeVersioned_eq_occurrences mismatchingStore overlapPacket (by decide)).trans
+    (leftOccurrences.observe_eq_elaborated effectLeft overlapPacket)
+
+example : LiveOut.observeRaw effectSignature.primitive exits fields (effectGraph shared rightRead) mismatchingStore =
+    (LambdaSSA.Semantics.Interaction.region effectSignature.primitive
+      (fun i => effectRight.occurrenceStore mismatchingPacket ⟨i⟩) rightOccurrences.code.erase >>=
+      fun out => pure (LambdaSSA.FiniteCFG.packedTreeOutput out)) :=
+  (effectRight.observeRaw_eq_occurrences mismatchingStore mismatchingPacket (by decide)).trans
+    (rightOccurrences.observe_eq_elaborated effectRight mismatchingPacket)
 
 -- Change both the repeated source capture and the selected final register.
 private def registerNames : Name ≃ Name :=

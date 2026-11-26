@@ -771,6 +771,32 @@ two distinct types. Structural decoding establishes each packet from the
 same raw value instead.
 [Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
 
+### A typed named entry for individual capture occurrences
+
+The structural entry footprint already records each use in packet order.
+The occurrence adapter gives each variable use a distinct numbered name
+and its own declared type. A unit requires no slot, and products traverse
+their left and right operands in order. The existing shared-store decoder
+supplies the packet, and its structural assignment supplies the individual
+slots. Each slot is a typed encoding of the value of its source register,
+including when several slots read that same register.
+
+The adapter rebuilds only the public entry jump from these slots. It
+dispatches the same packet to the same label, and packet closure keeps
+the public rows independent of the entry store. Ordinary exact named
+elaboration and type checking admit the resulting graph at the public
+row and exit profiles. Successful admission relates the actual named
+runner to its exact flat code. With a checked source seed, that runner
+agrees with both the original mutable graph and its existing lexical SSA
+translation, with the same ordered exit, payload and selected live-outs.
+[Occurrence adapter and runner equations](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Thms.lean)
+
+The repeated-capture fixture admits two distinct slots at different sum
+types and initializes both from the same value. An injection accepted
+only by the wider type still fails shared-store decoding. The fixture
+checks exact admission and runner correspondence for both public starts.
+[Checked fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
+
 ### Reverse lowering of open flat SSA to mutable RTL
 
 `NamedFlat.Entry.Reverse.lowerChecked` generates an ordinary named mutable CFG
