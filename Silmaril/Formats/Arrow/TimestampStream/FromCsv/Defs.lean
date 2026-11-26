@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Formats.Arrow.TimestampStream.ToCsv.Defs
-public import Silmaril.Formats.Arrow.StreamWriter.Defs
+public import Silmaril.Formats.Arrow.TimestampBatch.Writer.Defs
 
 /-! Write one checked TIMESTAMP RecordBatch after a supplied V5 Schema frame. -/
 
@@ -10,7 +10,7 @@ public import Silmaril.Formats.Arrow.StreamWriter.Defs
 namespace Silmaril.Formats.Arrow.TimestampStream.FromCsv
 
 open Silmaril.Relational
-open Silmaril.Numeric.Timestamp (ConversionError Ticks)
+open Silmaril.Numeric.Timestamp (ConversionError)
 open ToCsv (Cell CsvLimits Kind codecs schemaOf)
 open Silmaril.Formats.Relational.NamedTable (Packed ImportError importCollected schemaMatches)
 
@@ -60,24 +60,16 @@ def slotsOf (binding : TimestampBatch.Binding) (rows : Csv.Typed.Table (schemaOf
 
 def tickCounts {binding : TimestampBatch.Binding} (column : TimestampBatch.Column binding) :
     List (Option Int) :=
-  column.map (Option.map Ticks.ticks)
+  TimestampBatch.Writer.tickCounts column
 
-/-- Pack validity and same-unit Int64 values as a single aligned record.
-A null slot has a zero physical word and a clear validity bit. -/
+/-- Use the shared TIMESTAMP record emitter while retaining the CSV adapter's
+existing error payloads. -/
 def emitRecord (limits : Arrow.Limits) (binding : TimestampBatch.Binding)
-    (slots : TimestampBatch.Column binding) : Except Error KBytes := do
-  if limits.batches = 0 then throw (.writer (.limit .batches))
-  if limits.rows < slots.length then throw (.writer (.limit .rows))
-  if !binding.nullable && slots.any Option.isNone then throw .requiredNull
-  let validitySize := (slots.length + 7) / 8
-  if limits.bodyBytes < validitySize + Writer.padding validitySize + 8 * slots.length then
-    throw (.writer (.limit .bodyBytes))
-  let values ← (binding.metadata.encodeBufferLE (slots.map (·.getD ⟨0⟩))).mapError .payload
-  let payload := Writer.emitWords 1 (values.data.toList.map UInt8.toNat)
-  let (buffers, body) := Writer.packBuffers 0 [Writer.emitBitmap slots, payload]
-  let node : FieldNode := ⟨slots.length, slots.countP Option.isNone⟩
-  let message : Message := ⟨.recordBatch ⟨slots.length, [node], buffers⟩, body.len⟩
-  (StreamWriter.emitFrame limits message body).mapError .writer
+    (slots : TimestampBatch.Column binding) : Except Error KBytes :=
+  (TimestampBatch.Writer.emitRecord limits binding slots).mapError fun
+    | .writer reason => .writer reason
+    | .requiredNull => .requiredNull
+    | .payload reason => .payload reason
 
 /-- Certify the complete byte stream with the existing TIMESTAMP reader. -/
 def certify (limits : Arrow.Limits) (binding : TimestampBatch.Binding)

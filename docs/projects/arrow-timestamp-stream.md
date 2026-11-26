@@ -19,8 +19,9 @@ retain their original typed causes.
 
 The stream reader uses the existing framing functions, normalized schema reader
 and TIMESTAMP batch decoder. The primitive and DATE readers retain their own
-profiles. File admission, writing, nested and dictionary schemas, compression,
-big-endian bodies and timezone resolution are outside this profile.
+profiles. The [native stream writer](arrow-timestamp-stream-writer.md) has its
+own bounded UTC/local admission. File admission, nested and dictionary schemas,
+compression, big-endian bodies and timezone resolution are outside this profile.
 
 ## Public contracts
 
