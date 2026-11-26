@@ -28,6 +28,11 @@ def evaluateOperand {scope : Scope} (lookup : Unit → Option TypeBinding) (heap
       (.tuple receiver) (.tuple argument)
     (result.bind tupleResult, reached)
 
+  | .construct _ argument =>
+    Core.Module.TupleDispatch.construct heap (lookup ()) (argument.map fun contents current =>
+      let (object, reached) := current.materialize contents
+      (.ok object, reached))
+
 structure Observation where
   result : Except Failure Bool
   heap : Heap
@@ -65,6 +70,7 @@ def evaluate {scope : Scope} (lookup : Unit → Option TypeBinding) (test : Tupl
 
 def runtimeError? : Failure → Option Core.Closure.RuntimeError
   | .missingType => some (.nameError "tuple")
+  | .notCallable => some .notCallable
   | .missingAttribute _ | .wrongReceiver _ | .wrongArgument | .unsupported => none
 
 end Silmaril.Languages.Python.Compile.ModuleEntry.Functions.TupleChain

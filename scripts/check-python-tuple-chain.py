@@ -229,6 +229,55 @@ def chain_controls(source_path, lean_path):
     return outcomes
 
 
+def constructor_controls(source_path, lean_path):
+    first = tuple([True, None])
+    equal = tuple([1, None])
+    assert first == equal and first is not equal
+    assert tuple(first) is first and tuple(equal) is equal
+    empty = ()
+    assert tuple() is empty and tuple(empty) is empty
+
+    assertion = "assert tuple((True, 1, None)) == tuple((1, True, None)) == tuple((1, 1, None))\n"
+    source = "keep = 7\n" + assertion + "tail = 9\n"
+    assert execute(source, {"tuple": tuple}, expected={"keep": 7, "tail": 9}) == "normal"
+    assert execute(source, {}, expected={"keep": 7}) == "NameError:tuple"
+    assert execute(source, {"tuple": tuple}, {"tuple": 0}, {"tuple": 0, "keep": 7}) == "TypeError"
+    masked = f'({STOCK}.bindGlobal "tuple" (.int 0))'
+    check(source, source_path, lean_path,
+          outcome(STOCK, "normal", '[("tail", .int 9), ("keep", .int 7)]'),
+          outcome("Namespace.empty", "NameError:tuple", '[("keep", .int 7)]'),
+          outcome(masked, "TypeError", '[("keep", .int 7), ("tuple", .int 0)]'),
+          '#guard ordinaryTuple pythonSource == some ("NameError:tuple", "int:7", "absent")',
+          f"#guard tupleTrace pythonSource {STOCK} == some (.ok true, "
+          "[.ok ⟨some 0, [.bool true, .int 1, .none]⟩, .ok ⟨some 1, [.int 1, .bool true, .none]⟩, "
+          ".ok ⟨some 2, [.int 1, .int 1, .none]⟩], "
+          "#[[.bool true, .int 1, .none], [.int 1, .bool true, .none], [.int 1, .int 1, .none]])",
+          "#guard tupleTrace pythonSource Namespace.empty == "
+          "some (.error .missingType, [.error .missingType], #[])",
+          f"#guard tupleTrace pythonSource {masked} == "
+          "some (.error .notCallable, [.error .notCallable], #[[.bool true, .int 1, .none]])")
+
+    empty_assertion = "assert tuple() == () == tuple(())\n"
+    restore = "saved = tuple\ntuple = None\ntuple = saved\n" + empty_assertion
+    bindings = '[("tuple", .builtin .tuple), ("saved", .builtin .tuple)]'
+    assert execute(restore, {"tuple": tuple}, expected={"tuple": tuple, "saved": tuple}) == "normal"
+    check(restore, source_path, lean_path, outcome(STOCK, "normal", bindings),
+          f"#guard tupleTrace pythonSource {STOCK} == "
+          "some (.ok true, [.ok ⟨none, []⟩, .ok ⟨none, []⟩, .ok ⟨none, []⟩], #[])")
+    masked = "keep = 7\ntuple = None\n" + assertion + "tail = 9\n"
+    assert execute(masked, {"tuple": tuple}, expected={"keep": 7, "tuple": None}) == "TypeError"
+    check(masked, source_path, lean_path,
+          outcome(STOCK, "TypeError", '[("tuple", .none), ("keep", .int 7)]'),
+          '#guard ordinaryTuple pythonSource == some ("TypeError", "int:7", "absent")')
+
+    skipped = "assert (0,).__add__(()) == (1,) == tuple((2,))\n"
+    assert execute(skipped, {}, expected={}) == "AssertionError:empty"
+    check(skipped, source_path, lean_path, outcome("Namespace.empty", "AssertionError:empty", "[]"),
+          "#guard tupleTrace pythonSource Namespace.empty == some (.ok false, "
+          "[.ok ⟨some 0, [.int 0]⟩, .ok ⟨some 1, [.int 1]⟩], #[[.int 0], [.int 1]])")
+    return {"exact_alias": True, "empty_singleton": True, "live_lookup": True}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream", type=Path, required=True)
@@ -238,5 +287,6 @@ if __name__ == "__main__":
         source = Path(scratch) / "Fixture.py"
         lean = source.with_suffix(".lean")
         evidence = {"cpython": sys.version.split()[0], "pin": replay_pin(args.upstream, source, lean),
-                    "methods": method_controls(), "chains": chain_controls(source, lean)}
+                    "methods": method_controls(), "chains": chain_controls(source, lean),
+                    "constructors": constructor_controls(source, lean)}
     print(json.dumps(evidence))

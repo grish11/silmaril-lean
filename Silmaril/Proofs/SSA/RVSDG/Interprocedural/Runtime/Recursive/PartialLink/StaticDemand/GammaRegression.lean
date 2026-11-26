@@ -102,13 +102,14 @@ private def exports (cap : Nat) : Tuple machine.Val [caller.port] :=
 
 private theorem resolved (cap : Nat) (tag : Fin 2) (request dead : Nat) :
     callerCode.Resolved (prependContext (params tag request 9 dead) (captures cap)) := by
+  intro locals
+  cases locals
   constructor
-  · intro locals i
-    cases locals
+  · intro i
     refine Fin.cases ?_ (fun _ => ?_) i
-    · exact ⟨rfl, fun _ => trivial, trivial⟩
+    · exact ⟨rfl, fun _ _ => trivial, fun _ => trivial⟩
     · trivial
-  · trivial
+  · exact fun _ _ _ _ => trivial
 
 private theorem agree (cap : Nat) (tag : Fin 2) (request deadL deadR : Nat) :
     callerCode.AgreesOnInputs requested

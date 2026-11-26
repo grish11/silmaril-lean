@@ -6,6 +6,7 @@ import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Soundness
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Composition
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.CopyChain
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Reachable
+import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.OutcomeLink
 
 @[expose] public section
 
@@ -180,6 +181,24 @@ theorem entryOutcome_unsupported {graph : Graph V F a b} (input : Fin a) (index 
       ¬ ∃ next, PacketCopy.Forwards {(graph.block index).param} (graph.block index).body next :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.entry_unsupported input index found
 
+/-- A left return dispatches to the corresponding right input through the
+linker's handoff block. A cycle or unsupported block ends the scan in its own
+stage, with the private label embedded in the linked table. -/
+theorem entryOutcome_link [Inhabited V] (left : Graph V F a b) (right : Graph V F b c)
+    (input : Fin a) :
+    entryOutcome (left.link right) input =
+      (entryOutcome left input).continueWith (fun i => (i.castAdd b).castAdd right.locals) (fun mid =>
+        (entryOutcome right mid).continueWith (fun i => i.natAdd (left.locals + b)) Outcome.returns) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.entry_link left right input
+
+/-- Every left input must be supported. Right inputs need support exactly
+at the intermediate ports returned by those left inputs. -/
+theorem entryTyped_link_iff [Inhabited V] (left : Graph V F a b) (right : Graph V F b c) :
+    EntryTyped (left.link right) ↔ EntryTyped left ∧
+      ∀ input mid, entryOutcome left input = .returns mid →
+        ∀ index, entryOutcome right mid ≠ .unsupported index :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.entry_typed_link left right
+
 theorem refinementBetween?_eq_none_iff (left right : Graph V F a b) :
     refinementBetween? left right = none ↔ ¬ (EntryTyped left ∧ EntryTyped right) :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_between_none left right
@@ -192,6 +211,26 @@ theorem refinementBetween?_eq_some_iff (model : PairModel F Part α) (left right
     refinementBetween? left right = some verdict ↔ (EntryTyped left ∧ EntryTyped right) ∧
       (verdict = true ↔ Refines (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right)) :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_between_some model left right verdict
+
+/-- The checker is exact for satisfaction by the compiled named SSA classes
+in each pair-lawful `Part` model at every input port and initial store. -/
+theorem refinementBetween?_eq_some_namedSSA_iff [Inhabited V] (model : PairModel F Part α)
+    (left right : Graph V F a b) (verdict : Bool) :
+    refinementBetween? left right = some verdict ↔ (EntryTyped left ∧ EntryTyped right) ∧
+      (verdict = true ↔ ∀ port, Cyclic.Institution.Refinement.ssaSat model
+        (namedSSAClass port (Quotient.mk _ left)) (namedSSAClass port (Quotient.mk _ right))) := by
+  rw [namedSSA_sat_iff]
+  exact Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_between_some_sat model left right verdict
+
+/-- Compile after primitive renaming. The same verdict applies by taking
+the reduct of the renamed model along the alphabet map. -/
+theorem refinementBetween?_eq_some_namedSSA_map_iff [Inhabited V] {F' : Type} (rename : F → F')
+    (model : PairModel F' Part α) (left right : Graph V F a b) (verdict : Bool) :
+    refinementBetween? left right = some verdict ↔ (EntryTyped left ∧ EntryTyped right) ∧
+      (verdict = true ↔ ∀ port, Cyclic.Institution.Refinement.ssaSat model
+        (namedSSAClass port (Quotient.mk _ (left.mapOp rename)))
+        (namedSSAClass port (Quotient.mk _ (right.mapOp rename)))) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_between_named_map rename model left right verdict
 
 theorem refinementBetween?_wiring (graph : Graph V F a b) (wire : Fin a → Fin b) :
     refinementBetween? graph (Graph.wiring wire) = refinement? graph wire :=

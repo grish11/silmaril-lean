@@ -49,7 +49,7 @@ private theorem allocate_all_owned (names : List Binding) (initial : State) (val
   | nil => exact valid
   | cons first rest ih => exact ih _ (allocate_owned_cells _ first valid)
 
-private theorem allocate_blank (names : List Binding) (initial : State) (binding : Binding)
+theorem allocate_blank (names : List Binding) (initial : State) (binding : Binding)
     (requested : binding ∈ names ∨ ∃ address, initial.slots binding = some (.owned address) ∧
       initial.heap[address]? = some ⟨.binding none, false⟩) :
     let result := names.foldl State.allocateSlot initial

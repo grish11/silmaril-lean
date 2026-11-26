@@ -14,9 +14,11 @@ inductive TupleOperand (scope : Scope) where
   | boundAdd (receiver argument : List Core.Module.Value)
   | unboundAdd (reference : GlobalReference scope "tuple") (receiver argument : List Core.Module.Value)
 
-def TupleOperand.usesMethod {scope : Scope} : TupleOperand scope → Bool
+  | construct (reference : GlobalReference scope "tuple") (argument : Option (List Core.Module.Value))
+
+def TupleOperand.usesCall {scope : Scope} : TupleOperand scope → Bool
   | .literal _ | .add .. => false
-  | .boundAdd .. | .unboundAdd .. => true
+  | .boundAdd .. | .unboundAdd .. | .construct .. => true
 
 inductive TupleAddCall : Source.Expr → Source.Expr → List (Source.ArgumentKind × Source.Expr) → Prop where
   | plain (receiver arguments) :
@@ -34,6 +36,42 @@ def tupleAddCall? : (source : Source.Expr) →
     some ⟨(receiver, arguments), .tagged receiver arguments⟩
   | _ => none
 
+inductive TupleConstructorCall : Source.Expr → List (Source.ArgumentKind × Source.Expr) → Prop where
+  | plain (arguments) :
+      TupleConstructorCall (.call (.name "tuple") arguments) (arguments.map (.positional, ·))
+  | tagged (arguments) :
+      TupleConstructorCall (.callWith (.name "tuple") arguments) arguments
+
+def tupleConstructorCall? :
+    (source : Source.Expr) → Option {arguments // TupleConstructorCall source arguments}
+  | .call (.name "tuple") arguments => some ⟨_, .plain arguments⟩
+  | .callWith (.name "tuple") arguments => some ⟨arguments, .tagged arguments⟩
+  | _ => none
+
+def tupleScalar? : Source.Expr → Option Core.Module.Value
+  | .none_ => some .none
+  | source => scalarLiteral? source
+
+def constructorTuple? : Source.Expr → Option (List Core.Module.Value)
+  | .tuple elements => elements.mapM tupleScalar?
+  | _ => none
+
+inductive TupleConstructorArgument :
+    List (Source.ArgumentKind × Source.Expr) → Option (List Core.Module.Value) → Prop where
+  | empty : TupleConstructorArgument [] none
+  | exact {source values} (checked : constructorTuple? source = some values) :
+      TupleConstructorArgument [(.positional, source)] (some values)
+
+def tupleConstructorArgument? :
+    (arguments : List (Source.ArgumentKind × Source.Expr)) →
+    Option {argument // TupleConstructorArgument arguments argument}
+  | [] => some ⟨none, .empty⟩
+  | [(.positional, source)] =>
+    match checked : constructorTuple? source with
+    | some values => some ⟨some values, .exact checked⟩
+    | none => none
+  | _ => none
+
 inductive TupleOperandTranslation (scope : Scope) : Source.Expr → TupleOperand scope → Prop where
   | literal {source values} (checked : scalarTuple? source = some values) :
       TupleOperandTranslation scope source (.literal values)
@@ -49,6 +87,10 @@ inductive TupleOperandTranslation (scope : Scope) : Source.Expr → TupleOperand
       (checkedReceiver : scalarTuple? receiver = some left) (checkedArgument : scalarTuple? argument = some right) :
       TupleOperandTranslation scope source (.unboundAdd reference left right)
 
+  | construct {source arguments reference operand}
+      (call : TupleConstructorCall source arguments) (checked : TupleConstructorArgument arguments operand) :
+      TupleOperandTranslation scope source (.construct reference operand)
+
 def tupleValueOperand? (scope : Scope) : (source : Source.Expr) →
     Option {operand // TupleOperandTranslation scope source operand}
   | .binary .add left right =>
@@ -62,6 +104,10 @@ def tupleValueOperand? (scope : Scope) : (source : Source.Expr) →
 
 def tupleOperand? (scope : Scope) (source : Source.Expr) :
     Option {operand // TupleOperandTranslation scope source operand} := do
+  if let some ⟨arguments, call⟩ := tupleConstructorCall? source then
+    let reference ← globalReference? scope "tuple"
+    let ⟨operand, checked⟩ ← tupleConstructorArgument? arguments
+    return ⟨.construct reference operand, .construct call checked⟩
   match tupleAddCall? source with
   | some ⟨(receiver, [(.positional, argument)]), call⟩ =>
     match checkedLeft : scalarTuple? receiver, checkedRight : scalarTuple? argument with
@@ -98,7 +144,7 @@ structure TupleChainTest (scope : Scope) where
 inductive TupleChainTranslation (scope : Scope) : Source.Stmt → TupleChainTest scope → Prop where
   | assertion {source link rest first links} (initial : TupleOperandTranslation scope source first)
       (checked : TupleLinksTranslation scope (link :: rest) links)
-      (callsMethod : (first :: links).any TupleOperand.usesMethod = true) :
+      (callsTuple : (first :: links).any TupleOperand.usesCall = true) :
       TupleChainTranslation scope (.assert_ (.comparison source (link :: rest)) none) ⟨first, links⟩
 
 def tupleChainTest? (scope : Scope) : (statement : Source.Stmt) →
@@ -106,8 +152,8 @@ def tupleChainTest? (scope : Scope) : (statement : Source.Stmt) →
   | .assert_ (.comparison source (link :: rest)) none => do
     let first ← tupleOperand? scope source
     let links ← tupleLinks? scope (link :: rest)
-    if callsMethod : (first.val :: links.val).any TupleOperand.usesMethod then
-      some ⟨⟨first.val, links.val⟩, .assertion first.property links.property callsMethod⟩
+    if callsTuple : (first.val :: links.val).any TupleOperand.usesCall then
+      some ⟨⟨first.val, links.val⟩, .assertion first.property links.property callsTuple⟩
     else none
   | _ => none
 

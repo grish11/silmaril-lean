@@ -63,6 +63,68 @@ This path uses the existing explicit seed that already supplies `len`.
 Run the CPython 3.13.5 controls and the fixed original inputs with
 `python3.13 -I scripts/check-python-sequence-length.py --upstream /path/to/pinned/rigorous`.
 
+The same integer-result assertion path accepts `ord` with one positional
+text literal containing exactly one Unicode code point. The checker
+certifies the code point, including surrogate code points, before lowering.
+The independent `legacyOrdSeed` supplies the stock descriptor. The live
+module-first lookup precedes comparison against the right operand. A scalar
+mask raises the defined noncallable error and a different callable falls
+outside the profile. The call receipt records the integer result before a
+right-operand failure, and both heaps keep their incoming contents.
+Text arguments of other lengths fail the source check. Run the unchanged
+`testord.py` and CPython 3.13.5 controls with
+`python3.13 -I scripts/check-python-ordinal.py --upstream /path/to/pinned/rigorous`.
+
+The positional argument checker can emit exact literals for closed signed
+integer bit operations and single numeric comparisons. The integer profile
+accepts unary sign and complement, bitwise AND, OR and XOR, and nonnegative
+shifts. Left shift counts up to 4096 bound compile-time growth. Comparisons
+accept exact Boolean literals and closed integer operands and retain the
+Boolean result tag. Each operand is checked in full before a result is emitted.
+
+Both runners receive the same literal argument and use their existing
+call preparation and delivery. Lookup stays live and module-first. A missing
+callee stops before reading arguments, while a noncallable binding is tested
+after preparing the arguments. Seeded receipts come from the reached call
+path and retain the existing error and result tags. Run the unchanged
+`bool-compare.py` and `bitwise_test.py` with the CPython 3.13.5 controls using
+`python3.13 -I scripts/check-python-numeric-arguments.py --upstream /path/to/pinned/rigorous`.
+
+The function-aware checker can omit an `if` whose closed guard selects an
+empty arm or an arm of `pass` statements. The otherwise unsupported arm
+must contain only passes or syntactically checked raises. Its exception
+names and calls are unreachable. A selected raise or a guard whose
+evaluation falls outside the checked profile reports `statementProfile`.
+The existing literal-arm lowering handles assignments and assertions.
+
+Closed guards compose integer operations, exact singleton identity,
+Boolean selection, and ordered comparisons. Finite float addition and
+comparison use the library's binary64 semantics. Text comparison follows
+Unicode code-point order, and truth of a literal dictionary requires a
+checked text key and literal value at every entry. Boolean selection
+retains the selected value's tag. The checker validates every operand and
+comparison link, including skipped ones. Bitwise inversion requires an
+integer because CPython 3.13.5 warns on Boolean inversion. Emission adds no
+instructions, runtime allocations or receipts. Run the four pinned inputs and the
+CPython 3.13.5 controls with
+`python3.13 -I scripts/check-python-closed-guards.py --upstream /path/to/pinned/rigorous`.
+
+A message-free assertion can use `bool()` or `bool(scalar)` on the left
+of a single `is` or `is not` link. The checker certifies the optional
+positional operand in the shared scalar profile and the right operand in
+the singleton profile. Seeded execution reads the live module-first
+`bool` binding before preparing the argument. The existing
+`legacyBoolIsinstanceSeed` supplies the exact stock type in both
+placements. A noncallable mask fails after argument preparation. The
+ordinary runner uses its explicit namespace and the same error order.
+
+The stock descriptor uses scalar truth and returns an exact Boolean.
+The receipt records that value before the right operand is evaluated.
+The identity test uses the existing singleton rule. A failure retains
+the caller bindings and both heaps, and skips the tail. Run the exact
+CPython 3.13.5 pin and controls with
+`python3.13 -I scripts/check-python-bool-identity.py --upstream /path/to/pinned/rigorous`.
+
 A message-free module assertion can compare a stock `list` construction
 with an exact flat list literal on either side of equality. The call
 accepts zero arguments or one positional flat list or tuple literal.
@@ -106,6 +168,17 @@ operands. The evaluator's literal representatives and reached operands
 are local to the assertion, and its equality compares scalar contents. The
 existing caller namespaces, closure heap, list heap and generic call
 receipts keep their separate observation rules.
+
+The same assertion accepts `tuple()` and `tuple((...))` with one exact
+flat scalar literal. The constructor resolves the live `tuple` binding
+before preparing its argument. A missing binding raises `NameError`. A
+modeled noncallable mask raises `TypeError` after argument preparation.
+The stock descriptor delivers the canonical empty tuple or the exact
+prepared object and reached tuple heap. The result keeps the argument's
+address and incurs no second allocation. These addresses belong to the
+assertion. Module tuple values carry scalar contents and require object
+provenance before this constructor can accept them for identity-sensitive
+use.
 
 Run the unchanged pin and CPython 3.13.5 dispatch and sequencing controls
 with `python3.13 -I scripts/check-python-tuple-chain.py --upstream /path/to/pinned/rigorous`.

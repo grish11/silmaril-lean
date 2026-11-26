@@ -890,6 +890,46 @@ theorem elaborateCommand_plainPositionalDefinition (block : BlockContext) (name 
     read_required, optionalRead, requiredPlain, optionalPlain, requiredSignature,
     bind, StateT.bind, Except.bind, lift_ok, get_build, set_build, pure, StateT.pure, Except.pure, bodyCode]
 
+/-- The same plain defaults in a function body emit a direct definition
+and propagate their defining-scope reads to the containing declaration. -/
+theorem compileBody_plainPositionalDefinition (block : BlockContext) (name : String) (required : List String)
+    (defaults : List PlainPositionalDefault) (body : Statement) (program next : Program)
+    (layout : FunctionLayout) (compiled : ResolvedBody)
+    (closed : ∀ item ∈ defaults, resolveTracked block.reads item.source = .ok (item.value, item.reads))
+    (collected : collectFunctionLayout block.reads
+      { positional := required.map (fun name => ⟨name, none⟩) ++ defaults.map PlainPositionalDefault.parameter } body =
+      .ok layout)
+    (bodyCode : compileBody layout.block body program = .ok (compiled, next)) :
+    let source : SourceSignature :=
+      { positional := required.map (fun name => ⟨name, none⟩) ++ defaults.map PlainPositionalDefault.parameter }
+    let signature : Functions.Signature :=
+      { positional := (requiredSignature required).positional ++ defaults.map PlainPositionalDefault.resolved }
+    let captures := captureNames (source.parameterNames ++ layout.locals) compiled.reads
+    compileBody block (.define name source body) program =
+      .ok (⟨.define (fileSlot name) next.size, defaults.flatMap PlainPositionalDefault.reads ++ captures.map FreeName.source⟩,
+        next.push ⟨signature, layout.locals.map fileSlot, captures, compiled.code⟩) := by
+  have optionalRead := read_plain_positionals block.reads defaults closed program
+  rw [List.mapM_map] at optionalRead
+  have optionalPlain := plain_optional defaults
+  rw [List.mapM_map] at optionalPlain
+  simp [compileBody, collected, compileDefinition, List.mapM_append, List.mapM_map,
+    read_required, optionalRead, plain_required, requiredSignature, required_reads, optionalPlain,
+    bind, StateT.bind, Except.bind, lift_ok, get_build, set_build, pure, StateT.pure, Except.pure, bodyCode]
+  simp [List.flatMap_map]
+
+theorem compileBody_plainAssign (block : BlockContext) (name : String) (source : Lowering.Resolve.SourceExpr)
+    (value : Lowering.Expr) (reads : List Binding) (program : Program)
+    (operand : resolveTracked block.reads source = .ok (value, reads)) :
+    compileBody block (.assign name source) program = .ok (⟨.assignExpr (fileSlot name) value, reads⟩, program) := by
+  simp [compileBody, readExpr, operand, Except.mapError, bind, StateT.bind, Except.bind, lift_ok, pure, StateT.pure, Except.pure]
+
+theorem compileBody_plainSeq (block : BlockContext) (first rest : Statement) (program middle final : Program)
+    (head tail : ResolvedBody)
+    (compiled : compileBody block first program = .ok (head, middle))
+    (remaining : compileBody block rest middle = .ok (tail, final)) :
+    compileBody block (.seq first rest) program = .ok (⟨.seq head.code tail.code, head.reads ++ tail.reads⟩, final) := by
+  simp [compileBody, compiled, remaining, bind, StateT.bind, Except.bind, pure, StateT.pure, Except.pure]
+
 /-- A plain return reads its operand in the collected function context. -/
 theorem compileBody_plainReturn (block : BlockContext) (source : Lowering.Resolve.SourceExpr)
     (value : Lowering.Expr) (reads : List Binding) (program : Program)

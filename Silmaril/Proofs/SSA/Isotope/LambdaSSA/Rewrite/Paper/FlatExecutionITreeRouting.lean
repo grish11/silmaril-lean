@@ -104,9 +104,9 @@ section Dispatcher
 
 variable {τ : Type x} [TypeFormers τ] [HasTy Φ τ]
   {blocks exits : Nat} {R : Fin blocks → τ} {E : Fin exits → τ}
-  {g : FiniteCFG Φ blocks exits 0}
+  {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
 
-theorem packedBlock_tree (hg : FiniteCFG.HasType .nil R E g) (i : Fin blocks)
+theorem packedBlock_tree (hg : FiniteCFG.HasType β R E g) (i : Fin blocks)
     (env : Env α) (v : Value α) :
     region instr (extend env (packedExitValue i.val v)) (packedDispatcherRegion hg) =
       (region instr (extend env v) (g.block i).erase >>= fun p => pure (0, routeValue blocks p.1 p.2)) := by
@@ -120,7 +120,7 @@ theorem packedBlock_tree (hg : FiniteCFG.HasType .nil R E g) (i : Fin blocks)
     dite_eq_left i.isLt, liftLSubstVars_routeExit, routedFlat] using
       routedFlat_tree instr blocks (g.block i) (extend env v)
 
-theorem packedBlock_feedback_tree (hg : FiniteCFG.HasType .nil R E g) (i : Fin blocks)
+theorem packedBlock_feedback_tree (hg : FiniteCFG.HasType β R E g) (i : Fin blocks)
     (env : Env α) (v : Value α) :
     region instr (extend env (packedExitValue i.val v)) (iterationBody (packedDispatcherRegion hg)) =
       (region instr (extend env v) (g.block i).erase >>= fun p => pure (packedTreeTransfer blocks p)) := by

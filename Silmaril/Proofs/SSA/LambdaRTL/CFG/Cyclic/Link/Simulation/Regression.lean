@@ -243,4 +243,49 @@ example : CopyChain.refinementBetween? (ring (.inl 0)) altered = none := by cbv
 example : CopyChain.refinementBetween? altered (ring (.inl 0)) = none := by cbv
 example : CopyChain.refinementBetween? move unusedAltered = some true := by cbv
 
+-- A left cycle never enters the right table, even when that input is unsupported.
+example : CopyChain.entryOutcome ((ring (.inl 0)).link altered) 0 = .cycle (0 : Fin 4) := by
+  rw [CopyChain.entryOutcome_link, reachable_ring_outcome]
+  rfl
+
+example : CopyChain.entryOutcome (move.link (ring (.inl 0))) 0 = .cycle (2 : Fin 4) := by
+  rw [CopyChain.entryOutcome_link]
+  cbv
+
+private def selectiveRight : Graph Bool Empty 2 1 where
+  locals := altered.locals
+  entry mid := if mid = 0 then .inr 0 else altered.entry 0
+  block := altered.block
+  closed := altered.closed
+
+example : CopyChain.entryOutcome ((shortChain 0).link selectiveRight) 0 = .returns 0 := by
+  rw [CopyChain.entryOutcome_link]
+  cbv
+
+example : CopyChain.entryOutcome ((shortChain 1).link selectiveRight) 0 = .unsupported (3 : Fin 4) := by
+  rw [CopyChain.entryOutcome_link]
+  cbv
+
+private def linkedChain : Graph Bool Empty 1 2 := chain.link swapWire
+private def linkedShort (port : Fin 2) : Graph Bool Empty 1 2 := (shortChain port).link swapWire
+
+private def renamedModel : PairModel Bool Part Nat :=
+  ⟨{ model.val with app := fun op packet => pure (if op then packet + 1 else packet) },
+    ⟨fun left right => congrArg Part.some (Nat.unpair_pair left right)⟩⟩
+
+example : ∀ input, Cyclic.Institution.Refinement.ssaSat renamedModel
+    (namedSSAClass input (Quotient.mk _ (linkedChain.mapOp Empty.elim)))
+    (namedSSAClass input (Quotient.mk _ ((linkedShort 0).mapOp Empty.elim))) := by
+  have passed : CopyChain.refinementBetween? linkedChain (linkedShort 0) = some true := by cbv
+  exact ((CopyChain.refinementBetween?_eq_some_namedSSA_map_iff Empty.elim renamedModel
+    linkedChain (linkedShort 0) true).mp passed).2.mp rfl
+
+example : ¬ (∀ input, Cyclic.Institution.Refinement.ssaSat model
+    (namedSSAClass input (Quotient.mk _ linkedChain))
+    (namedSSAClass input (Quotient.mk _ (linkedShort 1)))) := by
+  have failed : CopyChain.refinementBetween? linkedChain (linkedShort 1) = some false := by cbv
+  have verdictSound := ((CopyChain.refinementBetween?_eq_some_namedSSA_iff model
+    linkedChain (linkedShort 1) false).mp failed).2
+  exact fun satisfied => Bool.noConfusion (verdictSound.mpr satisfied)
+
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link

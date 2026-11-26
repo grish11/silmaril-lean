@@ -119,3 +119,246 @@ The MLIR result in these laws uses the initialized cells carried
 as SSA values above.
 [CF evaluator](../../../../Silmaril/SSA/MLIR/CF/Basic/Defs.lean) ·
 [LLVM admission example](../../../../Silmaril/SSA/MLIR/LLVM/Examples/Thms.lean)
+
+## Typed MemRef activation
+
+`MemRef.lowerActivation` reuses the [single-buffer body lowering](sea-of-nodes-memory.md#one-initialized-rank-one-memref).
+It emits the native ordered `memref.load` and `memref.store` bindings
+and appends `arith.cmpi ne` to compare the body's returned word with
+the invariant stop operand. The comparison uses the ordered block's
+two-way control type. Selector zero requests exit and selector one
+requests a backedge. The monadic runtime carries every updated buffer
+cell in either case.
+[Activation definitions](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/Defs.lean) ·
+[Ordered control syntax](../../../../Silmaril/SSA/RVSDG/MLIR/Graph/Feedback/Defs.lean) ·
+[Pinned comparison operation](https://github.com/llvm/llvm-project/blob/4434dabb69916856b824f68a64b029c67175e532/mlir/include/mlir/Dialect/Arith/IR/ArithOps.td)
+
+`lowerActivation_run` identifies the emitted selector, word, and complete
+buffer. `observeActivation_eq_step` decodes the outcome and identifies it
+with the native heap-threaded step for any starting buffer. This is a
+one-activation law for one initialized, contiguous, statically sized
+rank-one `i64` buffer with `Fin n` indices.
+[Activation theorems](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/Thms.lean)
+
+The activation regression also passes a restart buffer into a second
+activation. Its one-cell case uses coincident indices and checks that
+the last store wins. The same fixture requires a typed address, so its
+entry valuation is uninhabited at zero cells.
+[Regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/Regression.lean)
+
+### Executing MemRef feedback
+
+`MemRef.runAfter` repeatedly executes that emitted activation. An exit
+returns the loaded word and whole final buffer. A backedge passes the
+post-store buffer to the next activation with the original typed operands.
+The budget counts **exactly** the requested backedges, so even budget zero
+executes the entry activation and an earlier exit yields `none` at a larger
+count. `MemRef.observe` describes the finite return across all counts.
+
+The driver repeats the emitted ordered block using the decoded activation
+outcome.
+[Driver definitions](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/Feedback/Defs.lean)
+
+`runAfter_eq_evalAfter` agrees with the native evaluator at every exact
+count. `returnsAfter_iff_runAfter` and `returns_iff_mem_observe` preserve
+and reflect the word and every cell in counted and finite returns.
+`observe_eq_none_iff` identifies the absence of a finite return with
+`none` at every count.
+[Feedback theorems](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/Feedback/Thms.lean) ·
+[Feedback regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/Feedback/Regression.lean)
+
+### Emitted MemRef CF loop
+
+`MemRef.CF.lower` emits a typed CFG with an entry branch, a header
+conditional, and an exit return. Its header contains the same emitted
+ordered MemRef activation. The typed entry valuation is captured by the
+body interpretation, and the initialized buffer lives in `StateM`.
+The activation's selector becomes an `i1` terminator operand. The
+conditional takes a self edge on restart and passes the `i64` word
+to the exit on completion. Both edges carry the whole updated buffer
+through the shared monad.
+[CFG definitions](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/CF/Defs.lean) ·
+[Ordered CF adapter](../../../../Silmaril/SSA/MLIR/CF/Ordered/Defs.lean)
+
+`header_transition` identifies both actual successor frames and their
+post-store buffer. `run_eq_some_iff` agrees with the exact-count driver
+at any count within the CFG's backedge allowance. The CFG runner uses
+one block step each for entry and exit and one per header activation.
+The shared scheduler specializes to the pure CF evaluator via
+`runBlock_id`.
+
+At the native boundary, `Buffer.mk heap` uses the native `Fin n → Word`
+heap as its cell function, and the typed input valuation is shared.
+`cfg_run_eq_some_iff_returnsAfter` observes the returned word and every
+cell exactly when a native return at count `k` fits the raw block fuel
+(`k + 3 ≤ fuel`). The `run` wrapper uses `budget + 3` blocks, so
+`run_eq_some_iff_returnsAfter` uses `k ≤ budget`. `run_eq_none_iff`
+identifies bounded absence with failure at every native exact count
+within that allowance. Across all allowances,
+`exists_run_eq_some_iff_mem_denote` and
+`forall_run_eq_none_iff_denote_eq_none` give finite observation and
+no-finite-observation agreement with the native partial denotation.
+
+This profile covers one initialized rank-one buffer with in-bounds
+indices. Textual MLIR emission and general MemRef effects remain outside
+the profile.
+[CFG theorems](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/CF/Thms.lean) ·
+[Pure specialization](../../../../Silmaril/SSA/MLIR/CF/Ordered/Thms.lean) ·
+[CFG regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/CF/Regression.lean)
+
+### Equations for emitted MemRef CF
+
+`MemRef.CF.Institution.observe` collects finite returns of the emitted CFG
+as a partial word-and-heap value at the native model's cell count and
+typed entry valuation. `observe_eq` identifies that value with the native
+partial denotation, including absence of a finite return.
+`satisfaction` gives both directions of equation truth over all initial
+heaps. `observe_mapGraph` and `satisfaction_reindex` reuse the native
+typed entry-port maps and valuation reduct.
+[MemRef equation theorems](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/CF/Institution/Thms.lean)
+
+`mlir_observation_eq_map_memref` packs the MemRef result's word and every
+cell into the scalar CF backend's partial observation.
+The regression rejects two emitted programs with the same returned word
+and different final heaps, and checks the absence of a finite return.
+[Backend theorem](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Thms.lean) ·
+[Equation regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Regression.lean)
+
+### Compare emitted MemRef CF and numbered θ
+
+At the same native typed valuation and initial heap,
+`memref_observation_eq_map_theta` reads the emitted θ result's word and
+whole heap wire into the MemRef CFG's partial observation.
+`memref_observation_iff_theta_returns` relates a defined observation
+to an actual finite return of the numbered graph.
+`memref_run_iff_theta_run` converts successful execution witnesses in
+both directions. A common native return after `k` backedges admits
+`k + 3` CF block steps and `k + 1` θ activations.
+`theta_no_return_iff_memref` matches absence of a finite return.
+`theta_satisfaction_iff_memref` compares satisfaction and composes with
+the existing typed reindexing laws on either backend.
+
+The regression executes the three-cell shift with two backedges in both
+backends. It checks the word, two changed cells, and the untouched cell,
+and exercises the no-return case and typed address reindexing.
+[Backend comparison](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Thms.lean) ·
+[Regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Regression.lean)
+
+### Compare coloured Petri completion and MemRef CF
+
+At the same typed model and initial heap, `petri_completion_iff_memref`
+identifies a completed firing trace of the emitted memory θ with the
+MemRef CFG's partial return of the same word and whole heap.
+`petri_completion_iff_memref_run` gives the corresponding finite CFG
+execution witness. `petri_no_completion_iff_memref` compares absence
+of any completed firing trace with absence of a finite MemRef return.
+Firing traces and CFG block fuel are separate witnesses.
+
+The regression uses the portable two-backedge completion and the
+emitted MemRef execution of the three-cell shift. Both updated cells
+are observed, and a completion that changes the untouched sentinel
+is ruled out even with the same return word.
+[Coloured completion](../../sea-of-nodes-memory-loop-petri.md) ·
+[Backend theorems](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Thms.lean) ·
+[Regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Regression.lean)
+
+### Equations for coloured Petri completion
+
+`petriHolds` compares the two emitted graphs' finite completions for
+every initial heap at the chosen typed model. Each result contains the
+word and every final cell. If both graphs have no finite completion at
+an initial heap, both partial observations are absent there.
+`petri_satisfaction_iff_memref` and `petri_satisfaction` identify this
+relation with MemRef and native equation satisfaction.
+`petri_satisfaction_reindex` uses the native typed entry map and
+valuation reduct.
+
+The backend regression rejects equal words with different final cells.
+It also compares two programs that both exhaust a zero-backedge
+allowance. One returns after another activation, and the other has
+no finite completion at that heap.
+[Equation theorems](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Thms.lean) ·
+[Regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Regression.lean)
+
+Save this example to a Lean file and run `lake env lean <file>`. The
+activation results list the selector, word, and both final cells. The
+feedback and CFG results list the word and both final cells on return.
+The final examples check a partial observation and an equation at that
+typed valuation.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Institution.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.Feedback.Defs
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.Thms
+meta import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Defs
+meta import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.Feedback.Defs
+
+open Silmaril.SSA.RVSDG (Tuple)
+open Silmaril.SSA.SeaOfNodes.Memory (Address Heap ValueSort Val Word)
+open Silmaril.SSA.SeaOfNodes.Memory.Diamond.Institution (Signature Model)
+open Silmaril.SSA.SeaOfNodes.Memory.Loop (Graph)
+open Silmaril.SSA.SeaOfNodes.Memory.Loop.Institution (Equation)
+open Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Institution (Holds observe observe_eq satisfaction)
+open Silmaril.MLIR.MemRef (Buffer)
+open Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef (runActivation runAfter)
+open Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF renaming run → runCfg
+
+private abbrev args : List ValueSort := [.address, .word]
+
+private def graph : Graph args where
+  body := .load (.latest 0) (.arg .head)
+    (.store (.latest 0) (.arg .head) (.arg (.tail .head))
+      (.ret (.latest 1) (.output 0 .head)))
+  effects := rfl
+  stop := .tail .head
+
+private def input : Tuple (Val 2) args :=
+  .cons (0 : Address 2) (.cons (7 : Word) .nil)
+
+private def start (old : Word) : Buffer 2 :=
+  ⟨fun i => if i = 0 then old else 99⟩
+
+private def exampleResult (old : Word) : Nat × Nat × Nat × Nat :=
+  let (.cons selector values, final) :=
+    runActivation graph input (start old)
+  (selector.down.val, (values.get .head : Word).toNat,
+    (final.cell 0).toNat, (final.cell 1).toNat)
+
+#eval exampleResult 7  -- (0, 7, 7, 99)
+#eval exampleResult 8  -- (1, 8, 7, 99)
+
+private def feedbackResult (count : Nat) (old : Word) : Option (Nat × Nat × Nat) :=
+  (runAfter graph input count (start old)).map fun (word, final) =>
+    (word.toNat, (final.cell 0).toNat, (final.cell 1).toNat)
+
+#eval feedbackResult 0 7  -- some (7, 7, 99)
+#eval feedbackResult 0 8  -- none
+#eval feedbackResult 1 8  -- some (7, 7, 99)
+
+private def cfgResult (budget : Nat) (old : Word) : Option (Nat × Nat × Nat) :=
+  (runCfg graph input budget (start old)).map fun (word, final) =>
+    (word.toNat, (final.cell 0).toNat, (final.cell 1).toNat)
+
+#eval cfgResult 0 7  -- some (7, 7, 99)
+#eval cfgResult 0 8  -- none
+#eval cfgResult 1 8  -- some (7, 7, 99)
+#eval cfgResult 2 8  -- some (7, 7, 99)
+
+private def signature : Signature := ⟨args⟩
+private def model : Model signature := ⟨2, input⟩
+
+example : observe graph model (start 8).cell = Part.some (7, (start 7).cell) := by
+  refine (observe_eq (P := signature) graph model (start 8).cell).trans ?_
+  apply Part.eq_some_iff.mpr
+  apply (graph.returns_iff_mem_denote input (start 8).cell 7 (start 7).cell).mp
+  refine ⟨1, (graph.returnsAfter_iff_evalAfter input (start 8).cell 1 7 (start 7).cell).mpr ?_⟩
+  cbv
+  congr 2
+  funext i
+  by_cases atHead : i = 0 <;> simp [Heap.write, Function.update, atHead]
+
+example (e : Equation signature) : Holds e model ↔ e.Holds model :=
+  satisfaction e model
+```

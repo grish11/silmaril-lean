@@ -39,6 +39,47 @@ components nor export ascriptions are silently stripped. `Closed.erase_map`
 commutes with raw `Syntax.Component.map` for a payload map preserving the
 same named module interfaces under one component profile.
 
+### Interaction trees for ready, closed simple components
+
+Import `Silmaril.Wasm.Component.SyncITree.Thms` to observe a
+`Reference.Simple` component through an interaction tree. `Ready.ofAdequate`
+uses the existing instance witness and its initial Core store. The fragment
+has one import-free Core instance, direct canonical lifts, float-free
+interfaces and flat ABI arities. The recursive scalar, record and variant
+types in `ValTy` exclude stream and future types by construction. The ready
+instance excludes a Core start function. Component startup is outside the
+tree, and the reference observation starts with successful instantiation.
+
+`Question` checks the export index and argument types. Each normal reply is
+checked against that export's result types. `exportSig` uses these as
+dependent game questions and answers. `body` uses the existing abstract
+Wasm `BodyM` and `BodyTrace.toAFun` observer. The definition reads terminal
+Core/ABI judgements at a fixed deterministic Core profile without a fuel
+parameter. A trap answers the current call and keeps its final store.
+This follows the existing resumable reference-session extension, which
+clears the reference machine's lockdown for the next call.
+
+`completes_iff_reference` and `completes_iff_game` prove both directions for
+completed typed rounds against the independent reference machine and the
+component IR game. `pending_iff_game` also covers the finite play that
+ends at the next typed export question. `quiet_iff_reference` identifies a
+session followed by actual silent divergence. `noOutcome` distinguishes
+absence of both a terminal judgement and an infinite internal run, and
+never answers an export in the session observer. Productive infinite
+sessions are outside this bridge.
+
+The [downstream regression](../../Silmaril/Wasm/Component/SyncITree/Examples.lean)
+observes `poke` trapping during its canonical lift after writing a global,
+then `peek` returning the written value. It rules out the same observation
+for the component that omits the write.
+
+An open synchronous adapter needs to preserve typed import requests, host
+replies and pending activations. When the concrete protocol permits callbacks,
+the game position must retain the suspended invocation during reentry.
+Supporting nondeterministic Core profiles also requires a component-side
+choice model. This bridge has no import moves and fixes a deterministic
+Core profile.
+
 ### Observation boundary
 
 `Closed.terminal_iff` relates the stock reference-machine outcomes at an
@@ -118,6 +159,61 @@ divergence, and nested component links are outside this theorem.
 
 ```sh
 make check CHECK_TARGETS='+Silmaril.Wasm.Component.Reference.DirectLift.Init.Thms +Silmaril.Wasm.Component.Reference.DirectLift.Thms'
+```
+
+## Ready components with synchronous imports
+
+`Silmaril.Wasm.Component.SyncImportITree.Thms` exposes the flat, float-free
+`Reference.SimpleI` fragment as abstract Wasm bodies. A `Question` carries
+checked arguments for one particular function. Its `Answer` is either checked
+results of that function's type or a trap. The tree is built one Core game
+move at a time. A visible import holds the paused thread and its store in
+the continuation. `request_resumes` relates each reply to the canonical ABI's
+`ImpRel`, the existing game transition, and one actual Core reduction.
+
+`body_sees_iff` gives both directions for the `BodyTrace` observations
+from a supplied ready store. After any finite sequence of legal import
+exchanges, a branch can return, trap, expose its next unanswered import,
+or witness an infinite host-free Core run. A reply retains the reached
+Core store, including on a trap. The caller can pass it to another body
+under the Core game's resumable-session convention. Waiting at a visible
+request is a finite prefix and imposes no host progress obligation.
+`productive_iff` characterizes infinite import exchanges by their finite
+pending prefixes.
+The correspondence is exact at a fixed deterministic Core profile.
+Different host replies give different branches, and the theorem supplies
+no must-termination or fairness property. The step into the body starts
+after Core instantiation and permits only one active export. The interface
+has no streams, futures, or callback reentry.
+
+The scalar game's `ScalarInstance.Trans` is the operational source used by
+`impSem` through `core3Sem`. The finite `Wasi.Body` handler interpreter
+in [`Wasi.Comp`](../../Silmaril/Wasi/Comp/Defs.lean) also has named import
+waiting and reply states. It describes a program already written in the
+handler language. [PR #1267](https://github.com/hiloopai/silmaril-lean/pull/1267)
+relates its model runner to that language and to linked host plays.
+The [downstream regression](../../Silmaril/Wasm/Component/SyncImportITree/Examples.lean)
+instead starts from the stock `fwdS` Core 3.0 instance used by the
+reference component litmus. It sees the same suspended call resume with
+two different legal replies and distinguishes host wait from a trap.
+
+The open tree exposes a request before running any host implementation.
+The reference machine parks the Core thread in
+`Machine.Seg.core` while dispatching a canonical lower. Its synchronous
+`silentHost` case can trap with `cannotBlockSync`
+(`HLinked2.silent_cannotBlock`). The reference machine's host wait and trap
+policies therefore matter when closing a tree. `SimpleI.soundS` gives
+reference-to-IR soundness for typed answering hosts. The linked
+`HLinked2.sessAdequacy_full` and `HLinked2.sessDivs_eq_refDivs` results
+cover their own hosted session observers. A reference cut theorem for the
+open tree still needs to match stock instantiation to its ready store,
+match each `on_start` / `on_resolve` boundary and retained Core segment
+through the ABI in both directions, and reflect reference traps and
+host-free divergence across the intervening internal steps. A byte-level
+theorem further needs decoding and validation into the supported shape.
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Wasm.Component.SyncImportITree.Examples'
 ```
 
 ## What ships

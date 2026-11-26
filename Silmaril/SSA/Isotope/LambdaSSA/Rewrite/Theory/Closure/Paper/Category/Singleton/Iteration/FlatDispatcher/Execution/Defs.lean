@@ -22,12 +22,18 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 local notation "S" => packedExitType (List.ofFn R)
 local notation "Y" => packedExitType (List.ofFn E)
 
-theorem entry_closed_valueBranches (hg : HasType .nil R E g) :
-    ValueBranches [] (routedFlat blocks g.entry) [Silmaril.coprod Y S] := by
-  have entry : Region.HasType [] g.entry.erase (List.ofFn R ++ List.ofFn E) := by
-    simpa [BoundCtx.toList] using hg.entry.erase
-  have routed := entry.bindBranchArguments.lsubst (routeFamily (List.ofFn R) (List.ofFn E)).property
+theorem entry_context_valueBranches {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
+    (hg : HasType β R E g) :
+    ValueBranches β.toList (routedFlat blocks g.entry) [Silmaril.coprod Y S] := by
+  have entry : Region.HasType β.toList g.entry.erase (List.ofFn R ++ List.ofFn E) := by
+    simpa using hg.entry.erase
+  have routed := entry.bindBranchArguments.lsubst
+    (routeFamily (List.ofFn R) (List.ofFn E) β.toList).property
   simpa only [routedFlat, routeFamily, List.length_ofFn] using routed
+
+theorem entry_closed_valueBranches (hg : HasType .nil R E g) :
+    ValueBranches [] (routedFlat blocks g.entry) [Silmaril.coprod Y S] :=
+  entry_context_valueBranches hg
 
 /-- The written entry supplies its own inputs. The singleton unit input
 serves only to give a closed entry an arrow out of a singleton object. -/
@@ -42,22 +48,29 @@ noncomputable def packedEntry (hg : HasType .nil R E g) :
     ofType (Φ := Φ) (Silmaril.unit : τ) ⟶ ofType Y ⨿ ofType S :=
   ofRegion (entry_valueBranches hg) ≫ (sumIso Y S).hom
 
-/-- The literal region of the dispatcher's composite continuation family. -/
-def packedDispatcherRegion (hg : HasType .nil R E g) : Region Φ :=
-  compLSubst (fun _ => unpackExits (List.ofFn R))
-    (compLSubst (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn E)).val) 0
+section WithEntryContext
 
-theorem packedDispatcher_valueBranches (hg : HasType .nil R E g) :
-    ValueBranches [S] (packedDispatcherRegion hg) [Silmaril.coprod Y S] :=
-  ((unpackExits_valueFamily [] (List.ofFn R)).comp
-    ((blockFamily hg).property.comp (routeFamily (List.ofFn R) (List.ofFn E)).property))
+variable {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
+
+/-- The literal dispatcher shares the graph's typed entry context with its
+blocks. A transfer supplies just the selected block's local argument. -/
+def packedDispatcherRegion (hg : HasType β R E g) : Region Φ :=
+  compLSubst (fun _ => unpackExits (List.ofFn R))
+    (compLSubst (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn E) β.toList).val) 0
+
+theorem packedDispatcher_valueBranches (hg : HasType β R E g) :
+    ValueBranches (S :: β.toList) (packedDispatcherRegion hg) [Silmaril.coprod Y S] :=
+  ((unpackExits_valueFamily β.toList (List.ofFn R)).comp
+    ((blockFamily hg).property.comp (routeFamily (List.ofFn R) (List.ofFn E) β.toList).property))
     (show At [S] 0 S from rfl)
 
 /-- Close the packed recurrence leg with a single local label.
 An external transfer from the entry leaves the CFG directly. -/
-def packedExecutionRegion (hg : HasType .nil R E g) : Region Φ :=
+def packedExecutionRegion (hg : HasType β R E g) : Region Φ :=
   .cfg (iterationBody (routedFlat blocks g.entry)) 1 (fun _ =>
     iterationBody (packedDispatcherRegion hg))
+
+end WithEntryContext
 
 /-- Execute the entry once, feeding a packed state to the dispatcher only
 when the entry selects an internal label. -/

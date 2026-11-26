@@ -26,7 +26,7 @@ private theorem get_ofTable {n : Nat} {F : Fin n → Type w} (values : (i : Fin 
   | zero => exact i.elim0
   | succ n ih => exact Fin.cases rfl (fun j => ih (fun k => values k.succ) j) i
 
-private theorem member_get {F : Ty V S → Type w} (members : List (Function V S))
+theorem member_get {F : Ty V S → Type w} (members : List (Function V S))
     (values : (i : Fin members.length) → F members[i].port) (i : Fin members.length) :
     (memberValues members values).get (memberPort members i) = values i := by
   induction members with
@@ -136,7 +136,7 @@ private theorem member_prefix (actions : Actions m σ) (observed : Demand)
       apply PrefixMatches.step (enter capturedL argsL left) (enter capturedR argsR right)
       apply region actions observed (family.body i) (family.guard capturedL) (family.guard capturedR)
         (some n) (by simp) dispatch wanted _ _ PUnit.unit PUnit.unit left right store
-        ((readyL i).2 argsL) ((readyR i).2 argsR) (body_agrees family i wanted readyL readyR live)
+        ((readyL i).2 argsL PUnit.unit) ((readyR i).2 argsR PUnit.unit) (body_agrees family i wanted readyL readyR live)
       intro outL outR middle agree _ _
       exact prefix_mono (Nat.le_succ n) (finish outL outR middle agree trivial trivial)
 

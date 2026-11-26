@@ -33,9 +33,10 @@ private theorem iterationBody_values {Γ : VCtx τ} {p : Region Φ}
     (List.mem_singleton.mp (List.mem_of_getElem? hi)).symm ▸
       SyntacticCategory.iterationDispatch_valueBranches S Y)
 
-theorem packedExecution_closed (hg : FiniteCFG.HasType .nil R E g) :
-    ValueBranches [] (packedExecutionRegion hg) [Y] :=
-  .cfg (fun _ : Fin 1 => S) (iterationBody_values (entry_closed_valueBranches hg))
+theorem packedExecution_context_valueBranches {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
+    (hg : FiniteCFG.HasType β R E g) :
+    ValueBranches β.toList (packedExecutionRegion hg) [Y] :=
+  .cfg (fun _ : Fin 1 => S) (iterationBody_values (entry_context_valueBranches hg))
     (fun _ => iterationBody_values (packedDispatcher_valueBranches hg))
 
 theorem packedDispatcher_ofRegion (hg : FiniteCFG.HasType .nil R E g) :
@@ -56,7 +57,7 @@ private theorem packedExecution_closed_eq (hg : FiniteCFG.HasType .nil R E g) :
 
 set_option backward.isDefEq.respectTransparency false in
 theorem packedExecution_ofRegion (hg : FiniteCFG.HasType .nil R E g) :
-    packedExecution hg = ofRegion ((packedExecution_closed hg).renameVars (SSA.Ren.wk [] Silmaril.unit)) := by
+    packedExecution hg = ofRegion ((packedExecution_context_valueBranches hg).renameVars (SSA.Ren.wk [] Silmaril.unit)) := by
   have body := packedDispatcher_valueBranches hg
   have hiter : Region.Paper.TypeCategory.iterate (packedDispatcher hg) =
       ofRegion (SyntacticCategory.iterateRegion_valueBranches body) := by

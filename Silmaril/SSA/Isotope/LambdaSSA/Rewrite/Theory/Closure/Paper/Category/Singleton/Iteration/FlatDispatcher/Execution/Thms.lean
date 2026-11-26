@@ -25,10 +25,15 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 local notation "S" => packedExitType (List.ofFn R)
 local notation "Y" => packedExitType (List.ofFn E)
 
-/-- The complete packed CFG has one packed outward exit and guards every branch. -/
+/-- The shared entry context is retained by the guarded, single-label dispatcher. -/
+theorem packedExecution_context_valueBranches {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
+    (hg : HasType β R E g) :
+    ValueBranches β.toList (packedExecutionRegion hg) [Y] :=
+  FlatExecution.packedExecution_context_valueBranches hg
+
 theorem packedExecution_closed (hg : HasType .nil R E g) :
     ValueBranches [] (packedExecutionRegion hg) [Y] :=
-  FlatExecution.packedExecution_closed hg
+  packedExecution_context_valueBranches hg
 
 /-- The guarded singleton representative has an unused unit input. -/
 theorem packedExecution_valueBranches (hg : HasType .nil R E g) :

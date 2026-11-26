@@ -25,8 +25,10 @@ inductive Argument where
 
 inductive Instruction (scope : Scope) where
   | scalar (action : ModuleEntry.Action scope)
+  | bindTuple (name : String) (items : List Core.Closure.GlobalTupleItem)
   | assertNot (condition : Operand scope)
-  | assertSequenceLength (test : SequenceLengthTest scope)
+  | assertIntegerBuiltin (test : IntegerBuiltinTest scope)
+  | assertBoolIdentity (test : BoolIdentityTest scope)
   | assertListConstruction (test : ListConstructionTest scope)
   | assertTupleChain (test : TupleChainTest scope)
   | assertVarNames (receiver : String) (needle : List UInt32)
@@ -35,6 +37,9 @@ inductive Instruction (scope : Scope) where
   /-- The source plan places this call immediately after the matching publication. -/
   | adjacentKeywordDiscard (name : String) (value : Int)
   | nestedCall (destination : Core.Module.Functions.Destination) (name : String) (arguments : List Argument)
+
+abbrev Instruction.assertSequenceLength {scope : Scope} (test : SequenceLengthTest scope) : Instruction scope :=
+  .assertIntegerBuiltin test.toIntegerBuiltin
 
 inductive CompileError where
   | source (error : Functions.Error)
@@ -49,9 +54,13 @@ def callOperand? {scope : Scope} : Operand scope → Option Core.Module.Function
   | .read name _ => some (.readGlobal name)
   | .none_ | .binary .. | .identityChain .. => none
 
+def callValue? {scope : Scope} : CallValue scope → Option Core.Module.Functions.Operand
+  | .scalar operand => callOperand? operand
+  | .tuple items => some (.tuple items)
+
 def callArgument? {scope : Scope} : CallArgument scope → Option Argument
-  | .scalar operand => (callOperand? operand).map .scalar
-  | .call name _ operands => (operands.mapM callOperand?).map (.call name)
+  | .value operand => (callValue? operand).map .scalar
+  | .call name _ operands => (operands.mapM callValue?).map (.call name)
 
 def destination {scope : Scope} : Functions.Destination scope → Core.Module.Functions.Destination
   | .discard => .discard
@@ -71,12 +80,18 @@ def lowerInstructions {scope : Scope} (tree : Source.ScopeTree) (next : Nat) : L
   | .scalar action :: rest => do
     let (instructions, blocks) ← lowerInstructions tree next rest
     return (.scalar action :: instructions, blocks)
+  | .bindTuple name _ items :: rest => do
+    let (instructions, blocks) ← lowerInstructions tree next rest
+    return (.bindTuple name items :: instructions, blocks)
   | .assertNot condition :: rest => do
     let (instructions, blocks) ← lowerInstructions tree next rest
     return (.assertNot condition :: instructions, blocks)
-  | .assertSequenceLength test :: rest => do
+  | .assertIntegerBuiltin test :: rest => do
     let (instructions, blocks) ← lowerInstructions tree next rest
-    return (.assertSequenceLength test :: instructions, blocks)
+    return (.assertIntegerBuiltin test :: instructions, blocks)
+  | .assertBoolIdentity test :: rest => do
+    let (instructions, blocks) ← lowerInstructions tree next rest
+    return (.assertBoolIdentity test :: instructions, blocks)
   | .assertListConstruction test :: rest => do
     let (instructions, blocks) ← lowerInstructions tree next rest
     return (.assertListConstruction test :: instructions, blocks)
@@ -150,7 +165,8 @@ inductive Completion where
 def tupleBinding (session : Session) : Option Core.Module.TupleDispatch.TypeBinding :=
   (session.globals "tuple").map fun
     | .none => .noneValue
-    | _ => .outsideProfile
+    | .int _ | .bool _ | .tuple _ => .nonCallable
+    | .function _ => .outsideProfile
 
 def checkTupleChain {scope : Scope} (session : Session) (test : TupleChainTest scope) : Except Completion Unit :=
   match (TupleChain.evaluate (fun _ => tupleBinding session) test).result with
@@ -158,11 +174,7 @@ def checkTupleChain {scope : Scope} (session : Session) (test : TupleChainTest s
   | .ok false => .error .assertionError
   | .error error => .error ((TupleChain.runtimeError? error).elim .scalarProfile .raised)
 
-def scalar? : Value → Option Core.Module.Value
-  | .int value => some (.int value)
-  | .bool value => some (.bool value)
-  | .none => some .none
-  | .function _ => none
+def scalar? : Value → Option Core.Module.Value := Value.scalar?
 
 def evaluate {scope : Scope} (session : Session) : Operand scope → Except Completion Value
   | .integer value => .ok (.int value)
@@ -255,6 +267,32 @@ def checkVarNames (table : CodeTable) (session : Session) (receiver : String)
     | .code error => .codeFault error
   unless member do throw .assertionError
 
+/-- The ordinary namespace has no stock descriptor. Read the name and then
+prepare the argument before classifying a present mask. -/
+def boolIdentityCompletion {scope : Scope} (session : Session) (test : BoolIdentityTest scope) : Completion :=
+  match session.globals "bool" with
+  | none => .raised (.nameError "bool")
+  | some callee =>
+    match test.argument.mapM (evaluate session) with
+    | .error error => error
+    | .ok _ =>
+      match callee with
+      | .function _ => .scalarProfile
+      | _ => .raised .notCallable
+
+def evaluateTuple (session : Session) (items : List Core.Closure.GlobalTupleItem) :
+    Except Core.Closure.Failure Value :=
+  let frame : Frame ⟨0, 0, 0⟩ := ⟨Fin.elim0, Fin.elim0, Fin.elim0⟩
+  Core.Closure.Executor.evalTupleIn session.globals session.heap frame items
+
+def bindTuple (session : Session) (name : String) (items : List Core.Closure.GlobalTupleItem) :
+    Except Completion Session :=
+  match evaluateTuple session items with
+  | .ok value => .ok (session.bindGlobal name value)
+  | .error (.defined error) => .error (.raised error)
+  | .error (.danglingCell identity) => .error (.executorFault (.danglingCell identity))
+  | .error .unsupportedTupleElement => .error (.executorFault .unsupportedTupleElement)
+
 def advance {scope : Scope} (table : CodeTable) : State scope → List Event × State scope
   | .finished session completion => ([], .finished session completion)
   | .ready session [] => ([], .finished session .normal)
@@ -263,12 +301,16 @@ def advance {scope : Scope} (table : CodeTable) : State scope → List Event × 
     | .scalar (.assign name _ operand) => ([], match evaluate session operand with
       | .ok value => .ready (session.bindGlobal name value) rest
       | .error error => .finished session error)
+    | .bindTuple name items => ([], match bindTuple session name items with
+      | .ok updated => .ready updated rest
+      | .error error => .finished session error)
     | .scalar (.assertion operand) => ([], assertOperand session operand true rest)
     | .assertNot operand => ([], assertOperand session operand false rest)
-    | .assertSequenceLength _ => ([], .finished session (match session.globals "len" with
-      | none => .raised (.nameError "len")
+    | .assertIntegerBuiltin test => ([], .finished session (match session.globals test.argument.name with
+      | none => .raised (.nameError test.argument.name)
       | some (.function _) => .scalarProfile
       | some _ => .raised .notCallable))
+    | .assertBoolIdentity test => ([], .finished session (boolIdentityCompletion session test))
     | .assertListConstruction _ => ([], .finished session (match session.globals "list" with
       | none => .raised (.nameError "list")
       | some (.function _) => .scalarProfile

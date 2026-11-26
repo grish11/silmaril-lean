@@ -1,0 +1,249 @@
+# SPDX-License-Identifier: MIT
+"""Replay the checked closed guards against CPython 3.13.5."""
+
+import argparse
+import ast
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
+import json
+from pathlib import Path
+import runpy
+import struct
+import subprocess
+import sys
+import tempfile
+import warnings
+
+TESTS = Path(__file__).resolve().parents[1] / "tests/languages/python"
+SUITE = runpy.run_path(str(TESTS / "source-module-entry/check_seeded_run.py"))
+INTAKE = runpy.run_path(str(TESTS / "source-scope/check_intake.py"))
+PIN_DIRECTORY = "tests/python/programs/original/lambda-py/python-reference/types"
+PINS = {
+    "test_booleans.py": "f97680d3d0948c268714c23fd5ca9decdf543215b511a96f2423ebae4c59f033",
+    "test_comparisons.py": "181bf26457c988542c8ebddca3f702d8155844c954a33f6a28102f19940303f5",
+    "test_floats.py": "542adfd37c7603f9d3a6eed1db110317d343077f1e94f671c7d88de05c7df1a0",
+    "types_truthy1.py": "7f336f91ab2d495e50fda286bf18744ae86d8eb02eccd9dc25fffcf5ec1da70e",
+}
+PROFILES = ("empty", "legacy_builtin", "legacy_preamble", *SUITE["OPT_IN_PROFILES"])
+IMPORTS = (*SUITE["IMPORTS"],
+           "meta import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ClosedGuard.Defs")
+LEAN = SUITE["LEAN"] + """
+open Compile.ModuleEntry.Functions.ClosedGuard (omitted?)
+
+private def tag : Compile.ModuleEntry.Functions.ClosedGuard.Value → String
+  | .scalar (.int value) => s!"int:{value}"
+  | .scalar (.bool value) => s!"bool:{value}"
+  | .scalar .none => "none"
+  | .float value => s!"float:{value.val.bits.toNat}"
+  | .text points => "text:" ++ reprStr (points.map UInt32.toNat)
+  | .dictionary nonempty => s!"dict:{nonempty}"
+
+private def guardValues (source : Source.Module) : List (Option (Bool × String)) :=
+  (source.body.filter fun
+    | .if_ .. => true
+    | _ => false).map fun statement =>
+      (omitted? statement).map fun checked => (checked.val.truth, tag checked.val)
+
+private def guardHeap : Core.Closure.Heap :=
+  ⟨1, fun address => if address = 0 then some (.int 23) else none⟩
+
+private def retained (heap : Core.Closure.Heap) : Bool :=
+  heap.next == 1 &&
+    (heap.contents 0).map Compile.ModuleEntry.Functions.Run.Seeded.seededValue == some (.int 23)
+
+private def noInstructions (source : Source.Module) : Bool :=
+  match Compile.ModuleEntry.Functions.Run.compile source with
+  | .ok compiled => compiled.instructions.isEmpty && compiled.linked.isEmpty
+  | .error _ => false
+
+private def ordinaryGuard (source : Source.Module) (status : String)
+    (bindings : List (String × Option Value)) : Bool := Id.run do
+  let .ok compiled := Compile.ModuleEntry.Functions.Run.compile source | return false
+  let session := Compile.ModuleEntry.Functions.Run.seed .empty guardHeap
+  let (events, final) := Compile.ModuleEntry.Functions.Run.runPrefix compiled.table 1000
+    (.ready session compiled.instructions)
+  let .finished residual completion := final | return false
+  let observed := match completion with
+    | .normal => "normal"
+    | .raised error => raised (.runtime error)
+    | _ => "unexpected completion"
+  return observed == status && retained residual.heap && events.isEmpty &&
+    bindings.all (fun (name, value) => (residual.globals name).map
+      Compile.ModuleEntry.Functions.Run.Seeded.seededValue == value)
+
+private def seededGuard (source : Source.Module) (profile : String) (status : String)
+    (bindings : Bindings) : Bool := Id.run do
+  let .ok compiled := Compile.ModuleEntry.Functions.Run.compile source | return false
+  let space := initial profile
+  let lists : Core.Module.ListHeap := ⟨#[[.int 31]]⟩
+  let outcome := Compile.ModuleEntry.Functions.Run.Seeded.run space compiled guardHeap (lists := lists)
+  let completion := match outcome.completion with
+    | .ok () => "normal"
+    | .error (.raised error) => raised error
+    | .error _ => "unexpected completion"
+  return completion == status && outcome.residual.moduleGlobals == bindings ++ space.moduleGlobals &&
+    outcome.residual.builtins == space.builtins && outcome.lists == lists &&
+    retained outcome.heap && outcome.calls.isEmpty
+
+private def rejected (source : Source.Module) : Bool :=
+  match Compile.ModuleEntry.Functions.Run.compile source with
+  | .error (.source (.scalar .statementProfile)) => true
+  | _ => false
+"""
+
+
+def cpython(source, builtins=None):
+    bindings = {} if builtins is None else builtins
+    namespace = {"__builtins__": bindings}
+    stdout, stderr = StringIO(), StringIO()
+    with redirect_stdout(stdout), redirect_stderr(stderr):
+        try:
+            exec(compile(source, "<guard fixture>", "exec", dont_inherit=True, optimize=0), namespace)
+            status = "normal"
+        except NameError as error:
+            status = f"NameError:{error.name}"
+        except ZeroDivisionError:
+            status = "ZeroDivisionError"
+    assert not stdout.getvalue() and not stderr.getvalue()
+    assert namespace.pop("__builtins__") is bindings
+    return status, namespace
+
+
+def value_tag(value):
+    if type(value) is bool:
+        return "bool:" + str(value).lower()
+    if type(value) is int:
+        return f"int:{value}"
+    if type(value) is float:
+        return f"float:{struct.unpack('>Q', struct.pack('>d', value))[0]}"
+    if type(value) is str:
+        return "text:" + str(list(map(ord, value)))
+    if type(value) is dict:
+        return "dict:" + str(bool(value)).lower()
+    assert value is None
+    return "none"
+
+
+def observations(source):
+    return [
+        (bool(value), value_tag(value))
+        for statement in ast.parse(source).body if isinstance(statement, ast.If)
+        for value in [eval(compile(ast.Expression(statement.test), "<test>", "eval", optimize=0),
+                          {"__builtins__": {}})]
+    ]
+
+
+def guard_values(values):
+    rendered = ", ".join(f"some ({str(truth).lower()}, {json.dumps(tag)})" for truth, tag in values)
+    return f"#guard guardValues pythonSource == [{rendered}]"
+
+
+def check(source, paths, *guards):
+    path, lean = paths
+    INTAKE["emit"](path, lean, source)
+    INTAKE["check_lean"](lean, LEAN + "\n".join(guards), extra_imports=IMPORTS)
+
+
+def replay(checkout, paths):
+    results = {}
+    for name, digest in PINS.items():
+        source = SUITE["pinned_source"](checkout, f"{PIN_DIRECTORY}/{name}", digest)
+        assert cpython(source) == ("normal", {})
+        observed = observations(source)
+        guards = [guard_values(observed), "#guard noInstructions pythonSource",
+                  '#guard ordinaryGuard pythonSource "normal" []']
+        for profile in PROFILES:
+            assert SUITE["cpython"](source, profile, expected_globals={}) == ["normal", "absent", "absent"]
+            guards.append(f'#guard seededGuard pythonSource {json.dumps(profile)} "normal" []')
+        check(source, paths, *guards)
+        results[name] = {"sha256": digest, "guards": observed, "seeded_placements": len(PROFILES),
+                         "receipts": 0}
+    return results
+
+
+def controls(paths):
+    source = """keep = 7
+Exception = 0
+if 0 < ((1 << 2) + 1) < 6 and "𐀀" > "ā": pass
+else: raise Exception("comparison")
+if 0.1 + 0.2: pass
+else: raise Exception("rounding")
+if True and -0.0: raise missing("signed zero")
+if 5e-324: pass
+else: raise missing("subnormal")
+if not {"x": 0, "x": False}: raise missing("dictionary")
+if {}: raise missing("empty dictionary")
+if (False or 5) == 5 and None != 0 and (True is not None): pass
+else: raise missing("exact tags")
+tail = keep
+"""
+    assert cpython(source) == ("normal", {"keep": 7, "Exception": 0, "tail": 7})
+    observed = observations(source)
+    check(source, paths, guard_values(observed),
+          '#guard seededGuard pythonSource "legacy_preamble" "normal" '
+          '[("tail", .int 7), ("Exception", .int 0), ("keep", .int 7)]',
+          '#guard ordinaryGuard pythonSource "normal" '
+          '[("tail", some (.int 7)), ("Exception", some (.int 0)), ("keep", some (.int 7))]')
+
+    source = "keep = 7\nif not 1: raise missing('dead')\ntail = missing_right\n"
+    assert cpython(source) == ("NameError:missing_right", {"keep": 7})
+    check(source, paths,
+          '#guard seededGuard pythonSource "legacy_builtin" "NameError:missing_right" [("keep", .int 7)]',
+          '#guard ordinaryGuard pythonSource "NameError:missing_right" [("keep", some (.int 7)), ("tail", none)]')
+
+    rejected = "#guard rejected pythonSource"
+    for source, status in (
+        ("if True: raise missing('reached')\n", "NameError:missing"),
+        ("if (1 // 0): raise missing('guard stops first')\n", "ZeroDivisionError"),
+        ("if False and (1 >> -1): raise missing('full syntax validation')\n", "normal"),
+        ("if 4 < 3 < (1 // 0): raise missing('chain stops')\n", "normal"),
+        ("if 1.7976931348623157e308 + 1.7976931348623157e308: pass\nelse: raise missing('finite')\n", "normal"),
+        ("if 1 == 1.0: pass\nelse: raise missing('mixed')\n", "normal"),
+        ("if False: raise missing(message='dead keyword shape')\n", "normal"),
+    ):
+        assert cpython(source) == (status, {})
+        check(source, paths, rejected)
+
+    events = []
+
+    def probe(value):
+        events.append(value)
+        return value
+
+    source = "if probe(1) and probe(0) and probe(2): raise missing('unreached')\n"
+    assert cpython(source, {"probe": probe}) == ("normal", {}) and events == [1, 0]
+    check(source, paths, rejected)
+
+    source = "if ~True: pass\nelse: raise missing('boolean inversion')\n"
+    with warnings.catch_warnings(record=True) as emitted:
+        warnings.simplefilter("always")
+        assert cpython(source) == ("normal", {})
+    assert [warning.category for warning in emitted] == [DeprecationWarning]
+    check(source, paths, rejected)
+
+    malformed = ast.parse("if True and False: raise Missing\n")
+    malformed.body[0].test.values.pop()
+    try:
+        compile(malformed, "<invalid Boolean arity>", "exec", optimize=0)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("CPython accepted an under-arity Boolean AST")
+    check("pass\n", paths,
+          '#guard rejected ⟨[.if_ (.booleanOp .and_ [.boolean true]) [.raise_ none none] []]⟩',
+          '#guard rejected ⟨[.if_ (.text [0x110000]) [.pass] [.raise_ none none]]⟩')
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--upstream", type=Path, required=True)
+    args = parser.parse_args()
+    assert sys.version_info[:3] == (3, 13, 5), sys.version
+    revision = subprocess.check_output(["git", "-C", str(args.upstream), "rev-parse", "HEAD"], text=True).strip()
+    assert revision == SUITE["UPSTREAM_REVISION"], revision
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "Fixture.py"
+        paths = (path, path.with_suffix(".lean"))
+        pins = replay(args.upstream, paths)
+        controls(paths)
+    print(json.dumps({"cpython": "3.13.5", "upstream": revision, "pins": pins, "controls": "passed"}))

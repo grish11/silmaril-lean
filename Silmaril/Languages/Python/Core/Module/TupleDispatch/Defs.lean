@@ -64,6 +64,7 @@ inductive Failure where
   | missingAttribute (method : Method)
   | wrongReceiver (method : Method)
   | wrongArgument
+  | notCallable
   | unsupported
   deriving DecidableEq, Repr
 
@@ -81,11 +82,12 @@ structure UnboundMethod where
   method : Method
   deriving DecidableEq, Repr
 
-/-- A stock tuple type token comes from the live module-first lookup. The
-other explicit case is the exact None singleton with no such attribute. -/
+/-- The stock type token comes from the live module-first lookup. Keep
+`None` distinct for the checked unbound-method attribute failure. -/
 inductive TypeBinding where
   | stockTuple
   | noneValue
+  | nonCallable
   | outsideProfile
   deriving DecidableEq
 
@@ -94,7 +96,25 @@ def lookupUnbound (binding : Option TypeBinding) (method : Method) : Except Fail
   | none => .error .missingType
   | some .stockTuple => .ok ⟨method⟩
   | some .noneValue => .error (.missingAttribute method)
-  | some .outsideProfile => .error .unsupported
+  | some .nonCallable | some .outsideProfile => .error .unsupported
+
+/-- Resolve the callee first. A reached argument can fail before invocation
+rejects a present callee. The exact tuple argument is delivered unchanged. -/
+def construct (heap : Heap) (binding : Option TypeBinding)
+    (argument : Option (Heap → Except Failure Object × Heap)) : Except Failure Object × Heap :=
+  match binding with
+  | none => (.error .missingType, heap)
+  | some binding =>
+    let (value, reached) : Except Failure Object × Heap := match argument with
+      | none =>
+        let (empty, reached) := heap.materialize []
+        (.ok empty, reached)
+      | some prepare => prepare heap
+    match value, binding with
+    | .error error, _ => (.error error, reached)
+    | .ok object, .stockTuple => (.ok object, reached)
+    | .ok _, .noneValue | .ok _, .nonCallable => (.error .notCallable, reached)
+    | .ok _, .outsideProfile => (.error .unsupported, reached)
 
 def BoundMethod.invoke (bound : BoundMethod) (heap : Heap) (argument : Operand) :
     Except Failure Result × Heap :=

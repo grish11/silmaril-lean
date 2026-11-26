@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.Capture.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Scoped.Thms
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Singleton.Iteration.FlatDispatcher.Execution.ITree.Thms
 import Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Capture.Packet
 
 /-! # Capture destructuring and weak interaction-tree feedback -/
@@ -43,6 +44,23 @@ private theorem unpack_tree {n labels : Nat} (a : Flat F labels n)
   unfold Region.packInputsDestructure
   rw [split_tree instr β.toList 0 original base packet]
   apply flat_rename_tree instr a
+  intro i
+  exact decoded_field β.toList original base (BoundCtx.length_toList β |>.symm ▸ i.isLt)
+
+theorem packed_context_tree [TypeFormers τ] [HasTy F τ] {blocks exits n : Nat}
+    {β : BoundCtx τ n} {g : FiniteCFG F blocks exits n} {R : Fin blocks → τ} {L : Fin exits → τ}
+    (typed : g.HasType β R L) (ambient original : Env α) :
+    region instr (extend ambient (packEnv n original))
+        ((FiniteCFG.packedExecutionRegion typed).packInputsDestructure β.toList) =
+      (region instr original g.erase >>= fun p => pure (FiniteCFG.packedTreeOutput p)) := by
+  let base := extend ambient (packEnv n original)
+  have packet : base 0 = packEnv β.toList.length original := by
+    rw [BoundCtx.length_toList]
+    rfl
+  unfold Region.packInputsDestructure
+  rw [split_tree instr β.toList 0 original base packet, region_renameVars instr _ (fun _ => rfl),
+    FiniteCFG.packedExecution_tree]
+  rw [cfg_tree_of_agree instr g (env := original)]
   intro i
   exact decoded_field β.toList original base (BoundCtx.length_toList β |>.symm ▸ i.isLt)
 

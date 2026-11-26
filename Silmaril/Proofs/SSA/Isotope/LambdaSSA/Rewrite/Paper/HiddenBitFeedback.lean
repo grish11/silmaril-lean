@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseReturns.StructuralValues.Freyd.Iteration.Elgot.Projection.HiddenBit.Defs
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseReturns.StructuralValues.Freyd.Iteration.Elgot.Thms
+import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Extension.Singleton.Iteration.Chosen.Blocks.Thms
 
 /-! # Eliminate one mode of a hidden-bit feedback step -/
 
@@ -22,13 +23,6 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
   (Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
 local notation "Q" => TypeCategory Seed
 local notation "I" => iterateChosen Seed
-
-/-- If all recursive outputs are sent along one map, the corresponding row is computed by rolling. -/
-theorem iterate_restrict {X D B : Q} (i : D ⟶ X) (a : X ⟶ B ⨿ D) :
-    i ≫ I (a ≫ coprod.map (𝟙 B) i) = I (i ≫ a) := by
-  rw [iterateChosen_roll Seed a (coprod.map (𝟙 B) i), coprod.map_map, Category.id_comp]
-  have e := iterateChosen_roll Seed (i ≫ a) (𝟙 (B ⨿ D))
-  simpa only [Category.comp_id, Category.id_comp, Category.assoc] using e.symm
 
 set_option hygiene false in
 set_option quotPrecheck false in
@@ -56,49 +50,11 @@ private theorem assoc_fold (A B : Q) :
   · simp [coprod.associator]
   · simp [coprod.associator]
 
-private noncomputable def cut {A B : Q} (d : S ⟶ (B ⨿ A) ⨿ A) :
-    S ⟶ (B ⨿ S) ⨿ S :=
-  d ≫ coprod.map (coprod.map (𝟙 B) l) r
-
-private theorem cut_flatten {A B : Q} (d : S ⟶ (B ⨿ A) ⨿ A) :
-    cut Seed d ≫ coprod.desc (𝟙 (B ⨿ S)) (coprod.inr : S ⟶ B ⨿ S) =
-      d ≫ (assocSum).hom := by
-  rw [cut, Category.assoc]
-  congr 1
-  apply coprod.hom_ext
-  · simp [coprod.associator]
-    apply coprod.hom_ext <;> simp
-  · simp [coprod.associator]
-
-private theorem cut_right {A B : Q} (d : S ⟶ (B ⨿ A) ⨿ A) :
-    r ≫ I (cut Seed d) = I (r ≫ d) ≫ coprod.map (𝟙 B) l := by
-  let a : S ⟶ (B ⨿ S) ⨿ A := d ≫ coprod.map (coprod.map (𝟙 B) l) (𝟙 A)
-  have ha : cut Seed d = a ≫ coprod.map (𝟙 (B ⨿ S)) r := by
-    simp only [cut, a, Category.assoc, coprod.map_map, Category.comp_id, Category.id_comp]
-  rw [ha, iterate_restrict]
-  change I (r ≫ d ≫ coprod.map (coprod.map (𝟙 B) l) (𝟙 A)) = _
-  rw [← Category.assoc, ← iterateChosen_naturality]
-
-private noncomputable def eliminateRight {A B : Q} (d : S ⟶ (B ⨿ A) ⨿ A) : S ⟶ B ⨿ A :=
-  d ≫ coprod.desc (𝟙 (B ⨿ A)) (I (r ≫ d))
-
-private theorem cut_iterate {A B : Q} (d : S ⟶ (B ⨿ A) ⨿ A) :
-    I (cut Seed d) = eliminateRight Seed d ≫ coprod.map (𝟙 B) l := by
-  calc
-    I (cut Seed d) = cut Seed d ≫ coprod.desc (𝟙 _) (I (cut Seed d)) :=
-      iterateChosen_fixpoint Seed _
-    _ = eliminateRight Seed d ≫ coprod.map (𝟙 B) l := by
-      rw [show cut Seed d = d ≫ coprod.map (coprod.map (𝟙 B) l) r from rfl]
-      rw [Category.assoc, coprod.map_desc, Category.comp_id]
-      change d ≫ coprod.desc (coprod.map (𝟙 B) l) (r ≫ I (cut Seed d)) = _
-      rw [cut_right, eliminateRight, Category.assoc, coprod.desc_comp, Category.id_comp]
-
 /-- The left row of full feedback is computed after eliminating the right recursive mode. -/
 theorem left_iteration {A B : Q} (d : S ⟶ (B ⨿ A) ⨿ A) :
     l ≫ I (d ≫ (assocSum).hom) =
       I ((l ≫ d) ≫ coprod.desc (𝟙 (B ⨿ A)) (I (r ≫ d))) := by
-  rw [← cut_flatten Seed d, ← iterateChosen_codiagonal, cut_iterate, iterate_restrict,
-    eliminateRight, Category.assoc]
+  rw [iterateChosen_rows Seed d, coprod.inl_desc]
 
 /-- The projected square is equivalent to flattening each row to the same visible step. -/
 theorem rows_iff {A B : Q} (d : S ⟶ (B ⨿ A) ⨿ A) (g : A ⟶ B ⨿ A) :
@@ -125,20 +81,12 @@ theorem iterate_iff_mixed {A B : Q} (d : S ⟶ (B ⨿ A) ⨿ A) (g : A ⟶ B ⨿
     rw [← left_iteration, h, coprod.inl_desc_assoc, Category.id_comp]
   · intro mixed
     have hg : I (I (r ≫ d)) = I g := by rw [iterateChosen_codiagonal, right]
+    rw [iterateChosen_rows Seed d, mixed]
     apply coprod.hom_ext
-    · rw [left_iteration, mixed, coprod.inl_desc_assoc, Category.id_comp]
-    · rw [coprod.inr_desc_assoc, Category.id_comp]
-      rw [← cut_flatten Seed d, ← iterateChosen_codiagonal, cut_iterate]
-      conv_lhs => rw [iterateChosen_fixpoint Seed (eliminateRight Seed d ≫ coprod.map (𝟙 B) l)]
-      simp only [Category.assoc, coprod.map_desc, Category.id_comp]
-      rw [← Category.assoc r, iterate_restrict]
-      have rightRow : r ≫ eliminateRight Seed d = I (r ≫ d) := by
-        rw [eliminateRight, ← Category.assoc, ← iterateChosen_fixpoint Seed (r ≫ d)]
-      rw [rightRow]
-      rw [show I (l ≫ eliminateRight Seed d) = I g from by
-        unfold eliminateRight
-        rwa [← Category.assoc]]
+    · simp only [coprod.inl_desc, coprod.inl_desc_assoc, Category.id_comp]
+    · simp only [coprod.inr_desc, coprod.inr_desc_assoc, Category.id_comp]
       rw [← hg, ← iterateChosen_fixpoint]
+
 
 /-- Express a step with a two-mode state as two visible feedback rows. -/
 noncomputable abbrev rowsOf {A X B : Q} (e : S ≅ X) (f : X ⟶ B ⨿ X) :

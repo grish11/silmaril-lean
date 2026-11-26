@@ -30,4 +30,11 @@ theorem flat_tree_of_agree (r : Flat Φ labels n)
     region instr env' r.erase = region instr env r.erase := by
   simpa only [Region.renameVars_id] using flat_rename_tree instr r (ρ := id) agree
 
+/-- Entry and every local block preserve weak execution when the shared
+in-scope environment agrees. This includes feedback through the blocks. -/
+theorem cfg_tree_of_agree {blocks exits : Nat} (g : FiniteCFG Φ blocks exits n)
+    (agree : ∀ i : Fin n, env' i.val = env i.val) :
+    region instr env' g.erase = region instr env g.erase :=
+  Proofs.SSA.Isotope.LambdaSSA.Interaction.cfg_tree_of_agree instr g agree
+
 end Silmaril.Isotope.LambdaSSA.Semantics.Interaction

@@ -121,9 +121,10 @@ theorem paper_same {Γ L : List (Ty α)} {r s : Region Φ}
       have realized : Realizes env (extend (extend env v) w) (Tm.consSubst b (Tm.singleSubst a)) := by
         intro i
         cases i with
-        | zero => exact ⟨ew, value_startsLet hb⟩
-        | succ i => exact RealizesWith.single ev (value_startsLet ha) i
-      simp [evalRegionWith, evalTermWith, ev, ew, value_startsLet ha, value_startsLet hb]
+        | zero => exact ⟨ew, value_not_computed hb⟩
+        | succ i => exact RealizesWith.single ev (value_not_computed ha) i
+      simp [evalRegionWith, evalTermWith, ev, ew, value_startsLet ha, value_startsLet hb,
+        computes, value_not_computed ha, value_not_computed hb]
       exact (evalRegion_subst _ realized).symm
   | productEta h =>
     cases h with
@@ -131,7 +132,7 @@ theorem paper_same {Γ L : List (Ty α)} {r s : Region Φ}
       intro env henv
       have hv := henv hi
       cases eq : env i with
-      | pair a b => simp [evalRegionWith, evalTermWith, startsLet, eq, extend]
+      | pair a b => simp [evalRegionWith, evalTermWith, startsLet, computes, eq, extend]
       | atom x => exact x.elim
       | unit => rw [eq] at hv; cases hv
       | inl x => rw [eq] at hv; cases hv
@@ -157,8 +158,8 @@ theorem paper_same {Γ L : List (Ty α)} {r s : Region Φ}
         evalTerm (θ i) env = some (env' i) ∧ ValTy (env' i) A := by
       obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) (hθ hi) he
       simpa [env', eq] using hv
-    rw [evalRegion_substOn h.typed.1 (fun i A hi => ⟨(ht i A hi).1, value_startsLet (hθ hi)⟩),
-        evalRegion_substOn h.typed.2 (fun i A hi => ⟨(ht i A hi).1, value_startsLet (hθ hi)⟩)]
+    rw [evalRegion_substOn h.typed.1 (fun i A hi => ⟨(ht i A hi).1, value_not_computed (hθ hi)⟩),
+        evalRegion_substOn h.typed.2 (fun i A hi => ⟨(ht i A hi).1, value_not_computed (hθ hi)⟩)]
     exact ih env' (fun {i A} hi => (ht i A hi).2)
   | renameLabels h hρ ih =>
     intro env he
@@ -241,8 +242,8 @@ theorem extension_same {Seed : VCtx (Ty α) → Region Φ → Region Φ → LCtx
         evalTerm (θ i) env = some (env' i) ∧ ValTy (env' i) A := by
       obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) (hθ hi) he
       simpa [env', eq] using hv
-    rw [evalRegion_substOn h.typed.1 (fun i A hi => ⟨(ht i A hi).1, value_startsLet (hθ hi)⟩),
-        evalRegion_substOn h.typed.2 (fun i A hi => ⟨(ht i A hi).1, value_startsLet (hθ hi)⟩)]
+    rw [evalRegion_substOn h.typed.1 (fun i A hi => ⟨(ht i A hi).1, value_not_computed (hθ hi)⟩),
+        evalRegion_substOn h.typed.2 (fun i A hi => ⟨(ht i A hi).1, value_not_computed (hθ hi)⟩)]
     exact ih env' (fun {i A} hi => (ht i A hi).2)
   | renameLabels h hρ ih =>
     intro env he

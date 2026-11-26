@@ -148,7 +148,7 @@ theorem quad_step_read (quad : Quad Op regs) (m : Model.{u, v, w} Op)
   rw [read_rebind]
   simp only [Quad.inputWires, Quad.eval, read_operands]
 
-private theorem get_tabulate {T : Type u} {F : T → Type w} {ts : List T} {t : T}
+theorem get_tabulate {T : Type u} {F : T → Type w} {ts : List T} {t : T}
     (f : ∀ {s}, Port ts s → F s) (port : Port ts t) :
     (tabulate ts f).get port = f port := by
   induction port with

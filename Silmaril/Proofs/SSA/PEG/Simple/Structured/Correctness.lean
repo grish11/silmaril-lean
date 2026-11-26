@@ -171,4 +171,49 @@ theorem programReturns (p : Program P true params t) (neg : P [.bool] .bool)
   change read (body.refs.get p.retvar) i = some (final.get p.retvar) at output
   rw [output, returned]
 
+theorem whileTraceOfDefined (test : Expr P params .bool) (stmt : Stmt P true params params)
+    (ret : Port params t) (neg : P [.bool] .bool) (m : Interpretation.{u,v,w} P)
+    (env : Tuple m.Value params)
+    (negSem : ∀ b : Bool, m.run neg (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    (guardTotal : ∀ store : Tuple m.Value params, ∃ flag : Bool, test.eval m store = some ⟨flag⟩)
+    (stepTotal : ∀ store : Tuple m.Value params, test.eval m store = some ⟨true⟩ →
+      ∃ next, Exec m stmt store (some next))
+    {val : (translate (whileProgram test stmt ret) neg).Valuation m}
+    (solves : (translate (whileProgram test stmt ret) neg).Solves m env val)
+    (i : Index (program (whileProgram test stmt ret) neg).nodes.length)
+    {value : m.Value t}
+    (defined : (translate (whileProgram test stmt ret) neg).observe m val i = .cons (some value) .nil) :
+    ∃ k final, WhileTrace m test stmt k env final ∧ final.get ret = value := by
+  let compiled := program (whileProgram test stmt ret) neg
+  let init := Build.straight (paramNodes (P := P) (params := params) (nodes := []) (ports params))
+  let slots := (ports params).map (fun _ r => portLeft (right := init.nodes) r)
+  let c := expr (params := params) test slots
+  let b := lower (params := params) neg stmt (c.code.liftRefs slots)
+  let read : Reads m compiled.nodes := graphRead m compiled.code compiled.refs val
+  let code := Code.loop init.refs (.seq c.code b.code) (b.code.lift (c.refs.get .head)) b.refs neg
+  let v : View m env read [] (.seq init.code code) :=
+    ⟨(fun r => nomatch r), (fun r => r), 0, (fun _ _ => (Nat.zero_add _).symm),
+      (fun _ bad => by cases bad), graphEquations m env compiled.code compiled.refs solves⟩
+  have entry : RealizesOn read (fun r => v.right.embed (code.lift r)) init.refs env [] i := by
+    intro j _ t slot
+    have pAt := Simple.Proofs.param_correct m env (ports params) .nil t slot
+    rw [Simple.Proofs.get_select, Simple.Proofs.ports_get] at pAt
+    exact (v.left.straightRead j (init.refs.get slot)).trans pAt
+  let outputs : Tuple (Port compiled.nodes) params := (ports params).map fun _ r => portLeft r
+  change Tuple.cons (F := fun t => Option (m.Value t)) (read (outputs.get ret) i) .nil =
+    .cons (some value) .nil at defined
+  have selected := congrArg (fun xs : Tuple (fun t => Option (m.Value t)) [t] => xs.get .head) defined
+  change read (outputs.get ret) i = some value at selected
+  unfold outputs at selected
+  rw [Simple.Proofs.get_map, Simple.Proofs.ports_get] at selected
+  obtain ⟨k, final, trace, returned, _, _⟩ :=
+    loopTraceOfDefined v.right negSem i (test := test) (stmt := stmt)
+      (fun {k store flag} carries testEval j agree =>
+        exprRead test slots v.right.inner.left store (carries _ (sampleAgrees v.right agree k)) testEval)
+      (fun {k store next} carries step =>
+        lowerCorrect neg negSem stmt (c.code.liftRefs slots) v.right.inner.right (i.set v.right.key k)
+          (liftRefs c.code (fun r => v.right.inner.left.embed r) carries) step)
+      guardTotal stepTotal (agrees_self [] i) entry selected
+  exact ⟨k, final, trace, returned⟩
+
 end Silmaril.SSA.PEG.Simple.Structured.Proofs

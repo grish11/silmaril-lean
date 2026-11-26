@@ -535,3 +535,232 @@ empty parameter. The two annotations give distinct flat sentences and
 the same written packed program. The witness concerns internal profile
 annotations.
 [Noninjectivity witness](../../Silmaril/Proofs/SSA/Isotope/LambdaSSA/Semantics/ITree/Ordered/Packed/Institution.lean)
+
+### Packing with a typed external entry
+
+`EntryInstitution.institution Events κ β` fixes an exact bound context
+`β` for the room family. Each sentence shares an ordered exit profile
+between its two tables. Each table keeps its own heterogeneous block
+parameter types. The entry can read `β`, and every block can read the
+same context under its own local payload binder. `Program.ofCFGEntry`
+runs the existing one-label packed dispatcher under the pure decoder for
+`Region.packedInputType β.toList`. The context head is the right field
+and the product terminates in unit.
+[Entry representative](../../Silmaril/SSA/Isotope/LambdaSSA/Semantics/ITree/Ordered/Flat/Entry/Defs.lean)
+· [Institution data](../../Silmaril/SSA/Isotope/LambdaSSA/Semantics/ITree/Ordered/Flat/Entry/Institution/Thms.lean)
+
+`satisfies_ofCFGEntry_iff` compares weak traces at every value of the
+packed input type using the compatible typed and raw model. The
+comorphism targets the existing packed institution at that input type.
+Packing commutes with relabelling as equality of typed syntax, and the
+shared models give satisfaction and entailment in both directions. The
+signature maps still have identity type components and preserve bottom
+Boolean effect in a fixed event family. The original unit-entry
+`FlatInstitution` and its packing map remain available.
+[Pointwise satisfaction and relabelling](../../Silmaril/SSA/Isotope/LambdaSSA/Semantics/ITree/Ordered/Flat/Entry/Thms.lean)
+
+`Capture.close` accepts a producer typed in the empty context and returns
+a capture-free graph. The supplied-entry path starts with the existing
+open `HasType β R E` judgment. `packed_entry_run_tree` relates the actual
+packed code with an encoded input record to the named runner on matching
+version-zero captures, and applies the existing exit tag. The regression
+uses the actual `compileTyped` back-edge graph with input `((), 7)`.
+The first mapped tick receives 7, and successive replies 3 and 5 become
+the next tick operands. A silent loop refines the relabelled cycle at
+every typed input, and that trace at 7 separates the reverse comparison.
+[Named supplied-entry theorem](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Capture/Thms.lean)
+· [Cyclic regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Examples.lean)
+
+### Admitted named comparisons at a typed entry
+
+`NamedFlat.Entry.Interface` fixes the typed entry context, distinct names
+for its slots, and an ordered exit list with a payload type at each
+position. The product input is the same record as in `Program.ofCFGEntry`.
+`inputEnv_packet` checks its runtime encoding, `store_at` checks a
+lookup at each supplied name, and `store_version_zero` checks the
+projection to a mutable input store. Names outside the supplied profile
+have the default value unit.
+[Typed record and store](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Thms.lean)
+
+`Entry.SSA.admit` checks a named lexical table at its supplied internal
+profile. `Entry.RTL.admit` uses the actual `compileTyped` result of cyclic
+versioning. A certificate records the elaborated open table and its
+exact typing. `elaborateAt_mapOp` commutes with primitive relabelling at
+the original block count, including failure of untyped elaboration.
+`Versioning.compile_mapOp` commutes with the literal generated syntax.
+Sentence translation transports the certificate at its written internal
+profile, so both squares use literal syntax equality and proof
+irrelevance. They require no independent choice of a typing profile.
+[Elaboration law](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/InstructionMap/Thms.lean)
+· [Versioning law](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Version/InstructionMap/Thms.lean)
+· [Admission and translation](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Institution/Defs.lean)
+
+The named rooms use the flat room's models and reducts. Their satisfaction
+compares finite weak traces of the actual named runners at every typed
+input after numbering and tagging external exits. The RTL observation
+forgets the final store. `RTL.observe_version` uses the weak ITree
+instance of the lawful Elgot versioning theorem, with the structural pair
+law. `SSA.observe_tree` agrees with the actual packed execution at the
+same typed input. The two comorphisms compose with the open flat packing
+map and their satisfaction laws hold in both directions. Named lexical
+admission checks the supported table and its typed elaboration. Global
+φ certification, and named `Part` linking, have separate APIs.
+[Runner agreement and comorphisms](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Institution/Thms.lean)
+
+The generated cyclic example supplies `((), 7)` directly. The
+noninjective seed/tick map is tested against fresh execution of the
+admission checker at the same profile. The named mutable trace witnesses
+strict refinement from a silent self-loop, and the composed comorphism
+transports the comparison to packed satisfaction.
+[Cyclic regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Examples.lean)
+
+### Typed live-outs at mutable exits
+
+The existing `Versioning.run_commutes` observes the exit label and
+argument. `Cyclic.LiveOut.attach` makes selected final-store reads explicit
+in the original mutable CFG before invoking that versioner. For each
+branch to a missing label it pairs the old argument with an ordered,
+right-nested register record ending in unit. The same lookup determines
+internal edges, and their arguments are preserved. The transformation
+uses only variables, pairs, and unit.
+[Exit transformation](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/LiveOut/Defs.lean)
+
+`run_project` proves the whole-run equation with the projected original
+exit, including the same effects and final store in the underlying
+mutable execution. It uses a step square and lawful Elgot iteration.
+`versioned_run_project` applies the existing pair-law versioner to the
+transformed source. The new reads go through the versioner's existing
+register support and current-version calculation, including when a
+register was only written in the original CFG.
+[Mutable and lexical runner equations](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/LiveOut/Thms.lean)
+
+The typed checker admits the actual versioned table at the supplied
+block profiles and the enlarged external payload types. The original
+typed entry record supplies the same named store as before. For every
+accepted graph, `Admission.denote_tree` identifies the encoded typed
+packed result with the original mutable runner's projected exit.
+`satisfies_iff` gives both directions of pointwise trace comparison at a
+common projection interface. This adds a separate observation with
+selected fields alongside the existing forgetful institution.
+[Typed admission and comparison](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/Thms.lean)
+
+The fixture picks one of two fields from the same supplied record, writes
+it to a register, then jumps to a block that exits with unit. The old
+exit observations agree for every input. The packed observations at
+`(((), 7), 9)` return the distinct live-outs 7 and 9. The checker also
+rejects a unit declaration for the numeric live-out.
+[Checked fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOutExamples.lean)
+
+### Relabelling typed live-out comparisons
+
+`Cyclic.run_mapOp` exposes the existing cyclic runner reduct law at the
+universes of the typed weak-tree model. It preserves the final store.
+`attach_mapOp` commutes on the written syntax because opcode relabelling
+preserves lookup hits and misses. `project_reduct` uses the same pair and
+unit operations for the caller's ordered register list. Together the laws
+give `observe_mapOp`, an equality of whole weak trees at the same typed
+input record, including the tagged old argument and ordered fields.
+[Runner reduct](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/InstructionMap/Thms.lean)
+· [Attachment and projection](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/LiveOut/InstructionMap/Thms.lean)
+
+`Admission.map` transports an existing certificate through the named
+versioning and elaboration maps at its supplied block profiles. The
+live-out room fixes the input context, the ordered exits, and the typed
+field lists. It uses the same models and reduct functors as the named
+typed-entry room. The attachment comorphism composes with the existing
+named-to-packed comorphism. Both packing orders give equal typed syntax,
+and `toPacked_satisfies_map_iff` preserves and reflects pointwise
+satisfaction in the reduct. The signature maps fix types and the event
+family and preserve bottom Boolean effect. The admission law concerns
+certificate transport at those profiles.
+[Certificate transport and institution](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/Institution/Thms.lean)
+
+The fixture identifies two effectful opcodes. Both renamed sources can
+request the same operation with argument 7 and receive reply 11. One
+source keeps the reply and the other overwrites it with 7 before the
+internal jump. Their old unit results agree at that trace, while their
+ordered live-out records are `(11, 7)` and `(7, 7)`. The fixture also
+reruns admission of the renamed reply-carrying graph at the same
+profile.
+[Checked relabelling fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOutExamples.lean)
+
+### Reverse lowering of open flat SSA to mutable RTL
+
+`NamedFlat.Entry.Reverse.lowerChecked` generates an ordinary named mutable CFG
+from the actual scoped table. It supports straight-line `let₁` and `let₂`
+prefixes ending in jumps or sum cases. Operands are variables, unit,
+pairs, or primitive applications to values. Labelled bodies use their
+incoming packet and their local binders. The open entry can use the supplied typed record. The
+caller supplies block labels, a packet register, and local binder names by
+depth. Each body starts at depth zero, so different blocks can update the
+same physical registers. A single incoming packet captures every source of
+an edge copy before the destination overwrites its registers.
+
+The source's external branch argument must be a pair of the old payload and
+the selected exit record. The lowerer emits a branch with the old payload.
+The checker attaches reads of the selected registers and checks exact scoped
+readback of every body and the entry, including the order of the exit fields.
+It also checks packet closure of the attached blocks. An inadmissible scope,
+used name collision that changes the readback, or incompatible projection
+causes rejection. The checker uses decidable equality on opcodes.
+
+`Lowered.packed_observe` identifies the source's packed weak tree with the
+actual mutable runner followed by the caller's live-out projection.
+`Lowered.packed_roundTrip` identifies that tree with the typed reversion
+accepted by `LiveOut.admit` at caller-supplied internal packet types. Both
+equalities use the same compatible typed instruction model, supplied entry
+record, ordered exits, and tagged payloads. Source typing and successful
+re-admission are separate premises. The compiler checks the reversion
+profile supplied by the caller. A sum case lowers its operand before
+introducing either arm binder. The two mutually exclusive arms can use the
+same mutable register at that binder depth. Arms must be terminators, so they
+can branch or contain another case. Let prefixes inside arms and ambient
+reads in labelled blocks are outside this fragment.
+
+The acyclic swap fixture reuses both mutable registers across an internal
+jump. From the supplied values `(7, 9)`, the admitted round trip returns the
+old unit payload with the ordered live-outs `(9, 7)` at the second declared
+exit. A sequential copy in the actual named runner returns `(9, 9)` at the
+same exit. Reversing the projection fields fails the exact readback check.
+
+The case fixture passes a typed sum from the open entry to an internal block.
+Each arm returns its bound value and projects the same binder from the final
+store. The two exits have identical payload types and can return identical
+values. Their packed tags still follow the declared exit order, which differs
+from the numeric label order. The fixture checks the actual lowerer and
+re-admission and proves the selected result for every input to either arm.
+
+[Lowerer and certificate](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Defs.lean)
+· [Weak-tree agreement](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Thms.lean)
+· [Checked swap](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Swap.lean)
+· [Checked sum case](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Case.lean)
+
+### Reversion packet profile synthesis
+
+`Reverse.lowerFresh` numbers the newest-first capture slots from zero,
+uses the next number for the common block parameter, and assigns successive
+numbers to local binders by scope depth. The selected exit registers use
+this same numbering. The ordinary exact reverse readback and packet closure
+checks still decide whether the source table is accepted.
+
+For every successful numbered lowering, `Lowered.savesCaptures_of_lowerFresh`
+proves that the cyclic versioner's saved registers all come from the typed
+entry context. Exact entry readback accounts for the entry's free reads.
+Packet closure confines a block's free reads to its parameter, and the
+versioner omits that common parameter from the saved record. The synthesized
+type at each destination pairs its original typed block argument with the
+types of the saved captures in the versioner's actual slot order, ending
+the record in unit. The versioner's block map preserves the block indices.
+
+`Lowered.reAdmit` feeds that profile to the existing compiler and admission
+checker. The remaining certificate is successful scoped elaboration of
+the actual versioned table and a local typing check of the entry and every
+block at the synthesized profile. `Lowered.admitOfChecks` constructs the
+admission from those conditions. The swap and two ordered sum exits run the
+actual checker with the synthesized profiles, then use the existing weak-tree
+round trip.
+
+[Profile synthesis](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Profile/Defs.lean)
+· [Scope and admission](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Profile/Thms.lean)
+· [Swap](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Swap.lean)
+· [Ordered sum exits](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Case.lean)

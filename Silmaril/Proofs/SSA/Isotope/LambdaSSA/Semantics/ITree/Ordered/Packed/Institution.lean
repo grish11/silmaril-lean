@@ -16,28 +16,28 @@ open Silmaril.Isotope.LambdaSSA.Semantics.Interaction.Typed.Ordered.PackedInstit
 
 universe u v
 
-variable {κ : Type (u + 1)} {P Q S : FlatInstitution.Signature.{u, v} κ}
+variable {κ : Type (u + 1)} {P Q S : FlatInstitution.Signature.{u, v} κ} {A : Ty κ}
 
-private theorem program_map_id {A B : Ty κ} (p : Program P.Instr A B) :
+private theorem program_map_id {B : Ty κ} (p : Program P.Instr A B) :
     p.map Morphism.SignatureMap.id rfl = p := by
   cases p with
   | mk code typed =>
     simp only [Program.map, Program.mk.injEq]
     exact Region.mapInstr_id code
 
-private theorem program_map_comp {A B : Ty κ} (g : P ⟶ Q) (h : Q ⟶ S)
+private theorem program_map_comp {B : Ty κ} (g : P ⟶ Q) (h : Q ⟶ S)
     (p : Program P.Instr A B) :
     p.map (g ≫ h).toSignatureMap (g ≫ h).types =
       (p.map g.toSignatureMap g.types).map h.toSignatureMap h.types := by
   simp only [Program.map, Program.mk.injEq]
   exact (Region.mapInstr_comp g.toSignatureMap.instr h.toSignatureMap.instr p.code).symm
 
-theorem sentence_map_id (s : Sentence P) : s.map (𝟙 P) = s := by
+theorem sentence_map_id (s : Sentence P A) : s.map (𝟙 P) = s := by
   cases s with
   | mk exits external left right =>
     exact congrArg₂ (Sentence.mk exits external) (program_map_id left) (program_map_id right)
 
-theorem sentence_map_comp (g : P ⟶ Q) (h : Q ⟶ S) (s : Sentence P) :
+theorem sentence_map_comp (g : P ⟶ Q) (h : Q ⟶ S) (s : Sentence P A) :
     s.map (g ≫ h) = (s.map g).map h := by
   cases s
   simp only [Sentence.map, program_map_comp]

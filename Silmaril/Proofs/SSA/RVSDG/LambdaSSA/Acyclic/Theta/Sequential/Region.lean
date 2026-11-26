@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Model.Defs
+public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Model.Defs
 public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Fork.Defs
 import Silmaril.Proofs.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Iteration
 
@@ -489,7 +489,8 @@ private theorem fragment_run (p : Fragment Φ A E D) {I : Type u}
     simpa only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, raw, loc, Sum.elim_inr, Sum.map_inr] using
       congrFun loop i
 
-variable (p : Fragment Φ A M M) (q : Fragment Φ M E D)
+variable {P Q : τ}
+variable (p : Fragment Φ A P Q) (q : Fragment Φ M E D) (routing : ExitRouting P Q M E D)
 
 private abbrev Left := FiniteLabelDen p.localTypes
 private abbrev Right := FiniteLabelDen (rightTypes q)
@@ -507,36 +508,52 @@ private def phaseAtFlat (i : Fin (p.count + (q.count + 1))) :
 private def encodeFlat (x : FiniteLabelDen (linkedTypes p q)) : Left p ⊕ Right q :=
   phaseAtFlat p q x.1 x.2
 
-private def leftOut (r : LabelDen [M,M] ⊕ Left p) : LabelDen [E,D] ⊕ (Left p ⊕ Right q) :=
-  .inr (Sum.elim (Sum.inr ∘ startRight q ∘ merge) Sum.inl r)
+private def producerTarget (exit : LabelDen [P,Q]) : LabelDen [E,D] ⊕ Right q :=
+  Sum.map id (startRight q) (routing.select exit)
+
+private def leftOut : LabelDen [P,Q] ⊕ Left p → LabelDen [E,D] ⊕ (Left p ⊕ Right q) :=
+  Sum.elim (Sum.map id Sum.inr ∘ producerTarget q routing) (Sum.inr ∘ Sum.inl)
 
 private def rightOut (r : LabelDen [E,D] ⊕ Right q) : LabelDen [E,D] ⊕ (Left p ⊕ Right q) :=
   Sum.map id Sum.inr r
 
+private theorem flat_target (target : ExitTarget M E D X) (x : TyDen X) :
+    route (linkedTypes p q) [E,D] (encodeFlat p q) (targetSite p q target) x =
+      Sum.map id Sum.inr (Sum.map id (startRight q) (target.select x)) := by
+  cases target with
+  | consumer =>
+    rw [targetSite, Flat.handoff, Flat.rightLocal, route_cast, route_local]
+    simp only [encodeFlat, phaseAtFlat, Fin.addCases_right, payload_cast_cancel]
+    rfl
+  | first => rw [targetSite, route_external]; rfl
+  | second => rw [targetSite, route_external]; rfl
+
+private theorem select_injected (i : Fin [P,Q].length) (x : TyDen ([P,Q].get i)) :
+    routing.select (LabelValue.inject i.val (List.getElem?_eq_getElem i.isLt) x) =
+      (routing.target i).select x := by
+  revert x
+  exact Fin.cases (fun _ => rfl) (Fin.cases (fun _ => rfl) (fun j => j.elim0)) i
+
 private theorem flat_left_route (target : Site p.Labels X) (x : TyDen X) :
-    route (linkedTypes p q) [E,D] (encodeFlat p q) (Flat.leftSite p q target) x =
-      leftOut p q (route p.localTypes [M,M] id target x) := by
-  unfold Flat.leftSite redirect
-  generalize h : splitSite p.localTypes [M,M] target = dest
+    route (linkedTypes p q) [E,D] (encodeFlat p q) (Flat.leftSiteBy p q routing target) x =
+      leftOut p q routing (route p.localTypes [P,Q] id target x) := by
+  unfold Flat.leftSiteBy redirect
+  generalize h : splitSite p.localTypes [P,Q] target = dest
   obtain ⟨dest, eq⟩ := dest
   subst target
   cases dest with
   | «local» i =>
     change route (linkedTypes p q) [E,D] (encodeFlat p q) (Flat.leftLocal p q i) x =
-      leftOut p q (route p.localTypes [M,M] id (localSite _ _ i) x)
+      leftOut p q routing (route p.localTypes [P,Q] id (localSite _ _ i) x)
     rw [Flat.leftLocal, route_cast, route_local, route_local]
     simp only [encodeFlat, phaseAtFlat, Fin.addCases_left, payload_cast_cancel]
     rfl
   | external i =>
-    change _ = leftOut p q (route p.localTypes [M,M] id (externalSite _ _ i) x)
+    change route _ _ _ (targetSite p q (routing.target i)) x =
+      leftOut p q routing (route p.localTypes [P,Q] id (externalSite _ _ i) x)
     rw [route_external]
-    revert x
-    refine Fin.cases ?_ (Fin.cases ?_ (fun j => j.elim0)) i <;> intro x
-    all_goals
-      change route (linkedTypes p q) [E,D] (encodeFlat p q) (Flat.rightLocal p q 0) x = _
-      rw [Flat.rightLocal, route_cast, route_local]
-      simp only [encodeFlat, phaseAtFlat, Fin.addCases_right, payload_cast_cancel]
-      rfl
+    simp only [leftOut, Sum.elim_inl, Function.comp_apply, producerTarget, select_injected]
+    exact flat_target p q (routing.target i) x
 
 private theorem flat_right_route (target : Site q.Labels X) (x : TyDen X) :
     route (linkedTypes p q) [E,D] (encodeFlat p q) (Flat.rightSite p q target) x =
@@ -564,7 +581,7 @@ private noncomputable def rightStep (i : Right q) : m (LabelDen [E,D] ⊕ Right 
     (fun j => runBlock (ε := ε) (route q.localTypes [E,D] (intoRight q)) (q.blocks j)) i.1 i.2
 
 private noncomputable def linkedStep : Left p ⊕ Right q → m (LabelDen [E,D] ⊕ (Left p ⊕ Right q))
-  | .inl i => fragStep (ε := ε) p i >>= fun r => pure (leftOut p q r)
+  | .inl i => fragStep (ε := ε) p i >>= fun r => pure (leftOut p q routing r)
   | .inr i => rightStep (ε := ε) q i >>= fun r => pure (rightOut p q r)
 
 omit [LawfulMonad m] [Iterate m] [LawfulElgotMonad m] in
@@ -575,19 +592,19 @@ private theorem flat_action_cast {R : List τ} {I : Type u}
   rfl
 
 omit [Iterate m] [LawfulElgotMonad m] in
-private theorem linked_dispatch (i : Fin ((link p q).count)) (x : TyDen ((link p q).localTypes i)) :
-    runBlock (ε := ε) (m := m) (route (linkedTypes p q) [E,D] (encodeFlat p q)) ((link p q).blocks i) x =
-      linkedStep (ε := ε) p q (encodeFlat p q ⟨i,x⟩) := by
+private theorem linked_dispatch (i : Fin ((linkBy p q routing).count)) (x : TyDen ((linkBy p q routing).localTypes i)) :
+    runBlock (ε := ε) (m := m) (route (linkedTypes p q) [E,D] (encodeFlat p q)) ((linkBy p q routing).blocks i) x =
+      linkedStep (ε := ε) p q routing (encodeFlat p q ⟨i,x⟩) := by
   revert x
   refine Fin.addCases (m := p.count) (n := q.count + 1) ?_ ?_ i
   · intro j x
-    simp only [link, encodeFlat, phaseAtFlat, Fin.addCases_left, flat_action_cast, linkedStep, fragStep]
-    exact runBlock_map (ε := ε) (m := m) (p.blocks j) _ (Flat.leftSite p q) _ _ _ (flat_left_route p q)
+    simp only [linkBy, encodeFlat, phaseAtFlat, Fin.addCases_left, flat_action_cast, linkedStep, fragStep]
+    exact runBlock_map (ε := ε) (m := m) (p.blocks j) _ (Flat.leftSiteBy p q routing) _ _ _ (flat_left_route p q routing)
   · intro j
     refine Fin.cases ?_ (fun k => ?_) j
     all_goals
       intro x
-      simp only [link, encodeFlat, phaseAtFlat, Fin.addCases_right, flat_action_cast, linkedStep,
+      simp only [linkBy, encodeFlat, phaseAtFlat, Fin.addCases_right, flat_action_cast, linkedStep,
         rightBlock, rightStep, Fin.cases_zero, Fin.cases_succ]
       first
       | exact runBlock_map (ε := ε) (m := m) q.entry _ (Flat.rightSite p q) _ _ _ (flat_right_route p q)
@@ -623,40 +640,64 @@ private theorem right_start
     simpa only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, f, Sum.map_inr, Sum.elim_inr] using
       (congrFun (LawfulElgotMonad.uniformity _ _ _ square) i).symm
 
-theorem flat_link_denote
+private theorem linked_right_start
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (x : TyDen M) :
+    iter (linkedStep (ε := ε) (m := m) p q routing) (.inr (startRight q x)) =
+      Region.denote (ε := ε) (m := m) q.typing (PUnit.unit,x) := by
+  rw [← right_start q coherent]
+  let inj : Right q → Left p ⊕ Right q := Sum.inr
+  have sq : (rightStep (ε := ε) (m := m) q >=> liftPure (Sum.map id inj)) =
+      (liftPure inj >=> linkedStep (ε := ε) p q routing) := by
+    funext i
+    simp only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, inj, linkedStep, rightOut]
+    rfl
+  simpa only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, inj] using
+    (congrFun (LawfulElgotMonad.uniformity _ _ _ sq) (startRight q x)).symm
+
+theorem flat_linkBy_denote
     (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
-    Region.denote (ε := ε) (m := m) (link p q).typing env =
+    Region.denote (ε := ε) (m := m) (linkBy p q routing).typing env =
       Region.denote (ε := ε) (m := m) p.typing env >>= fun y =>
-        Region.denote (ε := ε) (m := m) q.typing (PUnit.unit, merge y) := by
-  rw [fragment_run (link p q) (encodeFlat p q) (linkedStep (ε := ε) p q) (linked_dispatch p q) coherent,
+        Sum.elim pure (fun input => Region.denote (ε := ε) (m := m) q.typing (PUnit.unit,input))
+          (routing.select y) := by
+  rw [fragment_run (linkBy p q routing) (encodeFlat p q) (linkedStep (ε := ε) p q routing)
+      (linked_dispatch p q routing) coherent,
     fragment_run p id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent]
   change (runBlock (ε := ε) (m := m) (route (linkedTypes p q) [E,D] (encodeFlat p q))
-    (p.entry.rename (Flat.leftSite p q)) env.2 >>= _) = _
-  rw [runBlock_map (ε := ε) (m := m) p.entry _ (Flat.leftSite p q) _ _ _ (flat_left_route p q)]
+    (p.entry.rename (Flat.leftSiteBy p q routing)) env.2 >>= _) = _
+  rw [runBlock_map (ε := ε) (m := m) p.entry _ (Flat.leftSiteBy p q routing) _ _ _
+    (flat_left_route p q routing)]
   simp only [bind_assoc, pure_bind]
   congr 1
   funext k
   cases k with
   | inl e =>
-    change iter (linkedStep (ε := ε) p q) (.inr (startRight q (merge e))) =
-      (pure e >>= fun y => Region.denote (ε := ε) (m := m) q.typing (PUnit.unit, merge y))
-    rw [pure_bind, ← right_start q coherent]
-    -- No consumer transition can re-enter the producer.
-    let inj : Right q → Left p ⊕ Right q := Sum.inr
-    have sq : (rightStep (ε := ε) (m := m) q >=> liftPure (Sum.map id inj)) =
-        (liftPure inj >=> linkedStep (ε := ε) p q) := by
-      funext i
-      simp only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, inj, linkedStep, rightOut]
-      rfl
-    simpa only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, inj] using
-      (congrFun (LawfulElgotMonad.uniformity _ _ _ sq) (startRight q (merge e))).symm
+    simp only [leftOut, Sum.elim_inl, pure_bind, Function.comp_apply, producerTarget]
+    cases selected : routing.select e with
+    | inl label => simp
+    | inr input => simpa [selected] using linked_right_start p q routing coherent input
   | inr i =>
-    change iter (linkedStep (ε := ε) p q) (.inl i) = _
-    rw [iter_sequential (fragStep (ε := ε) p) (rightStep (ε := ε) q)
-      (startRight q ∘ merge) (linkedStep (ε := ε) p q) (fun _ => rfl) (fun _ => rfl)]
+    change iter (linkedStep (ε := ε) p q routing) (.inl i) = _
+    rw [iter_sequential_select (fragStep (ε := ε) p) (rightStep (ε := ε) q)
+      (producerTarget q routing) (linkedStep (ε := ε) p q routing) (fun _ => rfl) (fun _ => rfl)]
     congr 1
     funext e
-    exact right_start q coherent (merge e)
+    cases selected : routing.select e with
+    | inl label => simp [producerTarget, selected]
+    | inr input => simpa [producerTarget, selected] using right_start q coherent input
+
+theorem flat_link_denote (p : Fragment Φ A M M) (q : Fragment Φ M E D)
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m) (link p q).typing env =
+      Region.denote (ε := ε) (m := m) p.typing env >>= fun y =>
+        Region.denote (ε := ε) (m := m) q.typing (PUnit.unit, merge y) := by
+  rw [Flat.link, flat_linkBy_denote _ _ _ coherent]
+  congr 1
+  funext y
+  rcases y with x | x | impossible
+  · rfl
+  · rfl
+  · exact impossible.elim
 
 end FlatLink
 

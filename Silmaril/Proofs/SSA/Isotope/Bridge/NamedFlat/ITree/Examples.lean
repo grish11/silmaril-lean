@@ -4,7 +4,7 @@ import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Capture.Refinement.Trace.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Typed.Defs
 import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.PackedTrace.Thms
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Capture.InstructionMap.Thms
-import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Ordered.Packed.Institution.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Institution.Thms
 
 /-! # Typed requests at the captured entry and the back edge -/
 
@@ -568,5 +568,212 @@ example :
       ((comparisonCorridor.sat (Discrete.mk model) comparison).mpr reduct_comparisons.1),
     fun h => reduct_comparisons.2 ((comparisonCorridor.sat (Discrete.mk model) converse).mp
       ((packing.satisfaction signature (Discrete.mk model) _).mp h))⟩
+
+/-! ## The same cyclic graph receives its capture at a typed program input -/
+
+private abbrev EntryValue := Ty.denote (AtomValues.carrier (κ := SortName)) inputType
+
+private def suppliedInput (capture : Nat) : EntryValue :=
+  (PUnit.unit, ULift.up capture)
+
+private def encodeInput (x : EntryValue) : Value Runtime :=
+  Silmaril.Isotope.Semantics.encodeValue (AtomValues.carrier (κ := SortName)) inputType x
+
+private theorem encodeInput_eq (x : EntryValue) :
+    encodeInput x = Capture.packEnv 1 (env x.2.down) := by
+  obtain ⟨⟨⟩, capture⟩ := x
+  rfl
+
+-- The original named runner receives the same input in its version-zero store.
+example (capture : Nat) :
+    region model.raw (extend ambient (encodeInput (suppliedInput capture)))
+        (Program.ofCFGEntry admitted.property.2).code =
+      (CFG.Cyclic.runSSA (treeModel instr) generated (store capture) >>= fun p =>
+        pure (packedTreeOutput (treeExitNumber [exitLabel] p))) := by
+  rw [encodeInput_eq]
+  exact packed_entry_run_tree instr source [exitLabel] names admitted.property.1 admitted.property.2
+    (store capture) ambient (env capture) (fun _ => rfl)
+
+private def silentOpen : LambdaSSA.FiniteCFG Opcode 1 1 1 :=
+  ⟨.br 0 .unit, fun _ => .br 0 (.bv 0)⟩
+
+private theorem silentOpenTyped : silentOpen.HasType captures (fun _ => Ty.unit) (fun _ => num) :=
+  ⟨.br .unit, fun _ => .br .bv⟩
+
+private theorem silentOpen_tree (raw : Primitive Event Opcode Runtime) (x : EntryValue) :
+    region raw (extend ambient (encodeInput x)) (Program.ofCFGEntry silentOpenTyped).code = diverge := by
+  rw [encodeInput_eq]
+  change region raw (extend ambient (Capture.packEnv 1 (env x.2.down)))
+    ((packedExecutionRegion silentOpenTyped).packInputsDestructure captures.toList) = _
+  rw [Capture.packed_context_tree]
+  have h : region raw (env x.2.down) silentOpen.erase = diverge := by
+    simp only [silentOpen, LambdaSSA.FiniteCFG.erase, LambdaSSA.Flat.erase, Morphism.CaseSSA.erase,
+      region, LambdaSSA.Semantics.Interaction.term, pure_bind]
+    exact iterate_pure_loop (fun p : BlockInput Runtime 1 => (0, p.2)) (0, .unit)
+  rw [h, diverge_bind]
+
+private def suppliedTrace : Trace Event (Transfer Runtime) :=
+  .exchange (.call .tick 7) 3 (.exchange (.call .tick 3) 5 (.request (.call .tick 5)))
+
+-- The record's value is the first request operand. Replies then flow around
+-- the actual back edge, without a primitive request to fetch the capture.
+private theorem supplied_cycle :
+    HasTrace (region reduct.raw (extend ambient (encodeInput (suppliedInput 7)))
+      (Program.ofCFGEntry admitted.property.2).code) suppliedTrace := by
+  rw [encodeInput_eq]
+  change HasTrace (region reduct.raw (extend ambient (Capture.packEnv 1 (env 7)))
+    ((packedExecutionRegion admitted.property.2).packInputsDestructure captures.toList)) _
+  rw [Capture.packed_context_tree]
+  change HasTrace ((region reduct.raw (env 7) admitted.val.entry.erase >>= fun out =>
+    Sum.elim pure (iter (fun p : BlockInput Runtime 2 =>
+      region reduct.raw (extend (env 7) p.2) (admitted.val.block p.1).erase >>=
+        fun out => pure (splitTransfer 2 out))) (splitTransfer 2 out)) >>= _) _
+  rw [reduct_steps 7, reduct_entry 7]
+  simp only [suppliedTrace, vis_bind, pure_bind, hasTrace_vis_exchange_iff]
+  change HasTrace (iter (openStep 7) (0, packet 3) >>= _) _
+  rw [tick_loop, vis_bind]
+  simp only [hasTrace_vis_exchange_iff]
+  rw [tick_loop, vis_bind]
+  exact hasTrace_vis_request _ _
+
+private def entryComparison : EntryInstitution.Sentence signature captures :=
+  ⟨1, fun _ => num, EntryInstitution.Table.ofTyped silentOpenTyped,
+    EntryInstitution.Table.ofTyped admitted.property.2⟩
+
+private def entryConverse : EntryInstitution.Sentence signature captures :=
+  ⟨entryComparison.exits, entryComparison.external, entryComparison.right, entryComparison.left⟩
+
+private abbrev entryPacking := EntryInstitution.packingComorphism.{0, 0} Event SortName captures
+private abbrev entryRelabel := (EntryInstitution.institution.{0, 0} Event SortName captures).I.map relabel
+
+private theorem entry_comparisons :
+    EntryInstitution.Satisfies Event reduct entryComparison ∧
+    ¬ EntryInstitution.Satisfies Event reduct entryConverse := by
+  change reduct.Satisfies (Program.ofCFGEntry silentOpenTyped) (Program.ofCFGEntry admitted.property.2) ∧
+    ¬ reduct.Satisfies (Program.ofCFGEntry admitted.property.2) (Program.ofCFGEntry silentOpenTyped)
+  rw [satisfies_ofCFGEntry_iff reduct silentOpenTyped admitted.property.2 ambient,
+    satisfies_ofCFGEntry_iff reduct admitted.property.2 silentOpenTyped ambient]
+  refine ⟨fun x => ?_, fun h => ?_⟩
+  · change EntryValue at x
+    change TraceLE (region reduct.raw (extend ambient (encodeInput x)) _) _
+    rw [silentOpen_tree reduct.raw x]
+    exact traceLE_diverge _
+  · have atSeven := h (suppliedInput 7)
+    change TraceLE _ (region reduct.raw (extend ambient (encodeInput (suppliedInput 7))) _) at atSeven
+    rw [silentOpen_tree reduct.raw (suppliedInput 7)] at atSeven
+    have pending := atSeven _ supplied_cycle
+    simp [suppliedTrace, hasTrace_diverge_iff] at pending
+
+-- Use the bundled naturality and satisfaction laws on the noninjective opcode
+-- map. Satisfaction holds at all typed inputs, and the input 7 refutes the reverse.
+example :
+    (PackedInstitution.room Event signature inputType).Sat (Discrete.mk model)
+      ((entryPacking.ρ.app signature ≫ (PackedInstitution.institution.{0, 0} Event SortName
+        inputType).I.map relabel).sen entryComparison) ∧
+    ¬ (PackedInstitution.room Event signature inputType).Sat (Discrete.mk model)
+      ((entryPacking.ρ.app signature).sen (entryRelabel.sen entryConverse)) := by
+  have nat := congrArg (fun c => c.sen entryComparison) (entryPacking.ρ.naturality relabel)
+  refine ⟨?_, fun h => entry_comparisons.2 ((entryRelabel.sat (Discrete.mk model) entryConverse).mp
+    ((entryPacking.satisfaction signature (Discrete.mk model) _).mp h))⟩
+  exact nat ▸ (entryPacking.satisfaction signature (Discrete.mk model) _).mpr
+    ((entryRelabel.sat (Discrete.mk model) entryComparison).mpr entry_comparisons.1)
+
+/-! ## Certified named comparisons with an external entry -/
+
+private def namedInterface : Entry.Interface SortName Reg Label :=
+  ⟨1, captures, names, fun _ _ _ => Subsingleton.elim _ _, [exitLabel], fun _ => num⟩
+
+private def namedCycle : Entry.RTL signature namedInterface :=
+  (Entry.RTL.admit source (fun _ => edgeType)).get (by decide)
+
+private def mappedNamedCycle : Entry.RTL signature namedInterface :=
+  (Entry.RTL.admit (source.mapOp rename.instr) (fun _ => edgeType)).get (by decide)
+
+-- Independently running the checker at the unchanged profile yields the
+-- same written flat entry and table as certificate transport.
+example : (namedCycle.map relabel).versioned.table.code = mappedNamedCycle.versioned.table.code := by
+  let lhs := (namedCycle.map relabel).versioned.table.code
+  let rhs := mappedNamedCycle.versioned.table.code
+  have entry : lhs.entry = rhs.entry := rfl
+  have blocks : lhs.block = rhs.block := by
+    funext i
+    exact Fin.cases rfl (Fin.cases rfl (fun j => j.elim0)) i
+  exact congrArg₂ LambdaSSA.FiniteCFG.mk entry blocks
+
+example : (Entry.SSA.admit (I := namedInterface.version) generated (fun _ => edgeType)).get
+    (by decide) = namedCycle.versioned := rfl
+
+example : Entry.store namedInterface.names namedInterface.context (suppliedInput 7) reg = atom 7 :=
+  rfl
+
+set_option backward.isDefEq.respectTransparency false in
+private theorem named_cycle_trace :
+    HasTrace (namedCycle.observe reduct (suppliedInput 7)) suppliedTrace := by
+  rw [Entry.RTL.observe_version, Entry.SSA.observe_tree reduct namedCycle.versioned _ ambient]
+  exact supplied_cycle
+
+private def quietSource : CFG Reg Label Opcode :=
+  ⟨.term (.br header (.var reg)), [(header, ⟨reg, .term (.br header (.var reg))⟩)]⟩
+
+private def quietNamed : Entry.RTL signature namedInterface :=
+  (Entry.RTL.admit quietSource (fun _ => edgeType)).get (by decide)
+
+private theorem quiet_named_tree (M : Model (κ := SortName) Event Opcode) (x : EntryValue) :
+    quietNamed.observe M x = diverge := by
+  let input := Entry.store namedInterface.names namedInterface.context x
+  let initial : CFG.Cyclic.Transfer Reg Label (Value Runtime) := (header, input reg, input)
+  let step := CFG.Cyclic.step (treeModel M.raw) quietSource.blocks
+  have update : upd input reg (input reg) = input := by
+    funext key
+    by_cases h : key = reg <;> simp [upd, h]
+  have self : step initial = pure (.inr initial) := by
+    change (pure (Sum.inr (header, (upd input reg (input reg)) reg, upd input reg (input reg))) :
+      Tree Event (CFG.Cyclic.Transfer Reg Label (Value Runtime) ⊕ _)) = _
+    rw [update]
+  have silent : iter step initial = diverge := by
+    let Transfer := CFG.Cyclic.Transfer Reg Label (Value Runtime)
+    let loop (p : Transfer) : Tree Event (Transfer ⊕ Transfer) := pure (.inr p)
+    have uniform := Silmaril.Elgot.ITree.iterate_uniformity loop step (fun _ => initial) (by
+      funext p
+      change (loop p >>= fun s => pure (s.map id (fun _ => initial))) = (pure initial >>= step)
+      simp only [loop, pure_bind, Sum.map_inr, self])
+    have eq := congrFun uniform initial
+    change iter loop initial = (pure initial >>= iter step) at eq
+    rw [pure_bind] at eq
+    exact eq.symm.trans (Silmaril.Elgot.ITree.iterate_forever initial)
+  change (iter step initial >>= _) = _
+  rw [silent, diverge_bind]
+
+private def rtlCompare : Entry.RTLSentence signature namedInterface := (quietNamed, namedCycle)
+private def rtlConverse : Entry.RTLSentence signature namedInterface := (namedCycle, quietNamed)
+
+set_option backward.isDefEq.respectTransparency false in
+private theorem named_comparisons :
+    Entry.rtlSatisfies reduct rtlCompare ∧ ¬ Entry.rtlSatisfies reduct rtlConverse := by
+  refine ⟨fun x => ?_, fun h => ?_⟩
+  · change TraceLE (quietNamed.observe reduct x) _
+    rw [quiet_named_tree]
+    exact traceLE_diverge _
+  · have atSeven := h (suppliedInput 7)
+    change TraceLE (namedCycle.observe reduct (suppliedInput 7))
+      (quietNamed.observe reduct (suppliedInput 7)) at atSeven
+    rw [quiet_named_tree] at atSeven
+    have impossible := atSeven suppliedTrace named_cycle_trace
+    simp [suppliedTrace, hasTrace_diverge_iff] at impossible
+
+private abbrev namedPacking := Entry.packedRTLComorphism.{0, 0} namedInterface Event
+private abbrev namedRelabel := (Entry.rtlInstitution.{0, 0} namedInterface Event).I.map relabel
+
+-- The bundled RTL → SSA → flat → packed square preserves the strict
+-- comparison after applying the noninjective opcode map to both sources.
+example :
+    (PackedInstitution.room Event signature inputType).Sat (Discrete.mk model)
+      ((namedPacking.ρ.app signature).sen (namedRelabel.sen rtlCompare)) ∧
+    ¬ (PackedInstitution.room Event signature inputType).Sat (Discrete.mk model)
+      ((namedPacking.ρ.app signature).sen (namedRelabel.sen rtlConverse)) :=
+  ⟨(namedPacking.satisfaction signature (Discrete.mk model) _).mpr
+      ((namedRelabel.sat (Discrete.mk model) rtlCompare).mpr named_comparisons.1),
+    fun h => named_comparisons.2 ((namedRelabel.sat (Discrete.mk model) rtlConverse).mp
+      ((namedPacking.satisfaction signature (Discrete.mk model) _).mp h))⟩
 
 end Silmaril.Isotope.Bridge.NamedFlat.Interaction.Examples

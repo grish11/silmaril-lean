@@ -58,6 +58,7 @@ inductive Builtin where
   | bool
   | callable
   | len
+  | ord
   | list
   | tuple
   | isinstance
@@ -68,11 +69,23 @@ inductive Value where
   | bool (value : Bool)
   | none
   | listObject (object : Core.Module.ListObject)
+  | returnedTuple (items : List Core.Module.Value)
   | exceptionClass (kind : ExceptionClass)
   | helper (descriptor : Helper)
   | builtin (descriptor : Builtin)
   | function (closure : Core.Closure.Function)
   deriving DecidableEq, Repr
+
+def Value.scalar? : Value → Option Core.Module.Value
+  | .int value => some (.int value)
+  | .bool value => some (.bool value)
+  | .none => some .none
+  | .exceptionClass _ | .helper _ | .builtin _ | .function _ | .listObject _ | .returnedTuple _ => Option.none
+
+def Value.ofScalar : Core.Module.Value → Value
+  | .int value => .int value
+  | .bool value => .bool value
+  | .none => .none
 
 inductive Failure where
   | raised (error : Raised)
@@ -103,9 +116,16 @@ inductive Operand (slots : Nat) where
   | literal (value : Value)
   | local (slot : Fin slots)
   | global (name : String)
+  | tuple (items : List Core.Closure.GlobalTupleItem)
   | unsupported
 
 abbrev Locals (slots : Nat) := Vector (Option Value) slots
+
+def readTupleItem (space : Namespace) : Core.Closure.GlobalTupleItem → Result
+  | .literal value => .ok (Value.ofScalar value)
+  | .global name =>
+    (space.lookupGlobal name).elim (.error (.raised (.runtime (.nameError name)))) .ok
+  | .read (.local slot) | .read (.owned slot) | .read (.capture slot) => Fin.elim0 slot
 
 def Operand.eval {slots : Nat} (space : Namespace) (locals : Locals slots) : Operand slots → Result
   | .literal value => .ok value
@@ -113,6 +133,8 @@ def Operand.eval {slots : Nat} (space : Namespace) (locals : Locals slots) : Ope
     (locals.get slot).elim (.error (.raised (.runtime (.unboundLocal slot.val)))) .ok
   | .global name =>
     (space.lookupGlobal name).elim (.error (.raised (.runtime (.nameError name)))) .ok
+  | .tuple items =>
+    (Core.Closure.assembleFlatTuple (readTupleItem space) Value.scalar? .unsupported items).map .returnedTuple
   | .unsupported => .error .unsupported
 
 structure Expectation where
@@ -190,7 +212,7 @@ def Request.decode (callee : Value) (arguments : List Value) : Request arguments
   | .helper .assertIsNot, [.int _, .bool _] | .helper .assertIsNot, [.bool _, .int _] => .distinctIntBool
   | .helper (.assertRaises onReturn), .exceptionClass expected :: callback :: arguments =>
     .expect ⟨expected, onReturn⟩ callback arguments (by simp only [List.length_cons]; omega)
-  | .none, _ | .int _, _ | .bool _, _ | .listObject _, _ => .nonCallable
+  | .none, _ | .int _, _ | .bool _, _ | .listObject _, _ | .returnedTuple _, _ => .nonCallable
   | _, _ => .unsupported
 
 /-- Invoking an expectation calls the supplied closed callable using the

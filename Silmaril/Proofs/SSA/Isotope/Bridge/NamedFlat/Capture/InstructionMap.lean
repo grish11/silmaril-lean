@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.Capture.Thms
-public import Silmaril.SSA.Isotope.LambdaSSA.Flat.InstructionMap.Thms
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Packing.Input.Destructure.InstructionMap.Thms
 
 public section
 
@@ -70,15 +70,6 @@ private theorem tabulate_map {α : Type u} {β : Type v} (map : α → β) (n : 
         simp only [Option.map_some, Option.bind_some]
         exact congrArg some (funext (Fin.cases rfl (fun _ => rfl)))
 
-private theorem split_map {τ : Type w} (Γ : VCtx τ) (i : Nat) (r : Region Φ) :
-    (Region.InputDestructure.split Γ i r).mapInstr f =
-      Region.InputDestructure.split Γ i (r.mapInstr f) := by
-  induction Γ generalizing i <;> simp_all [Region.InputDestructure.split, Region.mapInstr, Tm.mapInstr]
-
-private theorem packInputsDestructure_map {τ : Type w} (Γ : VCtx τ) (r : Region Φ) :
-    (r.packInputsDestructure Γ).mapInstr f = (r.mapInstr f).packInputsDestructure Γ := by
-  simp only [Region.packInputsDestructure, split_map, Region.mapInstr_renameVars]
-
 variable {τ : Type w} {blocks exits n : Nat} {β : BoundCtx τ n}
   {g : FiniteCFG Φ blocks exits n} {closed : FiniteCFG Φ blocks exits 0}
   {input : LetCase.LocallyNameless.Tm Empty Φ 0}
@@ -87,7 +78,7 @@ theorem closes_mapInstr (h : Closes β input g closed) :
     Closes β (input.mapInstr f) (g.mapInstr f) (closed.mapInstr f) := by
   constructor
   · simp only [FiniteCFG.mapInstr, Flat.erase_mapInstr, h.entry, Region.mapInstr,
-      packInputsDestructure_map, Morphism.CaseSSA.erase_mapInstr]
+      Region.packInputsDestructure_mapInstr, Morphism.CaseSSA.erase_mapInstr]
   · intro i
     simp only [FiniteCFG.mapInstr, Flat.erase_mapInstr, h.block i]
 
@@ -149,7 +140,7 @@ theorem close_mapInstr (β : BoundCtx (Ty Base) n) (R : Fin blocks → Ty Base) 
         Option (Flat Ψ (blocks + exits) 1)) =
       (reify (g.entry.erase.packInputsDestructure β.toList) :
         Option (Flat Φ (blocks + exits) 1)).map (Flat.mapInstr f) := by
-    simp only [FiniteCFG.mapInstr, Flat.erase_mapInstr, ← packInputsDestructure_map, reify_map]
+    simp only [FiniteCFG.mapInstr, Flat.erase_mapInstr, ← Region.packInputsDestructure_mapInstr, reify_map]
   have table :
       (tabulate blocks (fun i => reify ((g.mapInstr f).block i).erase) :
         Option (Fin blocks → Flat Ψ (blocks + exits) 1)) =

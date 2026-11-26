@@ -407,6 +407,222 @@ in the fresh-top overlay. The enriched Paper presentations have separate
 generators and require their own soundness theorems.
 [Regression][ssa-ub-paper-uniformity-regression]
 
+### Guarded Paper category interpretation
+
+For a fixed shaped model and captured environment, `Shape.Paper.interpretation`
+maps the installed guarded `Paper.Interface` category to shaped
+stateful observations. Objects carry exact label types. An arrow receives
+a typed payload and a machine state and returns an existing lifted
+`Behaviour`. Each ordinary return has the type of its exit label. Identity
+returns the incoming label, payload and state. Composition uses
+`Behaviour.bind`, which invokes the second arrow at the first arrow's final
+state. Faults and may-divergence propagate, and fresh top propagates from
+the first arrow or a reached continuation. The target satisfies both identity
+laws and associativity. [Target category][ssa-ub-shaped-category]
+
+The map on arrows is the descended `Paper.Hom` denotation at the chosen
+typed payload. Its composition proof interprets the actual literal
+`ContinuationFamily.compose` representative, including the weakening that
+keeps the producer's input out of the second arrow's captures. The guarded
+literal substitution theorem equates it with sequencing at the returned
+state and payload. This preserves faults, primitive divergence, and
+infinite CFG replay. The same functor restricts to the installed
+empty-capture singleton category via `singletonInterpretation`.
+[Functor][ssa-ub-paper-category]
+
+The singleton regression runs a nondeterministic producer that updates
+state from zero to one and a continuation whose successful execution
+requires state one and returns at state three. It checks faults in both
+arrows, a primitive divergence in the continuation, and infinite replay
+in the producer. The source uses native representatives. Preservation of
+structural operations and iteration is a separate question.
+[Composition regression][ssa-ub-paper-category-regression]
+
+### Exact sums and the empty type
+
+The shaped observation category has a binary coproduct at the singleton
+label of exact type `A ⊕ B`, with its universal property against any
+shaped target interface. The injections return the chosen tag and keep
+the state. Copairing passes the unwrapped payload and incoming state to
+the selected arrow and returns its entire behaviour, including faults,
+may-divergence, and fresh top. Every shaped sum payload is a left or right
+tag with its declared type. The empty-typed singleton is initial because
+it has no well-typed input. These facts follow from the free runtime
+shapes for any atom typing relation.
+[Target laws][ssa-ub-shaped-exact-sum]
+
+The guarded singleton interpretation maps the installed exact injections,
+copair and empty eliminator to these operations. The image of the exact
+sum cocone is colimiting. The binary and initial proofs give the Mathlib
+`PreservesFiniteCoproducts` property. The stateful regression takes the
+installed Paper copair of two effectful arrows, checks distinct final
+states and faults, and verifies that the right arm's fault and divergence
+are absent from the left-tagged execution.
+[Preservation][ssa-ub-paper-exact-sum] [Regression][ssa-ub-paper-exact-sum-regression]
+
+### Product values and fixed-factor actions
+
+The shaped singleton target identifies a product payload with a pair
+of typed payloads. Building and splitting the pair are inverse. For
+state-preserving value maps, pairing is pointwise and the two projections
+determine it uniquely. The guarded singleton interpretation maps the
+installed projections and diagonal to these value maps. It also maps
+each constructor return to a value map and sends the installed
+`pairArrows` to pointwise pairing whenever both interpreted legs are
+certified to be value maps. The shaped model constrains successful
+primitive reply types. An effect annotation alone supplies no operational
+purity law. The regression gives a syntactically pure return whose
+primitive changes the state in an admissible shaped model.
+[Value laws][ssa-ub-shaped-product] [Preservation][ssa-ub-paper-product]
+
+Both installed fixed-factor actions interpret over arbitrary guarded
+singleton arrows. The active component starts at the incoming state.
+Literal substitution repackages successful returns with the fixed
+component and preserves their final state. Faults and may-divergence
+pass through. The stateful regression checks that increment then double
+returns state four from state one, and double then increment returns
+state three, with the original tagged payload pair in both results.
+It also checks pairing the projections in reverse order.
+The product universal property here is for typed value maps.
+[Regression][ssa-ub-paper-product-regression]
+
+### Bind-first exact-sum iteration
+
+The installed guarded singleton `iterateSum` for a step `A → B ⊕ A`
+interprets as repeated observations of that step. The left tag returns
+the payload and its final machine state. The right tag transfers that
+payload and final state to the next invocation. The comparison uses the
+one-label native CFG, guarded literal substitution, and the typed
+payload invariant at reachable blocks. The one-step unfolding composes
+the interpreted step with the exact-sum copair of identity and the
+interpreted iterator.
+
+Finite returns and faults agree in both directions. May-divergence is
+either divergence in a finitely reached step or an infinite chain of
+ordinary repeat observations. This uses the native CFG agreement theorem,
+including its coinductive divergence proof. The interpreted native
+arrows yield ordinary observations. The target closure retains its
+reachable-top rule for general observation arrows. The comparison is
+at the installed empty-capture exact-sum iterator. Its one-step law
+follows from the guarded source law and exact-sum preservation.
+
+The regression makes a state-changing request before a tag-producing
+request. From state zero it repeats once before returning at state two,
+faulting at state twelve, or diverging in the second step. From state
+two it has an infinite chain of repeats.
+[Preservation][ssa-ub-paper-iteration] [Regression][ssa-ub-paper-iteration-regression]
+
+### Iteration refinement
+
+The empty-capture `iterateSum` is monotone at each shaped model for
+pointwise inclusion of complete step behaviours over typed inputs and
+machine states. More permissive behaviours are on the right. Ordinary
+outcomes use subset inclusion, and fresh UB is greatest. Retagging
+preserves this order, so the repeated-observation comparison transports
+the existing feedback monotonicity theorem to the guarded iterator.
+An `Overlay.Refines` proof on typed step representatives supplies the
+pointwise hypothesis in every shaped model.
+
+A fault is a finite outcome at its exact final state. Divergence has
+its own observation and can arise in a finite reached step or from an
+infinite chain of repeats. With an ordinary upper behaviour each path
+is matched at the same payload and intermediate state. If a reached
+upper step exposes fresh UB, the upper closure is top.
+
+The regression adds a fault while keeping the repeat to state one and
+checks that the return survives. A second comparison matches every
+step after erasing only the repeat's final state. Changing that state
+from one to two removes the original return and reaches a fault
+instead, so the erased comparison does not imply iterator refinement.
+[Monotonicity][ssa-ub-paper-iteration] [Refinement regression][ssa-ub-paper-iteration-refinement]
+
+### Exact-sum iteration of explicit overlay steps
+
+An exactly typed overlay step with one input binder and one exact-sum
+exit interprets directly as a shaped singleton arrow at a fixed capture
+environment.
+`iterateOverlay` closes that arrow through the existing directed feedback
+and returns an arrow whose ordinary successful outputs have the result
+type. The same `WithTop (Set Outcome)` carrier applies at each initial
+machine state. `Overlay.Refines` on two steps implies pointwise
+refinement of their iterators through the existing feedback order.
+
+The closed behaviour is greatest exactly when finitely many ordinary
+right-tagged repeats reach a step at fresh top, including zero repeats.
+Every repeat carries a typed payload and its exact final machine state.
+A start whose first step is ordinary and has no repeat sees exactly the
+terminal observations of that step. With native representatives the
+whole shaped arrow agrees with the installed guarded `iterateSum`,
+including ordinary divergence.
+
+The regression runs the same overlay step at two initial states. From
+one it repeats at a new state and takes the explicit `ub` continuation,
+so the result is greatest. From the other it returns at once, and its
+exact ordinary singleton behaviour is independent of the unused
+continuation. Replacing an ordinary continuation with `ub` is checked
+as a typed refinement. This regression uses the empty-capture instance.
+[Overlay iteration][ssa-ub-shaped-overlay-iteration] [Regression][ssa-ub-shaped-overlay-iteration-regression]
+[Native agreement][ssa-ub-paper-iteration]
+
+### Fixed capture packs
+
+A step in context `[A, X]` can iterate on a product input `X × A`.
+The outer product is unpacked once. Its left field supplies the fixed
+capture of type `X`, which can itself contain products, and its right
+field supplies the initial loop payload. Every right-tagged repeat
+changes only the loop payload and machine state. Fresh top at an
+initial input and state is equivalent to a finite path of such repeats
+to a step at fresh top, with the original capture in scope throughout.
+The existing `Overlay.Refines` order gives pointwise monotonicity.
+
+At a fixed typed environment, the interpretation agrees with the
+installed `CfgEta.TypeCategory.iterateSum` projected to Paper and with
+`Paper.feedback` using the installed exact-sum dispatcher. For the
+product input, the concrete native packing equation compares the
+overlay arrow with `let₂ (var 0)` around that native iterator
+representative. The body skips the original product slot after binding
+the seed at slot zero and the capture at slot one. This equation keeps
+the whole observed behaviour, including faults and both sources of
+may-divergence. The product-input comparison uses one capture binder of
+arbitrary exact type.
+
+The literal-UB regression starts both runs with the same seed and
+machine state zero. Both repeat with a changed payload at state one.
+The first capture then reaches UB. The second reaches an ordinary
+return at state two.
+[Packed iterator][ssa-ub-shaped-capture-iteration] [Native comparisons][ssa-ub-paper-capture-iteration]
+[Regression][ssa-ub-shaped-capture-regression]
+
+### Certified finite deterministic iteration
+
+The finite checker compares two overlay steps in the same shaped model.
+Its carrier enumerates supported captures and pairs of loop payload and
+machine state. The caller supplies executable tables and a certificate
+that each row equals the complete observation of the corresponding
+typed step. A repeat names another coded invocation under the same
+capture. Returns and faults carry an exact final state. The result
+payload and final-state decoders are injective, so comparison of the
+codes reflects comparison of ordinary singleton observations.
+
+The evaluator scans at most as many rows as there are invocation codes
+along the deterministic path. If that scan sees only repeats, the path has
+revisited a code and repeats forever. The proof constructs the infinite
+feedback path and excludes any reachable terminal row or fresh UB.
+This gives an ordinary divergence observation, which is also the
+result of an in-step divergence row. A reached UB row instead yields
+fresh top. Exact classification gives a Boolean decision for the
+existing shaped observation order at every coded start, with more
+permissive behaviour on the right. Each certified row must have exactly
+one ordinary outcome or be fresh top. Empty and nondeterministic step
+behaviours are outside this table presentation.
+
+The certified regression reaches literal UB after a state-changing
+repeat, follows a two-state cycle with no reachable UB, and checks an
+ordinary fault and an in-step divergence. Replacing the UB continuation
+with an ordinary return passes refinement toward the UB variant. The
+reverse comparison fails.
+[Checker and exactness][ssa-ub-finite-iteration] [Certified regression][ssa-ub-finite-regression]
+
 ## Coverage and gaps
 
 | Language | Refinement and institutions in the repository | UB construction and remaining hypotheses |
@@ -440,6 +656,14 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Feedback.Elimination.Regression
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.NativeQuotient.Regression
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Uniformity.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.ExactSum.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Product.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Iteration.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Iteration.Refinement.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Category.Iteration.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Category.Iteration.Capture.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Category.Iteration.Finite.Regression
 ```
 
 [ordered]: ../../Silmaril/Raw/SSA/Isotope/Institution/Refinement/Ordered.lean
@@ -505,5 +729,24 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-paper-collapse]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Thms.lean
 [ssa-ub-paper-uniformity]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Uniformity/Thms.lean
 [ssa-ub-paper-descent]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Descent/Thms.lean
+[ssa-ub-shaped-category]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Thms.lean
+[ssa-ub-paper-category]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Thms.lean
+[ssa-ub-paper-category-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Regression.lean
+[ssa-ub-shaped-exact-sum]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/ExactSum/Thms.lean
+[ssa-ub-paper-exact-sum]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/ExactSum/Thms.lean
+[ssa-ub-paper-exact-sum-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/ExactSum/Regression.lean
+[ssa-ub-shaped-product]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Product/Thms.lean
+[ssa-ub-paper-product]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Product/Thms.lean
+[ssa-ub-paper-product-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Product/Regression.lean
 [ssa-ub-paper-uniformity-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Uniformity/Regression.lean
 [ssa-ub-paper-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Regression.lean
+[ssa-ub-paper-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Thms.lean
+[ssa-ub-paper-iteration-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Regression.lean
+[ssa-ub-paper-iteration-refinement]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Refinement/Regression.lean
+[ssa-ub-shaped-overlay-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Thms.lean
+[ssa-ub-shaped-overlay-iteration-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Regression.lean
+[ssa-ub-shaped-capture-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Capture/Thms.lean
+[ssa-ub-paper-capture-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Capture/Thms.lean
+[ssa-ub-shaped-capture-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Capture/Regression.lean
+[ssa-ub-finite-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Finite/Thms.lean
+[ssa-ub-finite-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Finite/Regression.lean

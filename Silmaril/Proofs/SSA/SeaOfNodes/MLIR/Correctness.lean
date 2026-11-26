@@ -79,7 +79,7 @@ private theorem push_scope {scope : Scope args past Γ} {env : Env Γ}
       (locals.snoc (.cons value .nil)) :=
   ⟨weaken_names ok.inputsAgree (valueBits value), push_agree env scope.locals locals ok.localsAgree value⟩
 
-private theorem operands_correct {scope : Scope args past Γ} {env : Env Γ}
+theorem operands_correct {scope : Scope args past Γ} {env : Env Γ}
     {entry : Tuple (Val Word) args} {locals : Locals (Val Word) past}
     (ok : scope.Agrees env entry locals) {ins : List (ValueSort Width)}
     (wires : Wires args past (dataPorts ins)) :

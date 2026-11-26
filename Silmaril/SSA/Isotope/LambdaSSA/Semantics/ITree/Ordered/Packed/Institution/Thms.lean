@@ -14,12 +14,12 @@ open Silmaril.Logic.Institution (Room Inst)
 
 universe u v
 
-variable {κ : Type (u + 1)} {P Q S : FlatInstitution.Signature.{u, v} κ}
+variable {κ : Type (u + 1)} {P Q S : FlatInstitution.Signature.{u, v} κ} {A : Ty κ}
 
-@[simp] theorem Sentence.map_id (s : Sentence P) : s.map (𝟙 P) = s :=
+@[simp] theorem Sentence.map_id (s : Sentence P A) : s.map (𝟙 P) = s :=
   Proofs.SSA.Isotope.LambdaSSA.Interaction.Typed.Ordered.PackedInstitution.sentence_map_id s
 
-theorem Sentence.map_comp (g : P ⟶ Q) (h : Q ⟶ S) (s : Sentence P) :
+theorem Sentence.map_comp (g : P ⟶ Q) (h : Q ⟶ S) (s : Sentence P A) :
     s.map (g ≫ h) = (s.map g).map h :=
   Proofs.SSA.Isotope.LambdaSSA.Interaction.Typed.Ordered.PackedInstitution.sentence_map_comp g h s
 
@@ -55,15 +55,15 @@ theorem packing_entails_iff (Γ : Set (FlatInstitution.Sentence P)) (φ : FlatIn
   (packingCorridor Events P).entails_map_iff (fun M => ⟨M, rfl⟩) Γ φ
 
 /-- The packed institution uses the same reduct functors as the flat one. -/
-@[expose] def roomFunctor : FlatInstitution.Signature.{u, v} κ ⥤ Room.{max (u + 1) v, max (u + 1) v, max (u + 1) v} where
-  obj := room Events
-  map g := corridor Events g
+@[expose] def roomFunctor (A : Ty κ := Silmaril.unit) : FlatInstitution.Signature.{u, v} κ ⥤ Room.{max (u + 1) v, max (u + 1) v, max (u + 1) v} where
+  obj P := room Events P A
+  map g := corridor Events g A
   map_id P := Room.hom_ext (funext Sentence.map_id) (FlatInstitution.reductFunctor_id Events P)
   map_comp g h := Room.hom_ext (funext (Sentence.map_comp g h)) (FlatInstitution.reductFunctor_comp Events g h)
 
-@[expose] def institution (κ : Type (u + 1)) [AtomValues κ] :
+@[expose] def institution (κ : Type (u + 1)) [AtomValues κ] (A : Ty κ := Silmaril.unit) :
     Inst.{max (u + 1) (v + 1), max (u + 1) v, max (u + 1) v, max (u + 1) v, max (u + 1) v} :=
-  ⟨FlatInstitution.Signature.{u, v} κ, roomFunctor Events⟩
+  ⟨FlatInstitution.Signature.{u, v} κ, roomFunctor Events A⟩
 
 /-- Packing translates sentences over the identity signature functor and
 leaves each model unchanged. -/

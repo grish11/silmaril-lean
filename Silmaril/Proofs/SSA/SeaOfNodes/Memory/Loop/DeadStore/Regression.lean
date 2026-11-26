@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.SeaOfNodes.Memory.Loop.DeadStore.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.DeadStore.Search.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Loop.Thms
 
 namespace Silmaril.SSA.SeaOfNodes.Memory.Loop.DeadStore
@@ -84,5 +85,22 @@ example : rewriteWith source ⟨1, 5⟩ facts = none := rfl
 example : rewrite source candidate facts (input headCell) = none := rfl
 example : (source.body.denote (input headCell) (initial 1)).2.read headCell = 0 := by cbv
 example : (target.body.denote (input headCell) (initial 1)).2.read headCell = 1 := by cbv
+
+private theorem discovered : Search.rewrite source 1 facts input = some target := rfl
+
+example : source.ReturnsAfter input (initial 1) 2 0 exitHeap :=
+  (Search.rewrite_returnsAfter_iff input discovered (initial 1) 2 0 exitHeap).mp
+    ((target.returnsAfter_iff_evalAfter input (initial 1) 2 0 exitHeap).mpr (by cbv))
+
+example : Search.rewrite (source headPort) 1 facts input = none := rfl
+example : Search.rewrite source 1 facts (input headCell) = none := rfl
+
+private def singleStore : Graph args :=
+  ⟨.load (.latest 0) (.arg headPort)
+    (.store (.latest 0) (.arg headPort) (.arg stopPort)
+      (.ret (.latest 1) (.output (0 : Fin 1) .head))), rfl, stopPort⟩
+
+-- Reentering this body still provides no overwrite in this activation.
+example : Search.rewrite singleStore 1 ⟨headPort, []⟩ input = none := rfl
 
 end Silmaril.SSA.SeaOfNodes.Memory.Loop.DeadStore

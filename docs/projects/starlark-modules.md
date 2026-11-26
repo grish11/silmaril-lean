@@ -565,12 +565,136 @@ check repeated omitted calls, an explicit override, and a reached index
 error that precedes both a later uninitialized operand and surplus
 arity. The pinned Go control also exercises repeated calls after
 rebinding a defining local in a nested function. The checked source
-trace covers module-level defaulted definitions with no captures.
-Nested defaulted definitions, broader defaulted bodies and operands,
-computed callable provenance, keywords and spreads, loads and text
-parsing remain outside the theorem. The existing rejection of
+trace covers module-level defaulted definitions and the bounded
+escaping wrapper below. Broader nested definitions, defaulted bodies
+and operands, computed callable provenance, keywords and spreads,
+loads and text parsing remain outside the theorem. The existing rejection of
 duplicate module bindings also applies.
 [Profile and source rules](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Bindings/Defaults/Defs.lean) · [Theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Bindings/Defaults/Thms.lean) · [Lean fixtures](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Bindings/Defaults/Checks.lean) · [Pinned Go comparison](../../scripts/starlark/default-call-trace/check.go)
+
+#### Escaping nested defaults
+
+The checked schedule also admits a wrapper with one required parameter.
+The wrapper defines a positional function whose body returns one of its
+own parameters, rebinds the wrapper parameter to an integer, and returns
+the child. Defaults may read the wrapper parameter, index that value
+with a literal integer, or use an integer or singleton integer list
+display. The child body has no captures in this profile.
+
+The source compiler links both declarations at their actual indices.
+On entry the wrapper owns a cell initialized by positional binding and
+a different cell for the unbound child name. Source defaults evaluate
+in that reached frame and run in declaration order. Allocations extend
+the heap. On success the child saves the resulting values, including
+any mutable alias, before the wrapper write. Returning the child
+restores the caller with the same closure cell. The module schedule
+tracks its address across copies and uses its saved values for omitted
+arguments. An explicit operand overrides its own slot. Publication
+freezes values reachable through the saved record.
+
+The failure control allocates the first default before the second
+fails on an index. The earlier allocation remains in the residual
+heap. The child name stays unbound, the local write and subsequent
+module commands are skipped, and there is no publication. Pinned
+Starlark-Go agrees on the results and reached error. The Lean checks
+also inspect the exact residual heap and restored caller. More general
+wrapper bodies, nested chains of defaulted declarations, and captures
+in a defaulted child body need separate source rules.
+[Profile and source rules](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Defs.lean) · [Frame and body theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Thms.lean) · [Module theorem](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Bindings/Defaults/Thms.lean) · [Lean fixtures](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Checks.lean) · [Pinned Go comparison](../../scripts/starlark/escaping-defaults/check.go)
+
+#### Compositional bodies for defaulted calls
+
+The multiple-callee schedule can also admit a module definition with
+a sequence of lexical name assignments followed by a return. The
+independent body judgment relates each source operand to its scoped
+read and records the reads in source order. The local binder judgment
+collects the whole body before any read is resolved. Capture selection
+is derived from those reads. The supported operands are name reads,
+integers, subscript reads, and singleton list displays over admitted
+operands. All assignment targets use owned slots.
+
+`Defaults.Body.body_agrees` derives a complete reached body from that
+static relation and the activation invariant. Owned names, including
+unbound locals, have fresh binding cells. A selected capture denotes
+a live caller cell below the activation's allocation boundary. Each
+assignment evaluates its RHS before writing, and any reached error
+stops the sequence. The final frame and retained cells agree exactly
+with independent operational execution and the body denotation.
+
+Module entry derives the capture addresses and saved-default binding
+for root definitions. An alias keeps both records. The source module
+trace restores the caller and agrees on publication and freezing or
+the first error and residual heap. The fixtures read a module binding
+initialized after function definition and compare omitted with explicit
+arguments. Calling before that binding initializes retains a prior
+local list allocation and assignment, skips subsequent body and
+module commands, and leaves the call destination unbound. The pinned
+Go control observes its partial globals and error. The Lean control
+also checks the residual heap and restored frame.
+
+The generic body theorem accepts live enclosing captures through its
+frame premise. The checked module integration derives this premise
+for captures of module bindings and for the nested case below.
+Control flow and wider body operands and assignment targets remain
+outside the compositional body profile.
+[Body rules and frame invariant](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Body/Defs.lean) · [Theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Body/Thms.lean) · [Lean fixtures](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Body/Checks.lean) · [Pinned Go comparison](../../scripts/starlark/defaulted-body/check.go)
+
+## Enclosing captures in defaulted bodies
+
+The multiple-callee trace admits an escaping wrapper with required
+positional parameters and a compositional child body. The wrapper can
+execute a straight-line sequence of lexical assignments before the child
+definition. After definition it rebinds its first parameter and can
+execute integer assignments to other local names. The whole-block
+collector places binders from both sequences and the child definition
+in first-binder order. Repeated assignments share one slot.
+`Defaults.Escape.Scoped.checked_site` links the layout, the compiled
+prefix and the independently selected capture list to the emitted
+declarations.
+
+The prefix uses the straight-line body rules for local and module reads,
+integers, indexing and singleton list displays. An owned name shadows a
+module name throughout the wrapper block. Independent capture selection
+admits the remaining module references in first-read order. Module entry
+supplies the selected addresses from the reached module frame, and
+wrapper definition stores them with the module capture flag. The trace
+preserves those addresses through aliases and module assignments.
+`prefix_module_read` proves that activation reads the current module
+cell, including its uninitialized state, through the same address.
+
+The prefix judgment composes with any reached continuation. It preserves
+owned slot addresses and existing caller cells. A prefix error restores
+the caller immediately with the reached heap, before any default or
+child installation. A successful prefix supplies its actual heap to the
+definition, where defaults evaluate once in order.
+
+`returned_frame` identifies the successful prefix state and the exact
+default values evaluated there. It relates the child's capture vector
+to the same reached frame, and the escaped closure supplies those live
+addresses to later calls. `capture_order` gives one entry per selected
+child binding in declaration order. The suffix updates captured cells
+and preserves the saved defaults. The checked module theorem carries
+the closure through aliases and repeated calls and gives exact
+operational and denotational agreement on publication and reachable
+freezing or on the first error, retained heap and restored caller.
+
+The fixture defines the wrapper before its module input is initialized.
+A checked list mutation between two wrapper calls changes what the
+second prefix reads. The original escaped child keeps its saved value. A local of the same name as another module binding
+supplies the index. The failure controls distinguish an uninitialized
+module read, a later bad index, and an uninitialized default read of a
+suffix-only local. Lean checks the capture kinds, private residual heap,
+and caller restoration. The pinned Go control compares visible results,
+failure state and freezing with its default file options. The activation
+theorem uses the current binding cell on each call. The checked module
+profile rejects repeated module name bindings through the existing
+collision check.
+
+Wider wrapper bodies and operands, direct module reads in this wrapper's
+defaults, capture of module or child-name slots by the child, deeper
+nesting, arbitrary callable provenance, keywords and spreads, loads,
+and text parsing remain outside this integration.
+[Source rules](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Scoped/Defs.lean) · [Capture and frame theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Scoped/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Escape/Scoped/Checks.lean) · [Pinned Go comparison](../../scripts/starlark/nested-default-body/check.go)
 
 ## Finite-manifest loader
 
@@ -635,7 +759,10 @@ lake build --wfail +Silmaril.Languages.Starlark.Modules.Checks \
   +Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Checks \
   +Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Checks \
   +Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Checks \
-  +Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Defaults.Checks
+  +Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Defaults.Checks \
+  +Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Checks \
+  +Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Body.Checks \
+  +Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped.Checks
 ```
 
 Use Go 1.25 or newer and run from the repository root.
@@ -646,12 +773,16 @@ mixed_leaf="$(pwd)/scripts/starlark/mixed-leaf.go"
 multi_callee="$(pwd)/scripts/starlark/multi-callee/check.go"
 defaults="$(pwd)/scripts/starlark/positional-defaults/check.go"
 default_trace="$(pwd)/scripts/starlark/default-call-trace/check.go"
+escaping_defaults="$(pwd)/scripts/starlark/escaping-defaults/check.go"
+defaulted_body="$(pwd)/scripts/starlark/defaulted-body/check.go"
+nested_default_body="$(pwd)/scripts/starlark/nested-default-body/check.go"
 oracle="$(mktemp -d)"
 git clone https://github.com/google/starlark-go.git "$oracle"
 git -C "$oracle" checkout --detach 4f4267fb140d1e8b91c9bce55cee2f809e8840dd
 (cd "$oracle" && go run "$fixtures/modules/check.go" && go run "$fixtures/loader/check.go" &&
   go run "$fixtures/scope/check.go" && go run "$mixed_leaf" && go run "$multi_callee" &&
-  go run "$defaults" && go run "$default_trace")
+  go run "$defaults" && go run "$default_trace" && go run "$escaping_defaults" &&
+  go run "$defaulted_body" && go run "$nested_default_body")
 ```
 
 [default-parameters]: https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#functions

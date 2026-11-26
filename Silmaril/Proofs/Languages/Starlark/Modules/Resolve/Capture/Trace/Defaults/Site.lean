@@ -16,11 +16,15 @@ open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults
 open Silmaril.Languages.Starlark.Functions
 open Silmaril.Languages.Starlark.Functions.Lowering.Resolve
 
+theorem signature_defaults (parameters : Parameters) (codes : List Lowering.Expr) :
+    (parameters.signature codes).defaulted = (parameters.optional.map (fileSlot ∘ Prod.fst)).zip codes := by
+  simp [Parameters.signature, requiredSignature, Signature.defaulted, Signature.named,
+    List.filterMap_append, List.filterMap_map, Function.comp_def]
+
 theorem default_slots (definition : Definition) (codes : List Lowering.Expr) :
     (definition.emitted codes).signature.defaulted =
-      (definition.parameters.optional.map (fileSlot ∘ Prod.fst)).zip codes := by
-  simp [Definition.emitted, requiredSignature, Signature.defaulted, Signature.named,
-    List.filterMap_append, List.filterMap_map, Function.comp_def]
+      (definition.parameters.optional.map (fileSlot ∘ Prod.fst)).zip codes :=
+  signature_defaults definition.parameters codes
 
 private theorem parameter_names (parameters : Parameters) :
     parameters.source.parameterNames = parameters.names := by
@@ -77,7 +81,7 @@ private theorem elaborates {globals : List String} {definition : Definition}
   rw [defaults_resolved definition defaults identified]
   have params := parameter_names definition.parameters
   rw [sourceSignature] at params
-  simp [Definition.emitted, layout, params, free]
+  simp [Definition.emitted, Parameters.signature, layout, params, free]
 
 theorem definition_emission {globals : List String} {definition : Definition}
     (admitted : Admitted globals definition) :
@@ -114,27 +118,28 @@ private theorem exact_saved (parameters : Parameters) (values : List Silmaril.La
   rw [List.filterMap_append, List.zip_map_right]
   simp [List.filterMap_map, Function.comp_def, Prod.map]
 
-private theorem same_slots (definition : Definition) (codes : List Lowering.Expr)
+private theorem same_slots (parameters : Parameters) (codes : List Lowering.Expr)
     (values : List Silmaril.Languages.Starlark.Lists.Value)
-    (codeLength : codes.length = definition.parameters.optional.length)
-    (valueLength : values.length = definition.parameters.optional.length) :
-    (definition.emitted codes).signature.positional.map Parameter.slot =
-      (definition.parameters.slots values).map Prod.fst := by
-  have codeSlots := List.map_fst_zip (l₁ := definition.parameters.optional.map (fileSlot ∘ Prod.fst))
+    (codeLength : codes.length = parameters.optional.length)
+    (valueLength : values.length = parameters.optional.length) :
+    (parameters.signature codes).positional.map Parameter.slot =
+      (parameters.slots values).map Prod.fst := by
+  have codeSlots := List.map_fst_zip (l₁ := parameters.optional.map (fileSlot ∘ Prod.fst))
     (l₂ := codes) (by simp [codeLength])
-  have valueSlots := List.map_fst_zip (l₁ := definition.parameters.optional.map (fileSlot ∘ Prod.fst))
+  have valueSlots := List.map_fst_zip (l₁ := parameters.optional.map (fileSlot ∘ Prod.fst))
     (l₂ := values.map some) (by simp [valueLength])
-  simp [Definition.emitted, Parameters.slots, requiredSignature, List.map_map, Function.comp_def]
+  simp [Parameters.signature, Parameters.slots, requiredSignature, List.map_map, Function.comp_def]
   exact codeSlots.trans valueSlots.symm
 
 private theorem checked_slots {commands : List Command} {linked : Program} {resolved : ResolvedModule}
-    (checked : resolve commands linked = .ok resolved) (id : Nat) (definition : Definition)
-    (codes : List Lowering.Expr) (found : resolved.program[id]? = some (definition.emitted codes)) :
-    ((definition.emitted codes).signature.positional.map Parameter.slot).Nodup := by
+    (checked : resolve commands linked = .ok resolved) (id : Nat) (declaration : Declaration)
+    (found : resolved.program[id]? = some declaration) (keywordOnly : declaration.signature.keywordOnly = [])
+    (varargs : declaration.signature.varargs = none) (kwargs : declaration.signature.kwargs = none) :
+    (declaration.signature.positional.map Parameter.slot).Nodup := by
   have validated := Entry.checked_signature checked _ _ found
-  let keys := (definition.emitted codes).signature.positional.map Parameter.slot
-  have slots : (definition.emitted codes).signature.slots = keys := by
-    simp [keys, Signature.slots, Signature.named, Definition.emitted]
+  let keys := declaration.signature.positional.map Parameter.slot
+  have slots : declaration.signature.slots = keys := by
+    simp [keys, Signature.slots, Signature.named, keywordOnly, varargs, kwargs]
   have firstNone : ∀ names : List String, firstDuplicate names = none ↔ names.Nodup := by
     intro names
     induction names with
@@ -149,6 +154,41 @@ private theorem checked_slots {commands : List Command} {linked : Program} {reso
     | none => rfl
     | some duplicate => simp [h] at validated; contradiction
   exact List.Pairwise.of_map (f := Binding.name) (fun _ _ different same => different (congrArg Binding.name same)) unique
+
+theorem checked_prepare_signature {commands : List Command} {linked : Program} {resolved : ResolvedModule}
+    (checked : resolve commands linked = .ok resolved) (id : Nat) (parameters : Parameters)
+    (declaration : Declaration) (codes : List Lowering.Expr)
+    (found : resolved.program[id]? = some declaration)
+    (signature : declaration.signature = parameters.signature codes)
+    (codeLength : codes.length = parameters.optional.length)
+    (state : Silmaril.Languages.Starlark.Lists.State) (address : Nat) (frozen : Bool)
+    (captures : List Silmaril.Languages.Starlark.Lists.Capture)
+    (defaults actuals : List Silmaril.Languages.Starlark.Lists.Value)
+    (valueLength : defaults.length = parameters.optional.length)
+    (cell : state.heap[address]? = some ⟨.function ⟨id, captures,
+      (parameters.optional.map (fileSlot ∘ Prod.fst)).zip defaults⟩, frozen⟩)
+    {result : Except Silmaril.Languages.Starlark.Lists.Error (List (Binding × Silmaril.Languages.Starlark.Lists.Value))}
+    (binding : Binds (parameters.slots defaults) actuals result) :
+    let available := List.range resolved.program.size
+    ∃ permitted : id ∈ available,
+      prepareExpanded resolved.program available ⟨actuals, []⟩ (.function address) state =
+        match result with
+        | .error error => .error error state
+        | .ok assigned => .ok (.closure ⟨id, permitted, declaration.body⟩)
+          (activate state declaration captures assigned) := by
+  let available := List.range resolved.program.size
+  have permitted : id ∈ available := List.mem_range.mpr (Array.getElem?_eq_some_iff.mp found).choose
+  have slots := same_slots parameters codes defaults codeLength valueLength
+  rw [← signature] at slots
+  have keywords : declaration.signature.keywordOnly = [] := by rw [signature]; rfl
+  have varargs : declaration.signature.varargs = none := by rw [signature]; rfl
+  have kwargs : declaration.signature.kwargs = none := by rw [signature]; rfl
+  have unique := checked_slots checked id declaration found keywords varargs kwargs
+  rw [slots] at unique
+  refine ⟨permitted, ?_⟩
+  have ready := prepare_saved resolved.program available _ id permitted state address captures frozen _ actuals
+    (by rw [exact_saved]; exact cell) found slots unique keywords varargs kwargs binding
+  cases result <;> exact ready
 
 /-- At a later call, the current heap supplies the closure and the values
 saved when it was defined. Preparing an omitted argument reads that value. -/
@@ -170,15 +210,9 @@ theorem checked_prepare_saved {commands : List Command} {linked : Program} {reso
         | .error error => .error error state
         | .ok assigned => .ok (.closure ⟨id, permitted, (definition.emitted codes).body⟩)
           (activate state (definition.emitted codes) [] assigned) := by
-  let available := List.range resolved.program.size
-  have permitted : id ∈ available := List.mem_range.mpr (Array.getElem?_eq_some_iff.mp found).choose
-  have slots := same_slots definition codes defaults codeLength valueLength
-  have unique := checked_slots checked id definition codes found
-  rw [slots] at unique
-  refine ⟨permitted, ?_⟩
-  have ready := prepare_saved resolved.program available _ id permitted state address [] frozen _ actuals
-    (by rw [exact_saved]; exact cell) found slots unique rfl rfl rfl binding
-  cases result <;> exact ready
+  have prepared := checked_prepare_signature checked id definition.parameters (definition.emitted codes)
+    codes found rfl codeLength state address frozen [] defaults actuals valueLength cell binding
+  cases result <;> exact prepared
 
 /-- Successful evaluation determines the new closure cell and every later
 positional binding that uses that cell at the same address. -/

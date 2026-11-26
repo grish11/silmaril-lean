@@ -48,7 +48,7 @@ theorem lambda_with_dispatch {context final : Ports (Ty V S)} {sigs : List (Port
       rw [NestedTheta.Term.toTerm_toGraph]
     apply PrefixMatches.step (enter capsL argsL left) (enter capsR argsR right)
     apply region actions observed code guardL guardR (some n) (by simp) (dispatch n) wanted _ _ PUnit.unit PUnit.unit
-      left right store resolvedL resolvedR
+      left right store (resolvedL PUnit.unit) (resolvedR PUnit.unit)
     · intro ty source needed
       cases source with
       | output i _ => exact i.elim0

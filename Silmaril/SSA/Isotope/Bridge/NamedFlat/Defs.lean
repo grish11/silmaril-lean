@@ -80,6 +80,18 @@ def tabulate {A : Type v} : (count : Nat) → (Fin count → Option A) → Optio
 
 variable [DecidableEq K]
 
+/-- Elaborate at an explicit block count equal to the length of the written
+table. This keeps positional indices stable under primitive relabelling. -/
+def elaborateAt (graph : CFG V K F) (exits : List K) (captures : Fin n → V)
+    (count : Nat) (count_eq : graph.blocks.length = count) :
+    Option (LambdaSSA.FiniteCFG F count exits.length n) :=
+  let index := fun label => (labelIndex graph.blocks exits label).map
+    (Fin.cast (congrArg (· + exits.length) count_eq))
+  (body index (first captures) graph.entry).bind fun entry =>
+    (tabulate count fun i =>
+      let block := graph.blocks[(Fin.cast count_eq.symm i)].2
+      body index (blockNames block.param) block.body).map fun blocks => ⟨entry, blocks⟩
+
 /-- Convert the entire named table, preserving block order, with the specified
 named inputs and external labels. -/
 def elaborate (graph : CFG V K F) (exits : List K) (captures : Fin n → V) :

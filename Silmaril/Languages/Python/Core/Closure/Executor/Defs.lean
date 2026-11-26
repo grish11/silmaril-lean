@@ -39,6 +39,7 @@ inductive Operand (layout : Layout) where
   | readGlobal (name : String)
   | eqInt (left : NameRead layout) (right : Int)
   | binaryInt (op : IntegerOp) (left right : Operand layout)
+  | tuple (items : List (TupleItem layout))
   | closure (code : CodeRef) (select : Fin code.layout.captures → CaptureSlot layout)
 
 abbrev Operand.addInt {layout : Layout} := @Operand.binaryInt layout .add
@@ -81,6 +82,7 @@ abbrev CodeTable := Dispatch.CodeTable Body
 
 inductive Fault where
   | danglingCell (identity : CellId)
+  | unsupportedTupleElement
   | missingCode (key : Nat)
   | layoutMismatch (expected actual : Layout)
   | unprofiledFreevars (ref : CodeRef)
@@ -175,7 +177,7 @@ def readMetadata (field : MetadataField) (table : CodeTable) : Value → Except 
       match field.select definition with
       | some names => .ok names
       | none => .error (field.unavailable fn.code definition)
-  | .int _ | .bool _ | .none => .error .nonFunction
+  | .int _ | .bool _ | .none | .tuple _ => .error .nonFunction
 
 abbrev readFreevars := readMetadata .freevars
 abbrev readCellvars := readMetadata .cellvars
@@ -201,11 +203,25 @@ def CodeNamesTest.evalIn (test : CodeNamesTest layout) (table : CodeTable) (glob
     (heap : Heap) (frame : Frame layout) : Except MetadataFailure Bool :=
   MetadataField.codeNames.evalIn test.receiver test.needle true table globals heap frame
 
+def TupleItem.evalIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout) :
+    TupleItem layout → Except Failure Value
+  | .literal value => .ok (Value.ofScalar value)
+  | .read slot => frame.read heap slot
+  | .global name => (NameRead.global name).evalIn globals heap frame
+
+/-- Resolve every reached item in order. The scalar profile check follows
+successful reads, so an earlier non-scalar value does not mask a later read error. -/
+def evalTupleIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout)
+    (items : List (TupleItem layout)) : Except Failure Value :=
+  (assembleFlatTuple (TupleItem.evalIn globals heap frame) Value.scalar?
+    .unsupportedTupleElement items).map .tuple
+
 def Operand.evalIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout) : Operand layout → Except Failure Value
   | .literal value => .ok value
   | .read slot => frame.read heap slot
   | .readGlobal name => (NameRead.global name).evalIn globals heap frame
   | .eqInt left right => (left.evalIn globals heap frame).map fun value => .bool (value.equalInt right)
+  | .tuple items => evalTupleIn globals heap frame items
   | .binaryInt op left right =>
     (left.evalIn globals heap frame).bind fun lhs =>
       (right.evalIn globals heap frame).bind (Value.binaryInt op lhs)
@@ -227,6 +243,7 @@ def fault (heap : Heap) (stack : Stack) (error : Fault) : Transition :=
 def fail (heap : Heap) (stack : Stack) : Failure → Transition
   | .defined error => (none, .delivering heap stack (.error error))
   | .danglingCell identity => fault heap stack (.danglingCell identity)
+  | .unsupportedTupleElement => fault heap stack .unsupportedTupleElement
 
 def failDispatch (heap : Heap) (stack : Stack) : Dispatch.Failure → Transition
   | .call error => fail heap stack error
@@ -338,6 +355,8 @@ inductive EvaluatesIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layo
       EvaluatesIn globals heap frame left (.ok lhs) →
       EvaluatesIn globals heap frame right (.ok rhs) →
       EvaluatesIn globals heap frame (.binaryInt op left right) (Value.binaryInt op lhs rhs)
+  | tuple (items : List (TupleItem layout)) :
+      EvaluatesIn globals heap frame (.tuple items) (evalTupleIn globals heap frame items)
   | closure (code : CodeRef) (select : Fin code.layout.captures → CaptureSlot layout) :
       EvaluatesIn globals heap frame (.closure code select) (.ok (.function (frame.closure code select)))
 
@@ -366,6 +385,8 @@ inductive Rejects (table : CodeTable) (arguments : List Value) (heap : Heap) :
   | nonCallableNone : Rejects table arguments heap .none (.call (.defined .notCallable))
   | nonCallable (value : Int) : Rejects table arguments heap (.int value) (.call (.defined .notCallable))
   | nonCallableBool (value : Bool) : Rejects table arguments heap (.bool value) (.call (.defined .notCallable))
+  | nonCallableTuple (items : List Core.Module.Value) :
+      Rejects table arguments heap (.tuple items) (.call (.defined .notCallable))
   | missing (fn : Function) (absent : table fn.code.key = none) :
       Rejects table arguments heap (.function fn) (.missingCode fn.code.key)
   | mismatch (fn : Function) (entry : Dispatch.Entry Body)

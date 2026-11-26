@@ -22,11 +22,12 @@ variable {Γ : VCtx τ} {L : LCtx τ} {r s : Region Φ}
 
 variable {Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
 
-theorem ofSeed (h : Paper.Extension.Eqv Seed Γ r s L) :
-    Paper.Extension.Eqv (AddBinding Seed) Γ r s L := by
+theorem mapSeed {Target : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
+    (incl : ∀ {Γ r s L}, Seed Γ r s L → Target Γ r s L)
+    (h : Paper.Extension.Eqv Seed Γ r s L) : Paper.Extension.Eqv Target Γ r s L := by
   induction h with
   | paper h => exact .paper h
-  | extra hr hs h => exact .extra hr hs (.inl h)
+  | extra hr hs h => exact .extra hr hs (incl h)
   | symm _ ih => exact .symm ih
   | trans _ _ ih₁ ih₂ => exact .trans ih₁ ih₂
   | let₁ ha _ ih => exact .let₁ ha ih
@@ -37,6 +38,10 @@ theorem ofSeed (h : Paper.Extension.Eqv Seed Γ r s L) :
   | lsubstPost _ hr hs hσ ih => exact .lsubstPost ih hr hs hσ
   | substVars _ hθ ih => exact .substVars ih hθ
   | renameLabels _ hρ ih => exact .renameLabels ih hρ
+
+theorem ofSeed (h : Paper.Extension.Eqv Seed Γ r s L) :
+    Paper.Extension.Eqv (AddBinding Seed) Γ r s L :=
+  mapSeed Or.inl h
 
 theorem joinedValues (h : Old Γ r s L) : ValueBranches Γ r L ∧ ValueBranches Γ s L :=
   h.elim Paper.WithProjectionReturns.Step.valueBranches (fun h => by

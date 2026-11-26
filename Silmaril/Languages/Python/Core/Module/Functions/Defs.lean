@@ -19,7 +19,7 @@ structure Session where
   globals : GlobalLookup
   heap : Heap
 
-def Session.bindGlobal (session : Session) (name : GlobalName) (value : Value) : Session :=
+def Session.bindGlobal (session : Session) (name : GlobalName) (value : Closure.Value) : Session :=
   { session with globals := fun query => if query = name then some value else session.globals query }
 
 /-- A module-level function uses global names for module bindings. Only
@@ -31,7 +31,7 @@ structure TopFunction where
 def TopFunction.closure (function : TopFunction) : Function :=
   Function.ofCaptureList function.ref [] function.noCaptures.symm
 
-def TopFunction.value (function : TopFunction) : Value :=
+def TopFunction.value (function : TopFunction) : Closure.Value :=
   .function function.closure
 
 /-- Resolve the layout before publishing the binding. Body execution starts
@@ -41,12 +41,14 @@ def Session.publish (session : Session) (table : CodeTable) (name : GlobalName)
   (Dispatch.resolve table function.ref).map fun _ => session.bindGlobal name function.value
 
 inductive Operand where
-  | literal (value : Value)
+  | literal (value : Closure.Value)
   | readGlobal (name : GlobalName)
+  | tuple (items : List GlobalTupleItem)
 
 def Operand.lower {layout : Layout} : Operand → Executor.Operand layout
   | .literal value => .literal value
   | .readGlobal name => .readGlobal name
+  | .tuple items => .tuple (items.map GlobalTupleItem.lower)
 
 inductive Destination where
   | discard
@@ -75,7 +77,7 @@ def Invocation.runPrefix (invocation : Invocation) (table : CodeTable) (fuel : N
   (log, { invocation with state })
 
 inductive Completion where
-  | returned (value : Value)
+  | returned (value : Closure.Value)
   | raised (error : RuntimeError)
   | assertionError
   | fault (error : Executor.Fault)
@@ -84,7 +86,7 @@ structure Observation where
   completion : Completion
   residual : Session
 
-def truth : Value → Bool := Value.truth
+def truth : Closure.Value → Bool := Closure.Value.truth
 
 /-- Commit the destination only after terminal success. A raised error or
 fault retains the residual heap and leaves all module bindings untouched. -/
@@ -104,14 +106,14 @@ def Invocation.finish? (invocation : Invocation) : Option Observation :=
 /-- Relational readback from an executor terminal state. The returned value
 and residual heap are the ones produced by the executor. -/
 inductive Settles (globals : GlobalLookup) : Destination → Executor.State → Observation → Prop where
-  | discarded (heap : Heap) (value : Value) :
+  | discarded (heap : Heap) (value : Closure.Value) :
       Settles globals .discard (.finished heap (.ok value)) ⟨.returned value, ⟨globals, heap⟩⟩
-  | assigned (heap : Heap) (name : GlobalName) (value : Value) :
+  | assigned (heap : Heap) (name : GlobalName) (value : Closure.Value) :
       Settles globals (.bindGlobal name) (.finished heap (.ok value))
         ⟨.returned value, (Session.mk globals heap).bindGlobal name value⟩
-  | assertTrue (heap : Heap) (value : Value) (holds : truth value = true) :
+  | assertTrue (heap : Heap) (value : Closure.Value) (holds : truth value = true) :
       Settles globals .assert (.finished heap (.ok value)) ⟨.returned value, ⟨globals, heap⟩⟩
-  | assertFalse (heap : Heap) (value : Value) (fails : truth value = false) :
+  | assertFalse (heap : Heap) (value : Closure.Value) (fails : truth value = false) :
       Settles globals .assert (.finished heap (.ok value)) ⟨.assertionError, ⟨globals, heap⟩⟩
   | raised (destination : Destination) (heap : Heap) (error : RuntimeError) :
       Settles globals destination (.finished heap (.error error)) ⟨.raised error, ⟨globals, heap⟩⟩

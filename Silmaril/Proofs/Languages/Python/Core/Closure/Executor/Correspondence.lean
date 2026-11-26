@@ -148,6 +148,7 @@ private theorem rejected_eq (rejected : Rejects table args heap callee failure) 
   | nonCallableNone => rfl
   | nonCallable value => rfl
   | nonCallableBool value => rfl
+  | nonCallableTuple items => rfl
   | missing fn absent => simp [Dispatch.dispatch, Dispatch.resolve_missing absent]
   | mismatch fn entry found different => simp [Dispatch.dispatch, Dispatch.resolve_layout_mismatch found different]
   | dangling found first => simp [Dispatch.dispatch, Dispatch.resolve_iff.mpr found, Call.enter, first]
@@ -177,6 +178,10 @@ private theorem rejected_rule (rejected : Dispatch.dispatch table callee args he
     simp [Dispatch.dispatch] at rejected
     subst failure
     exact .nonCallableBool value
+  | tuple items =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .nonCallableTuple items
   | function fn =>
     cases found : table fn.code.key with
     | none =>

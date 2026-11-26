@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Languages.Python.Core.Defs
+public import Silmaril.Languages.Python.Core.Module.Defs
 
 /-! # Slot and cell interfaces for lowered Python closures -/
 
@@ -66,6 +66,7 @@ inductive Value where
   | int (value : Int)
   | bool (value : Bool)
   | function (value : Function)
+  | tuple (items : List Core.Module.Value)
   deriving Repr
 
 def Value.truth : Value → Bool
@@ -73,13 +74,51 @@ def Value.truth : Value → Bool
   | .int value => decide (value ≠ 0)
   | .bool value => value
   | .function _ => true
+  | .tuple items => !items.isEmpty
 
 /-- Compare a value in this closed closure profile with an integer literal. -/
 def Value.equalInt : Value → Int → Bool
   | .int value, right => decide (value = right)
   | .bool false, right => decide (0 = right)
   | .bool true, right => decide (1 = right)
-  | .none, _ | .function _, _ => false
+  | .none, _ | .function _, _ | .tuple _, _ => false
+
+def Value.scalar? : Value → Option Core.Module.Value
+  | .int value => some (.int value)
+  | .bool value => some (.bool value)
+  | .none => some .none
+  | .function _ | .tuple _ => Option.none
+
+def Value.ofScalar : Core.Module.Value → Value
+  | .int value => .int value
+  | .bool value => .bool value
+  | .none => .none
+
+/-- The checked items of a flat tuple return. -/
+inductive TupleItem (layout : Layout) where
+  | literal (value : Core.Module.Value)
+  | read (slot : Slot layout)
+  | global (name : String)
+  deriving Repr
+
+/-- A module tuple has scalar literals and live global reads. Its frame
+has no local, owned, or captured slots. -/
+abbrev GlobalTupleItem := TupleItem ⟨0, 0, 0⟩
+
+def GlobalTupleItem.lower {layout : Layout} : GlobalTupleItem → TupleItem layout
+  | .literal value => .literal value
+  | .global name => .global name
+  | .read (.local slot) | .read (.owned slot) | .read (.capture slot) => Fin.elim0 slot
+
+/-- Complete the ordered reads before checking that every reached value
+can be retained as an exact scalar item. -/
+def assembleFlatTuple {Item Payload Error : Type} (read : Item → Except Error Payload)
+    (scalar : Payload → Option Core.Module.Value) (unsupported : Error)
+    (items : List Item) : Except Error (List Core.Module.Value) :=
+  (items.mapM read).bind fun values =>
+    match values.mapM scalar with
+    | some checked => .ok checked
+    | none => .error unsupported
 
 /-- Python-level errors carried across frames. An unbound incoming capture
 corresponds to `NameError`; an unbound local or owned cell to `UnboundLocalError`. -/
@@ -100,6 +139,7 @@ inductive RuntimeError where
 inductive Failure where
   | defined (error : RuntimeError)
   | danglingCell (identity : CellId)
+  | unsupportedTupleElement
   deriving DecidableEq, Repr
 
 /-- Integer-like values in the closed closure value profile. -/
@@ -107,7 +147,7 @@ def Value.asInt? : Value → Option Int
   | .int value => some value
   | .bool false => some 0
   | .bool true => some 1
-  | .none | .function _ => Option.none
+  | .none | .function _ | .tuple _ => Option.none
 
 inductive IntegerOp where
   | add
@@ -123,7 +163,7 @@ def IntegerOp.typeError : IntegerOp → RuntimeError
   | .mul => .multiplicationTypeError
 
 /-- Apply exact integer arithmetic after both operands have been read.
-The other modeled values are None and plain functions. -/
+The other modeled values include None, functions and flat tuples. -/
 def Value.binaryInt (op : IntegerOp) (left right : Value) : Except Failure Value :=
   match left.asInt?, right.asInt? with
   | some lhs, some rhs => .ok (.int (op.eval lhs rhs))

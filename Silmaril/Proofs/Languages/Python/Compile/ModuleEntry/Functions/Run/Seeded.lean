@@ -151,8 +151,10 @@ theorem run_factory_unrecorded {scope : Source.Scope} {space : Namespace} {conte
       ⟨space, .error .unsupported, [⟨name, ⟨.error .unsupported, none⟩⟩], context.heap, Core.Module.ListHeap.empty⟩ := by
   have denied (arity : Nat) : context.acceptsFactory closure arity = false := by
     simp [CallContext.acceptsFactory, CallContext.acceptsCallFrom, unpublished, unescaped]
+  have deniedTuple (arity : Nat) : context.acceptsTupleResult closure arity = false := by
+    simp [CallContext.acceptsTupleResult, CallContext.acceptsPublishedCall, CallContext.acceptsCallFrom, unpublished]
   cases operands : factoryOperands values <;>
-    simp [runInstructionsIn, effectWithLists, effect, resolved, invokeFlatCall, operands, denied,
+    simp [runInstructionsIn, effectWithLists, effect, resolved, invokeFlatCall, operands, denied, deniedTuple,
       acceptObservation, ModuleFailure.ofCall, Except.bind, Except.mapError]
 
 theorem run_factory {scope : Source.Scope} {space : Namespace} {context : CallContext}

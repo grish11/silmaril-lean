@@ -38,6 +38,19 @@ theorem load_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} 
   refine ⟨saved, address, rfl, fun bits => ?_⟩
   simpa [Function.WellTyped, Prefix.stackTypes, Value.int, List.reverse_append] using resume
 
+theorem grow_typed {fn : Function} {stack : List Value} {rest : List Op}
+    (checked : fn.WellTyped stack (.grow :: rest)) :
+    ∃ (saved : List Value) (delta : BitVec 32),
+      stack = saved ++ [Value.int .i32 delta] ∧
+      ∀ result : BitVec 32, fn.WellTyped (saved ++ [Value.int .i32 result]) rest :=
+  load_typed (offset := 0) checked
+
+theorem size_typed {fn : Function} {stack : List Value} {rest : List Op}
+    (checked : fn.WellTyped stack (.size :: rest)) (pages : BitVec 32) :
+    fn.WellTyped (stack ++ [Value.int .i32 pages]) rest := by
+  change fn.checkCode (.int .i32 :: Prefix.stackTypes stack) rest = true at checked
+  simpa [Function.WellTyped, Prefix.stackTypes, List.reverse_append, Value.int] using checked
+
 theorem store_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} {rest : List Op}
     (checked : fn.WellTyped stack (.store offset :: rest)) :
     ∃ (saved : List Value) (address word : BitVec 32),
@@ -49,32 +62,82 @@ theorem store_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)}
   exact ⟨saved, address, word, by simp [List.append_assoc], tail⟩
 
 theorem block_typed {fn : Function} {saved : List Value} {result : Option NumType}
-    {body rest : List Op} {fallthrough : List NumType}
-    (checked : fn.checkRegion (Prefix.stackTypes saved) fallthrough (.block result body :: rest) = true) :
-    fn.checkRegion [] result.toList body = true ∧
+    {body rest : List Op} {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes saved) fallthrough (.block result body :: rest) labels = true) :
+    fn.checkRegion [] result.toList body (result.toList :: labels) = true ∧
       ∀ delivered : List Value, delivered.map Value.type = result.toList →
-        fn.checkRegion (Prefix.stackTypes (saved ++ delivered)) fallthrough rest = true := by
-  change (fn.checkRegion [] result.toList body &&
-    fn.checkRegion (result.toList.reverse ++ Prefix.stackTypes saved) fallthrough rest) = true at checked
+        fn.checkRegion (Prefix.stackTypes (saved ++ delivered)) fallthrough rest labels = true := by
+  change (fn.checkRegion [] result.toList body (result.toList :: labels) &&
+    fn.checkRegion (result.toList.reverse ++ Prefix.stackTypes saved) fallthrough rest labels) = true at checked
+  obtain ⟨checkBody, checkTail⟩ := Bool.and_eq_true_iff.mp checked
+  refine ⟨checkBody, fun delivered typed => ?_⟩
+  simpa [Prefix.stackTypes, List.reverse_append, typed] using checkTail
+
+theorem loop_typed {fn : Function} {saved : List Value} {result : Option NumType}
+    {body rest : List Op} {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes saved) fallthrough (.loop result body :: rest) labels = true) :
+    fn.checkRegion [] result.toList body ([] :: labels) = true ∧
+      ∀ delivered : List Value, delivered.map Value.type = result.toList →
+        fn.checkRegion (Prefix.stackTypes (saved ++ delivered)) fallthrough rest labels = true := by
+  change (fn.checkRegion [] result.toList body ([] :: labels) &&
+    fn.checkRegion (result.toList.reverse ++ Prefix.stackTypes saved) fallthrough rest labels) = true at checked
   obtain ⟨checkBody, checkTail⟩ := Bool.and_eq_true_iff.mp checked
   refine ⟨checkBody, fun delivered typed => ?_⟩
   simpa [Prefix.stackTypes, List.reverse_append, typed] using checkTail
 
 theorem if_typed {fn : Function} {stack : List Value} {result : Option NumType}
-    {left right rest : List Op} {fallthrough : List NumType}
-    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.if_ result left right :: rest) = true) :
+    {left right rest : List Op} {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.if_ result left right :: rest) labels = true) :
     ∃ (saved : List Value) (condition : BitVec 32), stack = saved ++ [Value.int .i32 condition] ∧
-      fn.checkRegion [] result.toList left = true ∧ fn.checkRegion [] result.toList right = true ∧
+      fn.checkRegion [] result.toList left (result.toList :: labels) = true ∧ fn.checkRegion [] result.toList right (result.toList :: labels) = true ∧
       ∀ delivered : List Value, delivered.map Value.type = result.toList →
-        fn.checkRegion (Prefix.stackTypes (saved ++ delivered)) fallthrough rest = true := by
+        fn.checkRegion (Prefix.stackTypes (saved ++ delivered)) fallthrough rest labels = true := by
   change Graph.checkCondition (Prefix.stackTypes stack) (fun saved =>
-    fn.checkRegion [] result.toList left && fn.checkRegion [] result.toList right &&
-    fn.checkRegion (result.toList.reverse ++ saved) fallthrough rest) = true at checked
+    fn.checkRegion [] result.toList left (result.toList :: labels) && fn.checkRegion [] result.toList right (result.toList :: labels) &&
+    fn.checkRegion (result.toList.reverse ++ saved) fallthrough rest labels) = true at checked
   obtain ⟨saved, condition, rfl, checks⟩ := split_i32 checked
   obtain ⟨arms, checkTail⟩ := Bool.and_eq_true_iff.mp checks
   obtain ⟨checkLeft, checkRight⟩ := Bool.and_eq_true_iff.mp arms
   refine ⟨saved, condition, rfl, checkLeft, checkRight, fun delivered typed => ?_⟩
   simpa [Prefix.stackTypes, List.reverse_append, typed] using checkTail
+
+theorem branch_typed {fn : Function} {stack : List Value} {depth : LabelIdx} {result fallthrough : List NumType}
+    {rest : List Op} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.ranked (.br depth result) :: rest) labels = true) :
+    labels[depth.toNat]? = some result ∧ Graph.SuffixTyped result stack := by
+  change Graph.checkBranch labels (Prefix.stackTypes stack) depth result = true at checked
+  unfold Graph.SuffixTyped
+  exact of_decide_eq_true checked
+
+theorem br_if_typed {fn : Function} {stack : List Value} {depth : LabelIdx} {result fallthrough : List NumType}
+    {rest : List Op} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.ranked (.brIf depth result) :: rest) labels = true) :
+    ∃ (saved : List Value) (condition : BitVec 32), stack = saved ++ [Value.int .i32 condition] ∧
+      labels[depth.toNat]? = some result ∧ Graph.SuffixTyped result saved ∧
+      fn.checkRegion (Prefix.stackTypes saved) fallthrough rest labels = true := by
+  change Graph.checkCondition (Prefix.stackTypes stack) (fun saved =>
+    Graph.checkBranch labels saved depth result && fn.checkRegion saved fallthrough rest labels) = true at checked
+  obtain ⟨saved, condition, rfl, checks⟩ := split_i32 checked
+  obtain ⟨branch, tail⟩ := Bool.and_eq_true_iff.mp checks
+  obtain ⟨target, payload⟩ := of_decide_eq_true branch
+  exact ⟨saved, condition, rfl, target, payload, tail⟩
+
+theorem br_table_typed {fn : Function} {stack : List Value} {depths : List LabelIdx} {fallback : LabelIdx}
+    {result fallthrough : List NumType} {rest : List Op} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough
+      (.ranked (.brTable depths fallback result) :: rest) labels = true) :
+    ∃ (saved : List Value) (selector : BitVec 32), stack = saved ++ [Value.int .i32 selector] ∧
+      Graph.SuffixTyped result saved ∧ ∀ depth ∈ fallback :: depths, labels[depth.toNat]? = some result := by
+  change Graph.checkCondition (Prefix.stackTypes stack) (fun saved =>
+    Graph.checkBranch labels saved fallback result &&
+      depths.all (fun depth => Graph.checkBranch labels saved depth result)) = true at checked
+  obtain ⟨saved, selector, rfl, checks⟩ := split_i32 checked
+  obtain ⟨fallbackOK, entriesOK⟩ := Bool.and_eq_true_iff.mp checks
+  obtain ⟨target, payload⟩ := of_decide_eq_true fallbackOK
+  refine ⟨saved, selector, rfl, payload, fun depth used => ?_⟩
+  rcases List.mem_cons.mp used with rfl | used
+  · exact target
+  · exact (of_decide_eq_true (List.all_eq_true.mp entriesOK depth used)).1
 
 theorem lookup_table (program : Program) (address : FuncAddr) :
     program.table.lookup address = (program.lookup address).map Function.entry := by
@@ -93,9 +156,10 @@ private theorem lookup_mem {program : Program} {address : FuncAddr} {fn : Functi
     have eq : slot = some fn := by simpa [h] using found
     exact List.mem_of_getElem? (eq ▸ h)
 
-theorem function_checked {program : Program} {memory : MemAddr} (checked : program.checkV1 memory = true)
+theorem function_checked {program : Program} {memory : MemAddr} {mode : MemoryMode} {calls : CallMode}
+    (checked : program.checkV1 memory mode calls = true)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn) :
-    fn.declaration.results.length ≤ 1 ∧ fn.code.all Op.supported = true ∧
+    fn.declaration.results.length ≤ 1 ∧ fn.code.all (fun op => fn.supports op mode) = true ∧
       fn.WellTyped fn.initial fn.code ∧ fn.declaration.module.memories[0]? = some memory := by
   have each := (Bool.and_eq_true_iff.mp checked).2
   have body := List.all_eq_true.mp each (some fn) (lookup_mem found)
@@ -103,21 +167,35 @@ theorem function_checked {program : Program} {memory : MemAddr} (checked : progr
     decide_eq_true_eq, Function.WellTyped] at body ⊢
   exact ⟨body.1.1.1, body.1.1.2, body.1.2, body.2⟩
 
-theorem linked_target {program : Program} {memory : MemAddr} (checked : program.checkV1 memory = true)
+theorem linked_target {program : Program} {memory : MemAddr} {mode : MemoryMode} {calls : CallMode}
+    (checked : program.checkV1 memory mode calls = true)
     {address : FuncAddr} {fn : Function} {target : CallTarget}
     (found : program.lookup address = some fn) (used : target ∈ fn.targets) :
     ∃ callee, program.lookup target.address = some callee ∧
       fn.declaration.module.funcs[target.index.toNat]? = some target.address ∧
-      callee.declaration = target.declaration ∧ callee.rank < fn.rank := by
+      callee.declaration = target.declaration ∧ calls.permits fn.rank callee.rank := by
   have valid := (Bool.and_eq_true_iff.mp checked).1
-  have entry : program.table.lookup address = some fn.entry := by rw [lookup_table, found]; rfl
-  have member := List.mem_of_getElem? (show program.table.entries[address.value]? = some (some fn.entry) by
-    unfold Table.lookup at entry
-    cases h : program.table.entries[address.value]? <;> simp_all)
-  obtain ⟨callee, atTarget, resolves, declares, rank⟩ :=
-    (Table.check_iff program.table).mp valid _ member target used
-  rw [lookup_table] at atTarget
-  obtain ⟨body, foundBody, rfl⟩ := Option.map_eq_some_iff.mp atTarget
-  exact ⟨body, foundBody, resolves, declares, rank⟩
+  cases calls with
+  | ranked =>
+    have entry : program.table.lookup address = some fn.entry := by rw [lookup_table, found]; rfl
+    have member := List.mem_of_getElem? (show program.table.entries[address.value]? = some (some fn.entry) by
+      unfold Table.lookup at entry
+      cases h : program.table.entries[address.value]? <;> simp_all)
+    obtain ⟨callee, atTarget, resolves, declares, rank⟩ :=
+      (Table.check_iff program.table).mp valid _ member target used
+    rw [lookup_table] at atTarget
+    obtain ⟨body, foundBody, rfl⟩ := Option.map_eq_some_iff.mp atTarget
+    exact ⟨body, foundBody, resolves, declares, rank⟩
+  | recursive =>
+    unfold Program.checkLinks at valid
+    have targets := List.all_eq_true.mp valid (some fn) (lookup_mem found)
+    have link := List.all_eq_true.mp targets target used
+    cases lookup : program.lookup target.address with
+    | none => simp [lookup] at link
+    | some callee =>
+      have exactLink : callee.declaration = target.declaration ∧
+          fn.declaration.module.funcs[target.index.toNat]? = some target.address := by
+        simpa only [lookup, decide_eq_true_eq] using link
+      exact ⟨callee, rfl, exactLink.2, exactLink.1, trivial⟩
 
 end Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Proofs

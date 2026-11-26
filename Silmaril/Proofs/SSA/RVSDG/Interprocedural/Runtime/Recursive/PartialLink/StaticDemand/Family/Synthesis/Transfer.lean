@@ -43,7 +43,7 @@ theorem plan_compare (code : Code Op entry past sigs results loops member)
     exact prepend_mono (ihRest reads more)
       (NestedTheta.Kind.demandReads_compare (.theta (Op := Instruction Op) carried) wires _ (ihRest reads more) _ _
         (fun _ _ _ more => ihBody reads fun p _ => more p))
-  | @familyCall _ _ _ _ table i _ captures arguments _ ih =>
+  | @callAt _ _ _ _ table i _ captures arguments _ ih =>
     have suffix := ih reads more
     exact prepend_mono suffix (applyReads_mono
       (fun _ h => right.monotone i (resultDemand_mono suffix) (reads i _ h)) captures arguments)
@@ -60,7 +60,7 @@ theorem transfer_term (code : Code Op entry past sigs results loops member) (rea
       ⟨.control (extra + 2) :: captures, .base (.gamma extra), .cons selector wires, armSigs⟩
     exact congrArg₂ (NestedTheta.Term.bind node) (funext fun i => ihArm i reads) (ihRest reads)
   | theta _ _ _ ihBody ihRest => simp only [Code.withTransfer, Code.term, ihBody, ihRest]
-  | familyCall _ _ _ _ _ ih =>
+  | callAt _ _ _ _ _ ih =>
     simp only [Code.withTransfer, Code.term]
     rw [ih reads]
 
@@ -113,7 +113,7 @@ theorem plan_arg_in_range (code : Code Op entry past sigs results loops member) 
       (fun tail => ihRest _ (List.mem_filter.mp tail).1)
   | theta wires _ _ _ ihRest =>
     exact (List.mem_append.mp h).elim (selected_arg_lt wires _) (fun tail => ihRest _ (List.mem_filter.mp tail).1)
-  | familyCall _ _ captures arguments _ ih =>
+  | callAt _ _ captures arguments _ ih =>
     exact (List.mem_append.mp h).elim
       (fun reads => (List.mem_append.mp reads).elim (selected_arg_lt captures _) (selected_arg_lt arguments _))
       (fun tail => ih _ (List.mem_filter.mp tail).1)

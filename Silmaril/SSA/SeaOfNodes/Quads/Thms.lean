@@ -64,6 +64,11 @@ theorem read_tabulate (m : Model.{u, v, w} Op) (ports : List (Ty Data))
       tabulate ports (fun p => Diamond.read m (wires p) entry locals) :=
   Proofs.read_tabulate m ports wires entry locals
 
+theorem get_tabulate {T : Type u} {F : T → Type w} {ts : List T} {t : T}
+    (f : ∀ {s}, Port ts s → F s) (port : Port ts t) :
+    (tabulate ts f).get port = f port :=
+  Proofs.get_tabulate f port
+
 theorem tabulate_get_eq {T : Type u} {F : T → Type w} {ts : List T} (tuple : Tuple F ts) :
     tabulate ts (fun p => tuple.get p) = tuple :=
   Proofs.tabulate_get_eq tuple

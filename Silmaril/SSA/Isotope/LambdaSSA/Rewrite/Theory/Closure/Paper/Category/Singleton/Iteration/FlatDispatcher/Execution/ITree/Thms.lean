@@ -45,11 +45,11 @@ theorem routedFlat_feedback_tree {labels n : Nat} (blocks : Nat) (r : Flat Φ la
 
 variable {τ : Type x} [TypeFormers τ] [HasTy Φ τ]
   {blocks exits : Nat} {R : Fin blocks → τ} {E : Fin exits → τ}
-  {g : FiniteCFG Φ blocks exits 0}
+  {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
 
 /-- The literal one-step dispatcher executes the original block selected
 by the packed tag. Its sum-valued return carries the original payload. -/
-theorem packedBlock_tree (hg : HasType .nil R E g) (i : Fin blocks)
+theorem packedBlock_tree (hg : HasType β R E g) (i : Fin blocks)
     (env : Env α) (v : Value α) :
     region instr (extend env (Region.packedExitValue i.val v)) (packedDispatcherRegion hg) =
       (region instr (extend env v) (g.block i).erase >>= fun p => pure (0, routeValue blocks p.1 p.2)) :=
@@ -57,7 +57,7 @@ theorem packedBlock_tree (hg : HasType .nil R E g) (i : Fin blocks)
 
 /-- Unpacking selects the original written block at the same payload.
 The only postprocessing is pure retagging of its transfer. -/
-theorem packedBlock_feedback_tree (hg : HasType .nil R E g) (i : Fin blocks)
+theorem packedBlock_feedback_tree (hg : HasType β R E g) (i : Fin blocks)
     (env : Env α) (v : Value α) :
     region instr (extend env (Region.packedExitValue i.val v))
         (iterationBody (packedDispatcherRegion hg)) =
@@ -67,15 +67,16 @@ theorem packedBlock_feedback_tree (hg : HasType .nil R E g) (i : Fin blocks)
 /-- Whole-program weak ITree equality for the actual literal one-label CFG.
 The outward label and payload are related by the original positional packing.
 The proof lifts the entry and block equations through weak ITree iteration. -/
-theorem packedExecution_tree (hg : HasType .nil R E g) (env : Env α) :
+theorem packedExecution_tree (hg : HasType β R E g) (env : Env α) :
     region instr env (packedExecutionRegion hg) =
       (region instr env g.erase >>= fun p => pure (packedTreeOutput p)) :=
   FlatExecution.packedExecution_tree instr hg env
 
 /-- The unused input of the guarded singleton representative emits no event. -/
-theorem packedExecution_representative_tree (hg : HasType .nil R E g) (env : Env α) (dummy : Value α) :
+theorem packedExecution_representative_tree {closed : FiniteCFG Φ blocks exits 0}
+    (hg : HasType .nil R E closed) (env : Env α) (dummy : Value α) :
     region instr (extend env dummy) ((packedExecutionRegion hg).renameVars Nat.succ) =
-      (region instr env g.erase >>= fun p => pure (packedTreeOutput p)) :=
+      (region instr env closed.erase >>= fun p => pure (packedTreeOutput p)) :=
   (region_renameVars instr (packedExecutionRegion hg) (fun _ => rfl)).trans
     (packedExecution_tree instr hg env)
 

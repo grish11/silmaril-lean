@@ -8,6 +8,30 @@ namespace Silmaril.Languages.Python.Core.Module.TupleDispatch
 
 theorem materialize_empty (heap : Heap) : heap.materialize [] = (⟨none, []⟩, heap) := rfl
 
+theorem construct_missing (heap : Heap) (argument : Option (Heap → Except Failure Object × Heap)) :
+    construct heap none argument = (.error .missingType, heap) := rfl
+
+theorem construct_empty (heap : Heap) :
+    construct heap (some .stockTuple) none = (.ok ⟨none, []⟩, heap) := rfl
+
+theorem construct_exact (heap reached : Heap) (object : Object)
+    (argument : Heap → Except Failure Object × Heap)
+    (prepared : argument heap = (.ok object, reached)) :
+    construct heap (some .stockTuple) (some argument) = (.ok object, reached) := by
+  simp [construct, prepared]
+
+theorem construct_argument_failure (heap reached : Heap) (binding : TypeBinding) (error : Failure)
+    (argument : Heap → Except Failure Object × Heap)
+    (failed : argument heap = (.error error, reached)) :
+    construct heap (some binding) (some argument) = (.error error, reached) := by
+  simp [construct, failed]
+
+theorem construct_nonCallable (heap reached : Heap) (object : Object)
+    (argument : Heap → Except Failure Object × Heap)
+    (prepared : argument heap = (.ok object, reached)) :
+    construct heap (some .nonCallable) (some argument) = (.error .notCallable, reached) := by
+  simp [construct, prepared]
+
 theorem concat_empty_left (heap : Heap) (left right : Object) (empty : left.contents = []) :
     concat heap left right = (right, heap) := by simp [concat, empty]
 

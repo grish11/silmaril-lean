@@ -13,8 +13,8 @@ open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp inputs word)
 open Silmaril.Machine.RTL.SSA (Prog)
 open Silmaril.Machine.Lir (Word)
 open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow ValueSort)
-open Silmaril.SSA.SeaOfNodes.Loop (headerPorts)
-open Silmaril.SSA.RVSDG (Address)
+open Silmaril.SSA.SeaOfNodes.Loop (Graph headerPorts)
+open Silmaril.SSA.RVSDG (Address Wires)
 
 abbrev Header (past sigs : List (List PortTy)) :=
   Dataflow WordOp (headerPorts inputs [word]) past sigs
@@ -34,13 +34,21 @@ def decodeGuard {ins : List (ValueSort Unit)} : WordOp ins .predicate → Guard
 
 /-- Recover the candidate operation schedule. Admission also checks every
 operand provenance against the candidate's canonical graph. -/
-def decodeSchedule : Header [] headerSigs → Option Profile
+def decodeSchedule {args : List PortTy} : Dataflow WordOp args [] headerSigs → Option Profile
   | .cons update _ (.cons limit _ (.cons guard _ .nil)) =>
     match decodeUpdate update, decodeLimit limit with
     | some arithmetic, some value => some ⟨arithmetic, value, decodeGuard guard⟩
     | _, _ => none
 
-def scheduleAddresses {past sigs : List (List PortTy)} : Header past sigs → List (List Address)
+/-- The admitted three producers with caller-supplied typed operand wires. -/
+def schedule (p : Profile) {args : List PortTy}
+    (update : Wires args [] [.value word, .value word])
+    (guard : Wires args [[.value word], [.value word]] [.value word, .value word]) :
+    Dataflow WordOp args [] headerSigs :=
+  .cons p.update.source update (.cons (.const p.limit) .nil (.cons p.guard.source guard .nil))
+
+def scheduleAddresses {args : List PortTy} {past sigs : List (List PortTy)} :
+    Dataflow WordOp args past sigs → List (List Address)
   | .nil => []
   | .cons _ operands rest => operands.addresses :: scheduleAddresses rest
 
@@ -54,7 +62,8 @@ structure Provenance where
   result : Address
   deriving DecidableEq
 
-def provenance (g : WordLoop) : Provenance :=
+def provenance {input carried : List (ValueSort Unit)}
+    (g : Graph WordOp input carried [] headerSigs word) : Provenance :=
   ⟨scheduleAddresses g.header, (g.phiInputs .entry).addresses, (g.phiInputs .backedge).addresses,
     g.predicate.address, g.result.address⟩
 

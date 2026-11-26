@@ -24,6 +24,8 @@
 | Compiler foundations | Semantic contracts, passes, checked transformations, translations and compiler categories | [Compiler APIs](compilers.md) |
 | Logics and institutions | HOL, Metamath, ZF/ZFC, arithmetic, proof translations and Hets-style development graphs | [Logic](logic.md) |
 | Lambda calculi | Eight cube corners, STLC categorical semantics, System F/Fω parametricity and institution graphs | [Lambda cube](lambda-cube.md) |
+| Finite concurrent traces | Swap congruence, trace monoid, saturated word languages, renamings and synchronization observations | [Concurrent traces](concurrent-traces.md) |
+| Multicore VM | Current-thread transitions, exact finite schedule correspondence, and an executable register machine with spawn | [Multicore VM](multicore-vm.md) |
 | Stream languages | Finite-or-infinite words and ∞-languages over Mathlib's `Language` and CSLib's `ωLanguage`; chunk streams with empty chunks, their unique limits, progress, rechunking and the relation to `ωSequence.flatten`; safety and liveness verdicts of chunk-boundary monitors | [Stream languages](stream-languages.md) |
 | Format languages | Byte languages of UTF-8, JSON (RFC 8259, depth-bounded), JSON Lines and NDJSON, JSON event streams, well-formed CBOR, CBOR values and the DRISL / ATProto-core profiles, each with a proved decision procedure, named assumptions and streaming acceptors | [Format languages](format-languages.md) |
 | Finite machines | Finite named types and the `silmaril_finite` command; typed, relational (CSLib LTS) and unlabelled machines; JSON/TOML machine documents with canonical identity; categories (typed ≃ JSON), the machine institution, verified reachability/simulation/bisimulation, the `machine` record kind, shapes and explorer page | [Finite machines](automata.md) |
@@ -41,6 +43,8 @@
 | UDP | Socket-level UDP over an explicit packet network (loss, duplication, reordering, off-path injection as environment choices) with exact trace characterizations and port isolation; the UDP institution (satisfaction condition, reliability sentences proved to fail); QUIC DATAGRAM frames and HTTP/3 datagrams over UDP, conditional on a parameterized packet-protection integrity hypothesis | [UDP](udp.md) |
 | Silmaril projects | Records for artifacts, values, problems and the problem DAG; format adapters and shapes; the `sil project` CLI (check, SQLite, explorer) | [Silmaril projects](silmaril-projects.md) |
 | SQLite virtual tables | Read-only planning, cursor lifecycle, checked omit and ordering claims, and a proved integer query with a pinned native comparison | [SQLite virtual tables](sqlite-virtual-tables.md) |
+| SQLite architecture | Checked inventory and graph of the upstream architecture figure, with the Track E component contracts | [SQLite architecture](sqlite-track-e/architecture.md) |
+| SQLite tables over numbered pages | Typed table and database representations over fixed-size page arrays, ordered replay and trace projection laws | [SQLite page database](sqlite-page-database.md) |
 | SQLite VFS-file read | Typed `xRead` request and handler law; verified dispatch at one call site in the pinned x86-64 SQLite ELF | [SQLite VFS-file read](sqlite-vfs-read.md) |
 | SQLite file control | Source-derived Lean port of one locked VFS forwarding branch, with trace refinement and a pinned C probe | [SQLite file control](sqlite-control.md) |
 | Abstract SQLite VFS | Dependent read-only and bounded read-write file contracts, with concrete byte backings and container machine traces | [Abstract SQLite VFS](sqlite-vfs.md) |

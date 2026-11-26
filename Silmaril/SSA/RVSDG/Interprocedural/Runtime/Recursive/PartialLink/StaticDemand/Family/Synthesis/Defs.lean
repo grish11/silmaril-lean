@@ -51,8 +51,8 @@ def Code.withTransfer : {entry results : Ports (Ty V S)} → {past sigs : List (
     .gamma extra sigs selector wires (fun i => (arms i).withTransfer reads) (rest.withTransfer reads)
   | _, _, _, _, _, _, .theta wires body rest, reads =>
     .theta wires (body.withTransfer reads) (rest.withTransfer reads)
-  | _, _, _, _, _, _, .familyCall (table := table) i target captures args rest, reads =>
-    .familyCall (table := ⟨table.members, table.captures, reads.live, reads.monotone⟩)
+  | _, _, _, _, _, _, .callAt (table := table) i target captures args rest, reads =>
+    .callAt (table := ⟨table.members, table.captures, reads.live, reads.monotone⟩)
       i target captures args (rest.withTransfer reads)
 
 namespace Family

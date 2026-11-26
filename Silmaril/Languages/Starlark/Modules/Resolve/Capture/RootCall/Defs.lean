@@ -28,6 +28,12 @@ inductive Segment (globals : List String) : List Command → Prop where
         (.define name signature body) program = .ok (.exec (.define name program.size), program.push declaration)) →
       Segment globals rest → Segment globals (.define name signature body :: rest)
 
+  | emitPair {name : String} {signature : SourceSignature} {body : Statement} {rest : List Command} :
+      (∃ (child : Declaration) (parent : Nat → Declaration), ∀ program,
+        elaborateCommand ⟨⟨[], globals⟩, .global⟩ (.define name signature body) program =
+          .ok (.exec (.define name (program.size + 1)), (program.push child).push (parent program.size))) →
+      Segment globals rest → Segment globals (.define name signature body :: rest)
+
 /-- The read-only call operands use the independently declared module
 scope. An index has two ordered suboperands. -/
 inductive Operand (globals : List String) : OperandSource → Lowering.Expr → Prop where

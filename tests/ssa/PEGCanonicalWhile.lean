@@ -2,9 +2,15 @@ module
 
 import Silmaril.SSA.PEG.Simple.Revert.While.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Thms
+import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Projected.Thms
+import Mathlib.Data.Fin.Embedding
+import Mathlib.Logic.Equiv.Basic
+import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Thms
 import Silmaril.SSA.PEG.Simple.Thms
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Defs
+meta import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Projected.Defs
+meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Defs
 
 namespace Silmaril.SSA.PEG.Simple.Revert.While.Tests
 
@@ -311,3 +317,451 @@ example : ¬ discarded.program.source.Returns model (input 1 10) ⟨0⟩ := by
   cases Exec.deterministic ran discardedFails
 
 end Silmaril.SSA.PEG.Simple.Revert.While.Pair.Tests
+
+namespace Silmaril.SSA.PEG.Simple.Revert.While.Region.Tests
+
+open RVSDG (Tuple)
+
+private abbrev acc : Ty Unit := .data ()
+private abbrev carried : List (Ty Unit) := [.count, acc, acc]
+
+private inductive Op : InstructionSet Unit where
+  | twice : Op [.count] .count
+  | nonzero : Op [.count] .bool
+  | pred : Op [.count] .count
+  | sum : Op [acc, acc] acc
+  | addCount : Op [.count, acc] acc
+  | not : Op [.bool] .bool
+  deriving DecidableEq
+
+private def model : Interpretation Op where
+  carrier _ := Nat
+  run
+    | .twice, .cons n .nil => some ⟨2 * n.down⟩
+    | .nonzero, .cons n .nil => some ⟨n.down != 0⟩
+    | .pred, .cons n .nil => some ⟨n.down - 1⟩
+    | .sum, .cons a (.cons b .nil) => some ((show Nat from a) + (show Nat from b))
+    | .addCount, .cons n (.cons a .nil) => some (n.down + (show Nat from a))
+    | .not, .cons b .nil => some ⟨!b.down⟩
+
+private def sorts (i : Fin 15) : Ty Unit :=
+  match i.val with
+  | 1 | 2 | 6 | 12 | 13 => .count
+  | 4 | 11 => .bool
+  | _ => acc
+
+private inductive ExtraRow where
+  | theta
+  | parameter
+  | cycle
+
+-- Rows are interleaved, the root is row 5, and both accumulator updates use
+-- row 0. The supplied-boundary regressions use an extra θ with self-feedback.
+private def graph (crosses : Bool) (extra : ExtraRow := .theta) (ambiguous : Bool := false) :
+    Graph Op carried [acc] 15 1 where
+  forest := ⟨fun _ => none⟩
+  sort := sorts
+  node := fun i =>
+    match i with
+    | 0 => .ofLabel (.op .sum)
+        (.cons ⟨8, rfl⟩ (.cons (if crosses then ⟨10, rfl⟩ else ⟨3, rfl⟩) .nil))
+    | 1 => .ofLabel (.theta 0) (.cons ⟨13, rfl⟩ (.cons ⟨6, rfl⟩ .nil))
+    | 2 => .ofLabel (.pass 0) (.cons ⟨11, rfl⟩ .nil)
+    | 3 => .ofLabel (.theta 0)
+        (.cons (if ambiguous then ⟨9, rfl⟩ else ⟨14, rfl⟩) (.cons ⟨0, rfl⟩ .nil))
+    | 4 => .ofLabel (.op .nonzero) (.cons ⟨12, rfl⟩ .nil)
+    | 5 => .ofLabel (.eval 0) (.cons ⟨8, rfl⟩ (.cons ⟨2, rfl⟩ .nil))
+    | 6 => .ofLabel (.op .pred) (.cons ⟨1, rfl⟩ .nil)
+    | 7 => .ofLabel (.op .addCount) (.cons ⟨1, rfl⟩ (.cons ⟨0, rfl⟩ .nil))
+    | 8 => .ofLabel (.theta 0) (.cons ⟨9, rfl⟩ (.cons ⟨7, rfl⟩ .nil))
+    | 9 => .ofLabel (.param (.tail .head)) .nil
+    | 10 =>
+      match extra with
+      | .theta => .ofLabel (.theta 0) (.cons ⟨14, rfl⟩ (.cons ⟨10, rfl⟩ .nil))
+      | .parameter => .ofLabel (.param (.tail .head)) .nil
+      | .cycle => .ofLabel (.op .sum) (.cons ⟨10, rfl⟩ (.cons ⟨8, rfl⟩ .nil))
+    | 11 => .ofLabel (.op .not) (.cons ⟨4, rfl⟩ .nil)
+    | 12 => .ofLabel (.op .twice) (.cons ⟨1, rfl⟩ .nil)
+    | 13 => .ofLabel (.param .head) .nil
+    | 14 => .ofLabel (.param (.tail (.tail .head))) .nil
+  roots := .cons ⟨5, rfl⟩ .nil
+
+private def phase (i : Fin 15) : Nat := if i = 5 then 2 else if i = 2 then 1 else 0
+
+private def localRank (i : Fin 15) : Nat :=
+  match i.val with
+  | 7 | 11 => 5
+  | 0 | 4 => 4
+  | 6 | 12 => 3
+  | 1 | 3 | 8 | 10 => 2
+  | _ => 1
+
+private def descriptor (crosses : Bool) : Descriptor (graph crosses) where
+  theta := .cons ⟨1, rfl⟩ (.cons ⟨8, rfl⟩ (.cons ⟨3, rfl⟩ .nil))
+  initial := .cons ⟨13, rfl⟩ (.cons ⟨9, rfl⟩ (.cons ⟨14, rfl⟩ .nil))
+  next := .cons ⟨6, rfl⟩ (.cons ⟨7, rfl⟩ (.cons ⟨0, rfl⟩ .nil))
+  guard := ⟨4, rfl⟩
+  negated := ⟨11, rfl⟩
+  negate := .not
+  pass := ⟨2, rfl⟩
+  returnSlot := .tail .head
+
+private def rank : DemandRank 15 1 := [.phase phase, .counter 0, .phase localRank]
+
+private def input (n a b : Nat) : Tuple model.Value carried := .cons ⟨n⟩ (.cons a (.cons b .nil))
+
+private def checked := checkScheduled (graph false) (descriptor false) rank
+
+private def run (fuel n a b : Nat) : Option Nat := do
+  let cert ← checked
+  cert.runFuel model fuel (input n a b)
+
+set_option interpreter.prefer_native false
+
+-- The updates read the old counter and both old accumulators. At the first
+-- step the new pair is (13, 11), and at the second it is (25, 24).
+/-- info: (some 25, some 10, none) -/
+#guard_msgs in
+#eval (run 2 2 10 1, run 0 0 10 1, run 1 2 10 1)
+
+-- Demand ranking alone admits the fourth θ. The checker refuses to read
+-- it as a same-iteration update operand because it is outside the region.
+/-- info: (true, true, true) -/
+#guard_msgs in
+#eval (rank.check (graph true), (checkScheduled (graph true) (descriptor true) rank).isNone,
+  (check (graph true) (descriptor true) ⟨[12, 4], [6, 0, 7], rank⟩).isNone)
+
+-- An operand must be in scope before its consumer is emitted.
+/-- info: true -/
+#guard_msgs in
+#eval (check (graph false) (descriptor false) ⟨[12, 4], [6, 7, 0], rank⟩).isNone
+
+-- The inferred update order includes the shared sum just once.
+/-- info: some [6, 0, 7] -/
+#guard_msgs in
+#eval sliceOrder (graph false) (descriptor false) (descriptor false).next
+
+-- The graph and its designated output determine the complete certificate.
+private def runInferred (fuel n a b : Nat) : Option Nat := do
+  let cert ← Automatic.extract (graph false .parameter)
+  cert.runFuel model fuel (input n a b)
+
+/-- info: (some 25, some 10, none) -/
+#guard_msgs in
+#eval (runInferred 2 2 10 1, runInferred 0 0 10 1, runInferred 1 2 10 1)
+
+-- Both accumulator θs initialize from the first accumulator's port.
+-- Matching the total θ count alone would miss the ambiguity.
+/-- info: (3, 2, true) -/
+#guard_msgs in
+#eval let bad := graph false .parameter true
+  (Automatic.thetaCount bad, (Automatic.candidates bad (.tail .head)).length,
+    (Automatic.extract bad).isNone)
+
+-- The same boundary can be read with an unused ordinary self-cycle.
+-- The assembled demand rank is checked across the entire graph.
+/-- info: (true, false, true) -/
+#guard_msgs in
+#eval let cyclic := graph false .cycle
+  ((Automatic.inferBoundary cyclic).isSome, (Automatic.inferDemandRank cyclic).check cyclic,
+    (Automatic.extract cyclic).isNone)
+
+end Silmaril.SSA.PEG.Simple.Revert.While.Region.Tests
+
+namespace Silmaril.SSA.PEG.Simple.Revert.While.Nested.Tests
+
+open RVSDG (Tuple)
+
+private abbrev Outer : List (Ty Unit) := [.count, .count]
+private abbrev Inner : List (Ty Unit) := [.count, .count, .count]
+
+private inductive Op : InstructionSet Unit where
+  | positive : Op [.count] .bool
+  | pred : Op [.count] .count
+  | add : Op [.count, .count] .count
+  | not : Op [.bool] .bool
+  deriving DecidableEq
+
+private def model : Interpretation Op where
+  carrier _ := Unit
+  run
+    | .positive, .cons x .nil => some ⟨x.down != 0⟩
+    | .pred, .cons x .nil => some ⟨x.down - 1⟩
+    | .add, .cons x (.cons y .nil) => some ⟨x.down + y.down⟩
+    | .not, .cons b .nil => some ⟨!b.down⟩
+
+-- Outer store is (counter, accumulator). The child captures these two
+-- values and a second copy of the old outer counter for the final commit.
+private def form : Form Op Outer Inner .count where
+  outerGuard := .op .positive (.cons (.var .head) .nil)
+  captures := .cons .head (.cons (.tail .head) (.cons .head .nil))
+  innerGuard := .op .positive (.cons (.var .head) .nil)
+  innerStep :=
+    .seq (.assign (.op .pred (.cons (.var .head) .nil))) <|
+    .seq (.assign (.op .add (.cons (.var (.tail .head)) (.cons (.var (.tail (.tail .head))) .nil)))) <|
+    .project (.cons (.tail .head) (.cons .head (.cons (.tail (.tail (.tail (.tail .head)))) .nil)))
+  commit :=
+    .seq (.assign (.op .pred (.cons (.var (.tail (.tail .head))) .nil))) <|
+    .project (.cons .head (.cons (.tail (.tail .head)) .nil))
+  returnSlot := .tail .head
+  negate := .not
+
+private def outerStore (n acc : Nat) : Tuple model.Value Outer := .cons ⟨n⟩ (.cons ⟨acc⟩ .nil)
+private def innerStore (n acc saved : Nat) : Tuple model.Value Inner :=
+  .cons ⟨n⟩ (.cons ⟨acc⟩ (.cons ⟨saved⟩ .nil))
+
+private def run (outerFuel innerFuel n acc : Nat) : Option Nat := do
+  let _ ← check form form.compile
+  (form.runFuel model outerFuel innerFuel (outerStore n acc)).map ULift.down
+
+-- The first inner invocation takes three steps, then two, then one.
+-- The sum of their contributions is 6 + 3 + 1.
+set_option interpreter.prefer_native false in
+/-- info: (some 10, some 7, none, none) -/
+#guard_msgs in
+#eval (run 3 3 3 0, run 0 0 0 7, run 2 3 3 0, run 3 2 3 0)
+
+-- The modified graph remains sorted and has the same number of rows.
+-- Its child counter reads the old accumulator instead of the old counter.
+private def wrongCapture : Form Op Outer Inner .count :=
+  { form with captures := .cons (.tail .head) (.cons (.tail .head) (.cons .head .nil)) }
+
+private def wrongParent : Graph Op Outer [.count] form.size form.size :=
+  { form.compile with forest := ⟨fun _ => none⟩ }
+
+set_option interpreter.prefer_native false in
+/-- info: (true, true) -/
+#guard_msgs in
+#eval ((check form wrongCapture.compile).isNone, (check form wrongParent).isNone)
+
+private def childResult (acc : Nat) : Nat → Nat
+  | 0 => acc
+  | n + 1 => childResult (n + 1 + acc) n
+
+private theorem childExec (n acc saved : Nat) :
+    Exec model form.child (innerStore n acc saved) (some (innerStore 0 (childResult acc n) saved)) := by
+  induction n generalizing acc with
+  | zero => exact .whileStop rfl
+  | succ n ih =>
+    exact .whileStep (next := innerStore n (n + 1 + acc) saved) rfl
+      (form.innerStep.runLoopFree_enableWhile (innerStore (n + 1) acc saved)) (ih _)
+
+private def outerResult (acc : Nat) : Nat → Nat
+  | 0 => acc
+  | n + 1 => outerResult (childResult acc (n + 1)) n
+
+private theorem outerExec (n acc : Nat) :
+    Exec model form.source.body (outerStore n acc) (some (outerStore 0 (outerResult acc n))) := by
+  induction n generalizing acc with
+  | zero => exact .whileStop rfl
+  | succ n ih =>
+    refine .whileStep (next := outerStore n (childResult acc (n + 1))) rfl ?_ (ih _)
+    exact .seq (next := innerStore (n + 1) acc (n + 1)) .project
+      (.seq (childExec (n + 1) acc (n + 1))
+        (form.commit.runLoopFree_enableWhile (innerStore 0 (childResult acc (n + 1)) (n + 1))))
+
+private theorem total : form.Total model where
+  guard old := ⟨(old.get .head).down != 0, rfl⟩
+  child old _ := by
+    cases old with | cons n tail =>
+    cases tail with | cons acc tail =>
+    cases tail
+    exact ⟨_, childExec n.down acc.down n.down⟩
+  commit {old final} _ := by
+    cases final with | cons _ tail =>
+    cases tail with | cons _ tail =>
+    cases tail with | cons _ tail =>
+    cases tail
+    exact ⟨_, rfl⟩
+
+private def cert : Certificate form form.compile := ⟨rfl⟩
+
+private theorem returnsTen : form.source.Returns model (outerStore 3 0) ⟨10⟩ :=
+  ⟨outerStore 0 (outerResult 0 3), outerExec 3 0, rfl⟩
+
+private theorem observedTen (i : Index form.size) :
+    form.compile.observe model
+      (form.compile.denote model (outerStore 3 0) cert.demandWellFounded) i =
+      .cons (some ⟨10⟩) .nil :=
+  (cert.returns_iff_observe model (outerStore 3 0) total (fun _ => rfl) i ⟨10⟩).mp returnsTen
+
+example (i : Index form.size) : ∃ k final,
+    WhileTrace model form.outerGuard form.body k (outerStore 3 0) final ∧
+      final.get form.returnSlot = ⟨10⟩ :=
+  cert.trace_of_defined model (outerStore 3 0) total (fun _ => rfl) i (observedTen i)
+
+private def runDiscovered {n : Nat} (g : Graph Op Outer [.count] n n)
+    (outerFuel innerFuel n0 acc : Nat) : Option Nat := do
+  let accepted ← Automatic.extract g
+  (accepted.form.runFuel model outerFuel innerFuel (outerStore n0 acc)).map ULift.down
+
+-- Same graph as the supplied check, with the form now recovered by the graph-only API.
+-- Capturing a different in-scope old value defines a second valid input graph.
+/-- info: (some 10, some 5) -/
+#guard_msgs in
+#eval (runDiscovered form.compile 3 3 3 0, runDiscovered wrongCapture.compile 2 2 2 1)
+
+-- The child initializer bypasses the old outer θ and reads its parameter
+-- directly. The modified edge is well sorted, but escapes the capture scope.
+private def bypassCapture {n : Nat} (g : Graph Op Outer [.count] n n) :
+    Graph Op Outer [.count] n n :=
+  { g with node := fun i =>
+      let row := g.node i
+      match row with
+      | ⟨_, .theta loop, args⟩ =>
+        if (g.forest.parent loop).isSome then
+          match Region.nodeAt g (args.get .head) with
+          | ⟨_, .theta _, outerArgs⟩ =>
+            .ofLabel (.theta loop) (.cons (outerArgs.get .head) (.cons (args.get (.tail .head)) .nil))
+          | _ => row
+        else row
+      | _ => row }
+
+/-- info: (true, true) -/
+#guard_msgs in
+#eval ((Automatic.extract (bypassCapture form.compile)).isNone,
+  (Automatic.extract wrongParent).isNone)
+
+private def reverseId {width : Nat} (i : Fin width) : Fin width :=
+  ⟨width - 1 - i.val, by have := i.isLt; omega⟩
+
+private theorem reverseTwice {width : Nat} (i : Fin width) : reverseId (reverseId i) = i := by
+  apply Fin.ext
+  have := i.isLt
+  simp only [reverseId]
+  omega
+
+private def reversed (width : Nat) : Fin width ≃ Fin width :=
+  ⟨reverseId, reverseId, reverseTwice, reverseTwice⟩
+
+private def moved : Graph Op Outer [.count] form.size form.size :=
+  form.compile.reindex (reversed form.size) (reversed form.size)
+
+private def runMoved : Option Nat := do
+  let ids ← checkFinEquiv (reverseId (width := form.size)) reverseId
+  let accepted ← Reindexed.extract moved ids ids
+  (accepted.form.runFuel model 3 3 (outerStore 3 0)).map ULift.down
+
+-- Both the row addresses and loop keys have changed.
+/-- info: some 10 -/
+#guard_msgs in
+#eval runMoved
+
+-- The supplied maps cannot certify a table whose child counter captures
+-- a different old slot than the reference graph.
+private def wrongWire : Graph Op Outer [.count] form.size form.size :=
+  wrongCapture.compile.reindex (reversed form.size) (reversed form.size)
+
+/-- info: true -/
+#guard_msgs in
+#eval let ids := reversed form.size
+  (form.compile.checkReindex wrongWire ids ids).isNone
+
+private def movedCertificate :
+    form.compile.ReindexCertificate moved (reversed form.size) (reversed form.size) :=
+  ⟨rfl⟩
+
+private theorem movedWF : WellFounded moved.Demand :=
+  movedCertificate.demandWellFounded_iff.mpr cert.demandWellFounded
+
+example (i : Index form.size) :
+    moved.observe model (moved.denote model (outerStore 3 0) movedWF) i = .cons (some ⟨10⟩) .nil :=
+  (movedCertificate.observe_denote model (outerStore 3 0) cert.demandWellFounded movedWF i).trans
+    (observedTen _)
+
+-- The outer pass key is permuted independently of its vertex address.
+-- The returned accumulator is the only designated root, so the other
+-- outer eval must be covered by the discovered bundle anchor.
+private def movedIndependently : Graph Op Outer [.count] form.size form.size :=
+  form.compile.reindex (reversed form.size)
+    (Equiv.swap ⟨0, by decide⟩ ⟨2, by decide⟩)
+
+private def runInferredNumbering : Option Nat := do
+  let accepted ← Reindexed.Automatic.extract movedIndependently
+  (accepted.form.runFuel model 3 3 (outerStore 3 0)).map ULift.down
+
+/-- info: some 10 -/
+#guard_msgs in
+#eval runInferredNumbering
+
+/-- info: true -/
+#guard_msgs in
+#eval (Reindexed.Automatic.extract (bypassCapture movedIndependently)).isNone
+
+-- The second parameter is isolated when the primitive's two operands
+-- share the first parameter. An explicit anchor covers the isolated row.
+private def sharedOperands (split : Bool) : Graph Op Outer [.count] 3 0 where
+  forest := ⟨Fin.elim0⟩
+  sort _ := .count
+  node i := match i with
+    | 0 => .ofLabel (.op .add) (.cons ⟨1, rfl⟩ (.cons ⟨if split then 2 else 1, rfl⟩ .nil))
+    | 1 => .ofLabel (.param .head) .nil
+    | 2 => .ofLabel (.param (.tail .head)) .nil
+  roots := .cons ⟨0, rfl⟩ .nil
+
+-- Splitting a repeated wire forces one source row to pair with two
+-- target rows, even though every operand sort still agrees.
+/-- info: (true, true, true) -/
+#guard_msgs in
+#eval
+  let same := sharedOperands false
+  let changed := sharedOperands true
+  let infer new anchors := Silmaril.SSA.PEG.Reindex.Automatic.infer same new anchors
+  ((infer same []).isNone, (infer same [(2, 2)]).isSome, (infer changed [(2, 2)]).isNone)
+
+private def paddedSort {n : Nat} (sort : Fin n → Ty Unit) (i : Fin (n + 1)) : Ty Unit :=
+  if h : i.val < n then sort (i.castLT h) else .count
+
+private def padRef {n : Nat} {sort : Fin n → Ty Unit} {t : Ty Unit} (r : Ref sort t) :
+    Ref (paddedSort sort) t :=
+  ⟨r.id.castSucc, by simpa [paddedSort, r.id.isLt] using r.typed⟩
+
+-- Add a dead primitive that consumes the designated result. Observing
+-- the result never demands its consumer. Keep the original loop table.
+private def pad {n l : Nat} (g : Graph Op Outer [.count] n l) : Graph Op Outer [.count] (n + 1) l where
+  forest := g.forest
+  sort := paddedSort g.sort
+  node i :=
+    if h : i.val < n then
+      let row := g.node (i.castLT h)
+      (show paddedSort g.sort i = g.sort (i.castLT h) by simp [paddedSort, h]).symm ▸
+        Node.ofLabel row.label (row.args.map fun _ r => padRef r)
+    else
+      (show paddedSort g.sort i = .count by simp [paddedSort, h]).symm ▸
+        Node.ofLabel (.op .pred) (.cons (padRef (g.roots.get .head)) .nil)
+  roots := g.roots.map fun _ r => padRef r
+
+private def padded := pad movedIndependently
+
+-- Structured compiler images have equally many row and loop keys.
+-- The padded graph cannot have both bijections to any such image.
+example {k : Nat} :
+    ¬ (Nonempty (Fin (form.size + 1) ≃ Fin k) ∧ Nonempty (Fin form.size ≃ Fin k)) :=
+  fun ⟨rows, loops⟩ =>
+    Nat.succ_ne_self _ ((Fin.equiv_iff_eq.mp rows).trans (Fin.equiv_iff_eq.mp loops).symm)
+
+private def runProjected : Option (Bool × Nat) := do
+  let a ← Projected.extract padded
+  let value ← a.core.form.runFuel model 3 3 (outerStore 3 0)
+  return (a.projection.rows.length == form.size, value.down)
+
+/-- info: some (true, 10) -/
+#guard_msgs in
+#eval runProjected
+
+-- Retain the child θ but delete its initializer from the proposed
+-- projection. The initializer is an outer θ, not the designated eval.
+private def rejectsMissingCapture : Option Bool := do
+  let cached := Automatic.cacheRows padded
+  let header ← Automatic.locate cached
+  let exit ← (Automatic.bundleIds cached header.childKey).head?
+  let slot ← Automatic.readSlotAt cached header.childKey header.childPass (Ref.ofId cached.sort exit)
+  let rows := (List.finRange (form.size + 1)).filter
+    (fun i => i != slot.initial.id && i != Fin.last form.size)
+  return decide (slot.theta.id ∈ rows) && (padded.checkProjection rows).isNone
+
+/-- info: some true -/
+#guard_msgs in
+#eval rejectsMissingCapture
+
+end Silmaril.SSA.PEG.Simple.Revert.While.Nested.Tests

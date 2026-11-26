@@ -248,18 +248,27 @@ def findBinding : (index cut : Nat) → {Γ : List Width} → Origins Input Γ �
     (findBinding index (cut + 1) (afterBinding origins (cut + 1)) rest).map
       fun ⟨saved, binding⟩ => ⟨saved, binding.prepend op operands⟩
 
-/-- Hoist the nominated binding when its exact use sites and operand origins
-lead the loop ranker to preheader cut zero and the operands are captured inputs. -/
-def pickBindingAndHoist? (g : Program Input carried result entrySigs headerSigs)
-    (tree : DominatorTree (lower g)) (index : Nat) :
+/-- Apply the existing emitter to the chooser's exact cut for the nominated
+binding. The caller supplies the placement check through `choose`. The
+emitter accepts preheader cut zero and captured operands. -/
+def hoistBindingWith? (g : Program Input carried result entrySigs headerSigs) (index : Nat)
+    (choose : List (Point (SourceLabel carried result)) → List (Use (SourceLabel carried result)) →
+      Option (Point (SourceLabel carried result))) :
     Option (Point (SourceLabel carried result) × Output Input carried result) := do
   let ⟨saved, binding⟩ ← findBinding index 0 headerOrigins ((lower g).block .header)
-  let cut ← LoopForest.choosePlacement tree blocks binding.operands binding.uses
+  let cut ← choose binding.operands binding.uses
   if cut.block.isNone && cut.cut == 0 then
     let captured ← binding.captured?
     let header := binding.rewrite Var.there .here
     pure (cut, ⟨saved, emitHeader (lower g).entry binding.op captured header⟩)
   else none
+
+/-- Hoist the nominated binding when its exact use sites and operand origins
+lead the loop ranker to preheader cut zero and the operands are captured inputs. -/
+def pickBindingAndHoist? (g : Program Input carried result entrySigs headerSigs)
+    (tree : DominatorTree (lower g)) (index : Nat) :
+    Option (Point (SourceLabel carried result) × Output Input carried result) :=
+  hoistBindingWith? g index (LoopForest.choosePlacement tree blocks)
 
 /-- At the consumer, the prerequisite is an input to the preheader's
 second binding. Other local origins retain their original definition cuts. -/

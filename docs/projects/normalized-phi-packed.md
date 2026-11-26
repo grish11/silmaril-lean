@@ -242,3 +242,269 @@ assignment. Other checks cover an entry split and reject a stale key and
 parallel branches. The fixtures supply any version-zero slots required by
 the cyclic versioner's packet layout in both capture profiles.
 [Fixtures](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+## Generating split admissions
+
+`Split.generate` starts with the original typed admission, its finite
+arrival certificate, and the split plan. The admission retains a
+well-formedness proof. The caller supplies the old arrival table because the
+proof alone does not retain that executable data. The generated certificate
+renames the old claims. When the original destination has a claim, the new
+forwarding block claims both those names and the free reads of the selected
+φ column. The selected predecessor had to supply both at the original edge.
+An omitted destination claim leaves the forwarding block outside the
+certificate too. The existing target checker verifies the arrival claims
+and global SSA definition uniqueness. The declared SSA inputs are only renamed.
+[Generator](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Admission/Defs.lean)
+
+The versioner computes a common register support from syntactic free reads.
+Moving the chosen φ column can make a formerly local operand free in the
+forwarding block. The lexical entry can then require its version-zero
+value for the common packet, even before the source evaluator uses that
+register. Generation reads the old packet-cell types from the admitted
+block profiles and recovers the moved operand types from the destination's
+φ payload. It rebuilds the block packets in the actual split support order,
+using a unit φ payload for the forwarding block. It appends missing
+version-zero capture slots without moving or changing the original slots.
+The new slots read the same source store through the register equivalence.
+
+Every returned result has passed target normalization, global SSA,
+elaboration, exact typing and pure closure. The capture embedding proves
+type and store-projection agreement for all original positions.
+`Generated.packed_eq` uses the generated pure closure and the original
+pure closure with a shared primitive interpretation. It permits the two
+packed capture records to have different lengths.
+[Capture and execution theorems](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Admission/Thms.lean)
+
+Generation is partial. It needs a decodable original packet profile and
+compatible types in the generated register packets. Existing capture slots
+keep their types, even if the original entry ignored them. The regression
+shows that plain capture renaming can fail elaboration and that an unused
+original capture with the wrong type for a new read causes generation to
+reject. From just the two seed captures, generation adds the two required
+slots and proves the visible packed swap. The distinct latch fixture
+reuses all original slots and the entry-edge fixture also generates a closure.
+[Regressions](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Success conditions and failure stages
+
+The arrival transport theorem starts from an accepted original table, an
+existing selected edge, the plan's fresh label, and successful normalization
+of the rewritten graph. Renaming preserves static definitions and the scan
+of every unchanged route. For the selected route, its old terminal scan
+establishes both the moved φ reads and the destination claim. The reconstructed
+forwarding claim carries both, so the selected predecessor and the
+forwarding route each pass. This applies to entry edges and named
+backedges, including unvisited blocks that have claims. An accepted
+original table under these hypotheses rules out an arrival diagnostic.
+[Arrival transport](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Admission/Thms.lean)
+
+Once profile reconstruction produces a candidate, `generate_eq_of_profile`
+reduces success to exact named elaboration and typing at that candidate
+profile, followed by pure closure. This retains the actual checker for
+the reconstructed packet types, including types of the moved operands.
+The original finite table is still an input because `Admission` retains
+its soundness proof. The entry and backedge fixtures use this theorem
+with generated profiles and evaluate the remaining checks.
+
+`generateDetailed` reports the stage that rejected the split. In
+particular, an arrival failure reports a failed reconstructed table.
+An old-capture-types failure reports the positions of retained slots
+whose type changes make the same elaborated graph and block profiles
+pass the exact type checker. The accepted interface keeps those types
+fixed. Other typing failures retain their own stage, since the suggested
+slot changes might be insufficient. The fixtures distinguish a missing
+arrival table from a newly live old slot with an incompatible type and
+derive the target closures for both packed swap traces.
+[Diagnostics](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Admission/Defs.lean)
+· [Fixtures](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+## Comparisons at a supplied typed entry record
+
+The [admitted named entry institution](https://github.com/hiloopai/silmaril-lean/pull/3717)
+can consume the actual checked elaboration retained by a normalized φ
+admission. The translation selects distinct version-zero names at the
+supplied record positions. The private `none` name, if selected, has
+unit type, as required by the φ input store. The sole external exit is
+the explicit return `none`, numbered zero, with a common payload type.
+
+`Admitted.observe_toSSA` and `Admitted.observe_toFlat` identify the weak
+trees at each supplied typed record. The source evaluates its φ rows
+independently. The target uses the admitted lexical table and existing
+entry packer. Both use the raw primitive trees of the same typed
+institution model, whose compatibility field relates those trees to the
+typed instruction interpretation. The comparison preserves and reflects
+satisfaction in the named room for a common named interface, and in the
+flat entry and packed rooms when the two sides use different register
+or label types but share the typed record and exit profile.
+[Translation and satisfaction](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Thms.lean)
+
+`Admitted.ofGenerated` reuses the generated target admission, including
+its transported arrival proof. It requires an empty list of extra
+capture slots, so renaming leaves the supplied record type fixed.
+`split_observe_eq` and `split_satisfies` give pointwise tree equality and
+both directions of the admitted comparison. The distinct-latch fixture
+uses the same supplied record to see `tick 2 5` followed by `tick 5 2`
+after a continuing reply, including in the packed institution's
+translated program.
+[Split corollaries](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Split/Thms.lean)
+· [Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Splits that append capture fields
+
+The generated target keeps its larger typed entry context.
+`Admitted.ofExtended` reuses its actual admission after checking that the
+target names are distinct and that any private `none` slot has unit type.
+`retainedRecord` pulls a supplied large record back to the original
+context along the checked slot embedding. That reindexing preserves the
+input decoder's value at every retained slot.
+
+The minimal additional data to extend a given original input are
+values of the appended field types. The typing and arrival certificates
+specify these types without supplying inhabitants. The comparison
+takes a larger record and relates it to its projection. It uses the
+larger record's store, pulled back along the register equivalence, for
+both independent φ runs. The original admission shows that the run
+depends only on the retained slots. Both the older `Generated.packed_eq`
+and the projected comparison use the same generated source-observation
+equality.
+[Record reindexing](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Record/Thms.lean)
+
+`split_named_reindex` and `split_packed_reindex` give pointwise weak tree
+equality at the related records, with the same singleton return type.
+`split_related_satisfies` gives both directions of trace inclusion in
+the named and packed observations. The generated self-edge fixture
+starts from the two seed fields and supplies distinct nonzero values
+for the two appended fields. It checks both directions and observes
+`tick 2 5` followed by `tick 5 2` through the packed program.
+[Split comparison](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Split/Extended/Thms.lean)
+· [Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Composing generated splits
+
+`Record.reindex_id` preserves a supplied record, and
+`Record.reindex_comp` reindexes along the composite slot map by
+projecting successively from the final context back to the original
+one. Both operations read fields already supplied in the input record.
+
+`EntryComparison.ofSplit` packages the checked slot map and the
+observation equality of a generated split. `EntryComparison.comp`
+requires the exact same admitted table at the shared endpoint.
+`EntryComparison.satisfies_iff` pulls predicates on the admitted named
+and packed observations back along the composed projection at each
+supplied final record. This covers either direction of pointwise
+trace inclusion by fixing the other observation. The final record
+supplies the typed values for all appended fields.
+[Composition and satisfaction](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Split/Comparison/Thms.lean)
+
+The cyclic fixture splits the swap backedge, adding two capture fields,
+then splits the entry edge into the renamed header. The second generator
+uses the first generated admission and the checked transported arrival
+table. It retains the four-field context. The fixture projects the final
+record to the original two seeds, checks trace inclusion in both
+directions, and preserves `tick 2 5`, a continuing reply, then
+`tick 5 2` in both evaluators.
+[Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Relabelling primitive instructions
+
+Primitive relabelling acts on the block bodies. It preserves predecessor
+keys, φ operands, normalization, and the result of checking the same
+arrival table. The checked φ lowering and cyclic versioning commute with
+the opcode map. `Admitted.map` transports existing well-formedness and
+the ordinary named typed-entry certificate at its exact capture, block,
+and exit profiles. Generation still runs at the original signature and
+produces the split admissions and pure closure used by that route.
+Relabelling those admissions consumes their stored evidence. Running
+generation again at a different signature would check a new result.
+[Graph and arrival transport](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/InstructionMap/Thms.lean)
+
+`EntryComparison.map` keeps the checked slot projection and transports
+the admitted endpoints. Mapping before or after composing the comparisons
+gives the same result, including the shared admitted table. At every
+supplied final record, pointwise comparisons of the named and packed trees
+agree with the original comparisons in the existing typed-entry model
+reduct. The signature map preserves primitive input and output types and
+the bottom effect. The event family and reply types are shared.
+[Comparison and reduct](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/InstructionMap/Thms.lean)
+
+The two-split fixture identifies the distinct `tick` and `finish`
+opcodes. After the continuing reply and the simultaneous swap, the
+second tick replies with `11`. The finishing primitive requests
+`tick 11 11` and its typed reply `23` supplies the old payload in both
+relabelled evaluators.
+[Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Checked reverse lowering to mutable RTL
+
+The φ entry bridge passes the actual admitted flat table to the
+[packet-local reverse checker](https://github.com/hiloopai/silmaril-lean/pull/3818).
+The reverse runner reads the same typed input slots in the same order,
+under supplied RTL register names. Its sole declared exit occupies
+position zero, matching the numbered φ return.
+
+The reverse interface expects the explicit return operand
+`(old payload, ordered live-out record)`. The flat branch must write a
+pair, with a unit record for an empty live-out list. The reverse checker
+also checks packet locality and exact readback after attaching the RTL
+live-out reads. This detects a field-order mismatch even when the
+affected fields have the same type. The original checker supports
+straight-line lets, supported operands, and jumps.
+[Typed case support](https://github.com/hiloopai/silmaril-lean/pull/3867)
+adds scoped sum terminators with jumps or nested cases in each arm.
+
+`Admitted.observe_reverse` composes the independent predecessor-snapshot
+observation theorem with equality for the emitted mutable RTL run and
+its projected final store. `Admitted.observe_reverse_roundTrip` also
+uses a successful ordinary re-admission of that RTL, at its supplied
+internal packet types.
+[Bridge](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Reverse/Thms.lean)
+
+The fixture runs two φ blocks and swaps `7` and `9` across the second
+edge. Both the emitted RTL and its actual admitted reversion request
+`tick 9 7` and return the reply with ordered live-outs `9, 7`.
+Reversing the selected fields is rejected by exact readback.
+[Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Reverse/Swap.lean)
+
+The admitted polling fixture uses the typed case support on a genuine
+self-edge. Its continuing branch sends both swapped values together in
+one packet. On the supplied seeds, the independent predecessor-snapshot
+runner requests `tick 2 5`, takes a continuing reply, then requests
+`tick 5 2`. A later reply `11` starts the finishing request
+`tick 11 11`, whose reply `23` returns as the old payload with live-outs
+`5, 2`. The actual reverse checker and ordinary typed re-admission
+both accept the polling table. The emitted mutable body retains the
+self-edge, and both the emitted and re-admitted observations contain
+the complete request/reply trace and return at exit zero.
+[Cyclic regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Ordered external exits
+
+The ordered admission takes a list of distinct external labels disjoint
+from the internal block table. The checker requires each written branch
+to target a block or a declared exit. The existing φ arrival checker
+analyzes the graph with declared exits identified for scope analysis,
+which preserves their payload reads and the internal predecessor rows.
+
+The independent runner keeps the written label and payload on an
+external branch. On an internal branch it evaluates the selected φ
+operands in the predecessor snapshot. The lowerer uses the existing
+packet decoder and cyclic versioner. `Admission.observe_packed`
+relates the source observation to the actual typed table at the declared
+exit order. After accepted reverse readback, `Admission.observe_reverse`
+relates it to the emitted mutable RTL with its projected final store.
+Successful typed re-admission yields `Admission.observe_roundTrip`.
+Each exit supplies its own old-payload type and ordered live-out record.
+The φ admission uses a supplied block profile. The numbered regression
+uses the existing reverse re-admission and its
+[packet-profile synthesis](https://github.com/hiloopai/silmaril-lean/pull/3897).
+[Ordered admission and agreement](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/OrderedExits/Thms.lean)
+
+The regression branches on a typed sum after a φ swap. Each arm returns
+the same old payload `13` and live-outs `(9, 7)`, using different
+physical registers for the two exit records. The right exit is declared
+first and the left second. The emitted and re-admitted runs
+preserve the distinct tags even though their payload records are equal.
+The checks reject an omitted exit and a reversal of the live-out reads
+at just one exit.
+[Two-exit regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/OrderedExits/Examples.lean)

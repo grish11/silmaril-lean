@@ -167,6 +167,35 @@ private theorem traceCorrect
         rw [offset]
         exact reached.defined j (by omega) t slot
 
+omit eqs in
+private theorem firstTrue_samples {flags : Nat → Option Bool} {k : Nat}
+    (first : firstTrue flags = some k) :
+    flags k = some true ∧ ∀ j < k, flags j = some false := by
+  obtain ⟨hit, before⟩ := (firstTrue_eq_some_iff _ _).mp first
+  obtain ⟨here, definedBefore⟩ := (monotonize_eq_some_iff _ _ _).mp hit
+  refine ⟨here, fun j lt => ?_⟩
+  have earlier := definedBefore j lt
+  cases h : flags j with
+  | none => simp [h] at earlier
+  | some b =>
+    cases b
+    · rfl
+    · exact (before j lt ((monotonize_eq_some_iff _ _ _).mpr
+        ⟨h, fun t ht => definedBefore t (Nat.lt_trans ht lt)⟩)).elim
+
+omit eqs in
+theorem firstTrue_eq_some_iff_samples (flags : Nat → Option Bool) (k : Nat) :
+    firstTrue flags = some k ↔ flags k = some true ∧ ∀ j < k, flags j = some false := by
+  refine ⟨firstTrue_samples, fun ⟨stop, again⟩ => (firstTrue_eq_some_iff _ _).mpr ?_⟩
+  refine ⟨(monotonize_eq_some_iff _ _ _).mpr ⟨stop, ?_⟩, ?_⟩
+  · intro j hj
+    rw [again j hj]
+    rfl
+  · intro j hj hit
+    have atJ := ((monotonize_eq_some_iff _ _ _).mp hit).1
+    rw [again j hj] at atJ
+    cases atJ
+
 private theorem passAt {k : Nat} {final : Tuple m.Value params}
     (reached : Reaches p m read 0 k final) (i : Index 1) :
     read p.passPort i = some ⟨k⟩ := by
@@ -190,16 +219,7 @@ private theorem passAt {k : Nat} {final : Tuple m.Value params}
     unfold flags
     rw [sample]
     rfl
-  have first : firstTrue flags = some k := by
-    apply (firstTrue_eq_some_iff _ _).mpr
-    refine ⟨(monotonize_eq_some_iff _ _ _).mpr ⟨atExit, ?_⟩, ?_⟩
-    · intro j lt
-      rw [before j lt]
-      rfl
-    · intro j lt hit
-      have pick := ((monotonize_eq_some_iff _ _ _).mp hit).1
-      rw [before j lt] at pick
-      contradiction
+  have first := (firstTrue_eq_some_iff_samples flags k).mpr ⟨atExit, before⟩
   change (firstTrue flags).map ULift.up = _
   rw [first]
   rfl
@@ -271,22 +291,6 @@ private theorem traceFromPass (total : p.Total m)
     exact ⟨final, .step test ran trace, by rw [← offset]; exact carries⟩
 
 omit eqs in
-private theorem firstTrue_samples {flags : Nat → Option Bool} {k : Nat}
-    (first : firstTrue flags = some k) :
-    flags k = some true ∧ ∀ j < k, flags j = some false := by
-  obtain ⟨hit, before⟩ := (firstTrue_eq_some_iff _ _).mp first
-  obtain ⟨here, definedBefore⟩ := (monotonize_eq_some_iff _ _ _).mp hit
-  refine ⟨here, fun j lt => ?_⟩
-  have earlier := definedBefore j lt
-  cases h : flags j with
-  | none => simp [h] at earlier
-  | some b =>
-    cases b
-    · rfl
-    · exact (before j lt ((monotonize_eq_some_iff _ _ _).mpr
-        ⟨h, fun t ht => definedBefore t (Nat.lt_trans ht lt)⟩)).elim
-
-omit eqs in
 theorem exitWitness (total : p.Total m)
     (notSem : ∀ b : Bool, m.run neg (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
     {values : (p.translate neg).Valuation m} (solves : (p.translate neg).Solves m env values)
@@ -325,7 +329,7 @@ theorem exitWitness (total : p.Total m)
       | some j =>
         rw [h] at passEq
         exact congrArg some (congrArg ULift.down (Option.some.inj passEq)).symm
-    obtain ⟨stop, again⟩ := firstTrue_samples first
+    obtain ⟨stop, again⟩ := (firstTrue_eq_some_iff_samples flags k).mp first
     obtain ⟨final, trace, carries⟩ := traceFromPass p neg m env read eqs total notSem 0 k
       (atEntry p neg m env read eqs)
       (by simpa only [Nat.zero_add] using stop)

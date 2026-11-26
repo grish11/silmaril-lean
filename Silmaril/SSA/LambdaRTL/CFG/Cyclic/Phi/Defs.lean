@@ -143,19 +143,26 @@ def pack : List (Val V) → Val (Option V)
 def edgePacket (graph : Graph V K F) (source : Option K) (target : K) : Val (Option V) :=
   pack ((graph.blocks.lookup target).elim [] (fun block => arguments source block.rows))
 
-def lowerTerm (graph : Graph V K F) (source : Option K) :
+/-- Lift ordinary bodies, choosing the written argument of each branch. -/
+def liftTerm (branchValue : Option K → Val V → Val (Option V)) :
     Term V (Option K) F → Term (Option V) (Option K) F
-  | .br none value => .br none (liftVal value)
-  | .br (some target) _ => .br (some target) (edgePacket graph source target)
+  | .br target value => .br target (branchValue target value)
   | .case o x left y right =>
-      .case (liftOp o) (some x) (lowerTerm graph source left)
-        (some y) (lowerTerm graph source right)
+      .case (liftOp o) (some x) (liftTerm branchValue left) (some y) (liftTerm branchValue right)
+
+def liftBody (branchValue : Option K → Val V → Val (Option V)) :
+    Body V (Option K) F → Body (Option V) (Option K) F
+  | .let1 x o body => .let1 (some x) (liftOp o) (liftBody branchValue body)
+  | .let2 x y o body => .let2 (some x) (some y) (liftOp o) (liftBody branchValue body)
+  | .term term => .term (liftTerm branchValue term)
+
+def lowerTerm (graph : Graph V K F) (source : Option K) :
+    Term V (Option K) F → Term (Option V) (Option K) F :=
+  liftTerm (fun target value => target.elim (liftVal value) (edgePacket graph source))
 
 def lowerBody (graph : Graph V K F) (source : Option K) :
-    Body V (Option K) F → Body (Option V) (Option K) F
-  | .let1 x o body => .let1 (some x) (liftOp o) (lowerBody graph source body)
-  | .let2 x y o body => .let2 (some x) (some y) (liftOp o) (lowerBody graph source body)
-  | .term term => .term (lowerTerm graph source term)
+    Body V (Option K) F → Body (Option V) (Option K) F :=
+  liftBody (fun target value => target.elim (liftVal value) (edgePacket graph source))
 
 /-- Decode the already evaluated vector using λRTL's actual pair elimination. -/
 def decode (rows : List (Row V K)) (body : Body (Option V) (Option K) F) :

@@ -1,7 +1,8 @@
 module
 
 public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Defs
-public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Defs
+public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Defs
+public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped.Defs
 
 public section
 
@@ -19,22 +20,36 @@ function that has positional defaults and returns one parameter. -/
 inductive Callable where
   | required (chain : Forwarding.Chain)
   | defaulted (definition : Definition)
+  | escaping (wrapper : Defaults.Escape.Spec)
+  | sequenced (definition : Defaults.Body.Definition)
+  | nestedBody (spec : Defaults.Escape.Scoped.Spec)
 
 @[expose] def Callable.name : Callable → String
   | .required chain => chain.name
   | .defaulted definition => definition.name
+  | .escaping wrapper => wrapper.name
+  | .sequenced definition => definition.name
+  | .nestedBody spec => spec.wrapper.name
 
 @[expose] def Callable.command : Callable → Command
   | .required chain => root chain
   | .defaulted definition => definition.command
+  | .escaping wrapper => wrapper.command
+  | .sequenced definition => definition.command
+  | .nestedBody spec => spec.command
 
 @[expose] def Callable.Admitted (globals : List String) : Callable → Prop
   | .required chain => Trace.Definitions globals [] chain
   | .defaulted definition => Trace.Defaults.Admitted globals definition
+  | .escaping wrapper => Defaults.Escape.Admitted wrapper
+  | .sequenced definition => Defaults.Body.Admitted globals definition
+  | .nestedBody spec => Defaults.Escape.Scoped.Admitted globals spec
 
 @[expose] def Callable.returned : Callable → Option Callable
   | .required (.wrapper _ _ child) => some (.required child)
-  | .required (.mixed ..) | .defaulted _ => none
+  | .required (.mixed ..) | .defaulted _ | .sequenced _ => none
+  | .escaping wrapper => some (.defaulted wrapper.child)
+  | .nestedBody spec => some (.sequenced spec.child)
 
 abbrev Entries := String → Option Callable
 
@@ -79,10 +94,57 @@ structure Saved (program : Program) (state : State) (name : String) (definition 
   live : RootCall.Live state name address id [] false
     ((definition.parameters.optional.map (fileSlot ∘ Prod.fst)).zip values)
 
+/-- Both emitted declarations and the wrapper's actual runtime cell
+stay linked through the remaining module commands. -/
+structure Escaping (program : Program) (state : State) (name : String) (wrapper : Defaults.Escape.Spec) where
+  childId : Nat
+  address : Lists.Address
+  admitted : Defaults.Escape.Admitted wrapper
+  childCode : program[childId]? = some (wrapper.child.emitted wrapper.codes)
+  parentCode : program[childId + 1]? = some (wrapper.frame childId).declaration
+  live : RootCall.Live state name address (childId + 1) [] false
+
+/-- A live body closure carries both the saved arguments and the
+addresses installed for its independently selected free reads. -/
+structure SavedBody (globals : List String) (program : Program) (state : State)
+    (name : String) (definition : Defaults.Body.Definition) where
+  id : Nat
+  enclosing : List String
+  plan : Defaults.Body.Plan globals definition enclosing
+  codes : List Lowering.Expr
+  address : Lists.Address
+  values : List Value
+  captures : List Lists.Capture
+  codeLength : codes.length = definition.parameters.optional.length
+  valueLength : values.length = definition.parameters.optional.length
+  found : program[id]? = some (plan.declaration codes)
+  owner : State
+  installed : Installs owner plan.free captures
+  cells : Defaults.Body.CaptureCells state captures
+  live : RootCall.Live state name address id captures false
+    ((definition.parameters.optional.map (fileSlot ∘ Prod.fst)).zip values)
+
+/-- The checked wrapper carries the exact compiled child plan. -/
+structure ScopedRoot (globals : List String) (program : Program) (state : State) (name : String)
+    (spec : Defaults.Escape.Scoped.Spec) where
+  childId : Nat
+  address : Lists.Address
+  names : Defaults.Escape.Scoped.Names spec
+  plan : Defaults.Escape.Scoped.Plan globals spec
+  childCode : program[childId]? = some (plan.body.declaration spec.wrapper.codes)
+  parentCode : program[childId + 1]? = some (plan.frame childId).declaration
+  captures : List Lists.Capture
+  installed : Installs state plan.moduleFree captures
+  cells : Defaults.Body.CaptureCells state captures
+  live : RootCall.Live state name address (childId + 1) captures false
+
 @[expose] def LiveBinding (globals : List String) (program : Program) (state : State)
     (name : String) : Callable → Prop
   | .required chain => Bindings.LiveBinding globals program state name chain
   | .defaulted definition => name ∈ globals ∧ Nonempty (Saved program state name definition)
+  | .escaping wrapper => name ∈ globals ∧ Nonempty (Escaping program state name wrapper)
+  | .sequenced definition => name ∈ globals ∧ Nonempty (SavedBody globals program state name definition)
+  | .nestedBody spec => name ∈ globals ∧ Nonempty (ScopedRoot globals program state name spec)
 
 @[expose] def LiveBindings (globals : List String) (program : Program) (entries : Entries) (state : State) : Prop :=
   ∀ name body, entries name = some body → LiveBinding globals program state name body
@@ -115,6 +177,40 @@ inductive Calls (state : State) (definition : Definition) (codes : List Lowering
       ReturnsParameter state definition codes assigned out →
       Calls state definition codes saved arguments out
 
+/-- The wrapper has one required positional parameter. Only successful
+binding reaches the nested definition and its local default reads. -/
+inductive CallsWrapper (state : State) (wrapper : Defaults.Escape.Spec) (childId : Nat) :
+    List Value → Outcome Value → Prop where
+  | rejected {values : List Value} {error : Lists.Error} :
+      Entry.Binds [wrapper.parameter] values (.error error) →
+      CallsWrapper state wrapper childId values (.error error state)
+  | entered {argument : Value} {out : Outcome Value} :
+      Defaults.Escape.Returns wrapper childId state argument out →
+      CallsWrapper state wrapper childId [argument] out
+
+inductive CallsBody {globals : List String} {program : Program} {state : State} {name : String}
+    {definition : Defaults.Body.Definition} (saved : SavedBody globals program state name definition)
+    (values : List Value) : Outcome Value → Prop where
+  | rejected {error : Lists.Error} :
+      Defaults.Binds (definition.parameters.slots saved.values) values (.error error) →
+      CallsBody saved values (.error error state)
+  | entered {assigned : List (Binding × Value)} {out : Outcome Lists.Iteration.Flow} :
+      Defaults.Binds (definition.parameters.slots saved.values) values (.ok assigned) →
+      Defaults.Body.Runs saved.plan.block (activate state (saved.plan.declaration saved.codes) saved.captures assigned)
+        definition.body saved.plan.code out →
+      CallsBody saved values (Leaf.returnTo state out)
+
+inductive CallsScoped {globals : List String} {spec : Defaults.Escape.Scoped.Spec} (state : State)
+    (plan : Defaults.Escape.Scoped.Plan globals spec) (childId : Nat) (captures : List Lists.Capture)
+    (values : List Value) : Outcome Value → Prop where
+  | rejected {error : Lists.Error} :
+      Entry.Binds spec.parameters values (.error error) →
+      CallsScoped state plan childId captures values (.error error state)
+  | entered {assigned : List (Binding × Value)} {out : Outcome Value} :
+      Entry.Binds spec.parameters values (.ok assigned) →
+      Defaults.Escape.Scoped.Returns plan childId state captures assigned out →
+      CallsScoped state plan childId captures values out
+
 inductive Step (resolved : ResolvedModule) (globals : List String) :
     Nat → State → Command → Modules.Result Unit → Prop where
   | ordinary {index : Nat} {state : State} {command : Command} {out : Modules.Result Unit} :
@@ -129,6 +225,44 @@ inductive Step (resolved : ResolvedModule) (globals : List String) :
       RootCall.Operand globals (.scalar (.read callee)) (Leaf.readOperand (globalSlot callee)) →
       Assignment.InOrder (RootCall.Operand globals) arguments actuals →
       Calls state definition saved.codes saved.values arguments out →
+      Step resolved globals index state (invocation callee destination arguments) (Leaf.assignResult destination out)
+  | wrapper {index : Nat} {state : State} {callee destination : String} {body : Defaults.Escape.Spec}
+      {arguments : List Expr} {actuals : List Lowering.Expr} {values : List Value} {out : Outcome Value}
+      (root : Escaping resolved.program state callee body) :
+      resolved.source.commands[index]? =
+        some (.exec (.assignExpr destination (.call (Leaf.readOperand (globalSlot callee)) actuals [] none none))) →
+      RootCall.Operand globals (.scalar (.read callee)) (Leaf.readOperand (globalSlot callee)) →
+      Assignment.InOrder (RootCall.Operand globals) arguments actuals →
+      RootCall.EvaluatesOperands state arguments (.ok values state) →
+      CallsWrapper state body root.childId values out →
+      Step resolved globals index state (invocation callee destination arguments) (Leaf.assignResult destination out)
+  | bodyDefinition {index id : Nat} {state : State} {definition : Defaults.Body.Definition}
+      {codes : List Lowering.Expr} {out : Outcome Lists.Iteration.Flow}
+      (plan : Defaults.Body.Plan globals definition) :
+      resolved.source.commands[index]? = some (.exec (.define definition.name id)) →
+      resolved.program[id]? = some (plan.declaration codes) →
+      codes.length = definition.parameters.optional.length →
+      Defaults.Defines globals (globalSlot definition.name) id plan.free definition.parameters codes state out →
+      Step resolved globals index state definition.command (Modules.afterCode out)
+  | bodyCall {index : Nat} {state : State} {callee destination : String} {definition : Defaults.Body.Definition}
+      {arguments : List Expr} {actuals : List Lowering.Expr} {values : List Value} {out : Outcome Value}
+      (saved : SavedBody globals resolved.program state callee definition) :
+      resolved.source.commands[index]? =
+        some (.exec (.assignExpr destination (.call (Leaf.readOperand (globalSlot callee)) actuals [] none none))) →
+      RootCall.Operand globals (.scalar (.read callee)) (Leaf.readOperand (globalSlot callee)) →
+      Assignment.InOrder (RootCall.Operand globals) arguments actuals →
+      RootCall.EvaluatesOperands state arguments (.ok values state) →
+      CallsBody saved values out →
+      Step resolved globals index state (invocation callee destination arguments) (Leaf.assignResult destination out)
+  | scopedCall {index : Nat} {state : State} {callee destination : String} {spec : Defaults.Escape.Scoped.Spec}
+      {arguments : List Expr} {actuals : List Lowering.Expr} {values : List Value} {out : Outcome Value}
+      (root : ScopedRoot globals resolved.program state callee spec) :
+      resolved.source.commands[index]? =
+        some (.exec (.assignExpr destination (.call (Leaf.readOperand (globalSlot callee)) actuals [] none none))) →
+      RootCall.Operand globals (.scalar (.read callee)) (Leaf.readOperand (globalSlot callee)) →
+      Assignment.InOrder (RootCall.Operand globals) arguments actuals →
+      RootCall.EvaluatesOperands state arguments (.ok values state) →
+      CallsScoped state root.plan root.childId root.captures values out →
       Step resolved globals index state (invocation callee destination arguments) (Leaf.assignResult destination out)
 
 end Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.WithDefaults

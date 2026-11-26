@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Thms
+public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.FIFO.Defs
 
 /-! Dependency-triggered FIFO iteration of the native loop equations. -/
 
@@ -102,19 +103,14 @@ structure Run (value : Data → Type w) (carried : List (ValueSort Data)) (out :
   pending : List Task
   visits : List Task
 
-def runSteps : Nat → State m.value carried out → List Task → Run m.value carried out
-  | _, state, [] => ⟨state, [], []⟩
-  | 0, state, job :: pending => ⟨state, job :: pending, []⟩
-  | budget + 1, state, job :: pending =>
-    let next := step m g input job state pending
-    let rest := runSteps budget next.1 next.2
-    { rest with visits := job :: rest.visits }
+def runSteps (fuel : Nat) (state : State m.value carried out) (pending : List Task) : Run m.value carried out :=
+  let result := FIFO.runSteps (step m g input) fuel state pending
+  ⟨result.state, result.pending, result.visits⟩
 
 /-- Each strict ascent pays for at most three insertions. Without an ascent,
 the popped job reduces the queue length. -/
 def potential (state : State value carried out) (pending : List Task) : Nat :=
-  let bound := height value carried out
-  (bound.bound - bound.rank state) * 4 + pending.length
+  FIFO.potential (height value carried out) 3 state pending
 
 /-- The bottom assignment satisfies the bank and result equations. Start
 only needs to enable entry. -/
