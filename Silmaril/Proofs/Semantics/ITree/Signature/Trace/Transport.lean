@@ -94,24 +94,8 @@ theorem handledTrace_image (f : S ⟶ T) (step : Handler X T.toSignature.Event)
     obtain ⟨target, lift, seen⟩ := Signature.Proofs.handledTrace_lift f.hom step x t source handled
     exact ((traceLift_iff f _ _).mp lift).symm.trans equal ▸ seen
 
-private theorem replay_all (p : Trace T.toSignature.Event A) :
-    Replay (fun _ (_ : Unit) _ (_ : Unit) => True) () p := by
-  induction p with
-  | «prefix» | request | result => trivial
-  | exchange _ _ _ ih => exact ⟨(), trivial, ih⟩
-
-private theorem replay_reduct_all (f : S ⟶ T) (p : Trace S.toSignature.Event A) :
-    Replay (f.hom.restrict (fun _ (_ : Unit) _ (_ : Unit) => True)) () p := by
-  induction p with
-  | «prefix» | request | result => trivial
-  | exchange event reply _ ih =>
-    exact ⟨(), ⟨(f.replyEquiv ⟨_, event⟩).symm reply, reply_forward_backward f _ _, trivial⟩, ih⟩
-
 theorem hasTrace_image (f : S ⟶ T) (t : Tree S.toSignature.Event A) (p : Trace T.toSignature.Event A) :
     HasTrace (f.hom.tree id t) p ↔ ∃ pre, HasTrace t pre ∧ f.trace pre = p := by
-  have image := handledTrace_image f (fun _ (_ : Unit) _ (_ : Unit) => True) () t p
-  exact ⟨fun seen => let ⟨pre, original, same⟩ := image.mp ⟨seen, replay_all p⟩
-      ⟨pre, original.1, same⟩,
-    fun ⟨pre, seen, same⟩ => (image.mpr ⟨pre, ⟨seen, replay_reduct_all f pre⟩, same⟩).1⟩
+  simpa only [traceLift_iff f] using Signature.Proofs.hasTrace_lift_iff f.hom t p
 
 end Silmaril.Elgot.ITree.TraceSignature.Proofs

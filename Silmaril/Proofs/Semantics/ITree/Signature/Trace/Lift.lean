@@ -147,4 +147,27 @@ theorem handledTrace_project (f : S ⟶ T) (step : Handler X T.Event) (x : X) (t
       obtain ⟨tail, related, ht', hp'⟩ := ih y (k' (f.reply q r)) ⟨ht, hp⟩
       exact ⟨_, .exchange e' r related, ⟨k', hn, ht'⟩, y, ⟨r, rfl, hy⟩, hp'⟩
 
+private theorem hasTrace_of_lift (f : S ⟶ T) {p : Trace S.Event A} {q : Trace T.Event A}
+    (lift : f.TraceLift p q) (t : Tree S.Event A) (seen : HasTrace t p) :
+    HasTrace (f.tree id t) q := by
+  induction lift generalizing t with
+  | «prefix» => trivial
+  | result a => exact out_translate f t (.ret a) seen
+  | request e =>
+    obtain ⟨k, hk⟩ := seen
+    exact ⟨_, out_translate f t (.vis e k) hk⟩
+  | exchange e _ _ ih =>
+    obtain ⟨k, hk, tail⟩ := seen
+    exact ⟨_, out_translate f t (.vis e k) hk, ih _ tail⟩
+
+theorem hasTrace_lift_iff (f : S ⟶ T) (t : Tree S.Event A) (q : Trace T.Event A) :
+    HasTrace (f.tree id t) q ↔ ∃ p, HasTrace t p ∧ f.TraceLift p q := by
+  constructor
+  · intro seen
+    obtain ⟨p, lift, handled⟩ :=
+      handledTrace_project f (fun _ (_ : Unit) _ (_ : Unit) => True) () t q ⟨seen, Replay.allReplies q⟩
+    exact ⟨p, handled.1, lift⟩
+  · rintro ⟨p, seen, lift⟩
+    exact hasTrace_of_lift f lift t seen
+
 end Silmaril.Elgot.ITree.Signature.Proofs

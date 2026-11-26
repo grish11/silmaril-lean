@@ -40,4 +40,8 @@ def SatAt (M : Model.{u,w} S.toSignature) (φ : Sentence.{u,v} S) (x : M.State) 
 def Sat (M : Model.{u,w} S.toSignature) (φ : Sentence.{u,v} S) : Prop :=
   ∀ x, M.initial x → SatAt M φ x
 
+/-- The one-state model admits every typed reply. -/
+def allRepliesModel (S : TraceSignature.{u}) : Model.{u,0} S.toSignature :=
+  ⟨Unit, fun _ => True, fun _ _ _ _ => True⟩
+
 end Silmaril.Logic.ITree.TraceInstitution

@@ -92,6 +92,12 @@ theorem Hom.handledTrace_project (f : S ⟶ T) (step : Handler X T.Event)
     ∃ q, f.TraceLift q p ∧ HandledTrace (f.restrict step) x t q :=
   Proofs.handledTrace_project f step x t p handled
 
+/-- Actual observations of a mapped tree are exactly all lifts of its
+source observations, including when some source replies have no lift. -/
+theorem Hom.hasTrace_lift_iff (f : S ⟶ T) (t : Tree S.Event A) (q : Trace T.Event A) :
+    HasTrace (f.tree id t) q ↔ ∃ p, HasTrace t p ∧ f.TraceLift p q :=
+  Proofs.hasTrace_lift_iff f t q
+
 /-- Reindexing preserves directed trace inclusion for any signature morphism. -/
 theorem Hom.traceLE_map (f : S ⟶ T) {l r : Tree S.Event A} (included : TraceLE l r) :
     TraceLE (f.tree id l) (f.tree id r) :=

@@ -2,7 +2,7 @@ module
 
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Reindex.Thms
 import Silmaril.Semantics.ITree.Signature.Execution.Thms
-import Silmaril.Logic.ITree.Institution.Trace.Category.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Lift.Thms
 import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
@@ -201,7 +201,7 @@ private theorem aliases_keys : Function.Injective aliases.request := by
   cases keys
   rfl
 
-example (q : Request signature.traceSignature.toSignature.Event) :
+private theorem aliases_onto (q : Request signature.traceSignature.toSignature.Event) :
     Function.Surjective (aliases.reply q) := by
   rcases q with ⟨_, event⟩
   cases event
@@ -371,6 +371,38 @@ example : HandledTrace filteredPolicy.step false ((packed false 1).observeMapped
   erw [Silmaril.Elgot.ITree.Signature.Hom.tree_vis (aliases ≫ keepFirst), hasTrace_vis_exchange_iff,
     Silmaril.Elgot.ITree.Signature.Hom.tree_ret (aliases ≫ keepFirst)]
   exact out_ret _
+
+private instance (k : signature.Request) :
+    Fintype (((aliases ≫ keepFirst).request ⟨_, .ask k⟩).1) :=
+  inferInstanceAs (Fintype Bool)
+
+private def imageMask := signature.replyImageMask (aliases ≫ keepFirst)
+
+example (key : signature.Request) : imageMask key (.inl ⟨⟩) = true := by rfl
+example (key : signature.Request) : imageMask key (.inr ⟨⟩) = false := by rfl
+
+private noncomputable def orderedComparison : TraceInstitution.Sentence.{0,1} signature.traceSignature :=
+  (packed false 0).refinementSentence (packed false 1) .leftToRight env env env env
+
+private theorem sourceRejects : (fixture false 0).refinementAt? (fixture false 1) 0 packet = false := by cbv
+
+-- Aliasing alone preserves the rejection: a target handler may still
+-- observe the second reply and distinguish the two ordered exits.
+example : ¬ (∀ M : liftInst.Mod.obj (Opposite.op aliasedObj),
+    liftInst.Sat aliasedObj M (liftInst.Sen.map aliasArrow orderedComparison)) := by
+  intro valid
+  have accepted := (Program.refinementAt?_iff_valid_liftSat aliasArrow aliases_onto packet
+    (packed false 0) (packed false 1) env env env env (fun _ => rfl) (fun _ => rfl)).mpr valid
+  simp [sourceRejects] at accepted
+
+-- After omitting that reply, the executable image-filtered checker accepts
+-- the same two packed graphs, and their translation is valid in every handler.
+example (M : liftInst.Mod.obj (Opposite.op filteredObj)) :
+    liftInst.Sat filteredObj M (liftInst.Sen.map (aliasArrow ≫ firstArrow) orderedComparison) := by
+  have accepted : (fixture false 0).refinementAtUnder? imageMask (fixture false 1) 0 packet = true := by cbv
+  exact (Program.refinementAtUnder?_iff_valid_liftSat (aliasArrow ≫ firstArrow) imageMask
+    (signature.replyImageMask_iff (aliases ≫ keepFirst)) packet (packed false 0) (packed false 1)
+    env env env env (fun _ => rfl) (fun _ => rfl)).mp accepted M
 
 end ReplyAliases
 
