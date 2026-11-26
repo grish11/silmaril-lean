@@ -38,6 +38,11 @@ theorem caseIter_sentence_commutes (φ : Relational.LetCase.Sentence S Γ) :
   exact congrArg₂ equation (Parallel.Hierarchy.caseIterDerivation_commutes φ.2.1.2)
     (Parallel.Hierarchy.caseIterDerivation_commutes φ.2.2.2)
 
+theorem seqIter_sentence_commutes (φ : Relational.LetSeq.Sentence S Γ) :
+    Iteration.ofLetIter (Relational.caseIterSentence (Relational.seqCaseSentence φ)) =
+      Iteration.ofLetParCase ((Powerset.ofLetSeq φ).ofLetPar) := by
+  rw [caseIter_sentence_commutes, seqCase_sentence_commutes]
+
 variable [Subtyping τ] [Bot ε] [TypeModel.{u, v} τ]
 
 attribute [local instance] LetParIter.nativeProductModel LetParIter.nativeUnitModel
@@ -69,5 +74,35 @@ theorem caseIter_comorphism_commutes (hΓ : Function.Surjective (Iteration.visib
   simp only [left, right, Inst.CoHom.comp, Relational.caseIterCoHom, NatTrans.comp_app,
     Functor.whiskerLeft_app, Functor.associator_inv_app, Functor.leftUnitor_inv_app, Category.comp_id]
   exact caseIter_corridor_commutes hΓ pair S
+
+theorem seqIter_corridor_commutes (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
+    (pair : Elgot.ParallelPairing (SetM : Type v → Type v)) (S : InstrSig τ ε) :
+    ((Powerset.letSeq (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).ρ.app S ≫
+        (Powerset.letParCaseInclusion (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).ρ.app S) ≫
+        (UpperPowerset.letParCase hΓ pair).ρ.app S =
+      ((Relational.seqCaseRho Γ TyDen).app S ≫ (Relational.caseIterRho Γ TyDen).app S) ≫
+        (UpperPowerset.letIter hΓ pair).ρ.app S :=
+  Room.hom_ext (funext fun φ => (seqIter_sentence_commutes φ).symm) rfl
+
+theorem seqIter_comorphism_commutes (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
+    (pair : Elgot.ParallelPairing (SetM : Type v → Type v)) :
+    ((Powerset.letSeq (ε := ε) (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).comp
+        (Powerset.letParCaseInclusion (ε := ε) (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b))).comp
+        (UpperPowerset.letParCase (ε := ε) hΓ pair) =
+      (Relational.seqIterCoHom (ε := ε) Γ TyDen).comp (UpperPowerset.letIter (ε := ε) hΓ pair) := by
+  let left := ((Powerset.letSeq (ε := ε) (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).comp
+    (Powerset.letParCaseInclusion (ε := ε) (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b))).comp
+    (UpperPowerset.letParCase (ε := ε) hΓ pair)
+  let right := (Relational.seqIterCoHom (ε := ε) Γ TyDen).comp (UpperPowerset.letIter (ε := ε) hΓ pair)
+  change left = right
+  refine Inst.CoHom.ext (f := left) (g := right) rfl ?_
+  change left.ρ ≫ 𝟙 _ = right.ρ
+  rw [Category.comp_id]
+  ext : 1
+  funext S
+  simp only [left, right, Inst.CoHom.comp, Relational.seqIterCoHom, Relational.seqCaseCoHom,
+    Relational.caseIterCoHom, NatTrans.comp_app, Functor.whiskerLeft_app, Functor.associator_inv_app,
+    Functor.leftUnitor_inv_app, Category.comp_id]
+  exact seqIter_corridor_commutes hΓ pair S
 
 end Silmaril.Isotope.Institution.Adapters.Proofs

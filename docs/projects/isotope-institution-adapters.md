@@ -103,8 +103,9 @@ membership of the same primitive computations.
 `Silmaril.SSA.Isotope.Institution.Adapters.Thms` exposes the commuting
 sentence squares and outer rectangle, using equality of exact witnesses.
 It also states equality of the lower, upper, and outer corridors on
-both sentence and model components. The upper square commutes as bundled
-comorphisms on the same powerset profiles.
+both sentence and model components. The upper square and outer rectangle
+commute as bundled comorphisms on the same powerset profiles. The sequential
+path of the outer rectangle uses `Relational.seqIterCoHom`.
 
 The underlying syntax is proof relevant. These maps apply to each given
 endpoint witness. A raw syntax descent requires separate compatibility of the

@@ -33,8 +33,8 @@ theorem caseIter_sentence_commutes (φ : Relational.LetCase.Sentence S Γ) :
 /-- Along the outer paths from LetSeq, the resulting upper equation is the same. -/
 theorem seqIter_sentence_commutes (φ : Relational.LetSeq.Sentence S Γ) :
     Iteration.ofLetIter (Relational.caseIterSentence (Relational.seqCaseSentence φ)) =
-      Iteration.ofLetParCase ((Powerset.ofLetSeq φ).ofLetPar) := by
-  rw [caseIter_sentence_commutes, seqCase_sentence_commutes]
+      Iteration.ofLetParCase ((Powerset.ofLetSeq φ).ofLetPar) :=
+  Proofs.seqIter_sentence_commutes φ
 
 section Lower
 
@@ -81,7 +81,16 @@ theorem seqIter_corridor_commutes (hΓ : Function.Surjective (Iteration.visibleE
         (UpperPowerset.letParCase hΓ pair).ρ.app S =
       ((Relational.seqCaseRho Γ TyDen).app S ≫ (Relational.caseIterRho Γ TyDen).app S) ≫
         (UpperPowerset.letIter hΓ pair).ρ.app S :=
-  Room.hom_ext (funext fun φ => (seqIter_sentence_commutes φ).symm) rfl
+  Proofs.seqIter_corridor_commutes hΓ pair S
+
+/-- The outer composite agrees with the existing sequential comorphism. -/
+theorem seqIter_comorphism_commutes (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
+    (pair : Elgot.ParallelPairing (SetM : Type v → Type v)) :
+    ((Powerset.letSeq (ε := ε) (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).comp
+        (Powerset.letParCaseInclusion (ε := ε) (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b))).comp
+        (UpperPowerset.letParCase (ε := ε) hΓ pair) =
+      (Relational.seqIterCoHom (ε := ε) Γ TyDen).comp (UpperPowerset.letIter (ε := ε) hΓ pair) :=
+  Proofs.seqIter_comorphism_commutes hΓ pair
 
 /-- The case route to LetParIter reflects relational satisfaction in the fixed powerset profile. -/
 theorem caseIter_set_satisfaction (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
