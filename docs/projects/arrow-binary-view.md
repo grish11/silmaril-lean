@@ -32,7 +32,39 @@ and invalid UTF-8. The pinned Linux x86-64 PyArrow wheel has SHA-256
 [Lean examples](../../Silmaril/Formats/Arrow/BinaryView/Examples.lean)
 
 ```sh
-lake build --wfail +Silmaril.Formats.Arrow.BinaryView.Thms +Silmaril.Formats.Arrow.BinaryView.Examples
+lake build --wfail +Silmaril.Formats.Arrow.BinaryView.Thms +Silmaril.Formats.Arrow.BinaryView.Examples \
+  +Silmaril.Formats.Arrow.BinaryView.Column.Thms +Silmaril.Formats.Arrow.BinaryView.Column.Examples
 lake env lean -DautoImplicit=false -DwarningAsError=true scripts/arrow-binary-view/Axioms.lean
 python3 -I scripts/arrow-binary-view/fixtures.py --regenerate
 ```
+
+## Nullable columns
+
+The column reader takes a field node, the field's nullability, and the
+physical bitmap, views and variadic data buffers. It checks the row and
+buffer counts, their aggregate extent and cached lengths, bitmap coverage,
+and the full logical extent of the view slots before reading values.
+Trailing descriptor padding is allowed. An omitted validity buffer
+denotes an all-valid column. Observed nulls must match the field node.
+
+Each valid slot uses the checked BinaryView reader. The contents of a null
+view slot do not affect the result. In addition to the per-value limit, the
+column bounds the sum of observed value bytes before UTF-8 materialization.
+Repeated and overlapping references each contribute their observed length.
+The column interface starts at already extracted buffers, including the order
+of the variadic data buffers.
+
+`Column.checkBuffers_iff` checks range and buffer admission.
+`Column.readBinary_iff` characterizes the ordered slot observation.
+`Column.readBinary_bounds` and `Column.readUtf8_counts` give the declared
+length and null count. `Column.readUtf8_iff` binds the text results to the
+same ordered byte observations.
+
+The same pinned PyArrow sample now includes the validity byte alongside the
+views and data buffers. Lean checks all eight slots, including the null.
+Other examples cover omitted validity, an empty column, a null slot with
+an invalid view word, bad count and extent declarations, and the aggregate
+cost of overlapping references.
+[Column reader](../../Silmaril/Formats/Arrow/BinaryView/Column/Defs.lean) ·
+[Column laws](../../Silmaril/Formats/Arrow/BinaryView/Column/Thms.lean) ·
+[Column checks](../../Silmaril/Formats/Arrow/BinaryView/Column/Examples.lean)

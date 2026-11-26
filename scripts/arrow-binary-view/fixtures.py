@@ -11,14 +11,15 @@ from pathlib import Path
 import sys
 
 
-EXAMPLES = Path(__file__).resolve().parents[2] / "Silmaril/Formats/Arrow/BinaryView/Examples.lean"
+FIXTURE_SOURCE = Path(__file__).resolve().parents[2] / "Silmaril/Formats/Arrow/BinaryView/Fixture.lean"
 PYARROW_VERSION = "26.0.1"
 VALUES = [
     ["", "α", "abcdefghijkl", "abcdefghijklm", "🧪" * 4],
     ["abcdefghijklm", "xyz" * 6, None],
 ]
-FIXTURES = ("slots", "firstData", "secondData")
+FIXTURES = ("validity", "slots", "firstData", "secondData")
 SHA256S = (
+    "620bfdaa346b088fb49998d92f19a7eaf6bfc2fb0aee015753966da1028cb731",
     "4075c779196967949ea7f681b255238ab7169d6601475cbc6f4467c2c023033e",
     "3a0e67851f0f2e3c3df79af2563029aff326fc07de9ef7a05cc6d9a817c6ef73",
     "932fbd45f3e9933a0c893a3491d8a68ec8d1e932a6390430aac7cd9397b49dbc",
@@ -44,10 +45,9 @@ def produce():
     string_buffers = [buffer.to_pybytes() for buffer in strings.buffers()]
     if string_buffers != [buffer.to_pybytes() for buffer in binaries.buffers()]:
         raise SystemExit("BinaryView and Utf8View physical buffers differ")
-    validity, *views_and_data = string_buffers
-    if validity != b"\x7f" or len(views_and_data) != len(FIXTURES):
+    if string_buffers[0] != b"\x7f" or len(string_buffers) != len(FIXTURES):
         raise SystemExit("unexpected validity or number of variadic buffers")
-    return views_and_data
+    return string_buffers
 
 
 def main():
@@ -55,9 +55,9 @@ def main():
     parser.add_argument("--regenerate", action="store_true")
     args = parser.parse_args()
     regenerated = produce() if args.regenerate else None
-    source = EXAMPLES.read_text(encoding="utf-8")
+    source = FIXTURE_SOURCE.read_text(encoding="utf-8")
     for index, (name, expected_hash) in enumerate(zip(FIXTURES, SHA256S, strict=True)):
-        match = re.search(rf"^private def {name} : KBytes :=\n  \.leaf (\d+) 0x([0-9a-f]+)$",
+        match = re.search(rf"^def {name} : KBytes :=\n  \.leaf (\d+) 0x([0-9a-f]+)$",
                           source, re.MULTILINE)
         if match is None:
             raise SystemExit(f"fixture definition missing for {name}")

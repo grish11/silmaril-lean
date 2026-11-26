@@ -2,24 +2,10 @@ module
 
 import Silmaril.Formats.Arrow.BinaryView.Defs
 meta import Silmaril.Formats.Arrow.BinaryView.Defs
+import Silmaril.Formats.Arrow.BinaryView.Fixture
+meta import Silmaril.Formats.Arrow.BinaryView.Fixture
 
-open Silmaril Silmaril.Formats.Arrow.BinaryView
-
--- PyArrow 26.0.1 buffer fixtures, packed little-endian.
--- scripts/arrow-binary-view/fixtures.py checks their hashes and reproduction.
-private def slots : KBytes :=
-  .leaf 128 0xd00000001787a7978000000120000000000000001646362610000000d0000000d00000000aaa79ff0000000100000000000000000646362610000000d6c6b6a6968676665646362610000000c00000000000000000000b1ce0000000200000000000000000000000000000000
-
-private def firstData : KBytes :=
-  .leaf 29 0xaaa79ff0aaa79ff0aaa79ff0aaa79ff06d6c6b6a696867666564636261
-
-private def secondData : KBytes :=
-  .leaf 31 0x7a79787a79787a79787a79787a79787a79786d6c6b6a696867666564636261
-
-private def buffers : Buffers := ⟨slots, #[firstData, secondData]⟩
-
-private def expected : List String :=
-  ["", "α", "abcdefghijkl", "abcdefghijklm", "🧪🧪🧪🧪", "abcdefghijklm", "xyzxyzxyzxyzxyzxyz"]
+open Silmaril Silmaril.Formats.Arrow.BinaryView Silmaril.Formats.Arrow.BinaryView.Fixture
 
 /- The first seven slots have their validity bits set. The final slot is
 null and is outside the non-null slot reader's observation. -/
