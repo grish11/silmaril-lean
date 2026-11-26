@@ -1,6 +1,6 @@
 module
 
-import all tests.ssa.IsotopeInstitutionAdapters
+import all Silmaril.Proofs.SSA.Isotope.Institution.Adapters.Regression.Examples
 import all Silmaril.SSA.Isotope.Institution.Adapters.Thms
 import all Silmaril.Proofs.SSA.Isotope.Institution.Adapters.Hierarchy
 import all Silmaril.SSA.Isotope.Institution.Adapters.UpperPowerset.Defs
@@ -25,8 +25,7 @@ run_cmd do
     let some idx := env.getModuleIdxFor? name | continue
     let owner := env.header.moduleNames[idx.toNat]!
     unless (`Silmaril.SSA.Isotope.Institution.Adapters).isPrefixOf owner ||
-        (`Silmaril.Proofs.SSA.Isotope.Institution.Adapters).isPrefixOf owner ||
-        owner == `tests.ssa.IsotopeInstitutionAdapters do
+        (`Silmaril.Proofs.SSA.Isotope.Institution.Adapters).isPrefixOf owner do
       continue
     for ax in (← collectAxioms name) do
       unless allowed.contains ax do

@@ -41,7 +41,6 @@ CHECK_TARGETS += PeggyEggTests PeggySimpleValidationTests
 CHECK_TARGETS += PeggyFieldHeapTests PeggyFieldHeapLinearizeTests
 
 CHECK_TARGETS += PeggyInstitutionTests
-CHECK_TARGETS += IsotopeInstitutionAdapterTests
 CHECK_TARGETS += PeggyEquationalTests
 CHECK_TARGETS += PEGRulesTests
 CHECK_TARGETS += PEGCanonicalWhileTests

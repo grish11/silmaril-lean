@@ -65,6 +65,16 @@ theorem caseIter_corridor_commutes (hΓ : Function.Surjective (Iteration.visible
       (Relational.caseIterRho Γ TyDen).app S ≫ (UpperPowerset.letIter hΓ pair).ρ.app S :=
   Room.hom_ext (funext fun φ => (caseIter_sentence_commutes φ).symm) rfl
 
+/-- Both routes give the same backwards functor from upper powerset models to
+relational case models, including its action on model arrows. -/
+theorem caseIter_model_commutes (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
+    (pair : Elgot.ParallelPairing (SetM : Type v → Type v)) (S : InstrSig τ ε) :
+    ((UpperPowerset.letParCase hΓ pair).ρ.app S).mod ⋙
+        ((Powerset.letCase (D := TyDen (τ := τ)) Γ (fun a b => pair.pair a b)).ρ.app S).mod =
+      ((UpperPowerset.letIter hΓ pair).ρ.app S).mod ⋙
+        ((Relational.caseIterRho Γ TyDen).app S).mod :=
+  congrArg Corridor.mod (caseIter_corridor_commutes hΓ pair S)
+
 /-- The upper square commutes as bundled institution comorphisms. -/
 theorem caseIter_comorphism_commutes (hΓ : Function.Surjective (Iteration.visibleEnv.{u, v} (Γ := Γ)))
     (pair : Elgot.ParallelPairing (SetM : Type v → Type v)) :

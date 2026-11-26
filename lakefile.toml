@@ -887,7 +887,3 @@ root = "SqliteImageLean"
 name = "sqlite_write_profile_tests"
 srcDir = "tests/formats/sqlite-shell"
 root = "SqliteWriteProfile"
-
-[[lean_lib]]
-name = "IsotopeInstitutionAdapterTests"
-globs = ["tests.ssa.IsotopeInstitutionAdapters", "tests.ssa.IsotopeInstitutionAdapterAxioms"]

@@ -107,6 +107,26 @@ both sentence and model components. The upper square and outer rectangle
 commute as bundled comorphisms on the same powerset profiles. The sequential
 path of the outer rectangle uses `Relational.seqIterCoHom`.
 
+In the upper square, `caseIter_model_commutes` gives equality of the two
+backwards functors at each instruction signature. The parallel route
+retains the primitive membership predicates in the lower powerset model,
+then views them as relations. The sequential route takes those same
+membership predicates directly, and the sequential case-to-iteration
+inclusion has the identity model functor. Both routes send an upper strict
+identity computation map to the inclusion of equal primitive predicates.
+The existing reduct laws make these comparisons compatible with signature
+maps. Free-environment coverage supplies the satisfaction equivalence.
+
 The underlying syntax is proof relevant. These maps apply to each given
 endpoint witness. A raw syntax descent requires separate compatibility of the
 generating equations and endpoints. See the [tagged partial-model witness separation](https://github.com/hiloopai/silmaril-lean/commit/9936e209bd6244b2f27722216b2f129e59f7f541).
+
+## Regression checks
+
+The adapter examples and transitive axiom audit are leaf modules under
+`Silmaril.Proofs.SSA.Isotope.Institution.Adapters.Regression`. The audit imports
+the examples, so its path-selected target checks both.
+
+```sh
+lake build --wfail +Silmaril.Proofs.SSA.Isotope.Institution.Adapters.Regression.Axioms
+```
