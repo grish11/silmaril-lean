@@ -1,8 +1,8 @@
 module
 
 public import Silmaril.SSA.Isotope.LetParIter.Categorical.Laws.Defs
+public import Silmaril.SSA.Isotope.LetParIter.Categorical.Native.Defs
 public import Silmaril.SSA.Isotope.LetParIter.Equations.Defs
-public import Silmaril.SSA.Isotope.LetIter.Categorical.Soundness.Thms
 public import Silmaril.SSA.Isotope.LetIter.Categorical.Substitution.Environment.Thms
 import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.Native
 import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.Renaming
@@ -12,9 +12,11 @@ import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.Assoc
 import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.Maps
 import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.GuardedCase
 import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.Iteration
+import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.Substitution
+import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.Uniformity
 import Silmaril.Proofs.SSA.Isotope.LetParIter.Categorical.Obstruction
 
-/-! # Native agreement and soundness of the Par generators -/
+/-! # Fixed-witness native agreement and soundness of the mixed generators -/
 
 public section
 
@@ -23,7 +25,7 @@ namespace Silmaril.Isotope.LetParIter.Categorical
 open CategoryTheory CategoryTheory.Limits
 open scoped MonoidalCategory
 open Parallel (Derivation Pure)
-open LetIter.Semantics.Categorical (TypeModel InstructionModel envObj envRenameMap)
+open LetIter.Semantics.Categorical (TypeModel InstructionModel envObj envRenameMap envSubstMap envSnocIso)
 
 universe v₁ v₂ u₁ u₂ u v w q
 
@@ -44,11 +46,38 @@ theorem denote_embed {t : LetIter.LocallyNameless.Tm ν Φ n} {A : τ}
     denote J P M (derivation d) = LetIter.Semantics.Categorical.denote J M d :=
   denote_embed_proof J P M d
 
+/-- The mixed embedding and its exact proof-relevant witness use the same denotation
+after identifying their recursively defined environment objects. -/
+theorem denote_embed_nativeTyping [Subtyping τ]
+    (N : LetIter.ProofRelevant.Semantics.Categorical.TypeModel τ V)
+    [LetIter.ProofRelevant.Semantics.Categorical.InstructionModel J N Φ]
+    {t : LetIter.LocallyNameless.Tm ν Φ n} {A : τ}
+    (d : LetIter.LocallyNameless.Derivation Φ Γ β t A) :
+    letI := exactInstructionModel J N (Φ := Φ)
+    HEq (denote J P (exactTypeModel N) (derivation d))
+      (LetIter.ProofRelevant.Semantics.Categorical.denote J N (nativeTyping d)) :=
+  denote_embed_nativeTyping_proof J P N d
+
 /-- Typed bound renaming applies the corresponding pure environment map. -/
 theorem denote_rename {k : Nat} {δ : BoundCtx τ k} {t : Tm ν Φ n} {A : τ}
     (d : Derivation Φ Γ β t A) (r : BoundCtx.Renaming β δ) :
     denote J P M (Typing.rename r d) = J.map (envRenameMap M Γ r) ≫ denote J P M d :=
   denote_rename_proof J P M d r
+
+/-- Simultaneous substitution by value denotations precomposes the packed environment. -/
+theorem denote_bsubst {k : Nat} {δ : BoundCtx τ k} {t : Tm ν Φ n} {A : τ}
+    (d : Derivation Φ Γ β t A) {σ : Fin n → Tm ν Φ k} (s : Subst (Γ := Γ) β δ σ)
+    (p : ∀ i, envObj M Γ δ ⟶ M.obj (β.get i)) (hs : ∀ i, denote J P M (s i) = J.map (p i)) :
+    denote J P M (Typing.bsubst s d) = J.map (envSubstMap M Γ β δ p) ≫ denote J P M d :=
+  denote_bsubst_proof J P M d s p hs
+
+/-- Substituting one pure value extends the environment by that value. -/
+theorem denote_instantiate {a : Tm ν Φ n} {b : Tm ν Φ (n + 1)} {A B : τ}
+    (da : Derivation Φ Γ β a A) (db : Derivation Φ Γ (.snoc β A) b B)
+    (f : envObj M Γ β ⟶ M.obj A) (hf : denote J P M da = J.map f) :
+    denote J P M (Typing.instantiate db da) =
+      J.map (CartesianMonoidalCategory.lift (𝟙 _) f ≫ (envSnocIso M Γ β A).hom) ≫ denote J P M db :=
+  denote_instantiate_proof J P M da db f hf
 
 /-- Swapping the returned tuple exchanges the parallel branches. -/
 theorem swap_sound {a b : Tm ν Φ n} {A B : τ}
@@ -93,6 +122,20 @@ theorem iterFixpoint_sound {a : Tm ν Φ n} {b : Tm ν Φ (n + 1)} {A B : τ}
         (.iter (h := rfl) Typing.newest (Typing.underBinder (Typing.underBinder db))))) :=
   iterFixpoint_sound_proof J P M da db
 
+/-- A value state change satisfying the mixed feedback square preserves the loop.
+The transported diagonal of the retained environment must be central. -/
+theorem iterUniformity_sound_of_value {a : Tm ν Φ n} {h b b' : Tm ν Φ (n + 1)} {A X B : τ}
+    (central : PremonoidalCategory.IsCentral
+      (J.map (LetIter.ProofRelevant.Semantics.Categorical.duplicate (envObj M Γ β)) ≫
+        (Functor.StrongPremonoidal.tensorIso (J := J) (envObj M Γ β) (envObj M Γ β)).inv))
+    (da : Derivation Φ Γ β a A) (dh : Derivation Φ Γ (.snoc β A) h X)
+    (db : Derivation Φ Γ (.snoc β A) b (coprod B A))
+    (db' : Derivation Φ Γ (.snoc β X) b' (coprod B X))
+    (u : envObj M Γ (.snoc β A) ⟶ M.obj X) (hu : denote J P M dh = J.map u)
+    (square : denote J P M (Typing.uniformityLeft db dh) = denote J P M (Typing.uniformityRight db' dh)) :
+    denote J P M (.iter (h := rfl) da db) = denote J P M (.iter (h := rfl) (.let₁ da dh) db') :=
+  iterUniformity_sound_proof J P M central da dh db db' u hu square
+
 variable {ε : Type q} [HasEff Φ ε] {pe : ε}
   (pureInstr : ∀ f : Φ, IsPure pe f →
     ∃ p : M.obj (instrSrc f) ⟶ M.obj (instrTrg f),
@@ -100,25 +143,17 @@ variable {ε : Type q} [HasEff Φ ε] {pe : ε}
 
 include pureInstr
 
-/-- Transfer an exact LetIter equivalence under the native categorical soundness
-hypotheses. The proof-relevant relation in `Equiv.native` carries its own witnesses. -/
-theorem embed_equiv_of_coherent_shared_tensor [FreydCategory.CentralUnit J]
-    (coherent : LetIter.Semantics.Categorical.TypingCoherent (ν := ν) J M Φ)
-    (shared : ∀ R S : V, ∃ e : J.obj R ⊗ J.obj S = J.obj (R ⊗ S),
-      Functor.StrongPremonoidal.tensorIso (J := J) R S = eqToIso e)
-    {a b : LetIter.LocallyNameless.Tm ν Φ n} {A : τ}
-    (da : LetIter.LocallyNameless.Derivation Φ Γ β a A)
-    (db : LetIter.LocallyNameless.Derivation Φ Γ β b A)
-    (h : LetIter.LocallyNameless.Equiv pe Γ β a b A) :
-    denote J P M (derivation da) = denote J P M (derivation db) := by
-  simpa only [denote_embed] using
-    LetIter.Semantics.Categorical.denote_equiv_of_coherent_shared_tensor J M
-      coherent shared pureInstr h da db
-
 /-- The syntactic purity judgment factors the mixed denotation through the value functor. -/
 theorem denote_pure {t : Tm ν Φ n} {A : τ} (d : Derivation Φ Γ β t A) (h : Pure pe t) :
     ∃ p : envObj M Γ β ⟶ M.obj A, denote J P M d = J.map p :=
   denote_pure_proof J P M pureInstr d h
+
+/-- Pure let beta holds at the constructed substitution witness. -/
+theorem letBeta_sound {a : Tm ν Φ n} {b : Tm ν Φ (n + 1)} {A B : τ}
+    (da : Derivation Φ Γ β a A) (db : Derivation Φ Γ (.snoc β A) b B) (ha : Pure pe a) :
+    denote J P M (.let₁ da db) = denote J P M (Typing.instantiate db da) := by
+  obtain ⟨f, hf⟩ := denote_pure J P M pureInstr da ha
+  exact letBeta_sound_proof J P M da db f hf
 
 /-- Parallel and sequential pairing agree on two pure terms. -/
 theorem purePair_sound {a b : Tm ν Φ n} {A B : τ}
