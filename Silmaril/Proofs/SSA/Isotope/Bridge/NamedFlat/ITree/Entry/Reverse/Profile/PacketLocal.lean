@@ -50,7 +50,7 @@ theorem packed_tree (M : Model (κ := κ) Events P.Instr) (admission : Admission
   change ((obs <$> CFG.Cyclic.run m (CFG.Cyclic.LiveOut.attach (fun k => (fields k).map Prod.fst)
     a.source) (store (Interface.names ports) context x)) >>= _) = _
   rw [CFG.Cyclic.LiveOut.run_project]
-  simp only [LiveOut.observe, bind_map_left]
+  simp only [LiveOut.observe, LiveOut.observeRaw, bind_map_left]
   rfl
 
 end Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Reverse.PacketLocal

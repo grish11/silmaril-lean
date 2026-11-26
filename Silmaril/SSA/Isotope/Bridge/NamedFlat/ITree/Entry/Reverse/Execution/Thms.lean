@@ -28,7 +28,7 @@ theorem observeAttached_eq (M : Model (κ := κ) Events P.Instr) (I : Interface 
     (fields : K → List (V × Ty κ)) (source : CFG V K P.Instr)
     (record : Ty.denote Atoms (Region.packedInputType I.context.toList)) :
     observeAttached M I fields source record = LiveOut.observe M I fields source record := by
-  simp only [observeAttached, withLiveOut, LiveOut.observe, CFG.Cyclic.LiveOut.run_project,
+  simp only [observeAttached, withLiveOut, LiveOut.observe, LiveOut.observeRaw, CFG.Cyclic.LiveOut.run_project,
     ← bind_pure_comp, bind_assoc, pure_bind]
 
 /-- Packet closure lifts the one-step carried-store isolation to the entire

@@ -23,18 +23,6 @@ open Silmaril.Isotope.Semantics (encodeValue)
 
 universe u v w
 
-private theorem run_packetClosed {V K : Type w} {F : Type v} {M : Type w → Type w} {α : Type w}
-    [DecidableEq V] [DecidableEq K] [Monad M] [LawfulMonad M] [Iterate M] [LawfulElgotMonad M]
-    (model : Silmaril.SSA.LambdaRTL.Model F M α) (graph : CFG V K F)
-    (closed : CFG.Cyclic.RoundTrip.PacketClosed graph) (input : V → α) :
-    obs <$> CFG.Cyclic.run model graph input = CFG.Cyclic.runSSA model graph input := by
-  rw [CFG.Cyclic.run, CFG.Cyclic.runSSA, CFG.Body.evalJump]
-  simp only [CFG.Body.exec_eq_evalRTL, map_bind, bind_assoc, pure_bind]
-  apply bind_congr
-  intro transfer
-  exact CFG.Cyclic.iter_obs_of_step_encoding model _ obs _
-    (CFG.Cyclic.RoundTrip.step_packetClosed_obs model graph.blocks closed input) transfer
-
 variable {κ V K : Type (u + 1)} [DecidableEq V] [DecidableEq K]
   {P : FlatInstitution.Signature.{u, v} κ} {I : Interface κ V K}
   {fields : K → List (V × Ty κ)} {blocks : Nat}
@@ -54,14 +42,14 @@ theorem packed_observe (M : Model (κ := κ) Events P.Instr) (a : Lowered I fiel
     ⟨attached, .ofTyped typed, a.count, a.readback⟩
   change region M.raw (extend ambient (encodeValue C A x)) (Program.ofCFGEntry typed).code = _
   refine (SSA.observe_tree M checked x ambient).symm.trans ?_
-  have run := run_packetClosed (treeModel M.raw) attached a.closed (store I.names I.context x)
+  have run := CFG.Cyclic.RoundTrip.run_packetClosed_obs (treeModel M.raw) attached a.closed (store I.names I.context x)
   change (CFG.Cyclic.runSSA (treeModel M.raw) attached (store I.names I.context x) >>= _) = _
   rw [← run]
   change ((obs <$> CFG.Cyclic.run (treeModel M.raw)
     (CFG.Cyclic.LiveOut.attach (fun k => (fields k).map Prod.fst) a.source)
     (store I.names I.context x)) >>= _) = _
   rw [CFG.Cyclic.LiveOut.run_project]
-  simp only [LiveOut.observe, map_eq_pure_bind, bind_assoc, pure_bind]
+  simp only [LiveOut.observe, LiveOut.observeRaw, map_eq_pure_bind, bind_assoc, pure_bind]
   rfl
 
 end Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Reverse

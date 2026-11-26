@@ -30,7 +30,7 @@ theorem observe_rtl (M : Model (κ := κ) Events P.Instr) (a : Admission P I fie
   change (CFG.Cyclic.run (treeModel M.raw) a.rtl.source (store I.names I.context x) >>= fun out =>
     pure (FiniteCFG.packedTreeOutput (treeExitNumber I.exits (obs out)))) = _
   rw [a.attached, CFG.Cyclic.LiveOut.run_project]
-  simp only [observe, bind_map_left]
+  simp only [observe, observeRaw, bind_map_left]
 
 theorem packed_tree (M : Model (κ := κ) Events P.Instr) (a : Admission P I fields source)
     (x : Ty.denote C A) (ambient : Env (Sigma C)) :

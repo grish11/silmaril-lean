@@ -56,6 +56,6 @@ theorem Admission.letCase_observe_forward (M : Model (κ := κ) Events P.Instr) 
         pure (FiniteCFG.packedTreeOutput (treeExitNumber exits
           (obs (CFG.Cyclic.LiveOut.project (treeModel M.raw) (fun k => (fields k).map Prod.fst) final))))) := by
   rw [admission.letCase_observe M ranked x ambient]
-  simp only [LiveOut.observe, CFG.Cyclic.run_eq_forward (treeModel M.raw) a.source forward]
+  simp only [LiveOut.observe, LiveOut.observeRaw, CFG.Cyclic.run_eq_forward (treeModel M.raw) a.source forward]
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Reverse.PacketLocal
