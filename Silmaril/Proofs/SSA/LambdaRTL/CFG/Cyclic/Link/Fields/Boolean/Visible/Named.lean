@@ -136,13 +136,9 @@ theorem observe_eq (input : Fin a) (flag : Bool) :
   rw [← transport, bind_assoc]
   simp only [pure_bind, numbered]
 
-private theorem complete (s : program.State) : s ∈ program.states := by
-  cases s
-  simp [Program.states]
-
 theorem compare_at [DecidableEq F] (right : Program F a b) (input : Fin a) (flag : Bool) :
     program.refinementAt? right input flag = true ↔ TraceLE (program.observe input flag) (right.observe input flag) := by
-  rw [Program.refinementAt?, Silmaril.Elgot.ITree.Finite.compare_iff _ _ (complete program) (complete right),
+  rw [Program.refinementAt?, Silmaril.Elgot.ITree.Finite.compare_iff _ _ program.mem_states right.mem_states,
     observe_eq, observe_eq, TraceLE.bind_pure_iff output_injective]
 
 theorem compare_all [DecidableEq F] (right : Program F a b) :

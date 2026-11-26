@@ -6,6 +6,7 @@ import Silmaril.Semantics.ElgotMonads.Thms
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible
 
 open Silmaril.Elgot Silmaril.Elgot.ITree
+open Silmaril.Elgot.ITree.Finite (Event)
 open Silmaril.Isotope (Value)
 open Silmaril.Isotope.Bridge.NamedFlat (treeExitNumber)
 open Program (Atom store)
@@ -37,6 +38,46 @@ example : untilTrue.refinement? untilTrue = true := by cbv
 -- Both machines initially request the same event. A false reply returns on
 -- the left and takes the backedge on the right.
 example : announce.refinement? untilTrue = false := by cbv
+
+-- After the first request, a false reply enters a silent self-loop.
+private def cycleOnFalse : Program Unit 1 1 where
+  locals := 3
+  entry _ := .inl 0
+  block index := if index = 0 then .apply () (.inl 1)
+    else if index = 1 then .branch (.inr 0) (.inl 2)
+    else .jump (.inl 2)
+
+private def afterFalse : ExchangePath (Event (Unit × Bool)) :=
+  .cons (.ask ((), false)) false .nil
+
+example : cycleOnFalse.silentAfter? 0 false .nil = false := by cbv
+example : cycleOnFalse.silentAfter? 0 false (.cons (.ask ((), true)) false .nil) = false := by cbv
+example : cycleOnFalse.refinementWithSilence? cycleOnFalse = true := by cbv
+
+example : SilentAfter (cycleOnFalse.observe 0 false) afterFalse :=
+  (cycleOnFalse.silentAfter?_iff 0 false afterFalse).mp (by cbv)
+
+-- The same exchange returns in announce and exposes a second request in untilTrue.
+example : ¬ SilentAfter (announce.observe 0 false) afterFalse := by
+  intro seen
+  have yes := (announce.silentAfter?_iff 0 false afterFalse).mpr seen
+  have no : announce.silentAfter? 0 false afterFalse = false := by cbv
+  simp [no] at yes
+
+example : ¬ SilentAfter (untilTrue.observe 0 false) afterFalse := by
+  intro seen
+  have yes := (untilTrue.silentAfter?_iff 0 false afterFalse).mpr seen
+  have no : untilTrue.silentAfter? 0 false afterFalse = false := by cbv
+  simp [no] at yes
+
+example : ∀ input flag, TraceLE (cycleOnFalse.observe input flag) (announce.observe input flag) :=
+  (cycleOnFalse.refinement?_iff announce).mp (by cbv)
+
+example : ¬ TraceLEWithSilence (cycleOnFalse.observe 0 false) (announce.observe 0 false) := by
+  intro related
+  have yes := (cycleOnFalse.refinementAtWithSilence?_iff announce 0 false).mpr related
+  have no : cycleOnFalse.refinementAtWithSilence? announce 0 false = false := by cbv
+  simp [no] at yes
 
 private def echo : Model Unit Part (Value Atom) where
   unit := .unit
@@ -142,6 +183,24 @@ example : ¬ TraceLE
   have accepted := (announce.refinementAt?_iff_packedOutput wire 0 false).mpr traces'
   have rejected : announce.refinementAt? wire 0 false = false := by cbv
   simp [rejected] at accepted
+
+private def cycleTarget := (elaborate (cycleOnFalse.compile 0) cycleOnFalse.exits capture).get (by decide)
+
+private theorem cycleTyped : cycleTarget.HasType captureTypes (fun _ => packet) (fun _ => packet) :=
+  check_sound cycleTarget captureTypes (fun _ => packet) (fun _ => packet) (by decide)
+
+example : ¬ TraceLEWithSilence
+    (region Program.primitive (extend ambient (packEnv 1 (env false)))
+      ((FiniteCFG.packedExecutionRegion cycleTyped).packInputsDestructure captureTypes.toList))
+    (region Program.primitive (extend ambient (packEnv 1 (env false)))
+      ((FiniteCFG.packedExecutionRegion announceTyped).packInputsDestructure captureTypes.toList)) := by
+  intro traces
+  have left := cycleOnFalse.packed_observe 0 false capture rfl cycleTyped ambient (env false) (fun _ => rfl)
+  have right := announce.packed_observe 0 false capture rfl announceTyped ambient (env false) (fun _ => rfl)
+  have traces' := congrArg₂ TraceLEWithSilence left right ▸ traces
+  have yes := (cycleOnFalse.refinementAtWithSilence?_iff_packedOutput announce 0 false).mpr traces'
+  have no : cycleOnFalse.refinementAtWithSilence? announce 0 false = false := by cbv
+  simp [no] at yes
 
 end Packed
 

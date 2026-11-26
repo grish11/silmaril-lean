@@ -2,7 +2,7 @@ module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Defs
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Defs
-public import Silmaril.Semantics.ITree.Trace.Finite.Defs
+public import Silmaril.Semantics.ITree.Trace.Finite.Silence.Defs
 public import Mathlib.Data.Fintype.Sum
 public import Mathlib.Data.Fintype.Prod
 
@@ -13,7 +13,7 @@ a block boundary. The primitive's complete reply domain is Bool. -/
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible
 
-open Silmaril.Elgot.ITree (Tree vis diverge TraceLE)
+open Silmaril.Elgot.ITree (Tree vis diverge ExchangePath)
 open Silmaril.Isotope (Value)
 open Silmaril.Isotope.Bridge.NamedFlat (treeModel treeExitNumber)
 open Silmaril.Isotope.LambdaSSA.Semantics.Interaction (Primitive)
@@ -48,6 +48,10 @@ abbrev Atom := PUnit.{2}
 def states : Finset program.State :=
   (Finset.univ : Finset (Label program.locals b × Bool)).map ⟨ULift.up, ULift.up_injective⟩
 
+theorem mem_states (state : program.State) : state ∈ program.states := by
+  cases state
+  simp [states]
+
 def start (input : Fin a) (flag : Bool) : program.State := ⟨program.entry input, flag⟩
 
 def step (state : program.State) : Silmaril.Elgot.ITree.Finite.Step (F × Bool) (Result b) program.State :=
@@ -58,6 +62,13 @@ def step (state : program.State) : Silmaril.Elgot.ITree.Finite.Step (F × Bool) 
     | .jump target => .inr ⟨target, flag⟩
     | .branch yes no => .inr ⟨if flag then yes else no, flag⟩
     | .apply symbol target => .inl (.request (symbol, flag) fun reply => ⟨target, reply⟩)
+
+/-- The compiled fragment has no immediate silent stop instruction. Its
+normalized no-root observations come from repeats in silent control. -/
+theorem step_ne_stop (state : program.State) : program.step state ≠ .inl .stop := by
+  rcases state with ⟨index | port, flag⟩
+  · cases row : program.block index <;> simp [step, row]
+  · simp [step]
 
 def compiledBlock (instruction : Instruction F (Label program.locals b)) :
     Block Register program.Address F :=
@@ -111,6 +122,17 @@ def refinementAt? [DecidableEq F] (right : Program F a b) (input : Fin a) (flag 
 def refinement? [DecidableEq F] (right : Program F a b) : Bool :=
   (List.finRange a).all fun input =>
     (packets 1).all fun packet => program.refinementAt? right input (packet 0)
+
+/-- Check for a silent cycle after the recorded exchanges on this input. -/
+def silentAfter? [DecidableEq F] (input : Fin a) (flag : Bool)
+    (path : ExchangePath (Event (F × Bool))) : Bool :=
+  Silmaril.Elgot.ITree.Finite.silentAfter? program.step program.states (program.start input flag) path
+
+def refinementAtWithSilence? [DecidableEq F] (right : Program F a b) (input : Fin a) (flag : Bool) : Bool :=
+  program.refinementAt? right input flag && right.refinementAt? program input flag
+
+def refinementWithSilence? [DecidableEq F] (right : Program F a b) : Bool :=
+  program.refinement? right && right.refinement? program
 
 end Program
 
