@@ -11,12 +11,20 @@ open Silmaril.Relational
 open Silmaril.Numeric.Timestamp (Ticks)
 
 /-- A successful open checks the original file, selected leaf and resource bounds. -/
+theorem openBoundWith_sound {profile : AnnotationProfile} {limits : Limits} {input : Bytes} {ordinal : Nat} {bound : Leaf.Bound}
+    (opened : openBoundWith profile limits input ordinal = .ok bound) :
+    Leaf.openLeafWith profile limits.snapshot input ordinal = .ok bound ∧ input.length ≤ limits.maxFileBytes ∧
+      bound.snapshot.groupCount ≤ limits.maxGroups ∧
+      bound.snapshot.metadata.numRows.toNat ≤ limits.maxTotalRows :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Events.ToIpc.openBoundWith_sound opened
+
+/-- A successful open checks the original file, selected leaf and resource bounds. -/
 theorem openBound_sound {limits : Limits} {input : Bytes} {ordinal : Nat} {bound : Leaf.Bound}
     (opened : openBound limits input ordinal = .ok bound) :
     Leaf.openLeaf limits.snapshot input ordinal = .ok bound ∧ input.length ≤ limits.maxFileBytes ∧
       bound.snapshot.groupCount ≤ limits.maxGroups ∧
       bound.snapshot.metadata.numRows.toNat ≤ limits.maxTotalRows :=
-  Proofs.Formats.Parquet.Timestamp.Leaf.Events.ToIpc.openBound_sound opened
+  openBoundWith_sound (profile := .modernOnly) opened
 
 /-- The selected output keeps the original unit and epoch interpretation. -/
 theorem selectedBinding_exact (bound : Leaf.Bound) :
@@ -47,6 +55,17 @@ theorem emit_readback {limits : Arrow.ObservationLimits} {schema : Scan.Schema S
   Proofs.Formats.Parquet.Timestamp.Leaf.Events.ToIpc.emit_readback one ended written
 
 /-- The first failed footer group determines the exact original source error. -/
+theorem convertWith_first_error {profile : AnnotationProfile} {inputLimits : Limits} {outputLimits : Arrow.ObservationLimits}
+    {input : Bytes} {ordinal index : Nat} {bound : Leaf.Bound}
+    {before after : List Nat} {groups : List (Leaf.Slots bound)} {cause : Leaf.Error}
+    (opened : openBoundWith profile inputLimits input ordinal = .ok bound)
+    (split : List.range bound.snapshot.groupCount = before ++ index :: after)
+    (earlier : before.mapM (Leaf.readGroup inputLimits.leaf bound) = .ok groups)
+    (failed : Leaf.readGroup inputLimits.leaf bound index = .error cause) :
+    convertWith profile inputLimits outputLimits input ordinal = .error (.source (.groupFailure index cause)) :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Events.ToIpc.convertWith_first_error opened split earlier failed
+
+/-- The first failed footer group determines the exact original source error. -/
 theorem convert_first_error {inputLimits : Limits} {outputLimits : Arrow.ObservationLimits}
     {input : Bytes} {ordinal index : Nat} {bound : Leaf.Bound}
     {before after : List Nat} {groups : List (Leaf.Slots bound)} {cause : Leaf.Error}
@@ -55,7 +74,20 @@ theorem convert_first_error {inputLimits : Limits} {outputLimits : Arrow.Observa
     (earlier : before.mapM (Leaf.readGroup inputLimits.leaf bound) = .ok groups)
     (failed : Leaf.readGroup inputLimits.leaf bound index = .error cause) :
     convert inputLimits outputLimits input ordinal = .error (.source (.groupFailure index cause)) :=
-  Proofs.Formats.Parquet.Timestamp.Leaf.Events.ToIpc.convert_first_error opened split earlier failed
+  convertWith_first_error (profile := .modernOnly) opened split earlier failed
+
+/-- Successful IPC reads back to the same leaf descriptor and complete original
+group observations in footer order. -/
+theorem convertWith_readback {profile : AnnotationProfile} {inputLimits : Limits} {outputLimits : Arrow.ObservationLimits}
+    {input : Bytes} {ordinal : Nat} {wire : KBytes}
+    (written : convertWith profile inputLimits outputLimits input ordinal = .ok wire) :
+    ∃ bound : Leaf.Bound, openBoundWith profile inputLimits input ordinal = .ok bound ∧
+      let reference := Leaf.Events.referenceGroups inputLimits.leaf bound (List.range bound.snapshot.groupCount)
+      reference.2 = .eos ∧ ∃ result, Arrow.TimestampStream.read outputLimits.ipc wire = .ok result ∧
+        result.binding = selectedBinding bound ∧
+        result.batches.map Arrow.TimestampBatch.Writer.tickCounts =
+          reference.1.map (List.map (Option.map Ticks.ticks)) :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Events.ToIpc.convertWith_readback written
 
 /-- Successful IPC reads back to the same leaf descriptor and complete original
 group observations in footer order. -/
@@ -68,6 +100,6 @@ theorem convert_readback {inputLimits : Limits} {outputLimits : Arrow.Observatio
         result.binding = selectedBinding bound ∧
         result.batches.map Arrow.TimestampBatch.Writer.tickCounts =
           reference.1.map (List.map (Option.map Ticks.ticks)) :=
-  Proofs.Formats.Parquet.Timestamp.Leaf.Events.ToIpc.convert_readback written
+  convertWith_readback (profile := .modernOnly) written
 
 end Silmaril.Formats.Parquet.Timestamp.Leaf.Events.ToIpc

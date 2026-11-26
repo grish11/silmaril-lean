@@ -15,6 +15,20 @@ open ThriftCompact.Traversal (Reader Field)
 
 /-- The binding uses the same schema ordinal in the typed and compact views of
     the exact metadata slice. The selected entry is a non-root INT64 leaf. -/
+theorem readMetadataWith_selects {profile : AnnotationProfile} {limits : Footer.Limits} {index : Nat} {bytes : Bytes}
+    {binding : Binding} (read : readMetadataWith profile limits index bytes = .ok binding) :
+    let reader : Reader := ⟨bytes, limits.compact, limits.varintMode⟩
+    bytes.length ≤ limits.maxFooterBytes ∧
+      (index ≠ 0 ∧ binding.leaf.physicalType = some .int64 ∧
+        binding.leaf.numChildren.getD 0 = 0 ∧ binding.leaf.repetition.isSome = true) ∧
+      ∃ footer schema fields,
+        Footer.readMetadata limits bytes = .ok footer ∧ footer.schema[index]? = some binding.leaf ∧
+        Internal.schemaFields reader = .ok schema ∧ schema[index]? = some fields ∧
+        Internal.annotationWith profile reader fields = .ok binding.descriptor :=
+  Proofs.Formats.Parquet.Timestamp.readMetadataWith_selects read
+
+/-- The binding uses the same schema ordinal in the typed and compact views of
+    the exact metadata slice. The selected entry is a non-root INT64 leaf. -/
 theorem readMetadata_selects {limits : Footer.Limits} {index : Nat} {bytes : Bytes}
     {binding : Binding} (read : readMetadata limits index bytes = .ok binding) :
     let reader : Reader := ⟨bytes, limits.compact, limits.varintMode⟩
@@ -25,7 +39,24 @@ theorem readMetadata_selects {limits : Footer.Limits} {index : Nat} {bytes : Byt
         Footer.readMetadata limits bytes = .ok footer ∧ footer.schema[index]? = some binding.leaf ∧
         Internal.schemaFields reader = .ok schema ∧ schema[index]? = some fields ∧
         Internal.annotation reader fields = .ok binding.descriptor :=
-  Proofs.Formats.Parquet.Timestamp.readMetadata_selects read
+  readMetadataWith_selects (profile := .modernOnly) read
+
+/-- With a present modern field, the opt-in profile uses the same checked
+modern parser, including all dual-annotation checks. -/
+theorem annotationWith_modern {reader : Reader} {fields : List Field} {modern : Field}
+    (present : Internal.optionalField fields 10 = .ok (some modern)) :
+    Internal.annotationWith .allowConvertedOnly reader fields = Internal.annotation reader fields := by
+  simp [Internal.annotationWith, present, Bind.bind, Except.bind]
+
+/-- When field 10 is absent, a successful opt-in reads exactly code 9 or 10
+with its historical UTC interpretation. -/
+theorem annotationWith_converted {reader : Reader} {fields : List Field} {descriptor : Descriptor}
+    (absent : Internal.optionalField fields 10 = .ok none)
+    (read : Internal.annotationWith .allowConvertedOnly reader fields = .ok descriptor) :
+    ∃ legacy code, Internal.requiredField fields 6 = .ok legacy ∧
+      Internal.integer reader legacy = .ok code ∧
+      ((code = 9 ∧ descriptor = ⟨.millis, true⟩) ∨ (code = 10 ∧ descriptor = ⟨.micros, true⟩)) :=
+  Proofs.Formats.Parquet.Timestamp.annotationWith_converted absent read
 
 /-- The modern annotation always supplies the descriptor. A present legacy tag
     must be compatible with its unit. -/

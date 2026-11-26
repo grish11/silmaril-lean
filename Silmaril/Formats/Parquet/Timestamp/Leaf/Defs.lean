@@ -70,11 +70,11 @@ def leafFields (leaf : Footer.SchemaElement) :
     Option Footer.PhysicalType × Option Int × Option Footer.Repetition × String × Option Int :=
   (leaf.physicalType, leaf.typeLength, leaf.repetition, leaf.name, leaf.numChildren)
 
-def bindSelection (limits : Footer.Limits) (snapshot : Snapshot.Checked) (ordinal : Nat) :
-    Except Error (Timestamp.Binding × FlatPage.LevelSchema) := do
+def bindSelectionWith (profile : AnnotationProfile) (limits : Footer.Limits)
+    (snapshot : Snapshot.Checked) (ordinal : Nat) : Except Error (Timestamp.Binding × FlatPage.LevelSchema) := do
   if !isFlat snapshot.metadata.schema then Except.error .schemaShape
   let some leaf := snapshot.metadata.schema[ordinal]? | Except.error (.annotation (.schemaIndex ordinal))
-  let binding ← (Timestamp.readMetadata limits ordinal (metadataBytes snapshot)).mapError .annotation
+  let binding ← (Timestamp.readMetadataWith profile limits ordinal (metadataBytes snapshot)).mapError .annotation
   if leafFields leaf ≠ leafFields binding.leaf then Except.error .leafMismatch
   let some levels := Timestamp.Page.leafLevels? binding.leaf | Except.error .schemaLevels
   return (binding, levels)
@@ -116,20 +116,40 @@ def PhysicalFrame (limits : ScalarPage.Limits) (bound : Bound) (codec : Int)
 
 end
 
-/-- Resolve the same flat, non-root leaf in the snapshot's checked schema and
-in the exact raw footer used by the modern TIMESTAMP annotation reader. -/
-def bind (limits : Footer.Limits) (snapshot : Snapshot.Checked) (ordinal : Nat) : Except Error Bound :=
-  (Internal.bindSelection limits snapshot ordinal).map fun (binding, levels) =>
+/-- Resolve the flat leaf in both the checked schema and the original footer
+using the supplied annotation profile. -/
+def bindWith (profile : AnnotationProfile) (limits : Footer.Limits) (snapshot : Snapshot.Checked)
+    (ordinal : Nat) : Except Error Bound :=
+  (Internal.bindSelectionWith profile limits snapshot ordinal).map fun (binding, levels) =>
     ⟨snapshot, ordinal, binding, levels⟩
+
+theorem bindWith_observation (profile : AnnotationProfile) (limits : Footer.Limits)
+    (snapshot : Snapshot.Checked) (ordinal : Nat) :
+    (bindWith profile limits snapshot ordinal).map
+        (fun bound => (bound.snapshot, bound.ordinal, bound.binding, bound.levels)) =
+      (Internal.bindSelectionWith profile limits snapshot ordinal).map
+        (fun selection => (snapshot, ordinal, selection)) := by
+  cases read : Internal.bindSelectionWith profile limits snapshot ordinal <;>
+    simp [bindWith, read, Except.map]
+
+/-- Bind only a modern TIMESTAMP annotation. -/
+@[expose] def bind (limits : Footer.Limits) (snapshot : Snapshot.Checked) (ordinal : Nat) : Except Error Bound :=
+  bindWith .modernOnly limits snapshot ordinal
+
+abbrev Internal.bindSelection := Internal.bindSelectionWith .modernOnly
 
 theorem bind_observation (limits : Footer.Limits) (snapshot : Snapshot.Checked) (ordinal : Nat) :
     (bind limits snapshot ordinal).map (fun bound => (bound.snapshot, bound.ordinal, bound.binding, bound.levels)) =
-      (Internal.bindSelection limits snapshot ordinal).map (fun selection => (snapshot, ordinal, selection)) := by
-  cases read : Internal.bindSelection limits snapshot ordinal <;> simp [bind, read, Except.map]
+      (Internal.bindSelection limits snapshot ordinal).map (fun selection => (snapshot, ordinal, selection)) :=
+  bindWith_observation .modernOnly limits snapshot ordinal
 
-@[expose] def openLeaf (limits : Snapshot.Limits) (source : Bytes) (ordinal : Nat) : Except Error Bound := do
+@[expose] def openLeafWith (profile : AnnotationProfile) (limits : Snapshot.Limits) (source : Bytes)
+    (ordinal : Nat) : Except Error Bound := do
   let snapshot ← (Snapshot.check (Failure := Unit) limits source).mapError .snapshot
-  bind limits.footer snapshot ordinal
+  bindWith profile limits.footer snapshot ordinal
+
+@[expose] def openLeaf (limits : Snapshot.Limits) (source : Bytes) (ordinal : Nat) : Except Error Bound :=
+  openLeafWith .modernOnly limits source ordinal
 
 /-- Associate the group's actual chunk ordinal and path with the annotated leaf.
 Only uncompressed PLAIN, with optional RLE levels, is admitted. -/

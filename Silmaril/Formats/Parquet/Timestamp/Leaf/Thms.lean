@@ -8,6 +8,23 @@ public section
 namespace Silmaril.Formats.Parquet.Timestamp.Leaf
 
 /-- Both the checked schema and the original footer select the same leaf. -/
+theorem bindWith_sound {profile : AnnotationProfile} {limits : Footer.Limits} {snapshot : Snapshot.Checked} {ordinal : Nat} {bound : Bound}
+    (accepted : bindWith profile limits snapshot ordinal = .ok bound) :
+    bound.snapshot = snapshot ∧ bound.ordinal = ordinal ∧ ordinal ≠ 0 ∧
+      Internal.isFlat snapshot.metadata.schema = true ∧
+      snapshot.metadata.schema[ordinal]? = some bound.binding.leaf ∧
+      Timestamp.readMetadataWith profile limits ordinal (Internal.metadataBytes snapshot) = .ok bound.binding ∧
+      Timestamp.Page.leafLevels? bound.binding.leaf = some bound.levels :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.bindWith_sound accepted
+
+/-- The retained source is the checked snapshot of the supplied bytes. -/
+theorem openLeafWith_sound {profile : AnnotationProfile} {limits : Snapshot.Limits} {source : Bytes} {ordinal : Nat} {bound : Bound}
+    (accepted : openLeafWith profile limits source ordinal = .ok bound) :
+    Snapshot.check (Failure := Unit) limits source = .ok bound.snapshot ∧
+      bindWith profile limits.footer bound.snapshot ordinal = .ok bound :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.openLeafWith_sound accepted
+
+/-- Both the checked schema and the original footer select the same leaf. -/
 theorem bind_sound {limits : Footer.Limits} {snapshot : Snapshot.Checked} {ordinal : Nat} {bound : Bound}
     (accepted : bind limits snapshot ordinal = .ok bound) :
     bound.snapshot = snapshot ∧ bound.ordinal = ordinal ∧ ordinal ≠ 0 ∧
@@ -15,14 +32,14 @@ theorem bind_sound {limits : Footer.Limits} {snapshot : Snapshot.Checked} {ordin
       snapshot.metadata.schema[ordinal]? = some bound.binding.leaf ∧
       Timestamp.readMetadata limits ordinal (Internal.metadataBytes snapshot) = .ok bound.binding ∧
       Timestamp.Page.leafLevels? bound.binding.leaf = some bound.levels :=
-  Proofs.Formats.Parquet.Timestamp.Leaf.bind_sound accepted
+  bindWith_sound (profile := .modernOnly) accepted
 
 /-- The retained source is the checked snapshot of the supplied bytes. -/
 theorem openLeaf_sound {limits : Snapshot.Limits} {source : Bytes} {ordinal : Nat} {bound : Bound}
     (accepted : openLeaf limits source ordinal = .ok bound) :
     Snapshot.check (Failure := Unit) limits source = .ok bound.snapshot ∧
       bind limits.footer bound.snapshot ordinal = .ok bound :=
-  Proofs.Formats.Parquet.Timestamp.Leaf.openLeaf_sound accepted
+  openLeafWith_sound (profile := .modernOnly) accepted
 
 /-- The selected chunk is the corresponding INT64 entry in the requested
 group, with the annotated leaf's path and a bounded, disjoint byte span. -/

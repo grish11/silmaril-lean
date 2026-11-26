@@ -36,6 +36,14 @@ theorem readAll_open_error {snapshotLimits : Snapshot.Limits} {limits : Leaf.Lim
     readAll snapshotLimits limits ordinal input = .error (.openFailure cause) :=
   Proofs.Formats.Parquet.Timestamp.Leaf.Events.readAll_open_error failure
 
+/-- Events from a retained leaf agree with its checked footer-order reads
+under the annotation selected at bind time. -/
+theorem readBound_reference (limits : Leaf.Limits) (bound : Bound) :
+    let reference := referenceGroups limits bound (List.range bound.snapshot.groupCount)
+    readBound limits bound = .ok ⟨schema bound,
+      ⟨reference.1.map (AlignedColumns.ofRows ∘ rows bound), reference.2⟩⟩ :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Events.readBound_reference limits bound
+
 /-- The trace contains one batch per successful binder read in footer order,
 including successful zero-row reads. -/
 theorem readAll_reference {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits}
@@ -55,6 +63,16 @@ theorem collect_readAll {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits
     (readAll snapshotLimits limits ordinal input).collect = .ok
       ⟨⟨schema bound, reference.1.flatMap (rows bound)⟩, reference.2⟩ :=
   Proofs.Formats.Parquet.Timestamp.Leaf.Events.collect_readAll opened
+
+/-- A failed read on the retained leaf keeps every preceding complete batch. -/
+theorem readBound_first_error {limits : Leaf.Limits} {bound : Bound}
+    {before after : List Nat} {index : Nat} {groups : List (Slots bound)} {cause : Leaf.Error}
+    (split : List.range bound.snapshot.groupCount = before ++ index :: after)
+    (earlier : before.mapM (Leaf.readGroup limits bound) = .ok groups)
+    (failed : Leaf.readGroup limits bound index = .error cause) :
+    readBound limits bound = .ok ⟨schema bound,
+      ⟨groups.map (AlignedColumns.ofRows ∘ rows bound), .readError (.groupFailure index cause)⟩⟩ :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Events.readBound_first_error split earlier failed
 
 /-- A failed binder read preserves the complete batches before its footer index. -/
 theorem readAll_first_error {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits}

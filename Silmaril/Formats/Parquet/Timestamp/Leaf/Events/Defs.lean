@@ -46,6 +46,11 @@ def groupSource (limits : Leaf.Limits) (bound : Bound) :
     Reader.Source Nat (schema bound) Cell Error :=
   ⟨List.range bound.snapshot.groupCount, rowsAt limits bound, fun _ => .ok ()⟩
 
+/-- Read events directly from an already checked leaf under its retained
+annotation and snapshot. -/
+def readBound (limits : Leaf.Limits) (bound : Bound) : Arrow.Events.EventStream String Cell Error :=
+  Reader.readAll (.ok ⟨schema bound, groupSource limits bound⟩)
+
 /-- The input ordinal is the serialized schema-node index, with root at zero. -/
 def openSource (snapshotLimits : Snapshot.Limits) (limits : Leaf.Limits) (ordinal : Nat)
     (input : Bytes) : Reader.OpenResult Nat String Cell Error :=

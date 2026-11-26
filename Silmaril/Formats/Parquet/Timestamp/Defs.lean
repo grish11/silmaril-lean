@@ -3,7 +3,7 @@ module
 public import Silmaril.Formats.Parquet.Footer.Defs
 public import Silmaril.Formats.ColumnarTimestamp.Wire.Defs
 
-/-! # Modern Parquet TIMESTAMP annotations on selected INT64 schema leaves -/
+/-! # Parquet TIMESTAMP annotations on selected INT64 schema leaves -/
 
 @[expose] public section
 
@@ -13,6 +13,11 @@ open ThriftCompact
 open Traversal (Reader Field)
 
 abbrev Descriptor := ColumnarTimestamp.Parquet.Metadata
+
+/-- Legacy converted-only INT64 timestamps require explicit opt-in. -/
+inductive AnnotationProfile where
+  | modernOnly
+  | allowConvertedOnly
 
 inductive Error where
   | footer (error : Footer.Error)
@@ -107,12 +112,31 @@ def annotation (reader : Reader) (fields : List Field) : Except Error Descriptor
     if compatibleConvertedType descriptor.unit code then return descriptor
     else throw (.convertedType code)
 
+/-- The historical ConvertedType contract uses the UTC epoch. -/
+def convertedTimestamp (code : Int) : Except Error Descriptor :=
+  match code with
+  | 9 => .ok ⟨.millis, true⟩
+  | 10 => .ok ⟨.micros, true⟩
+  | _ => .error (.convertedType code)
+
+def annotationWith (profile : AnnotationProfile) (reader : Reader) (fields : List Field) :
+    Except Error Descriptor :=
+  match profile with
+  | .modernOnly => annotation reader fields
+  | .allowConvertedOnly => do
+    match ← optionalField fields 10 with
+    | some _ => annotation reader fields
+    | none =>
+      let field ← requiredField fields 6
+      convertedTimestamp (← integer reader field)
+
 end Internal
 
-/-- Decode the modern annotation from an exact FileMetaData slice. `index`
+/-- Decode the selected annotation from an exact FileMetaData slice. `index`
     names a node in the serialized schema, with the root at index zero.
     The typed leaf and raw annotation are selected from the same footer bytes. -/
-def readMetadata (limits : Footer.Limits) (index : Nat) (bytes : Bytes) : Except Error Binding :=
+def readMetadataWith (profile : AnnotationProfile) (limits : Footer.Limits) (index : Nat)
+    (bytes : Bytes) : Except Error Binding :=
   if limits.maxFooterBytes < bytes.length then .error (.footer (.framing .footerLimit)) else do
     let footer ← (Footer.readMetadata limits bytes).mapError .footer
     let some leaf := footer.schema[index]? | throw (.schemaIndex index)
@@ -121,9 +145,13 @@ def readMetadata (limits : Footer.Limits) (index : Nat) (bytes : Bytes) : Except
       let reader : Reader := ⟨bytes, limits.compact, limits.varintMode⟩
       let schema ← Internal.schemaFields reader
       let some fields := schema[index]? | throw (.schemaIndex index)
-      let descriptor ← Internal.annotation reader fields
+      let descriptor ← Internal.annotationWith profile reader fields
       return ⟨leaf, descriptor⟩
     else .error .notInt64Leaf
+
+/-- Decode only the modern annotation from an exact FileMetaData slice. -/
+def readMetadata (limits : Footer.Limits) (index : Nat) (bytes : Bytes) : Except Error Binding :=
+  readMetadataWith .modernOnly limits index bytes
 
 /-- Locate the plaintext footer of the supplied file and bind the indexed leaf.
     Page intervals and association of values to a leaf are separate checks. -/

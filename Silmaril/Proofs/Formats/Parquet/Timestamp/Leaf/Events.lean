@@ -53,6 +53,13 @@ private theorem denoteGroups_eq_reference (limits : Leaf.Limits) (bound : Leaf.B
     | ok slots =>
       simp [Reader.denoteGroups, rowsAt, referenceGroups, read, Except.map, Except.mapError, ih]
 
+theorem readBound_reference (limits : Leaf.Limits) (bound : Leaf.Bound) :
+    let reference := referenceGroups limits bound (List.range bound.snapshot.groupCount)
+    readBound limits bound = .ok ⟨schema bound,
+      ⟨reference.1.map (AlignedColumns.ofRows ∘ rows bound), reference.2⟩⟩ := by
+  rw [readBound, Reader.readAll_opened]
+  simp [groupSource, denoteGroups_eq_reference, List.map_map]
+
 theorem readAll_reference {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits}
     {input : Bytes} {ordinal : Nat} {bound : Leaf.Bound}
     (opened : Leaf.openLeaf snapshotLimits input ordinal = .ok bound) :
@@ -60,8 +67,8 @@ theorem readAll_reference {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limi
     readAll snapshotLimits limits ordinal input = .ok ⟨schema bound,
       ⟨reference.1.map (AlignedColumns.ofRows ∘ rows bound), reference.2⟩⟩ := by
   unfold readAll
-  rw [openSource_of_opened opened, Reader.readAll_opened]
-  simp [groupSource, denoteGroups_eq_reference, List.map_map]
+  rw [openSource_of_opened opened]
+  exact readBound_reference limits bound
 
 theorem collect_readAll {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits}
     {input : Bytes} {ordinal : Nat} {bound : Leaf.Bound}
@@ -96,6 +103,16 @@ private theorem reference_prefix (limits : Leaf.Limits) (bound : Leaf.Bound)
         subst groups
         simp [referenceGroups, first, ih rest]
 
+theorem readBound_first_error {limits : Leaf.Limits} {bound : Leaf.Bound}
+    {before after : List Nat} {index : Nat} {groups : List (Leaf.Slots bound)} {cause : Leaf.Error}
+    (split : List.range bound.snapshot.groupCount = before ++ index :: after)
+    (earlier : before.mapM (Leaf.readGroup limits bound) = .ok groups)
+    (failed : Leaf.readGroup limits bound index = .error cause) :
+    readBound limits bound = .ok ⟨schema bound,
+      ⟨groups.map (AlignedColumns.ofRows ∘ rows bound), .readError (.groupFailure index cause)⟩⟩ := by
+  rw [readBound_reference limits bound, split, reference_prefix limits bound earlier]
+  simp [referenceGroups, failed]
+
 theorem readAll_first_error {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits}
     {input : Bytes} {ordinal : Nat} {bound : Leaf.Bound}
     {before after : List Nat} {index : Nat} {groups : List (Leaf.Slots bound)} {cause : Leaf.Error}
@@ -105,7 +122,8 @@ theorem readAll_first_error {snapshotLimits : Snapshot.Limits} {limits : Leaf.Li
     (failed : Leaf.readGroup limits bound index = .error cause) :
     readAll snapshotLimits limits ordinal input = .ok ⟨schema bound,
       ⟨groups.map (AlignedColumns.ofRows ∘ rows bound), .readError (.groupFailure index cause)⟩⟩ := by
-  rw [readAll_reference opened, split, reference_prefix limits bound earlier]
-  simp [referenceGroups, failed]
+  unfold readAll
+  rw [openSource_of_opened opened]
+  exact readBound_first_error split earlier failed
 
 end Silmaril.Proofs.Formats.Parquet.Timestamp.Leaf.Events

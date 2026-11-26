@@ -7,8 +7,8 @@ namespace Silmaril.Proofs.Formats.Parquet.Timestamp
 open Silmaril.Formats Silmaril.Formats.Parquet Silmaril.Formats.Parquet.Timestamp
 open Silmaril.Formats.ThriftCompact.Traversal (Reader Field)
 
-public theorem readMetadata_selects {limits : Footer.Limits} {index : Nat} {bytes : Bytes}
-    {binding : Binding} (read : Timestamp.readMetadata limits index bytes = .ok binding) :
+public theorem readMetadataWith_selects {profile : AnnotationProfile} {limits : Footer.Limits} {index : Nat} {bytes : Bytes}
+    {binding : Binding} (read : Timestamp.readMetadataWith profile limits index bytes = .ok binding) :
     let reader : Reader := ⟨bytes, limits.compact, limits.varintMode⟩
     bytes.length ≤ limits.maxFooterBytes ∧
       (index ≠ 0 ∧ binding.leaf.physicalType = some .int64 ∧
@@ -16,9 +16,9 @@ public theorem readMetadata_selects {limits : Footer.Limits} {index : Nat} {byte
       ∃ footer schema fields,
         Footer.readMetadata limits bytes = .ok footer ∧ footer.schema[index]? = some binding.leaf ∧
         Internal.schemaFields reader = .ok schema ∧ schema[index]? = some fields ∧
-        Internal.annotation reader fields = .ok binding.descriptor := by
+        Internal.annotationWith profile reader fields = .ok binding.descriptor := by
   dsimp only
-  unfold Timestamp.readMetadata at read
+  unfold Timestamp.readMetadataWith at read
   split at read
   · contradiction
   · rename_i size
@@ -37,7 +37,7 @@ public theorem readMetadata_selects {limits : Footer.Limits} {index : Nat} {byte
           change (show Except Timestamp.Error Binding from do
             let schema ← Internal.schemaFields reader
             let some fields := schema[index]? | throw (.schemaIndex index)
-            let descriptor ← Internal.annotation reader fields
+            let descriptor ← Internal.annotationWith profile reader fields
             return ⟨leaf, descriptor⟩) = .ok binding at read
           cases raw : Internal.schemaFields reader with
           | error error => simp [raw, bind, Except.bind] at read
@@ -48,7 +48,7 @@ public theorem readMetadata_selects {limits : Footer.Limits} {index : Nat} {byte
             | some fields =>
               rw [selected] at read
               dsimp at read
-              cases annotation : Internal.annotation reader fields with
+              cases annotation : Internal.annotationWith profile reader fields with
               | error error => simp [annotation] at read
               | ok descriptor =>
                 simp only [annotation, pure, Except.pure, Except.ok.injEq] at read
@@ -56,6 +56,29 @@ public theorem readMetadata_selects {limits : Footer.Limits} {index : Nat} {byte
                 exact ⟨Nat.le_of_not_gt size, checked, footer, schema, fields,
                   rfl, node, rfl, selected, annotation⟩
         · contradiction
+
+public theorem annotationWith_converted {reader : Reader} {fields : List Field}
+    {descriptor : Descriptor} (absent : Internal.optionalField fields 10 = .ok none)
+    (read : Internal.annotationWith .allowConvertedOnly reader fields = .ok descriptor) :
+    ∃ legacy code, Internal.requiredField fields 6 = .ok legacy ∧
+      Internal.integer reader legacy = .ok code ∧
+      ((code = 9 ∧ descriptor = ⟨.millis, true⟩) ∨ (code = 10 ∧ descriptor = ⟨.micros, true⟩)) := by
+  cases field : Internal.requiredField fields 6 with
+  | error e => simp [Internal.annotationWith, absent, field, Bind.bind, Except.bind] at read
+  | ok legacy =>
+    cases integer : Internal.integer reader legacy with
+    | error e => simp [Internal.annotationWith, absent, field, integer, Bind.bind, Except.bind] at read
+    | ok code =>
+      have parsed : Internal.convertedTimestamp code = .ok descriptor := by
+        simpa [Internal.annotationWith, absent, field, integer, Bind.bind, Except.bind] using read
+      by_cases millis : code = 9
+      · subst code
+        exact ⟨legacy, 9, rfl, integer, Or.inl ⟨rfl, (Except.ok.inj parsed).symm⟩⟩
+      · by_cases micros : code = 10
+        · subst code
+          exact ⟨legacy, 10, rfl, integer, Or.inr ⟨rfl, (Except.ok.inj parsed).symm⟩⟩
+        · unfold Internal.convertedTimestamp at parsed
+          split at parsed <;> contradiction
 
 public theorem annotation_uses_modern {reader : Reader} {fields : List Field} {descriptor : Descriptor}
     (read : Internal.annotation reader fields = .ok descriptor) :

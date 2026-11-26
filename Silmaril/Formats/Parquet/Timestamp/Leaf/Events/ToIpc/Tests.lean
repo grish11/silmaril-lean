@@ -52,3 +52,9 @@ private def noColumns : Scan.Schema String Kind := ⟨0, Fin.elim0⟩
 #guard (emit {} (.ok ⟨noColumns, ⟨[], .eos⟩⟩)) matches .error (.fieldCount 0)
 
 #guard (convert { maxFileBytes := 1 } {} (.ofList [0, 1]) 0) matches .error (.fileByteLimit 1 2)
+
+#guard Parquet.Timestamp.Internal.convertedTimestamp 9 matches .ok ⟨.millis, true⟩
+#guard Parquet.Timestamp.Internal.convertedTimestamp 10 matches .ok ⟨.micros, true⟩
+#guard Parquet.Timestamp.Internal.convertedTimestamp 11 matches .error (.convertedType 11)
+#guard (convertWith .allowConvertedOnly { maxFileBytes := 1 } {} (.ofList [0, 1]) 0)
+  matches .error (.fileByteLimit 1 2)

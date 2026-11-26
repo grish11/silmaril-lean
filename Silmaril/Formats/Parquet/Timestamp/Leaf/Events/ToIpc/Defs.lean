@@ -3,7 +3,7 @@ module
 public import Silmaril.Formats.Parquet.Timestamp.Leaf.Events.Defs
 public import Silmaril.Formats.Arrow.TimestampStream.Writer.Defs
 
-/-! One checked modern Parquet TIMESTAMP leaf to native Arrow V5 IPC. -/
+/-! One checked Parquet TIMESTAMP leaf to native Arrow V5 IPC. -/
 
 @[expose] public section
 
@@ -31,18 +31,21 @@ inductive Error where
   deriving DecidableEq, Repr
 
 /-- Bound the entire source before pulling rows from the checked selection. -/
-def openBound (limits : Limits) (input : Bytes) (ordinal : Nat) : Except Error Leaf.Bound :=
+def openBoundWith (profile : AnnotationProfile) (limits : Limits) (input : Bytes) (ordinal : Nat) : Except Error Leaf.Bound :=
   if limits.maxFileBytes < input.length then .error (.fileByteLimit limits.maxFileBytes input.length)
   else do
-    let bound ← (Leaf.openLeaf limits.snapshot input ordinal).mapError (.source ∘ .openFailure)
+    let bound ← (Leaf.openLeafWith profile limits.snapshot input ordinal).mapError (.source ∘ .openFailure)
     let groups := bound.snapshot.groupCount
     let rows := bound.snapshot.metadata.numRows.toNat
     if limits.maxGroups < groups then .error (.groupLimit limits.maxGroups groups)
     else if limits.maxTotalRows < rows then .error (.rowLimit limits.maxTotalRows rows)
     else .ok bound
 
+def openBound (limits : Limits) (input : Bytes) (ordinal : Nat) : Except Error Leaf.Bound :=
+  openBoundWith .modernOnly limits input ordinal
+
 def boundEvents (limits : Leaf.Limits) (bound : Leaf.Bound) : Source :=
-  Reader.readAll (.ok ⟨Events.schema bound, Events.groupSource limits bound⟩)
+  Events.readBound limits bound
 
 /-- Use the source descriptor itself, retaining its original unit and epoch interpretation. -/
 def bindingAt (schema : Scan.Schema String Kind) (column : Fin schema.width) : Arrow.TimestampBatch.Binding :=
@@ -73,9 +76,14 @@ def emit (limits : Arrow.ObservationLimits) (source : Source) : Except Error KBy
 
 /-- Select the serialized footer leaf ordinal, consume it in footer order,
 and emit only a complete native TIMESTAMP stream. The root has ordinal zero. -/
-def convert (inputLimits : Limits) (outputLimits : Arrow.ObservationLimits)
+def convertWith (profile : AnnotationProfile) (inputLimits : Limits) (outputLimits : Arrow.ObservationLimits)
     (input : Bytes) (ordinal : Nat) : Except Error KBytes := do
-  let bound ← openBound inputLimits input ordinal
+  let bound ← openBoundWith profile inputLimits input ordinal
   emit outputLimits (boundEvents inputLimits.leaf bound)
+
+/-- Convert a TIMESTAMP leaf with a modern logical annotation. -/
+def convert (inputLimits : Limits) (outputLimits : Arrow.ObservationLimits)
+    (input : Bytes) (ordinal : Nat) : Except Error KBytes :=
+  convertWith .modernOnly inputLimits outputLimits input ordinal
 
 end Silmaril.Formats.Parquet.Timestamp.Leaf.Events.ToIpc

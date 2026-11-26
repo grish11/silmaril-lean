@@ -18,34 +18,34 @@ private theorem leafFields_inj {left right : Footer.SchemaElement}
   cases right
   simpa [Internal.leafFields] using same
 
-theorem bind_sound {limits : Footer.Limits} {snapshot : Snapshot.Checked} {ordinal : Nat} {bound : Bound}
-    (accepted : Timestamp.Leaf.bind limits snapshot ordinal = .ok bound) :
+theorem bindWith_sound {profile : Timestamp.AnnotationProfile} {limits : Footer.Limits} {snapshot : Snapshot.Checked} {ordinal : Nat} {bound : Bound}
+    (accepted : Timestamp.Leaf.bindWith profile limits snapshot ordinal = .ok bound) :
     bound.snapshot = snapshot ∧ bound.ordinal = ordinal ∧ ordinal ≠ 0 ∧
       Internal.isFlat snapshot.metadata.schema = true ∧
       snapshot.metadata.schema[ordinal]? = some bound.binding.leaf ∧
-      Timestamp.readMetadata limits ordinal (Internal.metadataBytes snapshot) = .ok bound.binding ∧
+      Timestamp.readMetadataWith profile limits ordinal (Internal.metadataBytes snapshot) = .ok bound.binding ∧
       Timestamp.Page.leafLevels? bound.binding.leaf = some bound.levels := by
-  have observed := bind_observation limits snapshot ordinal
+  have observed := bindWith_observation profile limits snapshot ordinal
   rw [accepted] at observed
   cases flat : Internal.isFlat snapshot.metadata.schema with
-  | false => simp [Internal.bindSelection, flat, Bind.bind, Except.bind, Except.map] at observed
+  | false => simp [Internal.bindSelectionWith, flat, Bind.bind, Except.bind, Except.map] at observed
   | true =>
     cases leafRead : snapshot.metadata.schema[ordinal]? with
-    | none => simp [Internal.bindSelection, flat, leafRead, Except.map] at observed
+    | none => simp [Internal.bindSelectionWith, flat, leafRead, Except.map] at observed
     | some leaf =>
-      cases annotation : Timestamp.readMetadata limits ordinal (Internal.metadataBytes snapshot) with
+      cases annotation : Timestamp.readMetadataWith profile limits ordinal (Internal.metadataBytes snapshot) with
       | error =>
-        simp [Internal.bindSelection, flat, leafRead, annotation, Bind.bind, Except.bind,
+        simp [Internal.bindSelectionWith, flat, leafRead, annotation, Bind.bind, Except.bind,
           Except.mapError, Except.map] at observed
       | ok binding =>
         by_cases same : Internal.leafFields leaf = Internal.leafFields binding.leaf
         · cases levelsRead : Timestamp.Page.leafLevels? binding.leaf with
           | none =>
-            simp [Internal.bindSelection, flat, leafRead, annotation, same, levelsRead, Bind.bind,
+            simp [Internal.bindSelectionWith, flat, leafRead, annotation, same, levelsRead, Bind.bind,
               Except.bind, Except.mapError, Except.map] at observed
           | some levels =>
-            have nonroot := (Timestamp.readMetadata_selects annotation).2.1.1
-            simp [Internal.bindSelection, flat, leafRead, annotation, same, levelsRead, Bind.bind,
+            have nonroot := (Timestamp.readMetadataWith_selects annotation).2.1.1
+            simp [Internal.bindSelectionWith, flat, leafRead, annotation, same, levelsRead, Bind.bind,
               Except.bind, Except.mapError, Except.map, pure, Except.pure] at observed
             obtain ⟨snapshotEq, ordinalEq, bindingEq, levelsEq⟩ := observed
             refine ⟨snapshotEq, ordinalEq, nonroot, rfl, ?_, ?_, ?_⟩
@@ -53,19 +53,19 @@ theorem bind_sound {limits : Footer.Limits} {snapshot : Snapshot.Checked} {ordin
               exact congrArg some (leafFields_inj same)
             · simp [bindingEq]
             · simp [bindingEq, levelsEq, levelsRead]
-        · simp [Internal.bindSelection, flat, leafRead, annotation, same, Bind.bind, Except.bind,
+        · simp [Internal.bindSelectionWith, flat, leafRead, annotation, same, Bind.bind, Except.bind,
             Except.mapError, Except.map] at observed
 
-theorem openLeaf_sound {limits : Snapshot.Limits} {source : Bytes} {ordinal : Nat} {bound : Bound}
-    (accepted : openLeaf limits source ordinal = .ok bound) :
+theorem openLeafWith_sound {profile : Timestamp.AnnotationProfile} {limits : Snapshot.Limits} {source : Bytes} {ordinal : Nat} {bound : Bound}
+    (accepted : openLeafWith profile limits source ordinal = .ok bound) :
     Snapshot.check (Failure := Unit) limits source = .ok bound.snapshot ∧
-      Timestamp.Leaf.bind limits.footer bound.snapshot ordinal = .ok bound := by
+      Timestamp.Leaf.bindWith profile limits.footer bound.snapshot ordinal = .ok bound := by
   cases checked : Snapshot.check (Failure := Unit) limits source with
-  | error => simp [openLeaf, checked, Bind.bind, Except.bind, Except.mapError] at accepted
+  | error => simp [openLeafWith, checked, Bind.bind, Except.bind, Except.mapError] at accepted
   | ok snapshot =>
-    have boundRead : Timestamp.Leaf.bind limits.footer snapshot ordinal = .ok bound := by
-      simpa [openLeaf, checked, Bind.bind, Except.bind, Except.mapError] using accepted
-    simp [(bind_sound boundRead).1, boundRead]
+    have boundRead : Timestamp.Leaf.bindWith profile limits.footer snapshot ordinal = .ok bound := by
+      simpa [openLeafWith, checked, Bind.bind, Except.bind, Except.mapError] using accepted
+    simp [(bindWith_sound boundRead).1, boundRead]
 
 theorem selectChunk_sound {limits : Limits} {bound : Bound} {index : Nat} {chunk : Chunk}
     (selected : selectChunk limits bound index = .ok chunk) :
