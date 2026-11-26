@@ -79,6 +79,15 @@ theorem decodeData_reference_error {limits : Limits} {policy : Policy}
       ∃ prefixSlots, selectSlots dictionary 0 before = .ok prefixSlots :=
   Proofs.Formats.Parquet.Int96.Dictionary.decodeData_reference_error h
 
+/-- Locating a dictionary chunk selects the declared byte span starting at
+its dictionary offset. -/
+theorem locate_span {limits : Limits} {footerStart rowCount : Nat} {leaf : Footer.SchemaElement}
+    {column : Footer.ColumnMetadata} {span : Footer.Span}
+    (h : locate limits footerStart rowCount leaf column = .ok span) :
+    Parquet.Page.columnSpan footerStart column = some span ∧
+      column.dictionaryPageOffset = some (span.start : Int) :=
+  Proofs.Formats.Parquet.Int96.Dictionary.locate_span h
+
 /-- One leading dictionary governs all data frames in the exact original chunk
 order. -/
 theorem read_wire {limits : Limits} {policy : Policy} {source : Bytes} {footerStart rowCount : Nat}

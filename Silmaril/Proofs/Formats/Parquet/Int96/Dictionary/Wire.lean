@@ -217,7 +217,7 @@ theorem decodeData_reference_error {limits : Limits} {policy : Policy}
         exact ⟨prepared, references, before, after, rfl, indexed, reconstructed,
           by simpa using position, bad, prefixSlots, prefixOk⟩
 
-private theorem locate_span {limits : Limits} {footerStart rowCount : Nat} {leaf : Footer.SchemaElement}
+theorem locate_span {limits : Limits} {footerStart rowCount : Nat} {leaf : Footer.SchemaElement}
     {column : Footer.ColumnMetadata} {span : Footer.Span}
     (h : locate limits footerStart rowCount leaf column = .ok span) :
     Parquet.Page.columnSpan footerStart column = some span ∧
