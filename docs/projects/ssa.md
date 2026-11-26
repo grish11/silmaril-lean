@@ -137,6 +137,15 @@ and deversioning inverse maps on these classes, including admitted handwritten
 tables. The satisfaction theorems transport equations between classes in each
 common model, with signatures held fixed.
 
+[Named cyclic equation institutions](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Institution/Thms.lean)
+use primitive alphabets as signatures and functions as renamings. The model
+category at each signature is discrete on the pair-lawful models. Reduct
+precomposes the primitive interpretation and preserves the packet operations.
+Both signature actions preserve identity and composition and satisfy the
+change-of-signature law on equations. `comparisonIso` is a natural isomorphism
+of room functors over this signature category. Its sentence translations
+commute with renamings on observational classes, with identity on models.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

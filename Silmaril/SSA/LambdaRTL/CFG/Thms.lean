@@ -25,6 +25,23 @@ namespace Silmaril.SSA.LambdaRTL.CFG
 
 universe v w
 
+section MapOp
+
+variable {V K : Type w} {F F' F'' : Type v}
+
+theorem Body.toRegion_mapOp (h : F → F') (body : Body V K F) :
+    (body.mapOp h).toRegion = body.toRegion.mapOp h :=
+  Silmaril.Proofs.SSA.LambdaRTL.CFG.Body.toRegion_mapOp h body
+
+theorem mapOp_id (graph : CFG V K F) : graph.mapOp id = graph :=
+  Silmaril.Proofs.SSA.LambdaRTL.CFG.mapOp_id graph
+
+theorem mapOp_comp (h : F → F') (k : F' → F'') (graph : CFG V K F) :
+    graph.mapOp (k ∘ h) = (graph.mapOp h).mapOp k :=
+  Silmaril.Proofs.SSA.LambdaRTL.CFG.mapOp_comp h k graph
+
+end MapOp
+
 variable {V L K : Type w} {F : Type v} {M : Type w → Type w} {α : Type w} [Monad M]
   [LawfulMonad M] [DecidableEq V] [DecidableEq L] [DecidableEq K]
 
