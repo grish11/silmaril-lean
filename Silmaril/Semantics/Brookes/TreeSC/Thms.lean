@@ -11,7 +11,13 @@ namespace Silmaril.Semantics.Brookes.TreeSC
 open TrackA.Interaction
 open TrackA.Concurrency
 
-variable {R : Type} [DecidableEq R]
+variable {R : Type}
+
+/-- Finished trace generators always have a transition, including pure returns. -/
+theorem returnTrace_ne_nil (initial : Store R) (frames : List (Frame R)) :
+    returnTrace initial frames ≠ [] := by cases frames <;> simp [returnTrace]
+
+variable [DecidableEq R]
 
 /-- A finite tree prefix and its store frames replay in the real SC primitive,
 with the same final store and a residual program represented by the final tree. -/
@@ -27,6 +33,15 @@ theorem returns_iff_machine {gap : Gap R} {p : Code R} {s last : Store R}
     Returns WeakITree.unfold gap p.toTree s frames () last ↔
       MachineFollows gap p s frames .done last :=
   Proofs.Semantics.Brookes.TreeSC.returns_iff_machine
+
+/-- Transition-pair generators agree at each contextual pair of stores.
+A downstream closure can act on these generators using its own carrier. -/
+theorem returnTrace_iff_machine {gap : Gap R} {p : Code R} {s last : Store R}
+    {trace : List (Store R × Store R)} :
+    (∃ frames, Returns WeakITree.unfold gap p.toTree s frames () last ∧
+        returnTrace s frames = trace) ↔
+      ∃ frames, MachineFollows gap p s frames .done last ∧ returnTrace s frames = trace := by
+  simp only [returns_iff_machine]
 
 /-- A forest chooses one initial component. A root index is never a
 scheduler turn. -/

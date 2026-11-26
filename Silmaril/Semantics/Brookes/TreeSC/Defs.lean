@@ -39,6 +39,17 @@ def Frame.event {T : Type} (thread : T) (frame : Frame R) :
     | ⟨.read mode loc, value⟩ => .read mode loc value
     | ⟨.write mode loc value, _⟩ => .write mode loc value⟩
 
+/-- Forget the request and reply, retaining both stores of the primitive. -/
+def Frame.transition (frame : Frame R) : Store R × Store R :=
+  (frame.before, frame.after)
+
+/-- The raw transition list for a finished observation. A return without
+primitives contributes an identity at its store. The caller supplies a
+return witness separately. -/
+def returnTrace (initial : Store R) : List (Frame R) → List (Store R × Store R)
+  | [] => [(initial, initial)]
+  | frame :: rest => frame.transition :: rest.map Frame.transition
+
 /-- The store law for an exchange is independent of the continuation. -/
 def Frame.Valid [DecidableEq R] (frame : Frame R) : Prop :=
   match frame.exchange with

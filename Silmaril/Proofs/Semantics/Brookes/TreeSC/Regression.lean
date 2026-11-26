@@ -65,6 +65,17 @@ theorem reader_not_closed :
       have impossible : (0 : Nat) = 1 := congrFun continuity ()
       cases impossible
 
+/-- Forgetting events keeps the two read transitions and their gap. -/
+theorem reader_transition_trace :
+    returnTrace (fun _ => 0) projected =
+      [(fun _ => 0, fun _ => 0), (fun _ => 1, fun _ => 1)] :=
+  rfl
+
+theorem done_identity_trace (s : Store Unit) :
+    ∃ frames, Returns WeakITree.unfold Eq (Code.toTree (.done : Code Unit)) s frames () s ∧
+      returnTrace s frames = [(s, s)] :=
+  returnTrace_iff_machine.mpr ⟨[], .nil .done s, rfl⟩
+
 def alternatives (i : Fin 2) : Code Unit := if i = 0 then .done else writer
 
 def written : Frame Unit :=

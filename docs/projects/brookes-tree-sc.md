@@ -56,6 +56,7 @@ separate divergence observation.
 | --- | --- |
 | `follows_iff_machine` | A finite prefix of the embedded weak ITree is equivalent to a `MachineFollows` replay with the same frames and final store. The final tree is the image of the residual SC code. |
 | `returns_iff_machine` | A finished observation is equivalent to replay ending at `Program.done`. |
+| `returnTrace_ne_nil`, `returnTrace_iff_machine` | The transition-pair projection gives nonempty finished generators and the same generator predicate on the tree and replay sides, at each contextual pair of stores. |
 | `forest_returns_iff_machine` | A finished forest observation is equivalent to a replay of one indexed initial program. |
 | `choice_returns_iff_machine` | For either kind of finite CTree root choice, a finished observation is equivalent to replay of one chosen program. Zero alternatives permit no finished observation. |
 | `closed_iff_sc` | Every finite singleton `sc.MTr` prefix admits contiguous frames, and every such replay projects to an `sc.MTr` prefix with the same program and store endpoints. |
@@ -112,24 +113,49 @@ world-independent read/write interface.
 [Coq definitions from the POPL branch](https://github.com/vellvm/ctrees/blob/popl23/theories/Core/CTreeDefinitions.v)
 [Lean guarded erasure](../../Silmaril/Semantics/TrackA/Interaction/Guarded/Thms.lean)
 
-The next adapter can map each `Frame` to its `(before, after)` transition
-pair and transport the finished witness using the closed carrier's own
-return convention. The empty list of pairs erases the shared endpoint
-store, so the adapter should retain that store or use the carrier's
-designated identity trace. Attach a return witness exactly for
-`Returns`. An empty `Follows` observation is a prefix and gives no return
-witness by itself. Preserve the boundary stores and the
-admitted gap profile during that map. Raw equality transfers through the same map and
-closure on each side. Raw inclusions can be lifted once the actual
-stutter/mumble closure supplies monotonicity. Stuttering inserts idle pairs,
-and mumbling contracts adjacent pairs with matching intermediate stores. A
-proof for bind can start with finished left prefixes, reusing the final
-store as the right input and applying the same gap rule at the join.
-Scheduler composition needs a separate peer-projection theorem. A first
-naturality result can use a typed read/write signature map that preserves
-replies, reads, and updates. Those steps depend on the closed/monadic carrier
-and typed SC signature work. This slice exposes the raw input to both.
-[Brookes, *Full Abstraction for a Shared-Variable Parallel Language*](https://doi.org/10.1006/inco.1996.0056)
+## C1 adapter seam
+
+The planned C1 import is `Silmaril.Semantics.Brookes.Thms` in namespace
+`Silmaril.Semantics.Brookes`. Its `Transition Store` is a store pair and
+`Trace Store` is a raw list of pairs, including the empty list for contexts.
+`Behavior Store Result` observes a nonempty trace and a terminal value.
+It closes those observations under insertion of `(s, s)` anywhere and
+contraction of adjacent `(s, t), (t, u)`, preserving the terminal value.
+C1 admits gaps inside a trace and across sequencing.
+[Brookes, LICS 1993, §5](https://doi.org/10.1109/LICS.1993.287596)
+[Dvir–Kammar–Lahav–Plotkin, §6.1](https://arxiv.org/abs/2501.15104)
+
+`Frame.transition` keeps exactly `(before, after)`. An arbitrary finite
+prefix can project with `List.map Frame.transition` and may yield an empty
+list. Only a `Returns` witness supplies a terminal value. For such a witness,
+`returnTrace` projects each primitive if frames are present. With zero
+frames the endpoints coincide and the generator is `[(s, s)]` at that
+store. Taking these identity seeds over all stores fits the planned
+`Behavior.ret`. A single primitive and its terminal value fit the seed
+shape for `Behavior.atomic`. The two-thread regression projects to
+`[(zero, zero), (one, one)]`, keeping the internal gap. A leading open gap
+is reflected in the difference between the contextual start and the first
+pair's pre-store. The generator carries the pairs and terminal value, with
+the contextual stores available as external parameters. It inserts no
+transition for a peer step.
+
+The eventual adapter can close the equal generator predicates from
+`returnTrace_iff_machine` with C1's actual closure. For inclusion, use
+monotonicity of that closure. This transfers equality or inclusion of
+closed behaviors; the extra stutters need no SC primitive witness. The C3
+seed conditions still apply before closure, including contiguous stores for
+the closed singleton case. C3 imports no C1 definitions.
+
+For `Behavior.bind`, start from concatenation of two finished generator
+lists using the first terminal value to select the second component. A
+join intended to model C1 sequencing must allow the right pre-store to
+differ from the left post-store. A comparison for a restricted C3 gap
+profile needs a separate composition law with that profile at the join.
+Ordered shuffle and closure for the Unit-result command view require a
+separate scheduler projection theorem. The singleton-pair
+initial/final-store observation can be compared after the carrier
+comparison. A first naturality result can use a typed read/write signature
+map that preserves replies, reads, and updates.
 
 ## Pinned integration and checks
 
@@ -160,6 +186,6 @@ gh pr edit brookes/c3-tree-sc --base main
 
 On the pinned integration base, the strict build and scoped `make check`
 above passed. The repository's kernel replay driver replayed all five
-bridge modules against their built imports. The transitive axiom audit covers the public theorem header and
-all regression theorems. Its only axioms are `propext`, `Classical.choice`,
+bridge modules against their built imports. The transitive axiom audit
+covers the public theorem header and all regression theorems. Its only axioms are `propext`, `Classical.choice`,
 and `Quot.sound`.
