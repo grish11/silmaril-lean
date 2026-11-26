@@ -31,14 +31,6 @@ and invalid UTF-8. The pinned Linux x86-64 PyArrow wheel has SHA-256
 [Generator and buffer hashes](../../scripts/arrow-binary-view/fixtures.py) ·
 [Lean examples](../../Silmaril/Formats/Arrow/BinaryView/Examples.lean)
 
-```sh
-lake build --wfail +Silmaril.Formats.Arrow.BinaryView.Thms +Silmaril.Formats.Arrow.BinaryView.Examples \
-  +Silmaril.Formats.Arrow.BinaryView.Column.Thms +Silmaril.Formats.Arrow.BinaryView.Column.Examples \
-  +Silmaril.Formats.Arrow.BinaryView.Batch.Thms
-lake env lean -DautoImplicit=false -DwarningAsError=true scripts/arrow-binary-view/Axioms.lean
-python3 -I scripts/arrow-binary-view/fixtures.py --regenerate
-```
-
 ## Nullable columns
 
 The column reader takes a field node, the field's nullability, and the
@@ -95,8 +87,7 @@ characterize the decoded observation and declared counts.
 The standalone entry point leaves the primitive message AST and admission
 in place. The examples check the original Int32 admission and the legacy
 rejection of variadic counts. This profile starts at RecordBatch metadata
-and a body slice. Schema dispatch, framing, stream and file support, and
-emission are separate work.
+and a body slice. The schema-bound interface below adds field dispatch.
 [Pinned Message.fbs](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/Message.fbs)
 
 Pinned PyArrow 26.0.1 emits the mixed Utf8View case with two data buffers,
@@ -106,8 +97,45 @@ of one and a zero-length data buffer. Lean reads all four and rejects
 missing, empty, signed-negative, over-budget and mismatched count vectors,
 as well as invalid descriptor ranges, body declarations and slots.
 
+## Schema-bound one-field reader
+
+`BinaryView.Schema.readBatch` takes three caller-paired slices: V5 Schema
+metadata, V5 RecordBatch metadata and its body. It checks for a bodyless
+little-endian Schema with one field. The field name is decoded as UTF-8,
+and the Schema supplies the nullability and physical kind. Tags 23 and 24
+select BinaryView and Utf8View, respectively, and each requires its empty
+type table. Shared metadata checks reject dictionaries, children, schema
+features and custom metadata. The result retains the declared field and
+one ordered nullable column, with bytes or strings according to its kind.
+[Schema IDL, Arrow 26.0.1](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/Schema.fbs)
+
+`Schema.readBatch_binds` characterizes how success retains the checked
+field and uses it to read the batch. `Schema.readBinary_iff` and
+`Schema.readUtf8_iff` compose that result with the checked wire relation
+for ordered bytes and strings. The RecordBatch does not encode a field
+name or kind, so a physically compatible batch can satisfy the supplied
+Schema even if it comes from another source. Framing and stream or file
+assembly are outside this interface. The primitive and normalized
+Schema readers still reject view tags.
+[Reader](../../Silmaril/Formats/Arrow/BinaryView/Schema/Defs.lean) ·
+[Laws](../../Silmaril/Formats/Arrow/BinaryView/Schema/Thms.lean)
+
+The pinned PyArrow wheel above emits both kinds. Lean checks the nullable
+BinaryView and Utf8View columns, a nonnullable Utf8View with a Unicode
+field name, and a zero-row BinaryView. Rejections include an Int32 field,
+a view tag with an Int32 payload, big-endian metadata, a malformed name,
+wrong field counts, nulls under a nonnullable declaration and a binary
+value outside UTF-8 under a Utf8View declaration.
+[Fixture generator and hashes](../../scripts/arrow-binary-view/schema_fixtures.py) ·
+[Lean examples](../../Silmaril/Formats/Arrow/BinaryView/Schema/Examples.lean)
+
 ```sh
-lake build --wfail +Silmaril.Formats.Arrow.BinaryView.Batch.Thms +Silmaril.Formats.Arrow.BinaryView.Batch.Examples
+lake build --wfail +Silmaril.Formats.Arrow.BinaryView.Thms +Silmaril.Formats.Arrow.BinaryView.Examples \
+  +Silmaril.Formats.Arrow.BinaryView.Column.Thms +Silmaril.Formats.Arrow.BinaryView.Column.Examples \
+  +Silmaril.Formats.Arrow.BinaryView.Batch.Thms +Silmaril.Formats.Arrow.BinaryView.Batch.Examples \
+  +Silmaril.Formats.Arrow.BinaryView.Schema.Thms +Silmaril.Formats.Arrow.BinaryView.Schema.Examples
 lake env lean -DautoImplicit=false -DwarningAsError=true scripts/arrow-binary-view/Axioms.lean
+python3 -I scripts/arrow-binary-view/fixtures.py --regenerate
 python3 -I scripts/arrow-binary-view/batch_fixtures.py
+python3 -I scripts/arrow-binary-view/schema_fixtures.py
 ```

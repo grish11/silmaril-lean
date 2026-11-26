@@ -128,6 +128,34 @@ structure BatchMetadata (source : KBytes) (maxDataBuffers : Nat) where
   signedCount : dataCount < 2^63
   countWithin : dataCount ≤ maxDataBuffers
 
+namespace Schema
+
+inductive Kind where
+  | binary | utf8
+  deriving DecidableEq, Repr
+
+def Kind.tag : Kind → Nat
+  | .binary => 23
+  | .utf8 => 24
+
+def Kind.ofTag : Nat → Except Arrow.Error Kind
+  | 23 => .ok .binary
+  | 24 => .ok .utf8
+  | tag => .error (.unsupported (.fieldType tag))
+
+structure Field where
+  name : String
+  nullable : Bool
+  kind : Kind
+  deriving DecidableEq, Repr
+
+inductive MetadataError where
+  | metadata (cause : Arrow.Error)
+  | fieldCount (actual : Nat)
+  deriving DecidableEq, Repr
+
+end Schema
+
 end BinaryView
 
 inductive MessageHeader where
@@ -368,6 +396,25 @@ private def messageParts (limits : Limits) (bytes : KBytes) :
   if bodyLength ≥ 2^63 then throw (.malformed .bodyLength)
   emptyVector bytes value 4 4 4 .customMetadata
   return (tag, payload, bodyLength)
+
+private def viewFieldKind (tag : Nat) (payload : Table) :
+    Except Error BinaryView.Schema.Kind := do
+  let kind ← BinaryView.Schema.Kind.ofTag tag
+  tableShape payload 0
+  return kind
+
+/-- Read the bodyless little-endian V5 Schema of a standalone one-field
+view batch. Its kind is independent of legacy and other Schema readers. -/
+public def BinaryView.Schema.readMessage (limits : Limits) (bytes : KBytes) :
+    Except BinaryView.Schema.MetadataError BinaryView.Schema.Field := do
+  let (tag, payload, bodyLength) ← (messageParts limits bytes).mapError .metadata
+  if tag ≠ 1 then throw (.metadata (.unsupported (.messageKind tag)))
+  if bodyLength ≠ 0 then throw (.metadata (.malformed .bodyLength))
+  let (_, fields) ← (schemaWith limits bytes payload
+    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
+    (fun pos => fieldWith bytes pos viewFieldKind BinaryView.Schema.Field.mk)).mapError .metadata
+  let [field] := fields | throw (.fieldCount fields.length)
+  return field
 
 /-- Read V5 RecordBatch metadata for one preselected BinaryView or Utf8View
 field. Validate the singleton count vector and descriptor cardinality

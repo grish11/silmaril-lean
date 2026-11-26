@@ -34,13 +34,11 @@ def vector_at(buf, offset, fmt):
     return start, [struct.unpack_from(fmt, buf, start + 4 + i * stride) for i in range(size)]
 
 
-def produce():
-    import pyarrow as pa
-
+def producer_batches(pa):
     reference = runpy.run_path(str(SCRIPT.with_name("fixtures.py")))
     if sys.byteorder != "little" or pa.__version__ != reference["PYARROW_VERSION"]:
         raise SystemExit("fixture requires little-endian PyArrow 26.0.1")
-    batches = {
+    arrays = {
         "mixed": pa.concat_arrays([
             pa.array(values, type=pa.string_view()) for values in reference["VALUES"]
         ]),
@@ -49,21 +47,33 @@ def produce():
         "empty": pa.array([], type=pa.binary_view()),
         "primitive": pa.array([1, None, 2], type=pa.int32()),
     }
-    expected_counts = {"mixed": 2, "binary": 1, "inline": 1, "empty": 0}
+    return {name: pa.record_batch([array], names=["value"]) for name, array in arrays.items()}
+
+
+def ipc_stream(pa, schema, batch=None):
     options = pa.ipc.IpcWriteOptions(metadata_version=pa.ipc.MetadataVersion.V5,
                                       use_legacy_format=False, compression=None)
+    sink = pa.BufferOutputStream()
+    with pa.ipc.new_stream(sink, schema, options=options) as writer:
+        if batch is not None:
+            writer.write_batch(batch)
+    return sink.getvalue()
+
+
+def produce():
+    import pyarrow as pa
+
+    batches = producer_batches(pa)
+    expected_counts = {"mixed": 2, "binary": 1, "inline": 1, "empty": 0}
     output = [
         "module\n\npublic import Silmaril.Prelude.Bytes.Defs\n\n",
         "/-! Reproduced by scripts/arrow-binary-view/batch_fixtures.py. -/\n\n",
         "@[expose] public section\n\n",
         "namespace Silmaril.Formats.Arrow.BinaryView.Batch.Fixture\n\n",
     ]
-    for name, array in batches.items():
-        record = pa.record_batch([array], names=["value"])
-        sink = pa.BufferOutputStream()
-        with pa.ipc.new_stream(sink, record.schema, options=options) as writer:
-            writer.write_batch(record)
-        stream = sink.getvalue()
+    for name, record in batches.items():
+        array = record.column(0)
+        stream = ipc_stream(pa, record.schema, record)
         _, message = pa.ipc.MessageReader.open_stream(stream)
         meta = message.metadata.to_pybytes()
         body = message.body.to_pybytes()

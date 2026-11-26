@@ -3,6 +3,7 @@ module
 import Silmaril.Formats.Arrow.BinaryView.Thms
 import Silmaril.Formats.Arrow.BinaryView.Column.Thms
 import Silmaril.Formats.Arrow.BinaryView.Batch.Thms
+import Silmaril.Formats.Arrow.BinaryView.Schema.Thms
 
 open Silmaril.Formats.Arrow.BinaryView
 
@@ -22,3 +23,8 @@ open Silmaril.Formats.Arrow.BinaryView
 #print axioms Batch.readBinary_iff
 #print axioms Batch.readUtf8_iff
 #print axioms Batch.readUtf8_counts
+
+#print axioms Schema.kind_ofTag_iff
+#print axioms Schema.readBatch_binds
+#print axioms Schema.readBinary_iff
+#print axioms Schema.readUtf8_iff
