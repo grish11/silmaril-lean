@@ -158,6 +158,45 @@ end Schema
 
 end BinaryView
 
+namespace MixedFlat
+
+inductive Kind where
+  | primitive (type : Arrow.FieldType)
+  | view (type : BinaryView.Schema.Kind)
+  deriving DecidableEq, Repr
+
+def Kind.isView : Kind → Bool
+  | .primitive _ => false
+  | .view _ => true
+
+def Kind.baseBuffers : Kind → Nat
+  | .primitive .int32 | .view _ => 2
+  | .primitive .utf8 => 3
+
+structure Field where
+  name : String
+  nullable : Bool
+  kind : Kind
+  deriving DecidableEq, Repr
+
+structure Metadata where
+  batch : RecordBatch
+  bodyLength : Nat
+  counts : List Nat
+  deriving DecidableEq, Repr
+
+inductive MetadataError where
+  | metadata (cause : Arrow.Error)
+  | nodeCount (expected actual : Nat)
+  | countCardinality (expected actual : Nat)
+  | negativeCount (entry : Nat)
+  | dataBufferLimit (entry : Nat)
+  | totalDataBufferLimit
+  | descriptorCount (expected actual : Nat)
+  deriving DecidableEq, Repr
+
+end MixedFlat
+
 inductive MessageHeader where
   | schema (fields : List Field)
   | recordBatch (batch : RecordBatch)
@@ -445,6 +484,50 @@ public def BinaryView.readBatchMetadata (limits : Limits) (maxDataBuffers : Nat)
           word, signed, within⟩
       else throw .dataBufferLimit
     else throw .negativeCount
+
+private def mixedFieldKind (bytes : KBytes) (tag : Nat) (payload : Table) :
+    Except Error MixedFlat.Kind := do
+  if tag == 23 || tag == 24 then
+    return .view (← viewFieldKind tag payload)
+  return .primitive (← primitiveFieldType bytes tag payload)
+
+/-- Admit the ordered fields of the bodyless little-endian mixed-flat Schema. -/
+public def MixedFlat.readSchema (limits : Limits) (bytes : KBytes) :
+    Except Error (List MixedFlat.Field) := do
+  let (tag, payload, bodyLength) ← messageParts limits bytes
+  if tag ≠ 1 then throw (.unsupported (.messageKind tag))
+  if bodyLength ≠ 0 then throw (.malformed .bodyLength)
+  let (_, fields) ← schemaWith limits bytes payload
+    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
+    (fun pos => fieldWith bytes pos (mixedFieldKind bytes) MixedFlat.Field.mk)
+  return fields
+
+/-- Bound count words and check the computed descriptor cardinality before
+enumerating the nodes and descriptors. Count positions are view ordinals. -/
+public def MixedFlat.readMetadata (limits : Limits) (perView totalData : Nat)
+    (fields : List MixedFlat.Field) (bytes : KBytes) : Except MixedFlat.MetadataError MixedFlat.Metadata := do
+  let (tag, payload, bodyLength) ← (messageParts limits bytes).mapError .metadata
+  if tag ≠ 3 then throw (.metadata (.unsupported (.messageKind tag)))
+  let vectors ← (batchVectors limits bytes payload).mapError .metadata
+  if fields.length > limits.fields || vectors.nodeCount > limits.fields then
+    throw (.metadata (.limit .fields))
+  if vectors.nodeCount ≠ fields.length then throw (.nodeCount fields.length vectors.nodeCount)
+  (noTable bytes payload 3 .compression).mapError .metadata
+  let (first, entries) ← (vector bytes payload 4 8 8).mapError .metadata
+  let expected := fields.countP (·.kind.isView)
+  if entries ≠ expected then throw (.countCardinality expected entries)
+  let counts ← (List.range entries).mapM fun entry => do
+    let count ← (uint bytes (first + 8 * entry) 8).mapError MixedFlat.MetadataError.metadata
+    if count ≥ 2^63 then throw (.negativeCount entry)
+    if count > perView then throw (.dataBufferLimit entry)
+    return count
+  let dataCount := counts.sum
+  if dataCount > totalData then throw .totalDataBufferLimit
+  let expected := (fields.map (·.kind.baseBuffers)).sum + dataCount
+  if vectors.bufferCount ≠ expected then throw (.descriptorCount expected vectors.bufferCount)
+  let nodes ← ((List.range vectors.nodeCount).mapM (readNodeAt bytes vectors.nodeFirst)).mapError .metadata
+  let buffers ← ((List.range vectors.bufferCount).mapM (readBufferAt bytes vectors.bufferFirst)).mapError .metadata
+  return ⟨⟨vectors.rowCount, nodes, buffers⟩, bodyLength, counts⟩
 
 /-- Read a standalone V5 Schema message. The normalized type payloads and
 schema byte order are available to readers without changing the existing IPC AST. -/
