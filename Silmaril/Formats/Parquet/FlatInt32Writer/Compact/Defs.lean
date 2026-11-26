@@ -101,12 +101,13 @@ def leafAnnotated (annotation : LeafAnnotation) (column : ColumnIndex) : Write U
 
 def leaf (column : ColumnIndex) : Write Unit := leafAnnotated .unannotated column
 
-def chunk (rows : Nat) (column : ColumnIndex) : Write Unit := do
+/-- The flat PLAIN chunk shape is common to the fixed-width physical writers. -/
+def chunkFor (physical : Int) (rows : Nat) (column : ColumnIndex) : Write Unit := do
   field 2 6
   integer .i64 0
   field 1 12
   field 1 5
-  integer .i32 1
+  integer .i32 physical
   field 1 9
   listHeader 5 2
   integer .i32 0
@@ -127,35 +128,49 @@ def chunk (rows : Nat) (column : ColumnIndex) : Write Unit := do
   octet 0
   octet 0
 
-def group (rows : Nat) (columns : List ColumnIndex) : Write Unit := do
+def chunk (rows : Nat) (column : ColumnIndex) : Write Unit := chunkFor 1 rows column
+
+def groupFor (physical : Int) (rows : Nat) (columns : List ColumnIndex) : Write Unit := do
   field 1 9
   listHeader 12 columns.length
-  for column in columns do chunk rows column
+  for column in columns do chunkFor physical rows column
   field 1 6
   integer .i64 (columns.map ColumnIndex.size).sum
   field 1 6
   integer .i64 rows
   octet 0
 
-def Internal.footerGroups (annotation : LeafAnnotation) (columns : List ColumnIndex)
+def group (rows : Nat) (columns : List ColumnIndex) : Write Unit := groupFor 1 rows columns
+
+def Internal.footerGroupsFor (physical : Int) (writeLeaf : ColumnIndex → Write Unit) (columns : List ColumnIndex)
     (groups : List (Nat × List ColumnIndex)) : Write Unit := do
   field 1 5
   integer .i32 1
   field 1 9
   listHeader 12 (columns.length + 1)
   root columns.length
-  for column in columns do leafAnnotated annotation column
+  for column in columns do writeLeaf column
   field 1 6
   integer .i64 (groups.map Prod.fst).sum
   field 1 9
   listHeader 12 groups.length
-  for (rows, chunks) in groups do group rows chunks
+  for (rows, chunks) in groups do groupFor physical rows chunks
   octet 0
+
+def Internal.footerGroups (annotation : LeafAnnotation) (columns : List ColumnIndex)
+    (groups : List (Nat × List ColumnIndex)) : Write Unit :=
+  Internal.footerGroupsFor 1 (leafAnnotated annotation) columns groups
+
+/-- Encode a flat footer using the supplied leaf serializer and matching
+physical type code for every PLAIN chunk. -/
+def encodeGroupsFor (physical : Int) (writeLeaf : ColumnIndex → Write Unit) (limit : Nat)
+    (columns : List ColumnIndex) (groups : List (Nat × List ColumnIndex)) : Except Error Bytes :=
+  ((Internal.footerGroupsFor physical writeLeaf columns groups).run ⟨limit, .empty⟩).map (·.2.bytes)
 
 /-- Encode one shared schema and the ordered list of row counts and chunk indices. -/
 def encodeGroups (annotation : LeafAnnotation) (limit : Nat) (columns : List ColumnIndex)
     (groups : List (Nat × List ColumnIndex)) : Except Error Bytes :=
-  ((Internal.footerGroups annotation columns groups).run ⟨limit, .empty⟩).map (·.2.bytes)
+  encodeGroupsFor 1 (leafAnnotated annotation) limit columns groups
 
 def footerAnnotated (annotation : LeafAnnotation) (rows : Nat) (columns : List ColumnIndex) :
     Write Unit :=

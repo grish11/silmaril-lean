@@ -58,7 +58,7 @@ instance (input : Input) (limits : Limits) : Decidable (input.Fits limits) := by
   infer_instance
 
 /-- A width-one singleton RLE run per definition slot, with no trailing padding. -/
-def definitionOctets (slots : List (Option Int32)) : List UInt8 :=
+def definitionOctets {α : Type} (slots : List (Option α)) : List UInt8 :=
   slots.flatMap fun slot => (Hybrid.Run.repeated 1 (if slot.isSome then 1 else 0)).wire 1
 
 def Input.body : Input → Bytes
