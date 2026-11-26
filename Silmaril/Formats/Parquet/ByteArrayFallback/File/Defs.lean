@@ -20,25 +20,36 @@ inductive Error where
 
 variable {name : String}
 
-def rowsAt (checked : Checked name) (limits : Limits) (index : Nat) :
+def rowsAtFor (profile : Profile) (checked : Checked name) (limits : Limits) (index : Nat) :
     Except Error (Reader.RowGroup (schema name) Value) :=
-  (ByteArrayFallback.readGroup checked limits index).map (Plain.ByteArray.File.rows name .optional)
+  (ByteArrayFallback.readGroupFor profile checked limits index).map (Plain.ByteArray.File.rows name .optional)
     |>.mapError .readFailure
 
 /-- The source descriptors are the original footer group ordinals. -/
-def source (checked : Checked name) (limits : Limits) :
+def sourceFor (profile : Profile) (checked : Checked name) (limits : Limits) :
     Reader.Source Nat (schema name) Value Error :=
-  ⟨List.range checked.snapshot.groupCount, rowsAt checked limits, fun _ => .ok ()⟩
+  ⟨List.range checked.snapshot.groupCount, rowsAtFor profile checked limits, fun _ => .ok ()⟩
 
 /-- Reuse the selected checked snapshot and its file and total row caps. -/
-def openSource (limits : Limits) (input : Bytes) (name : String) :
+def openSourceFor (profile : Profile) (limits : Limits) (input : Bytes) (name : String) :
     Reader.OpenResult Nat String Value Error :=
   ((ByteArrayFallback.openFile limits input name).mapError .openFailure).map fun checked =>
-    ⟨schema name, source checked limits⟩
+    ⟨schema name, sourceFor profile checked limits⟩
 
 /-- Emit one batch per successful group, including an admitted empty group. -/
-def readAll (limits : Limits) (input : Bytes) (name : String) :
+def readAllFor (profile : Profile) (limits : Limits) (input : Bytes) (name : String) :
     Events.EventStream String Value Error :=
-  Reader.readAll (openSource limits input name)
+  Reader.readAll (openSourceFor profile limits input name)
+
+def rowsAt {name : String} := rowsAtFor .rleDictionary (name := name)
+def source {name : String} := sourceFor .rleDictionary (name := name)
+def openSource := openSourceFor .rleDictionary
+def readAll := readAllFor .rleDictionary
+
+/-- Open the optional BYTE_ARRAY source under the parquet-java V1 profile. -/
+def openLegacySource := openSourceFor .plainDictionaryV1
+
+/-- Consume the legacy source in footer order and preserve original indexed errors. -/
+def readAllLegacy := readAllFor .plainDictionaryV1
 
 end Silmaril.Formats.Parquet.ByteArrayFallback.File

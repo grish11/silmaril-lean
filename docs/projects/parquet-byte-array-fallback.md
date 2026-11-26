@@ -135,3 +135,38 @@ for fixture in data/parquet-byte-array-legacy-fallback/*.parquet; do
 done
 lake build --wfail +Silmaril.Formats.Parquet.ByteArrayFallback.LegacyTests
 ```
+
+### Legacy whole-file events
+
+`ByteArrayFallback.File.openLegacySource` and `readAllLegacy` select the
+parquet-java V1 profile through the same checked source and file limits.
+`readAllLegacy_success` preserves one batch per successfully decoded
+footer group and its opaque slots. `readAllLegacy_first_error` preserves
+the preceding complete batches and wraps the original indexed cause
+in `File.Error.readFailure`. An admitted zero-row group emits its own
+empty batch before the next footer group.
+
+The Thrift 0.25.0 oracle copies the pinned parquet-java 1.16.0 chunk
+bytes into groups 0 and 2 and supplies explicit zero-row PLAIN V1
+frames for group 1. It relocates the chunk offsets and omits the
+detached page indexes. The producer page headers and bodies in both
+nonempty groups are byte-identical to the pinned source. PyArrow 26.0.1
+independently checked the slots and group counts.
+
+The clean fixture emits `[384, 0, 384]` and EOS. The damaged fixture
+changes only the final PLAIN value length and emits `[384, 0]` before
+the original error at group 2, column 1, frame 19, header byte 21009.
+A total cap of 767 on that 768-row file fails at open.
+
+| File | SHA-256 |
+| --- | --- |
+| legacy-v1-empty-middle.parquet | `67a4029e7ff4afcd9e3c88e1a335d22e4c52ef9d16ebd9e324b61e935d1e91a5` |
+| legacy-v1-late-error.parquet | `58a6f17e3547e743c6dad6c66d4306a9f843875ecb438862bbd36e0c44036a77` |
+
+```sh
+fixture_tmp=$(mktemp -d)
+python3 scripts/parquet-byte-array-legacy-events/Oracle.py "$fixture_tmp"
+diff -r data/parquet-byte-array-legacy-events "$fixture_tmp"
+lake build --wfail +Silmaril.Formats.Parquet.ByteArrayFallback.File.LegacyTests
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/parquet-byte-array-fallback-file/Axioms.lean
+```
