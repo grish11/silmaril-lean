@@ -112,9 +112,9 @@ private theorem prepareV2_sound {params : Parameters} {limits : Limits} {layout 
           hlen, bytes, mapError_ok hm, by omega, ?_⟩
         simpa only [Bytes.toList_ofList] using payload
 
-public theorem prepare_sound {params : Parameters} {limits : Limits} {source : Bytes}
-    {page : Prepared} (h : prepare params limits source = .ok page) :
-    ∃ layout, validate params limits source = .ok layout ∧
+public theorem prepareFor_sound {encoding : Int} {params : Parameters} {limits : Limits}
+    {source : Bytes} {page : Prepared} (h : prepareFor encoding params limits source = .ok page) :
+    ∃ layout, validateFor encoding params limits source = .ok layout ∧
       PreparedWire params limits layout source page := by
   obtain ⟨layout, fits, h⟩ := bind_ok h
   refine ⟨layout, fits, ?_⟩
@@ -125,6 +125,12 @@ public theorem prepare_sound {params : Parameters} {limits : Limits} {source : B
   | v2 nulls rows repetitionBytes definitionBytes isCompressed =>
     rw [version] at h
     exact prepareV2_sound version h
+
+public theorem prepare_sound {params : Parameters} {limits : Limits} {source : Bytes}
+    {page : Prepared} (h : prepare params limits source = .ok page) :
+    ∃ layout, validate params limits source = .ok layout ∧
+      PreparedWire params limits layout source page :=
+  prepareFor_sound h
 
 public theorem prepared_v1_slices {params : Parameters} {limits : Limits} {source : Bytes}
     {page : Prepared} {definitionEncoding repetitionEncoding : Int}
@@ -154,18 +160,26 @@ public theorem prepared_v1_slices {params : Parameters} {limits : Limits} {sourc
     obtain ⟨lengthWord, size, declared, _, bytes⟩ := FlatPage.splitV1Optional_ok_iff.mp split
     exact ⟨lengthWord, size, declared, by simpa only [Bytes.toList_ofList] using bytes⟩
 
-public theorem prepared_mask_length {params : Parameters} {limits : Limits} {source : Bytes}
-    {page : Prepared} (h : prepare params limits source = .ok page) :
-    page.mask.length = params.numValues := by
-  obtain ⟨layout, _, wire⟩ := prepare_sound h
+public theorem preparedFor_counts {encoding : Int} {params : Parameters} {limits : Limits}
+    {source : Bytes} {page : Prepared} (h : prepareFor encoding params limits source = .ok page) :
+    page.mask.length = params.numValues ∧
+      match params.version with
+      | .v1 _ _ => True
+      | .v2 nulls _ _ _ _ => page.mask.count true = params.numValues - nulls := by
+  obtain ⟨layout, _, wire⟩ := prepareFor_sound h
   cases version : params.version with
   | v1 =>
     simp only [PreparedWire, version] at wire
     obtain ⟨_, _, _, _, _, _, mask, _⟩ := wire
-    exact FlatPage.readMask_length mask
+    exact ⟨FlatPage.readMask_length mask, trivial⟩
   | v2 =>
     simp only [PreparedWire, version] at wire
-    obtain ⟨_, _, _, _, _, _, _, _, _, _, mask, _, _⟩ := wire
-    exact FlatPage.readMask_length mask
+    obtain ⟨_, _, _, _, _, _, _, _, _, _, mask, count, _⟩ := wire
+    exact ⟨FlatPage.readMask_length mask, count⟩
+
+public theorem prepared_mask_length {params : Parameters} {limits : Limits} {source : Bytes}
+    {page : Prepared} (h : prepare params limits source = .ok page) :
+    page.mask.length = params.numValues :=
+  (preparedFor_counts h).1
 
 end Silmaril.Proofs.Formats.Parquet.ScalarPage
