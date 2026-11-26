@@ -54,6 +54,13 @@ def pack (octets : List UInt8) : KBytes :=
 def writerBatch (rows : List Pair) : StreamWriter.BatchInput :=
   ⟨rows.length, rows.map Prod.fst, rows.map (Option.map pack ∘ Prod.snd)⟩
 
+/-- The reader's row-count and octet observation for an ordered list of pairs. -/
+def observePairs (descriptor : Descriptor) (pairs : List Pair) : StreamWriter.BatchObservation :=
+  let integer := (descriptor.intField, Writer.ColumnObservation.int32
+    (pairs.map fun row => row.1.map Silmaril.Formats.Arrow.Value.int32))
+  let binary := (descriptor.viewField, Writer.ColumnObservation.binaryView (pairs.map Prod.snd))
+  (pairs.length, some (if descriptor.viewFirst then [binary, integer] else [integer, binary]))
+
 def octetBytes (batches : List (List Pair)) : Nat :=
   batches.foldl (fun total rows =>
     rows.foldl (fun size row => size + (row.2.map List.length).getD 0) total) 0

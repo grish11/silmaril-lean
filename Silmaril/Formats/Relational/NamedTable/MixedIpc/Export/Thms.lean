@@ -34,6 +34,15 @@ theorem emit_ok_iff {Name : Type*} (db : Database Name) (name : Name)
         wire.len ≤ limits.inputBytes :=
   Proofs.Formats.Relational.NamedTable.MixedIpc.Export.emit_ok_iff db name expected sizes limits wire
 
+/-- Exact native stream observations determine the mixed import batches. -/
+theorem read_of_observed {expected : Descriptor} {limits : MixedIpc.Limits} {wire : KBytes}
+    {decoded : Stream.Observed} {batches : List (List Pair)}
+    (bounded : wire.len ≤ limits.inputBytes)
+    (read : Stream.read limits.mixed wire = .ok decoded) (fields : decoded.fields = expected.fields)
+    (observed : decoded.batches.map StreamWriter.observeBatch = batches.map (observePairs expected)) :
+    MixedIpc.read limits wire = .ok ⟨expected, batches⟩ :=
+  Proofs.Formats.Relational.NamedTable.MixedIpc.Export.read_of_observed bounded read fields observed
+
 /-- The emitted bytes read through EOS at the original descriptor and requested batch sizes.
 Flattening recovers the exact stored typed table. -/
 theorem emit_readback {Name : Type*} {db : Database Name} {name : Name}

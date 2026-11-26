@@ -101,27 +101,22 @@ private theorem columns_length {columns : List (Field × Column)}
       all_goals subst observed; simp [length]
 
 private theorem writer_observe (descriptor : Descriptor) (pairs : List Pair) :
-    ((writerSchema descriptor).recordInput (writerBatch pairs)).observe =
-      let i := (descriptor.intField, Writer.ColumnObservation.int32
-        (pairs.map fun row => row.1.map Arrow.Value.int32))
-      let b := (descriptor.viewField, Writer.ColumnObservation.binaryView (pairs.map Prod.snd))
-      if descriptor.viewFirst then [b, i] else [i, b] := by
+    (writerBatch pairs).observe (writerSchema descriptor) = observePairs descriptor pairs := by
   cases order : descriptor.viewFirst <;>
-    simp [Writer.Input.observe, Writer.Order.pair, writerSchema, StreamWriter.Schema.recordInput,
-      Writer.Input.intField, Writer.Input.viewField, Writer.Input.intColumn, Arrow.Writer.ColumnValues.observe,
-      Descriptor.intField, Descriptor.viewField, writerBatch, order, List.map_map, Option.map_map,
-      Function.comp_def, pack_exact]
+    simp [observePairs, StreamWriter.BatchInput.observe, Writer.Input.observe, Writer.Order.pair,
+      writerSchema, StreamWriter.Schema.recordInput, Writer.Input.intField, Writer.Input.viewField,
+      Writer.Input.intColumn, Arrow.Writer.ColumnValues.observe, Descriptor.intField, Descriptor.viewField,
+      writerBatch, order, List.map_map, Option.map_map, Function.comp_def, pack_exact]
 
 private theorem batchPairs_of_observed (descriptor : Descriptor) (batch : Stream.Batch) (pairs : List Pair)
-    (equal : StreamWriter.observeBatch batch = (writerBatch pairs).observe (writerSchema descriptor)) :
+    (equal : StreamWriter.observeBatch batch = observePairs descriptor pairs) :
     batchPairs descriptor batch = some pairs := by
   rcases batch with ⟨range, count, columns⟩
-  have lists : Writer.observeColumns columns =
-      some ((writerSchema descriptor).recordInput (writerBatch pairs)).observe :=
-    congrArg Prod.snd equal
+  have lists := congrArg Prod.snd equal
+  change Writer.observeColumns columns = (observePairs descriptor pairs).2 at lists
+  unfold observePairs at lists
   have rows : count = pairs.length := congrArg Prod.fst equal
   subst count
-  rw [writer_observe] at lists
   have length : columns.length = 2 := by
     have := columns_length lists
     cases order : descriptor.viewFirst <;> simpa [order] using this
@@ -155,8 +150,7 @@ private theorem batchPairs_of_observed (descriptor : Descriptor) (batch : Stream
 
 private theorem prepareBatches_of_observed (descriptor : Descriptor) (index : Nat)
     {source : List Stream.Batch} {batches : List (List Pair)}
-    (equal : source.map StreamWriter.observeBatch =
-      (batches.map writerBatch).map (StreamWriter.BatchInput.observe (writerSchema descriptor))) :
+    (equal : source.map StreamWriter.observeBatch = batches.map (observePairs descriptor)) :
     prepareBatches descriptor index source = .ok batches := by
   induction source generalizing index batches with
   | nil =>
@@ -197,15 +191,23 @@ theorem emit_ok_iff {Name : Type*} (db : Database Name) (name : Name)
           exact Nat.not_le.mp bounded
     · simp [Export.emit, prepared, Nat.not_le.mp octets, octets, Bind.bind, Except.bind, throw]
 
+theorem read_of_observed {expected : Descriptor} {limits : MixedIpc.Limits} {wire : KBytes}
+    {decoded : Stream.Observed} {batches : List (List Pair)}
+    (bounded : wire.len ≤ limits.inputBytes)
+    (read : Stream.read limits.mixed wire = .ok decoded) (fields : decoded.fields = expected.fields)
+    (observed : decoded.batches.map StreamWriter.observeBatch = batches.map (observePairs expected)) :
+    MixedIpc.read limits wire = .ok ⟨expected, batches⟩ := by
+  have shape : Descriptor.ofFields decoded.fields = some expected := by rw [fields, ofFields_fields]
+  simp [MixedIpc.read, Nat.not_lt.mpr bounded, read, MixedIpc.prepare,
+    Except.mapError, Except.bind, shape, prepareBatches_of_observed expected 0 observed, Bind.bind, pure, Except.pure]
+
 private theorem read_of_writer {expected : Descriptor} {limits : MixedIpc.Limits} {wire : KBytes}
     {batches : List (List Pair)} (bounded : wire.len ≤ limits.inputBytes)
     (written : StreamWriter.emit limits.mixed (writerSchema expected) (batches.map writerBatch) = .ok wire) :
     MixedIpc.read limits wire = .ok ⟨expected, batches⟩ := by
   obtain ⟨decoded, read, fields, observed⟩ := StreamWriter.emit_readback written
-  have shape : Descriptor.ofFields decoded.fields = some expected := by
-    rw [fields, writer_fields, ofFields_fields]
-  simp [MixedIpc.read, Nat.not_lt.mpr bounded, read, MixedIpc.prepare,
-    Except.mapError, Except.bind, shape, prepareBatches_of_observed expected 0 observed, Bind.bind, pure, Except.pure]
+  apply read_of_observed bounded read (fields.trans (writer_fields expected))
+  simpa [List.map_map, Function.comp_def, writer_observe] using observed
 
 theorem emit_readback {Name : Type*} {db : Database Name} {name : Name}
     {expected : Descriptor} {sizes : List Nat} {limits : MixedIpc.Limits} {wire : KBytes}

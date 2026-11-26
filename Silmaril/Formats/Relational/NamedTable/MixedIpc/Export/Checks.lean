@@ -7,5 +7,6 @@ open Silmaril.Formats.Relational.NamedTable.MixedIpc.Export
 #print axioms row_rowPair
 #print axioms prepare_exact
 #print axioms emit_ok_iff
+#print axioms read_of_observed
 #print axioms emit_readback
 #print axioms emit_import
