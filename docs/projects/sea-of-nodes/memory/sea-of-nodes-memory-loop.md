@@ -938,6 +938,56 @@ sentinel 42.
 lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.CellEmbedding.Composition.Regression
 ```
 
+#### Sequential observations in a shared heap
+
+`Sequential.numbered` decodes the first emitted θ's result and passes
+its entire returned heap to the second emitted θ. The caller supplies
+the first typed valuation and a function `next` that selects the
+second typed tuple from the first returned word and any fixed captures.
+The result contains both words and the second returned heap.
+`Sequential.coloured` follows the same interface using actual finite
+coloured completions. `coloured_eq_some_iff` exposes two witnesses with
+the same intermediate heap.
+[Sequential observer API](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/Sequential/Thms.lean)
+
+If the two address embeddings have disjoint images, `numbered_eq_local`
+and `coloured_eq_local` factor this observation into two local
+updates. The second local heap is the restriction of the original
+ambient heap. Its valuation still uses the first returned word.
+`CellEmbedding.extend_disjoint_spec` gives the exact restrictions of
+the final heap and preserves every cell outside both images.
+`observe_eq_none_iff` and `localObserve_eq_none_iff` characterize
+absence at the relevant intermediate state. The result concerns
+ordered execution and existence of finite observations.
+[Disjoint heap laws](../../../../Silmaril/SSA/SeaOfNodes/Memory/CellEmbedding/Thms.lean)
+
+The API sequences observations of separately emitted graphs. A single
+linked graph is open. The checked numbered splice consumes the
+producer's returned tuple as the entire consumer entry. These loops
+return one word and the heap, while the second loop also requires typed
+captures. A linked lowering needs a checked adapter that forwards
+those captures, implements the chosen word-to-input wiring, and
+retains the first word for the final pair.
+[Checked splice boundary](../../../../Silmaril/SSA/RVSDG/NestedTheta/ExplicitRuntime/Splice/Thms.lean)
+
+```lean
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.Sequential.Thms
+```
+
+The regression runs two actual numbered graphs on images `(0, 2)`
+and `(3, 5)`. Each loop takes one backedge and writes its own cells.
+The first return word `3` is the second loop's stop value. The final
+result contains words `(3, 3)` and heap `[11, 73, 11, 22, 91, 22]`.
+The coloured observation has matching finite completions and the
+ambient sentinel cells retain `73` and `91`. A second fixture proves
+absence of any finite sequential return when the first loop returns
+and the selected second loop always takes its feedback edge.
+[Runnable regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/Sequential/Regression.lean)
+
+```sh
+lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.Sequential.Regression
+```
+
 ### Equations for coloured Petri completion
 
 `petriHolds` compares the two emitted graphs' finite completions for

@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.PEG.Simple.Revert.While.Defs
 public import Silmaril.SSA.PEG.Simple.While.Trace
+public import Silmaril.SSA.PEG.Rules.Defs
 
 /-! # Checked schedules for single-loop PEG regions
 
@@ -39,7 +40,7 @@ def nodeAt (g : Graph P carried [result] n l) (r : Ref g.sort t) :
   r.typed ▸ g.node r.id
 
 def nodeEq [DecidableEq Data] [∀ ins out, DecidableEq (P ins out)]
-    (a b : Node P carried (Fin 1) sort t) : Decidable (a = b) := by
+    (a b : Node P carried (Fin l) sort t) : Decidable (a = b) := by
   obtain ⟨ins, label, args⟩ := a
   obtain ⟨ins', label', args'⟩ := b
   if hi : ins = ins' then
@@ -121,6 +122,13 @@ inductive Schedule (g : Graph P carried [result] n l) (allowBranch : Bool) :
       (falseArm : Schedule g allowBranch (.cons no scope) scope)
       (tail : Schedule g allowBranch roots (.cons (Ref.ofId g.sort i) scope)) :
       Schedule g allowBranch roots scope
+
+/-- A defined SIMPLE store gives the values of these PEG rows at one
+fixed iteration vector. -/
+def Schedule.Realizes {graph : Graph P carried [result] n l} (m : Interpretation.{u,v,w} P)
+    (values : graph.Valuation m) (idx : Index l) (scope : Tuple (Ref graph.sort) vars)
+    (store : Tuple m.Value vars) : Prop :=
+  ∀ t (p : Port vars t), Rules.readRef values (scope.get p) idx = some (store.get p)
 
 /-- Check a primitive prefix, and construct its continuation in the resulting scope. -/
 def Schedule.checkThen (g : Graph P carried [result] n l) {allowBranch : Bool} (roots : Tuple (Ref g.sort) outs)

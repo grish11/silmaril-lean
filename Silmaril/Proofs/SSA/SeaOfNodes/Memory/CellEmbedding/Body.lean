@@ -166,4 +166,21 @@ theorem extend_trans (e : Embedding small middle) (f : Embedding middle large)
       change extend f outer (extend e inner source) (f a) = extend f outer inner (f a)
       rw [extend_apply_image, extend_apply_image, extend_apply_outside e _ _ a outside]
 
+theorem restrict_extend_disjoint (e : Embedding small large) (f : Embedding middle large)
+    (disjoint : DisjointImages e f) (frame : Heap large) (source : Heap small) :
+    restrict f (extend e frame source) = restrict f frame := by
+  funext b
+  exact extend_apply_outside e frame source (f b) (fun ⟨a, equal⟩ => disjoint a b equal)
+
+theorem extend_disjoint_spec (e : Embedding small large) (f : Embedding middle large)
+    (disjoint : DisjointImages e f) (initial : Heap large) (left : Heap small) (right : Heap middle) :
+    let final := extend f (extend e initial left) right
+    restrict e final = left ∧ restrict f final = right ∧
+      (∀ a, (¬ ∃ b, e b = a) → (¬ ∃ b, f b = a) → final a = initial a) := by
+  have leftSpec := (eq_extend_iff e initial (extend e initial left) left).mp rfl
+  have rightSpec := (eq_extend_iff f (extend e initial left) (extend f (extend e initial left) right) right).mp rfl
+  refine ⟨(restrict_extend_disjoint f e (fun b a equal => disjoint a b equal.symm) _ _).trans leftSpec.1,
+    rightSpec.1, fun a outsideLeft outsideRight => ?_⟩
+  exact (rightSpec.2 a outsideRight).trans (leftSpec.2 a outsideLeft)
+
 end Silmaril.SSA.SeaOfNodes.Memory.CellEmbedding.Proofs

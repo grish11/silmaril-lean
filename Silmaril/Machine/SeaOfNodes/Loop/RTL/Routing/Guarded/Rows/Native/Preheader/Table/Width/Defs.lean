@@ -68,6 +68,9 @@ def header {captures : Nat} (g : Source captures bank entrySigs sigs) : Block Re
 def lowerFunc {captures : Nat} (g : Source captures bank entrySigs sigs) : Func Reg :=
   ⟨⟨captures, 1⟩, 0, [preheader g, header g, exitBlock]⟩
 
+def lowerRTL {captures : Nat} (g : Source captures bank entrySigs sigs) : Prog Reg :=
+  ⟨[lowerFunc g]⟩
+
 /-- Start from the ordinary checked table. Emit the graph at its new
 interface and validate the resulting RTL function with the actual SSA checker. -/
 def lowerChecked (mapping : InputMap old new) (g : SourceWithEntry old entrySigs sigs) :
@@ -75,6 +78,6 @@ def lowerChecked (mapping : InputMap old new) (g : SourceWithEntry old entrySigs
   let _ ← Table.lowerChecked g
   let mapped := mapCaptures mapping g
   let fn := lowerFunc mapped
-  if fn.WellFormed then some (⟨[fn]⟩, Generic.lower mapped) else none
+  if fn.WellFormed then some (lowerRTL mapped, Generic.lower mapped) else none
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width

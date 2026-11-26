@@ -656,24 +656,54 @@ order and incoming occurrences stay fixed.
 
 `Width.lowerChecked` checks the original table, emits a native function
 at the new arity, and validates that function with the ordinary RTL.SSA
-well-formedness check. Entry has two parameters in the three-to-two
-example. Its jump and the backedge both pass the three bank fields.
-The λSSA implementation uses the same generic CFG emitter at the new
-typed input context.
+well-formedness check. `Width.lowerFunc_wellFormed` proves that check
+succeeds for the typed emission. `Width.layout_disjoint` separates the
+capture prefix, carried parameters, preheader results, and header
+producer registers. Only the capture width changes. Entry and feedback
+still pass one complete carried bank to the header.
+
+```lean
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Thms
+
+open Silmaril.Machine.SeaOfNodes.Loop.RTL
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy)
+open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
+
+example {entrySigs sigs : List (List PortTy)}
+    (source : SourceWithEntry 3 entrySigs sigs) (mapping : InputMap 3 2)
+    {before : Checked.Phi.Targets} (accepted : Table.lowerChecked source = some before) :
+    Table.Width.lowerChecked mapping source =
+      some (Table.Width.lowerRTL (Table.Width.mapCaptures mapping source),
+        Generic.lower (Table.Width.mapCaptures mapping source)) :=
+  Table.Width.lowerChecked_of_accepted mapping accepted
+```
 
 `Width.denote_mapCaptures` proves native partial-result agreement under
 pullback, and `Width.equation_on_image` compares the original equation
 on just the pulled valuations. `Width.lambda_return_iff` and
 `Width.lambda_diverges_iff` give exact λSSA returns with unchanged memory
-and actual divergence for checked re-emissions. The regression calls both
-emitted targets with two arguments and observes return 6 with the full
-initial memory. The RTL runner rejects a three-argument call to the new function.
-At input `(1, 0)`, the λSSA proof observes divergence and the RTL
-regression exhibits a reachable three-instruction machine cycle.
-Generic RTL checker acceptance and loop observation transport at the new
-register layout are the remaining obligations. The previous
-`Table.lowerChecked` and its same-width transport laws use a shared
-capture and bank width. [Checked regression][table-regression]
+and actual divergence for checked re-emissions. The three-to-two
+regression calls both targets and returns 6 with the initial memory. Its
+RTL runner rejects the old three-argument call. For input `(1, 0)` the
+λSSA proof observes divergence and RTL reaches a three-instruction
+machine cycle. The separate three-to-four regression routes the third
+capture to slot four and checks the emitted entry and header registers
+and both target returns. [Checked regression][table-regression]
+
+`Width.checked_entry_packet` starts the actual resized RTL function at
+the new arity, runs one instruction per preheader producer followed by
+the entry jump, and matches the native initial bank at the pulled inputs.
+`Width.header_terminator` takes the actual RTL branch under a frame
+agreement hypothesis at the end of the header producer table. It either
+rebinds the entire feedback tuple from that frame or reaches the exit
+and returns the native word. Both laws carry the full memory through.
+The remaining generic RTL execution obligation is to establish that
+frame agreement by running the emitted header producers from the
+resized bank invariant and to iterate the resulting activation law
+for finite returns and productive divergence.
 
 ```sh
 lake build --wfail +Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Fuel.Thms \

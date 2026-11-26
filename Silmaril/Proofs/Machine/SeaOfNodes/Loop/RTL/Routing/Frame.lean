@@ -107,8 +107,8 @@ theorem bindWords_get {arity : Nat} (base : Nat) (fr : Frame Reg) (values : Word
         rw [show base + (p.index + 1) = base + 1 + p.index by omega]
         exact ih _ _ tail p
 
-theorem bank_matches_at {arity : Nat} {fr : Frame Reg} {input : WordTuple arity}
-    (agree : ArgsMatch fr input) (values : WordTuple arity) :
+theorem bank_matches_at {arity bank : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    (agree : ArgsMatch fr input) (values : WordTuple bank) :
     ArgsMatch (bindWords arity fr values) (appendTuple values input) := by
   intro p
   rcases split_port p with ⟨q, rfl⟩ | ⟨q, rfl⟩
@@ -118,7 +118,8 @@ theorem bank_matches_at {arity : Nat} {fr : Frame Reg} {input : WordTuple arity}
   · rw [suffix_index, suffix_get, wordPorts_length]
     exact bindWords_get _ _ _ q
 
-theorem input_matches_at {arity : Nat} {fr : Frame Reg} {input old : WordTuple arity}
+theorem input_matches_at {arity bank : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    {old : WordTuple bank}
     (agree : ArgsMatch fr (appendTuple old input)) : ArgsMatch fr input := by
   intro p
   simpa only [prefix_index, prefix_get] using agree (prefixPort p)

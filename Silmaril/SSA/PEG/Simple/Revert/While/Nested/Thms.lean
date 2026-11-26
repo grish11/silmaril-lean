@@ -26,6 +26,15 @@ theorem Certificate.demandWellFounded [DecidableEq Data] (cert : Certificate for
     WellFounded g.Demand :=
   cert.compile_eq ▸ Structured.translate_demandWellFounded form.source form.negate
 
+theorem runWhile_exec {vars : List (Ty Data)} {m : Interpretation.{u,v,w} P}
+    {test : Expr P vars .bool} {body : Stmt P true vars vars}
+    {step : Tuple m.Value vars → Option (Tuple m.Value vars)}
+    (stepExec : ∀ {old next}, step old = some next → Exec m body old (some next))
+    (fuel : Nat) {store final : Tuple m.Value vars}
+    (success : runWhile m test step fuel store = some final) :
+    Exec m (.while rfl test body) store (some final) :=
+  Proofs.runWhile_exec stepExec fuel success
+
 /-- A successful bounded execution executes the emitted SIMPLE program. -/
 theorem Form.runFuel_returns (form : Form P outer inner result)
     (m : Interpretation.{u,v,w} P) (outerFuel innerFuel : Nat)

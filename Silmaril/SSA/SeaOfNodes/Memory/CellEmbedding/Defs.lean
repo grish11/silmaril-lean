@@ -28,6 +28,10 @@ def extend (e : Embedding small large) (frame : Heap large) (source : Heap small
 def SameFrame (e : Embedding small large) (initial final : Heap large) : Prop :=
   ∀ a, (¬ ∃ b, e b = a) → final a = initial a
 
+/-- No cell is in both embedding images. -/
+def DisjointImages {other : Nat} (e : Embedding small large) (f : Embedding other large) : Prop :=
+  ∀ a b, e a ≠ f b
+
 def value (e : Embedding small large) : (sort : ValueSort) → Val small sort → Val large sort
   | .address => e
   | .word => id

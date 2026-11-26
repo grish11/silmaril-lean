@@ -5,6 +5,7 @@ import Silmaril.SSA.PEG.Simple.Revert.While.Region.Placement.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Region.Placement.MustEval.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Projected.Thms
+import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Region.Thms
 import Mathlib.Data.Fin.Embedding
 import Mathlib.Logic.Equiv.Basic
 import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Thms
@@ -12,6 +13,7 @@ import Silmaril.SSA.PEG.Simple.Thms
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Projected.Defs
+meta import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Region.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Placement.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Placement.MustEval.Defs
@@ -960,3 +962,129 @@ example : model.run Op.positivePred (.cons ⟨0⟩ .nil) = none := rfl
 #eval (rejectsUnsafe, run 1 1)
 
 end Silmaril.SSA.PEG.Simple.Revert.While.Region.Placement.MustEval.Tests
+
+namespace Silmaril.SSA.PEG.Simple.Revert.While.Nested.Region.Tests
+
+open RVSDG (Tuple)
+
+private inductive Op : InstructionSet Unit where
+  | done : Op [.count] .bool
+  | pred : Op [.count] .count
+  | add : Op [.count, .count] .count
+  | not : Op [.bool] .bool
+  deriving DecidableEq
+
+private def model : Interpretation Op where
+  carrier _ := Unit
+  run
+    | .done, .cons count .nil => some ⟨count.down == 0⟩
+    | .pred, .cons count .nil => some ⟨count.down - 1⟩
+    | .add, .cons a (.cons b .nil) => some ⟨a.down + b.down⟩
+    | .not, .cons b .nil => some ⟨!b.down⟩
+
+private abbrev state := ([.count, .count] : List (Ty Unit))
+
+private def sort (i : Fin 16) : Ty Unit := if i = 10 ∨ i = 11 then .bool else .count
+private def r (i : Fin 16) (h : sort i = .count) : Ref sort .count := ⟨i, h⟩
+private def firstFlag : Ref sort .bool := ⟨10, rfl⟩
+private def childFlag : Ref sort .bool := ⟨11, rfl⟩
+
+private def pair {F : Ty Unit → Type} (a b : F .count) : Tuple F state := .cons a (.cons b .nil)
+
+-- The pass keys are 0 and 1, independent of the pass row addresses.
+-- The child copies the current accumulator and remaining outer count.
+-- Each child step adds the old child count and decrements that count.
+private def graph (staleCapture : Bool) : Graph Op state [.count] 16 2 where
+  forest := ⟨fun key => if key = 1 then some 0 else none⟩
+  sort := sort
+  node i := match i with
+    | 0 => .ofLabel (.eval 0) (pair (r 2 rfl) (r 4 rfl))
+    | 1 => .ofLabel (.eval 1) (pair (r 5 rfl) (r 7 rfl))
+    | 2 => .ofLabel (.theta 0) (pair (r 13 rfl) (r 1 rfl))
+    | 3 => .ofLabel (.theta 0) (pair (r 14 rfl) (r 12 rfl))
+    | 4 => .ofLabel (.pass 0) (.cons firstFlag .nil)
+    | 5 => .ofLabel (.theta 1) (pair (r 2 rfl) (r 8 rfl))
+    | 6 => .ofLabel (.theta 1) (pair (if staleCapture then r 14 rfl else r 3 rfl) (r 9 rfl))
+    | 7 => .ofLabel (.pass 1) (.cons childFlag .nil)
+    | 8 => .ofLabel (.op .add) (pair (r 5 rfl) (r 6 rfl))
+    | 9 => .ofLabel (.op .pred) (.cons (r 6 rfl) .nil)
+    | 10 => .ofLabel (.op .done) (.cons (r 3 rfl) .nil)
+    | 11 => .ofLabel (.op .done) (.cons (r 6 rfl) .nil)
+    | 12 => .ofLabel (.op .pred) (.cons (r 3 rfl) .nil)
+    | 13 => .ofLabel (.param .head) .nil
+    | 14 => .ofLabel (.param (.tail .head)) .nil
+    | 15 => .ofLabel (.eval 1) (pair (r 6 rfl) (r 7 rfl))
+    | ⟨k + 16, bound⟩ => False.elim (by omega)
+  roots := .cons (r 0 rfl) .nil
+
+private def descriptor (staleCapture : Bool) : Descriptor (graph staleCapture) state where
+  outerKey := 0
+  childKey := 1
+  outerTheta := pair (r 2 rfl) (r 3 rfl)
+  outerInit := pair (r 13 rfl) (r 14 rfl)
+  outerNext := pair (r 1 rfl) (r 12 rfl)
+  outerFlag := firstFlag
+  outerPass := r 4 rfl
+  returnSlot := .head
+  childTheta := pair (r 5 rfl) (r 6 rfl)
+  childInit := pair (r 2 rfl) (if staleCapture then r 14 rfl else r 3 rfl)
+  childNext := pair (r 8 rfl) (r 9 rfl)
+  childFlag := childFlag
+  childPass := r 7 rfl
+  childExit := pair (r 1 rfl) (r 15 rfl)
+  negate := .not
+
+private def rank : DemandRank 16 2 :=
+  [.phase (fun i => if i = 0 then 2 else if i = 4 then 1 else 0), .counter 0,
+   .phase (fun i => if i = 1 ∨ i = 15 then 2 else if i = 7 then 1 else 0), .counter 1,
+   .phase (fun i => match i.val with
+    | 8 | 9 | 11 => 3
+    | 5 | 6 | 10 | 12 => 2
+    | 2 | 3 => 1
+    | _ => 0)]
+
+private def checked := check (graph false) (descriptor false) rank
+
+private def input (count : Nat) : Tuple model.Value state := pair ⟨0⟩ ⟨count⟩
+
+#guard rank.check (graph false)
+#guard rank.check (graph true)
+#guard (check (graph true) (descriptor true) rank).isNone
+#guard (check (graph false) { descriptor false with childPass := r 4 rfl } rank).isNone
+
+-- The first invocation needs two steps and returns accumulator 3.
+-- The next needs one step and returns accumulator 4. Read the actual
+-- stores handed between the two emitted outer body steps.
+private def twoActivations : Option (Nat × Nat × Nat × Nat) := do
+  let accepted ← checked
+  let a := accepted.val
+  let start ← a.outerGuard.lower.runLoopFree model (input 2)
+  let first ← a.stepFuel model 2 start
+  let second ← a.stepFuel model 1 first
+  if (a.stepFuel model 1 start).isNone && (a.stepFuel model 0 first).isNone then
+    return ((first.get (.tail .head)).down, (first.get (.tail (.tail .head))).down,
+      (second.get (.tail .head)).down, (second.get (.tail (.tail .head))).down)
+  else none
+
+#guard twoActivations == some (3, 1, 4, 0)
+
+private def certifiedRun :
+    Option {a : Accepted (graph false) state //
+      a.revert.Returns model (input 2) ⟨4⟩ ∧
+      ∀ i, (graph false).observe model
+        ((graph false).denote model (input 2) a.demandWellFounded) i = .cons (some ⟨4⟩) .nil} := do
+  let accepted ← checked
+  let a := accepted.val
+  match ran : (a.runFuel model 2 2 (input 2) : Option (ULift Nat)) with
+  | some ⟨4⟩ =>
+    have neg : ∀ b : Bool, model.run a.descriptor.negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩ := by
+      rw [accepted.property]
+      intro b
+      rfl
+    have returned := a.returns_of_runFuel 2 2 ran
+    return ⟨a, returned, fun i => a.observe_of_returns neg (input 2) i returned⟩
+  | _ => none
+
+#guard certifiedRun.isSome
+
+end Silmaril.SSA.PEG.Simple.Revert.While.Nested.Region.Tests

@@ -10,7 +10,7 @@ open Silmaril.Isotope.Institution.Observational (Observation ssaBeh)
 open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA.Institution.Fiber (fiberRoom inputModel)
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.RTL (Frame)
-open Silmaril.Machine.RTL.SSA (Behavior Prog Result State Step Steps run step)
+open Silmaril.Machine.RTL.SSA (Behavior Prog Result State Step Steps StepsNWithin run step)
 open Silmaril.Machine.SeaOfNodes.Diamond.RTL (Reg model word)
 open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA (encodeTuple inputEnv instruction)
 open Silmaril.SSA.SeaOfNodes.Loop (appendTuple)
@@ -429,8 +429,9 @@ example :
 
 private def removeCapture : InputMap 3 2 := fun slot => if slot = 1 then 1 else 0
 private def narrowGraph : Width.Source 2 3 Entry Header := Width.mapCaptures removeCapture source
-private def narrowTargets : Checked.Phi.Targets := (Width.lowerChecked removeCapture source).get (by cbv)
-private theorem narrowAccepted : Width.lowerChecked removeCapture source = some narrowTargets := by cbv
+private def narrowTargets : Checked.Phi.Targets := (Width.lowerRTL narrowGraph, Generic.lower narrowGraph)
+private theorem narrowAccepted : Width.lowerChecked removeCapture source = some narrowTargets :=
+  Width.lowerChecked_of_accepted removeCapture accepted
 
 example : (narrowTargets.1.func? 0).map (·.sig.params) = some 2 := by cbv
 example : (narrowTargets.1.block? 0 0).map (·.ops) =
@@ -449,6 +450,13 @@ example (input : WordTuple 1) :
 
 example : removeCapture.pull narrowInput = bank 5 2 5 := by cbv
 example : narrowGraph.initial model narrowInput = bank 0 2 5 := by cbv
+example : ∃ start latched, narrowTargets.1.start 0 (words narrowInput) mem = some start ∧
+    StepsNWithin narrowTargets.1 [] 3 start ⟨⟨0, 1, 0⟩, latched, [], mem⟩ ∧
+    ArgsMatch latched (appendTuple (bank 0 2 5) narrowInput) := by
+  obtain ⟨started, latched, steps, agreed⟩ := Width.checked_entry_packet removeCapture accepted narrowInput mem
+  have initialized : source.initial model (removeCapture.pull narrowInput) = bank 0 2 5 := by cbv
+  exact ⟨_, latched, started, steps, initialized ▸ agreed⟩
+
 example : narrowTargets.1.runMain 13 0 (words narrowInput) mem = .returned [6] mem := by cbv
 example : narrowTargets.1.runMain 13 0 [5, 2, 5] mem = .stuck := by cbv
 example : Generic.Fuel.run model (inputEnv model narrowInput) 3 narrowTargets.2 =
@@ -525,5 +533,24 @@ example : (∀ args : WordTuple 2,
     exact (Width.denote_mapCaptures removeCapture source model args).symm.trans
       ((congrArg (fun graph => graph.denote model args) compared).trans
         (Width.denote_mapCaptures removeCapture aliasSubtraction model args)))
+
+-- The third source capture moves past an unused capture while the bank still has three lanes.
+private def widenCaptures : InputMap 3 4 := fun slot => if slot = 2 then 3 else Fin.castLE (by decide) slot
+private def wideGraph : Width.Source 4 3 Entry Header := Width.mapCaptures widenCaptures source
+private def wideTargets : Checked.Phi.Targets := (Width.lowerRTL wideGraph, Generic.lower wideGraph)
+
+example : Width.lowerChecked widenCaptures source = some wideTargets :=
+  Width.lowerChecked_of_accepted widenCaptures accepted
+
+example : (wideTargets.1.func? 0).map (·.sig.params) = some 4 := by cbv
+example : (wideTargets.1.block? 0 0).map (·.term) = some (.jump 1 [.arg 7, .arg 8, .arg 3]) := by cbv
+example : (wideTargets.1.block? 0 1).map (·.params) = some [.arg 4, .arg 5, .arg 6] := by cbv
+
+private def wideInput : WordTuple 4 := .cons (6 : Word) (bank 2 99 5)
+
+example : widenCaptures.pull wideInput = input := by cbv
+example : wideTargets.1.runMain 10 0 (words wideInput) mem = .returned [7] mem := by cbv
+example : Generic.Fuel.run model (inputEnv model wideInput) 2 wideTargets.2 =
+    some (0, Generic.packResult model (out := word) (7 : Word)) := by cbv
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table

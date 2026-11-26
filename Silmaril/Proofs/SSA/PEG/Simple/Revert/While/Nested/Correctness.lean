@@ -24,7 +24,7 @@ theorem compile_eq [DecidableEq Data] (cert : Certificate form g) :
 
 variable {m : Interpretation.{u,v,w} P}
 
-private theorem runWhile_exec {test : Expr P vars .bool} {body : Stmt P true vars vars}
+theorem runWhile_exec {test : Expr P vars .bool} {body : Stmt P true vars vars}
     {step : Tuple m.Value vars → Option (Tuple m.Value vars)}
     (stepExec : ∀ {old next}, step old = some next → Exec m body old (some next))
     (fuel : Nat) {store final : Tuple m.Value vars}

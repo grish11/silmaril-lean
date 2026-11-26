@@ -892,3 +892,13 @@ needs = ["parquetFooterFixture"]
 [[input_file]]
 name = "parquetFooterFixture"
 path = "tools/parquet-footer/fixtures/alltypes_plain.parquet"
+
+[[lean_exe]]
+name = "parquet-page-regression"
+srcDir = "tools/parquet-page"
+root = "ParquetPageRegression"
+needs = ["parquetFooterFixture", "parquetV2PageFixture"]
+
+[[input_file]]
+name = "parquetV2PageFixture"
+path = "tools/parquet-page/fixtures/datapage_v2.snappy.parquet"

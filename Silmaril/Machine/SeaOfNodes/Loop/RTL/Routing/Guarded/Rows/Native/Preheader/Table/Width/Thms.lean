@@ -4,6 +4,8 @@ public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.P
 public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Reindex.Thms
 public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Thms
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Correctness
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.WellFormed
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Execution
 
 /-! Source transport and the checked emissions at a different capture width. -/
 
@@ -12,9 +14,12 @@ public section
 namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width
 
 open Silmaril.Machine.Lir (Memory Word)
-open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy WordOp model word)
-open Silmaril.SSA.RVSDG (Port Tuple)
-open Silmaril.SSA.SeaOfNodes.Diamond (Model Val)
+open Silmaril.Machine.RTL (Frame)
+open Silmaril.Machine.RTL.SSA (State StepsNWithin step)
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp model word)
+open Silmaril.SSA.SeaOfNodes.Loop (appendTuple)
+open Silmaril.SSA.RVSDG (Origin Port Tuple extend)
+open Silmaril.SSA.SeaOfNodes.Diamond (Model Val read)
 open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA (Atom inputEnv instruction)
 open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
 open Silmaril.Isotope (Value)
@@ -60,6 +65,63 @@ theorem lower_diverges_of_absent (g : Source new bank entrySigs sigs)
     (input : WordTuple new) (initial : Memory) (absent : g.denote model input = Part.none) :
     Diverges (instruction model) (.region (inputEnv model input) (Generic.lower g) initial) :=
   Proofs.lower_diverges_of_absent g input initial absent
+
+/-- Capture parameters, carried parameters and the two producer namespaces
+are disjoint at arbitrary widths. -/
+theorem layout_disjoint (captures bank : Nat) :
+    List.Disjoint (paramRegs 0 captures) (paramRegs captures bank) ∧
+    (∀ i, resultReg captures bank i ∉ paramRegs 0 captures ++ paramRegs captures bank) ∧
+    (∀ i, Reg.node i ∉ paramRegs 0 captures ++ paramRegs captures bank ∧
+      ∀ j, Reg.node i ≠ resultReg captures bank j) :=
+  Proofs.layout_disjoint captures bank
+
+/-- The ordinary RTL checker accepts the emitted function. Typed origins give
+dominated uses and both incoming columns match the header parameters. -/
+theorem lowerFunc_wellFormed {captures : Nat} (source : Source captures bank entrySigs sigs) :
+    (lowerFunc source).WellFormed :=
+  Proofs.lowerFunc_wellFormed source
+
+/-- Resize and re-emit after a single successful ordinary source admission. -/
+theorem lowerChecked_of_accepted (mapping : InputMap old new)
+    {g : SourceWithEntry old entrySigs sigs} {before : Checked.Phi.Targets}
+    (accepted : Table.lowerChecked g = some before) :
+    lowerChecked mapping g =
+      some (lowerRTL (mapCaptures mapping g), Generic.lower (mapCaptures mapping g)) :=
+  Proofs.lowerChecked_of_accepted mapping accepted
+
+/-- The ordinary checked source supplies the arithmetic admission for the resized entry. -/
+theorem checked_entry_packet {old new : Nat} (mapping : InputMap old new)
+    {g : SourceWithEntry old entrySigs sigs} {before : Checked.Phi.Targets}
+    (accepted : Table.lowerChecked g = some before) (input : WordTuple new) (mem : Memory) :
+    let program := lowerRTL (mapCaptures mapping g)
+    let start : State Reg := ⟨⟨0, 0, 0⟩, bindWords 0 Frame.empty input, [], mem⟩
+    program.start 0 (words input) mem = some start ∧
+      ∃ latched, StepsNWithin program [] (entrySigs.length + 1) start
+        ⟨⟨0, 1, 0⟩, latched, [], mem⟩ ∧
+        ArgsMatch latched (appendTuple (g.initial model (mapping.pull input)) input) :=
+  Proofs.checked_entry_packet mapping accepted input mem
+
+/-- If the header's emitted producer registers match the native reads, its actual
+conditional exits with the selected word or simultaneously transfers the old-frame
+feedback column. Both paths preserve the entire memory. -/
+theorem header_terminator {captures : Nat} (g : Source captures bank entrySigs sigs) (input : WordTuple captures)
+    (old : WordTuple bank) (fr : Frame Reg) (mem : Memory) (capturesMatch : ArgsMatch fr input)
+    (guard : fr.get (register g.predicate.address) = some
+      (if (read model g.predicate (appendTuple old input)
+        (g.header.eval model (appendTuple old input) PUnit.unit)).down then 1 else 0))
+    (wordsMatch : ∀ wire : Origin (wordPorts captures ++ wordPorts bank) (extend [] sigs) wordPort,
+      fr.get (register wire.address) = some
+        (read model wire (appendTuple old input) (g.header.eval model (appendTuple old input) PUnit.unit))) :
+    match g.step model input old with
+    | .inl value =>
+      step (lowerRTL g) ⟨⟨0, 1, sigs.length⟩, fr, [], mem⟩ =
+        .running ⟨⟨0, 2, 0⟩, fr.set .phi value, [], mem⟩ ∧
+      step (lowerRTL g) ⟨⟨0, 2, 0⟩, fr.set .phi value, [], mem⟩ = .returned [value] mem
+    | .inr next =>
+      step (lowerRTL g) ⟨⟨0, 1, sigs.length⟩, fr, [], mem⟩ =
+        .running ⟨⟨0, 1, 0⟩, bindWords captures fr next, [], mem⟩ ∧
+      ArgsMatch (bindWords captures fr next) (appendTuple next input) :=
+  Proofs.header_terminator g input old fr mem capturesMatch guard wordsMatch
 
 variable {mapping : InputMap old new} {g : SourceWithEntry old entrySigs sigs} {targets : Checked.Phi.Targets}
 

@@ -14,6 +14,20 @@ universe u v w
 
 variable {Data : Type u} {P : InstructionSet.{u,v} Data}
 variable {carried : List (Ty Data)} {result : Ty Data} {n : Nat}
+/-- Replay a successful checked slice at a fixed Figure 11 index.
+The loop-key space is arbitrary because the schedule introduces only
+primitive bindings, projections, and checked lazy branches. -/
+theorem Schedule.realizes_lower {l : Nat} {graph : Graph P carried [result] n l}
+    {m : Interpretation.{u,v,w} P} {input : Tuple m.Value carried} {values : graph.Valuation m}
+    {allowBranch : Bool} {vars outs : List (Ty Data)}
+    {scope : Tuple (Ref graph.sort) vars} {roots : Tuple (Ref graph.sort) outs}
+    (code : Schedule graph allowBranch roots scope) (solves : graph.Solves m input values)
+    {idx : Index l} {store : Tuple m.Value vars} {final : Tuple m.Value outs}
+    (entry : Schedule.Realizes m values idx scope store)
+    (ran : code.lower.runLoopFree m store = some final) :
+    Schedule.Realizes m values idx roots final :=
+  Proofs.schedule code solves entry ran
+
 variable {g : Graph P carried [result] n 1}
 variable {allowInvariant allowBranch : Bool}
 variable (cert : Certificate g allowInvariant allowBranch) (m : Interpretation.{u,v,w} P) (input : Tuple m.Value carried)

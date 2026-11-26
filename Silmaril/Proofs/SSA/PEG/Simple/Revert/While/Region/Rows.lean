@@ -26,10 +26,15 @@ theorem setClock (i : Index 1) (k : Nat) : i.set 0 k = clock k := by
   subst j
   rfl
 
-def read (values : g.Valuation m) (idx : Index 1) (r : Ref g.sort t) : Option (m.Value t) :=
+section Schedules
+
+variable {l : Nat} {g : Graph P carried [result] n l}
+variable {env : Tuple m.Value carried} {values : g.Valuation m}
+
+def read (values : g.Valuation m) (idx : Index l) (r : Ref g.sort t) : Option (m.Value t) :=
   r.read m.carrier (values (r.id, idx))
 
-theorem row (solves : g.Solves m env values) (i : Index 1) (r : Ref g.sort t) :
+theorem row (solves : g.Solves m env values) (i : Index l) (r : Ref g.sort t) :
     let node := nodeAt g r
     read values i r = node.label.interpret m env i fun slot j _ => read values j (node.arg slot) := by
   cases r with
@@ -37,12 +42,12 @@ theorem row (solves : g.Solves m env values) (i : Index 1) (r : Ref g.sort t) :
     cases typed
     exact solves (id, i)
 
-def Realizes (values : g.Valuation m) (i : Index 1) (scope : Tuple (Ref g.sort) vars)
+def Realizes (values : g.Valuation m) (i : Index l) (scope : Tuple (Ref g.sort) vars)
     (store : Tuple m.Value vars) : Prop :=
   ∀ t (p : Port vars t), read values i (scope.get p) = some (store.get p)
 
 theorem operands {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref g.sort) ins}
-    (reads : Reads scope refs) {idx : Index 1} {store : Tuple m.Value vars}
+    (reads : Reads scope refs) {idx : Index l} {store : Tuple m.Value vars}
     (entry : Realizes values idx scope store) :
     collect ins (fun j => read values idx (refs.get (portAt ins j))) =
       reads.args.eval m store := by
@@ -56,7 +61,7 @@ theorem operands {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref g.sort) in
     cases tail.args.eval m store <;> rfl
 
 private theorem projections {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref g.sort) outs}
-    (reads : Reads scope refs) {idx : Index 1} {store : Tuple m.Value vars}
+    (reads : Reads scope refs) {idx : Index l} {store : Tuple m.Value vars}
     (entry : Realizes values idx scope store) :
     Realizes values idx refs (reads.slots.map fun _ p => store.get p) := by
   induction reads with
@@ -68,7 +73,7 @@ private theorem projections {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref
     | tail q => exact ih _ q
 
 theorem schedule {allowBranch : Bool} {roots : Tuple (Ref g.sort) outs} {scope : Tuple (Ref g.sort) vars}
-    (code : Schedule g allowBranch roots scope) (solves : g.Solves m env values) {idx : Index 1}
+    (code : Schedule g allowBranch roots scope) (solves : g.Solves m env values) {idx : Index l}
     {store : Tuple m.Value vars} {final : Tuple m.Value outs}
     (entry : Realizes values idx scope store) (ran : code.lower.runLoopFree m store = some final) :
     Realizes values idx roots final := by
@@ -79,7 +84,7 @@ theorem schedule {allowBranch : Bool} {roots : Tuple (Ref g.sort) outs} {scope :
     exact projections reads entry
   | bind vertex instr refs _ wired args tail ih =>
     have step := row solves idx (Ref.ofId g.sort vertex)
-    let rhs (node : Node P carried (Fin 1) g.sort (g.sort vertex)) :=
+    let rhs (node : Node P carried (Fin l) g.sort (g.sort vertex)) :=
       node.label.interpret m env idx fun slot j _ => read values j (node.arg slot)
     change read values idx (Ref.ofId g.sort vertex) = rhs (g.node vertex) at step
     rw [wired] at step
@@ -100,7 +105,7 @@ theorem schedule {allowBranch : Bool} {roots : Tuple (Ref g.sort) outs} {scope :
       | tail p => exact entry _ p
   | branch _ vertex flag yes no _ wired test available trueArm falseArm tail ihYes ihNo ihTail =>
     have step := row solves idx (Ref.ofId g.sort vertex)
-    let rhs (node : Node P carried (Fin 1) g.sort (g.sort vertex)) :=
+    let rhs (node : Node P carried (Fin l) g.sort (g.sort vertex)) :=
       node.label.interpret m env idx fun slot j _ => read values j (node.arg slot)
     change read values idx (Ref.ofId g.sort vertex) = rhs (g.node vertex) at step
     rw [wired] at step
@@ -134,6 +139,8 @@ theorem schedule {allowBranch : Bool} {roots : Tuple (Ref g.sort) outs} {scope :
         cases p with
         | head => exact step.trans (arm _ .head)
         | tail p => exact arm _ (.tail p)
+
+end Schedules
 
 variable {allowInvariant allowBranch : Bool}
 variable (cert : Certificate g allowInvariant allowBranch)

@@ -16,7 +16,7 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Prehe
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.RTL (Frame)
 open Silmaril.Machine.RTL.SSA
-open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp model word)
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp emitOpsWithResults model registerWithResults word)
 open Silmaril.SSA.SeaOfNodes.Loop (appendTuple)
 open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow read)
 open Silmaril.SSA.RVSDG (Origin extend)
@@ -34,6 +34,20 @@ theorem recognize_sound {sigs : List (List PortTy)} {g : SourceWithEntry arity e
     {p : Plan arity entrySigs} (accepted : recognize g = some p) :
     ∃ eq : p.row.sigs = sigs, eq ▸ p.graph = g :=
   Proofs.recognize_sound accepted
+
+/-- Run the typed preheader at any producer register base following its captures. -/
+theorem entry_block_at {sigs : List (List PortTy)} (offset : Nat) (flow : Dataflow WordOp (wordPorts arity) [] sigs)
+    (prog : Prog Reg) (block : Block Reg) (found : prog.block? 0 0 = some block)
+    (input : WordTuple arity) (mem : Memory) (ok : supported flow = true)
+    (separated : arity ≤ offset)
+    (ops : block.ops = emitOpsWithResults (fun p => .arg p.index) (fun i => .arg (offset + i)) flow)
+    (fr : Frame Reg) (args : ArgsMatch fr input) :
+    ∃ ready, StepsNWithin prog [] sigs.length ⟨⟨0, 0, 0⟩, fr, [], mem⟩
+      ⟨⟨0, 0, sigs.length⟩, ready, [], mem⟩ ∧ ArgsMatch ready input ∧
+      ∀ wire : Origin (wordPorts arity) (extend [] sigs) wordPort,
+        ready.get (registerWithResults (fun p => .arg p.index) (fun i => .arg (offset + i)) wire) =
+          some (read model wire input (flow.eval model input PUnit.unit)) :=
+  Proofs.entry_block_at offset flow prog block found input mem ok separated ops fr args
 
 /-- Run the actual scheduled RTL operations. Each typed capture and local
 word read agrees with the native table, and the memory is preserved. -/

@@ -73,4 +73,19 @@ theorem extend_trans (e : Embedding small middle) (f : Embedding middle large)
     extend (e.trans f) (extend f outer inner) source = extend f outer (extend e inner source) :=
   Proofs.extend_trans e f inner outer source
 
+/-- Updating the first image leaves the other image's restriction unchanged. -/
+theorem restrict_extend_disjoint (e : Embedding small large) (f : Embedding middle large)
+    (disjoint : DisjointImages e f) (frame : Heap large) (source : Heap small) :
+    restrict f (extend e frame source) = restrict f frame :=
+  Proofs.restrict_extend_disjoint e f disjoint frame source
+
+/-- The two local results determine their own images, and every other
+cell still has its initial value. -/
+theorem extend_disjoint_spec (e : Embedding small large) (f : Embedding middle large)
+    (disjoint : DisjointImages e f) (initial : Heap large) (left : Heap small) (right : Heap middle) :
+    let final := extend f (extend e initial left) right
+    restrict e final = left ∧ restrict f final = right ∧
+      (∀ a, (¬ ∃ b, e b = a) → (¬ ∃ b, f b = a) → final a = initial a) :=
+  Proofs.extend_disjoint_spec e f disjoint initial left right
+
 end Silmaril.SSA.SeaOfNodes.Memory.CellEmbedding

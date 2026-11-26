@@ -8,6 +8,16 @@ import Silmaril.Proofs.Formats.Arrow.Writer.RoundTrip
 
 namespace Silmaril.Formats.Arrow.Writer
 
+theorem emitWords_wf (width : Nat) (words : List Nat) : (emitWords width words).wf = true :=
+  Proofs.Formats.Arrow.Writer.emitWords_wf width words
+
+theorem emitWords_length (width : Nat) (words : List Nat) :
+    (emitWords width words).len = width * words.length :=
+  Proofs.Formats.Arrow.Writer.emitWords_length width words
+
+theorem padding_aligned (size : Nat) : (size + padding size) % 8 = 0 :=
+  Proofs.Formats.Arrow.Writer.padding_aligned size
+
 /-- The writer checks the declared shape, signed offset domain and budgets. -/
 theorem checkInput_iff (limits : ObservationLimits) (input : BatchInput) :
     checkInput limits input = .ok () ↔ Admitted limits input :=

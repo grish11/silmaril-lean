@@ -104,6 +104,45 @@ Definition 5.1 legality are separate obligations for an arbitrary graph.
 | Two-level nesting | `While.Nested.Reindexed.Automatic.extract` infers a form and row/loop permutations and checks exact recompilation. The form has one child per continuing outer iteration, explicit typed captures, a loop-free inner step and a loop-free outer commit. `Accepted.returns_iff_observe` uses guard totality, successful child termination on continuing captures, successful commit and negation. `While.Nested.Projected.extract` first projects to the operand closure of the return and loop-bundle evals, with the correspondence to the original graph also requiring its demand well-foundedness. Arbitrary nested/branched source compilation already works. Extraction of arbitrary such graphs remains open. [Form](../../Silmaril/SSA/PEG/Simple/Revert/While/Nested/Defs.lean) · [Reindexing proof](../../Silmaril/SSA/PEG/Simple/Revert/While/Nested/Reindexed/Automatic/Thms.lean) · [Projection proof](../../Silmaril/SSA/PEG/Simple/Revert/While/Nested/Projected/Thms.lean) · [#3760](https://github.com/hiloopai/silmaril-lean/pull/3760) · [#3794](https://github.com/hiloopai/silmaril-lean/pull/3794) · [#3866](https://github.com/hiloopai/silmaril-lean/pull/3866) · [#3893](https://github.com/hiloopai/silmaril-lean/pull/3893) |
 | Placement (§§7.8–7.9) | `Region.Placement.extract` checks one shared computation on strict paths in a lazy feedback branch. `Figure19.MustEval.analyze` computes a bounded, same-index must-demand table with `defined` soundness and `stable` under a local rank. `Region.Placement.MustEval.extract` uses it for one checked shared placement. `Region.Hoist.check` handles one invariant with first-trip caching, using both defined demand and invariance. `Accepted.preserves` starts from a successful reference return, including zero trips. General Definition 7 precision, hoisting and LICM, loop/branch fusion and general CFG reversion remain open. [Placement](../../Silmaril/SSA/PEG/Simple/Revert/While/Region/Placement/Thms.lean) · [MustEval](../../Silmaril/SSA/PEG/Figure19/Placement/MustEval/Thms.lean) · [MustEval reversion](../../Silmaril/SSA/PEG/Simple/Revert/While/Region/Placement/MustEval/Thms.lean) · [Hoist](../../Silmaril/SSA/PEG/Simple/Revert/While/Region/Hoist/Thms.lean) · [#4059](https://github.com/hiloopai/silmaril-lean/pull/4059) · [#4076](https://github.com/hiloopai/silmaril-lean/pull/4076) · [#4107](https://github.com/hiloopai/silmaril-lean/pull/4107) |
 
+### Graph-local parent/child schedules
+
+`Nested.Region.check` takes a typed descriptor and demand rank for one
+parentless loop and one immediate child. It checks the parent links,
+ordered θ initializers and feedback, the shared pass within each loop,
+the child's eval bundle, and the designated outer eval. Outer
+initializers match typed input ports. The primitive scheduler checks
+the outer exit test over the old outer θ vector, the child initializer
+over that same vector, the child test and feedback over the child θ
+vector plus the retained outer values, and the outer commit over the
+child exit bundle plus the old outer values. The check uses the supplied
+rows directly and permits independent numbering of rows and loop keys.
+
+The emitted outer body builds a fresh child store before its inner
+`while`. `Accepted.activation_observation` fixes the enclosing coordinates,
+starts the child's θ streams at zero, and derives one least child pass
+and the defined eval prefix from the finite child trace. Its returned
+store realizes both the child evals and the retained outer captures at
+the caller's index. The outer proof establishes the capture premise
+uniformly at each outer iteration, invokes the child theorem, and
+replays the entire simultaneous commit. `Accepted.observe_of_returns`
+then relates an actual successful nested SIMPLE return to Figure 11.
+The checked demand rank supplies the valuation, the negation law connects
+the tests, and the successful trace supplies primitive definedness and
+child termination. Returning from a PEG exit alone remains open for
+this adapter. It requires a way to obtain each continuing activation's
+child exit and the full commit's definedness.
+
+The regression uses a hand-wired graph with 16 rows and two loop keys.
+Its first two child activations take two and one steps and commit
+accumulators 3 and 4. A well-ranked initializer that reads the original
+parameter in place of the current outer θ is rejected by the slice
+checker. A mismatched child pass is also rejected. The result covers
+the supplied two-level primitive shape. Boundary discovery, arbitrary
+nesting, and effects remain open for this adapter.
+[Graph-local checker](../../Silmaril/SSA/PEG/Simple/Revert/While/Nested/Region/Defs.lean) ·
+[Activation and return theorems](../../Silmaril/SSA/PEG/Simple/Revert/While/Nested/Region/Thms.lean) ·
+[Regression fixture](../../tests/ssa/PEGCanonicalWhile.lean)
+
 ## Saturation, selection and worked optimization
 
 ### Section 4 and the saturation engine
