@@ -1,0 +1,9 @@
+{
+  "mixed-v2.parquet": "b6057176f2e0188f2ff50a435eaf12c993091c848f0d60c39f47118c8da7de9a",
+  "invalid-width.parquet": "36265b7826b83077a81ee82c145f4ef241a4eb3f452b3a97fcf2a2cb8d6b64de",
+  "reference.arrows": "4811b03d12916cd0400ad341c08587fd45d24c4af01b7d7b1b0017cca6cac882",
+  "crc-plain-v2.parquet": "96d05f94ac7970b77fee42ac418f8db799dc88ac68247db3b71974b9f2fce529",
+  "snappy-dictionary-v2.parquet": "626f421c70bfd90114295cc2e648427cd99cee7c89571f113300780cdd7772e1",
+  "schema-only.parquet": "69b2b6e2c21df0ba477c3d218c2dc9ff09a87a5f10ed0f029d16c669457813ec",
+  "empty-pyarrow.parquet": "811fcf93b34eb0dc9e6d281cb75d85f3a2f31c98eb8ad90a96d319b5588c1346"
+}
