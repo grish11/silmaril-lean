@@ -7,6 +7,16 @@ import Silmaril.Proofs.Formats.Arrow.MetadataWriter.Size
 
 namespace Silmaril.Formats.Arrow.MetadataWriter
 
+theorem Wire.schemaPayload_wf (fields : List Field) : (schemaPayload fields).wf = true :=
+  Proofs.Formats.Arrow.MetadataWriter.schemaPayload_wf fields
+
+theorem Wire.schemaPayload_size (fields : List Field) :
+    (schemaPayload fields).len = schemaPayloadSize fields :=
+  Proofs.Formats.Arrow.MetadataWriter.schemaPayload_size fields
+
+theorem Wire.schemaPayload_aligned (fields : List Field) : schemaPayloadSize fields % 8 = 0 :=
+  Proofs.Formats.Arrow.MetadataWriter.schemaPayload_aligned fields
+
 theorem wireSize_aligned (message : Message) : 0 < wireSize message ∧ wireSize message % 8 = 0 :=
   Proofs.Formats.Arrow.MetadataWriter.wireSize_aligned message
 

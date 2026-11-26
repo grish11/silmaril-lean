@@ -1,4 +1,4 @@
-# Arrow IPC V5 file reader
+# Arrow IPC V5 files
 
 The file reader covers the same flat little-endian nullable and required
 Int32 and UTF-8 fields as the stream profile. It reads a finite immutable
@@ -67,5 +67,40 @@ python3 -I tests/formats/arrow-ipc/file_fixture.py --regenerate
 ```
 
 Regeneration uses the environment installed from the hash-pinned requirements.
-The scope is read-only. Dictionaries, nested types, compression, legacy
+Dictionaries, nested types, compression, legacy
 framing, and incremental file I/O remain outside the profile.
+
+## Checked file writer
+
+`FileWriter.emit` takes the same fields, typed batches and observation limits
+as the stream writer. It uses the existing physical writer and modern frame
+encoder, adds the file magic and EOS, and writes the footer and signed
+little-endian trailer length. Each footer block uses the metadata and body
+lengths of its emitted frame. The footer encoder reuses the relocatable
+schema payload used in stream messages.
+[File writer](../../Silmaril/Formats/Arrow/FileWriter/Defs.lean) ·
+[Footer encoder](../../Silmaril/Formats/Arrow/FooterWriter/Defs.lean)
+
+`FooterWriter.serialize_extent` proves the exact padded footer length within
+the signed and configured bounds. `FooterWriter.emit_exact` proves checked
+readback of the schema and ordered block AST. `FileWriter.packRecords_exact`
+proves the blocks are contiguous, aligned and in frame order.
+`FileWriter.assemble_extent` proves that assembly accounts for the declared
+schema, batch count and all byte extents. `FileWriter.emit_index_exact`
+proves that a checked write recovers its exact planned footer and boundaries
+with `FileReader.readIndex`. The writer checks the index before returning
+the bytes. General ordered row recovery through `FileReader.readRows`
+remains open and is exercised by the native and independent fixtures.
+[File writer laws](../../Silmaril/Formats/Arrow/FileWriter/Thms.lean) ·
+[Footer laws](../../Silmaril/Formats/Arrow/FooterWriter/Thms.lean)
+
+```sh
+lake build --wfail +Silmaril.Formats.Arrow.FileWriter.Thms arrow_ipc_metadata_tests
+.lake/build/bin/arrow_ipc_metadata_tests --write-file-fixtures /tmp/arrow-files
+python3 -I tests/formats/arrow-ipc/read_writer_fixtures.py --files /tmp/arrow-files
+```
+
+The pinned PyArrow reader opens the complete Lean-written files and checks
+schema, nullable cells and batch counts. It exercises mixed and empty
+batches, a schema-only file, and a positive-row zero-column batch.
+[Independent reader](../../tests/formats/arrow-ipc/read_writer_fixtures.py)

@@ -68,23 +68,29 @@ private theorem pair_length {α : Type} (values : List α) (first second : α �
     simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.length_cons, ih]
     omega
 
+theorem schemaPayload_wf (fields : List Field) : (schemaPayload fields).wf = true :=
+  KBytes.wf_append (Writer.emitWords_wf _ _) (KBytes.wf_append rfl (objects_wf fields))
+
 private theorem schema_wf (fields : List Field) (bodyLength : Nat) :
-    (schemaBytes fields bodyLength).wf = true := by
-  apply KBytes.wf_append
-  · exact KBytes.wf_append (Writer.emitWords_wf _ _) (Writer.emitWords_wf _ _)
-  · exact KBytes.wf_append (Writer.emitWords_wf _ _) (KBytes.wf_append rfl (objects_wf fields))
+    (schemaBytes fields bodyLength).wf = true :=
+  KBytes.wf_append (KBytes.wf_append (Writer.emitWords_wf _ _) (Writer.emitWords_wf _ _))
+    (schemaPayload_wf fields)
 
 private theorem batch_wf (batch : RecordBatch) (bodyLength : Nat) :
     (batchBytes batch bodyLength).wf = true := by
   unfold batchBytes messagePrefix words longs
   repeat first | exact Writer.emitWords_wf _ _ | apply KBytes.wf_append
 
+theorem schemaPayload_size (fields : List Field) :
+    (schemaPayload fields).len = schemaPayloadSize fields := by
+  simp only [schemaPayload, schemaPayloadSize, words, Writer.emitWords_length,
+    append_length, zeros_length, List.length_cons, vectorLength, List.length_map, objects_size]
+  omega
+
 private theorem schema_size (fields : List Field) (bodyLength : Nat) :
     (schemaBytes fields bodyLength).len = wireSize ⟨.schema fields, bodyLength⟩ := by
   simp only [schemaBytes, messagePrefix, wireSize, words, longs, Writer.emitWords_length,
-    append_length, zeros_length, List.length_cons, List.length_nil, vectorLength,
-    List.length_map, objects_size]
-  omega
+    append_length, List.length_cons, List.length_nil, schemaPayload_size]
 
 private theorem batch_size (batch : RecordBatch) (bodyLength : Nat) :
     (batchBytes batch bodyLength).len = wireSize ⟨.recordBatch batch, bodyLength⟩ := by
@@ -92,25 +98,27 @@ private theorem batch_size (batch : RecordBatch) (bodyLength : Nat) :
     append_length, List.length_cons, List.length_nil, pair_length]
   omega
 
+theorem schemaPayload_aligned (fields : List Field) : schemaPayloadSize fields % 8 = 0 := by
+  have tail : ((fields.map fun field =>
+      let size := 53 + field.name.utf8ByteSize
+      size + Writer.padding size).sum) % 8 = 0 := by
+    induction fields with
+    | nil => rfl
+    | cons field rest ih =>
+      simp only [List.map_cons, List.sum_cons]
+      have aligned := Writer.padding_aligned (53 + field.name.utf8ByteSize)
+      rw [Nat.add_mod, aligned, ih]
+  have vector := Writer.padding_aligned (20 + fields.length * 4)
+  simp only [schemaPayloadSize]
+  rw [Nat.add_mod, vector, tail]
+
 theorem wireSize_aligned (message : Message) : 0 < wireSize message ∧ wireSize message % 8 = 0 := by
   obtain ⟨header, bodyLength⟩ := message
   cases header with
   | schema fields =>
-    constructor
-    · simp [wireSize]
-      omega
-    · have tail : ((fields.map fun field =>
-          let size := 53 + field.name.utf8ByteSize
-          size + Writer.padding size).sum) % 8 = 0 := by
-        induction fields with
-        | nil => rfl
-        | cons field rest ih =>
-          simp only [List.map_cons, List.sum_cons]
-          have aligned := Writer.padding_aligned (53 + field.name.utf8ByteSize)
-          rw [Nat.add_mod, aligned, ih]
-      have vector := Writer.padding_aligned (68 + fields.length * 4)
-      simp only [wireSize]
-      rw [Nat.add_mod, vector, tail]
+    simp only [wireSize]
+    have aligned := schemaPayload_aligned fields
+    omega
   | recordBatch batch =>
     simp only [wireSize]
     omega

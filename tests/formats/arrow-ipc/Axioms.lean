@@ -6,6 +6,8 @@ import Silmaril.Formats.Arrow.Body.Thms
 import Silmaril.Formats.Arrow.Writer.Thms
 import Silmaril.Formats.Arrow.MetadataWriter.Thms
 import Silmaril.Formats.Arrow.FileReader.Thms
+import Silmaril.Formats.Arrow.FooterWriter.Thms
+import Silmaril.Formats.Arrow.FileWriter.Thms
 import Silmaril.Formats.Arrow.StreamWriter.Thms
 
 open Silmaril Silmaril.Formats.Arrow
@@ -41,6 +43,15 @@ example : Body.validAt (.leaf 2 0x0100) 8 = some true := by rfl
 #print axioms FileReader.Index.block_order
 #print axioms FileReader.Index.readBlock_exact
 #print axioms FileReader.readRows_indexed
+
+#print axioms MetadataWriter.Wire.schemaPayload_wf
+#print axioms MetadataWriter.Wire.schemaPayload_size
+#print axioms MetadataWriter.Wire.schemaPayload_aligned
+#print axioms FooterWriter.serialize_extent
+#print axioms FooterWriter.emit_exact
+#print axioms FileWriter.packRecords_exact
+#print axioms FileWriter.assemble_extent
+#print axioms FileWriter.emit_index_exact
 
 #print axioms Writer.checkInput_iff
 #print axioms Writer.packBuffers_exact
