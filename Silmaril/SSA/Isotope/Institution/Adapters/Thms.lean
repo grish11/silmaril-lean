@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.Institution.Adapters.UpperPowerset.Thms
-public import Silmaril.SSA.Isotope.Institution.Relational.Inclusions.Thms
+public import Silmaril.SSA.Isotope.Institution.Relational.Thms
 import Silmaril.Proofs.SSA.Isotope.Institution.Adapters.Hierarchy
 
 /-! # Commuting comparisons of the six exact Isotope tiers -/

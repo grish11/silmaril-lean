@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.Institution.Adapters.UpperPowerset.Thms
-public import Silmaril.SSA.Isotope.Institution.Relational.Inclusions.Thms
+public import Silmaril.SSA.Isotope.Institution.Relational.Thms
 import Silmaril.SSA.Isotope.Parallel.Hierarchy.Thms
 
 @[expose] public section
