@@ -130,6 +130,31 @@ agreement on the sequential embedding.
   additionally requires their stated lawfulness and coherence hypotheses.
   [#3715](https://github.com/hiloopai/silmaril-lean/pull/3715)
 
+### Exact endpoints in the iteration tier
+
+The lower `Parallel.Equiv` relates terms at a shared judgment and uses
+proposition-valued `HasType` at its typed rule endpoints. The upper
+`LetParIter.Equiv` relates two specific exact `Derivation` values.
+Its `native` rule takes exact native LetIter derivations `da` and `db` and
+requires `TypedEquiv.Related pureEff Γ (nativeTyping da) (nativeTyping db)`.
+A comparison with a raw equation or quotient therefore requires a separate
+bridge at the relevant typing witnesses, with the direction and hypotheses
+stated for that comparison.
+[Lower equation definition](https://github.com/hiloopai/silmaril-lean/blob/e4a9cc1725160ad9348917503328d0c31b733af0/Silmaril/SSA/Isotope/LetPar/Equations/Defs.lean)
+[Upper equation definition at 0218a4ac](https://github.com/hiloopai/silmaril-lean/blob/0218a4ac2fb85e20d35b991a792336a8f53aec2e/Silmaril/SSA/Isotope/LetParIter/Equations/Defs.lean)
+
+The native inclusion theorem `LetParIter.denote_embed` starts from an exact
+`LetIter.LocallyNameless.Derivation` `d`. In the shared proof-relevant model,
+with the selected pairing and native environments, it compares `derivation d`
+with the native evaluator at `nativeTyping d`. Its hypotheses include the
+native type and instruction models, subtyping, bottom effect, a monad and
+Elgot iteration. The computation equality in `LetParIter.sound` concerns
+related exact derivations at bottom purity and also assumes a lawful monad
+and lawful Elgot iteration. A comparison with the sequential relation here
+would additionally need the value-model, environment and observation
+agreements for the chosen model.
+[Native inclusion and soundness at 0218a4ac](https://github.com/hiloopai/silmaril-lean/blob/0218a4ac2fb85e20d35b991a792336a8f53aec2e/Silmaril/SSA/Isotope/LetParIter/Thms.lean)
+
 The one-way adapter is already explicit in #3715's `LetParIter.interpret`.
 It takes `D := TyDen`, exposes the native product and sum equivalences,
 transports unit and empty using `Unit ≃ PUnit` and `Empty ≃ PEmpty`, and
@@ -146,8 +171,9 @@ that visible lookup omits. Extending every visible environment back to
 `CtxDen` requires a value at each invisible slot, or a context restriction
 that removes those slots. For example, a context consisting of one anonymous
 empty slot has a visible environment and an empty full environment type.
-With pointwise agreement at projected environments, visible-environment validity implies full-environment
-validity. The converse requires coverage of the visible valuations.
+With pointwise agreement at projected environments, visible-environment
+validity implies full-environment validity. The converse requires coverage
+of the visible valuations.
 
 For a vertical comparison over shared signatures, check
 `embed_T (translate f e) = translate f (embed_S e)` and naturality of the
@@ -171,6 +197,6 @@ This development uses the Isotope relational evaluator and model APIs.
 `IsotopeRelationalInstitutionTests` builds open Boolean equations through the
 public header. The examples exercise a nonidentity label swap, a one-label
 signature inclusion, reducts on objects and arrows, case selection and a
-LetIter run with feedback before return. All three equations hold in the original model and fail
-after the swap reduct. The paired axiom audit checks transitive dependencies of
+LetIter run with feedback before return. All three equations hold in the
+original model and fail after the swap reduct. The paired axiom audit checks transitive dependencies of
 the institution modules, proofs and regressions.
