@@ -13,7 +13,7 @@ open Silmaril.Isotope.LambdaSSA.Region (ValueBranches)
 open Silmaril.Isotope.LambdaSSA.Region.Paper.TypeCategory (ofType ofRegion iterateSum)
 open Silmaril.Isotope.LambdaSSA.UB.Overlay
 open Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.Category
-  (singlePayload iterationGraph tagIterationOutcome)
+  (singlePayload iterationGraph tagIterationOutcome iterationGraph_block_ordinary)
 open Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.Paper
 open Silmaril.Isotope.Morphism.SSAIter (envOfBound_agrees)
 
@@ -144,11 +144,8 @@ private theorem ordered_iterator : loop original ≤ loop wider := by
   exact pointwise_wider s
 
 private theorem block_ordinary (f : Request) (s : Nat) (o : Outcome 2 Unit Nat) :
-    (graph f (.block 0 .unit s)).Ordinary o ↔ (atStep f s).Ordinary (tagIterationOutcome o) := by
-  change Behaviour.Ordinary ((seen f).total (0 : Fin 1) input.val s |>.map
-    (Set.preimage tagIterationOutcome)) o ↔ _
-  rw [Shape.Category.Arrow.total_typed (seen f) (0 : Fin 1) input s]
-  exact ⟨fun h => ⟨WithTop.coe_ne_top, h.2⟩, fun h => ⟨WithTop.coe_ne_top, h.2⟩⟩
+    (graph f (.block 0 .unit s)).Ordinary o ↔ (atStep f s).Ordinary (tagIterationOutcome o) :=
+  iterationGraph_block_ordinary (seen f) input input s o
 
 private theorem reach_repeat (f : Request) : Feedback.Reaches (graph f) (.entry 0) (.block 0 .unit f.1) := by
   apply Relation.ReflTransGen.tail (b := .block 0 .unit 0)

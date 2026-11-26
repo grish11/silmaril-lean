@@ -107,3 +107,46 @@ the latch, so proposing to drop either one fails the existing check.
 The regression checks both incoming merge packets and both projected
 feedback frames in the emitted CFG.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Regression.lean)
+
+## Compare the two pruned targets
+
+Import
+`Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Comparison.Thms`
+for the public comparison API. Both lowerings consume the same checked
+projection. The numbered RVSDG graph receives the typed source bank,
+and the CF graph receives its existing `encodeValues` representation.
+`Comparison.denotePart_eq` equates the existing partial observations
+by encoding the RVSDG singleton result as a returned CF environment.
+`Comparison.returns_iff` transfers finite return witnesses at the
+targets' own budgets. `Comparison.diverges_iff` covers absence of a
+return at every finite budget.
+[Public theorems](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Comparison/Thms.lean)
+
+`Comparison.run_at_source_visits` supplies a concrete CF budget for a
+numbered RVSDG activation bound. It charges one source visit per original
+block on the selected trace, then the CF return visit. The fixture uses
+the original merge predecessors `[6, 0, 6]`, with two feedback edges.
+Three numbered θ activations and sixteen CF visits return the same word.
+[Checked RVSDG trace](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/Prune/Thms.lean) ·
+[CF route and feedback](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Thms.lean)
+
+Use the same fixture build command above. Paste this block into
+`ComparePrunedQuadDiamond.lean` and run
+`lake env lean -DwarningAsError=true ComparePrunedQuadDiamond.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF
+
+#eval Example.predecessors 3                                    -- [6, 0, 6]
+#eval (Pruned.Example.runRVSDG 3, Pruned.Example.runCF 16)        -- (some 22, some 22)
+#eval (Pruned.Example.runRVSDG 2, Pruned.Example.runCF 15)        -- (none, none)
+```
+
+The last line shows exhaustion at those two bounds. The regression also
+checks the partial observation `Part.some` of the encoded return.
+[Comparison regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Comparison/Regression.lean)

@@ -31,6 +31,22 @@ theorem unit_alternate_power_of_seed
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.UnitFoldUniformity.unit_alternate_power_of_seed
     S includeUnit g
 
+/-- A common decision can choose to stay in the current Unit mode or switch
+to the other. Folding the two modes erases the choice of successor copy. -/
+theorem unit_fold_of_shared_choice
+    (S : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+    (includeUnit : ∀ {Γ : VCtx τ} {r s : Region Φ} {L : LCtx τ},
+      Paper.WithUnitEta.Step Γ r s L → S Γ r s L)
+    {B : Extension.Singleton.TypeCategory S}
+    (g : ofType S (Silmaril.unit : τ) ⟶
+      B ⨿ (ofType S (Silmaril.unit : τ) ⨿ ofType S (Silmaril.unit : τ))) :
+    let X := ofType S (Silmaril.unit : τ)
+    let fold := coprod.desc (𝟙 X) (𝟙 X)
+    iterateChosen S (coprod.desc g (g ≫ coprod.map (𝟙 B) (coprod.desc coprod.inr coprod.inl))) =
+      fold ≫ iterateChosen S (g ≫ coprod.map (𝟙 B) fold) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.UnitFoldUniformity.unit_fold_of_shared_choice
+    S includeUnit g
+
 /-- Unit η allows literal constructor discard to prove the power equation for every unit-state step. -/
 theorem unit_alternate_power {B : Comp} (g : U ⟶ B ⨿ U) :
     iterateChosen Seed (g ≫ coprod.desc coprod.inl g) = iterateChosen Seed g :=

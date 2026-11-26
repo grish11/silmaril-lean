@@ -2,6 +2,7 @@ module
 
 import Silmaril.Semantics.ITree.Thms
 import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Cover.Thms
+import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.Native.TwoRequest.Thms
 import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.Native.Thms
 import Silmaril.Semantics.ITree.VisiblePrefix.Thms
 import Silmaril.SSA.Isotope.LetIter.RequestFeedback.Thms
@@ -4163,5 +4164,82 @@ example : HasTypeEffect Γ₀ .nil rawProgram.endpoint.val Ty.unit strict ∧
   exact ⟨rawProgram.endpoint.property, directProgram.endpoint.property, dp, dq,
     (rawProgram.packed_eq_iff_denote_eq directProgram dp dq noPure visible).mpr nativeObs,
     (rawProgram.abortEquiv_iff_denote_eq directProgram dp dq noPure visible).mpr nativeObs⟩
+
+private def secondRead : Expr Ops :=
+  .let₁ (.op read .unit) (.case (.var 0) (.inr .unit) (.inl .unit))
+
+private def secondNotify : Expr Ops :=
+  .let₁ (.op notify (.inr .unit)) (.inl .unit)
+
+private def replyDispatch : Expr Ops := .case (.var 0) secondRead secondNotify
+
+private def replyDispatchSyntax : Native.Decision (Native.RowSyntax family .unit .unit) Bit replyDispatch :=
+  .split (.leaf (.call read (.literal .unit PUnit.unit)
+    (.split (.leaf (.literal Bit on)) (.leaf (.literal Bit off)))))
+    (.leaf (.call notify (.literal Bit on) (.leaf (.literal Bit off))))
+
+private def twoRequests : Native.TwoRequest.Program family .unit .unit strict where
+  initial := .unit
+  body := .let₁ (.op read (.let₁ .unit (.var 0))) replyDispatch
+  initialSyntax := .literal .unit PUnit.unit
+  bodySyntax := .leaf (.two read (.letId (.literal .unit PUnit.unit)) replyDispatchSyntax)
+  initTerm := .unit
+  bodyTerm := .let₁ (.op read (.let₁ .unit (.bv 0)))
+    (.case (.bv 0)
+      (.let₁ (.op read .unit) (.case (.bv 0) (.inr .unit) (.inl .unit)))
+      (.let₁ (.op notify (.inr .unit)) (.inl .unit)))
+  initial_lowers := rfl
+  body_lowers := rfl
+  effects _ := le_rfl
+  iterative := rfl
+
+private def twoRequestsLiteral : Native.TwoRequest.Program family .unit .unit strict where
+  initial := .let₁ .unit (.var 0)
+  body := .let₁ (.op read .unit) replyDispatch
+  initialSyntax := .letId (.literal .unit PUnit.unit)
+  bodySyntax := .leaf (.two read (.literal .unit PUnit.unit) replyDispatchSyntax)
+  initTerm := .let₁ .unit (.bv 0)
+  bodyTerm := .let₁ (.op read .unit)
+    (.case (.bv 0)
+      (.let₁ (.op read .unit) (.case (.bv 0) (.inr .unit) (.inl .unit)))
+      (.let₁ (.op notify (.inr .unit)) (.inl .unit)))
+  initial_lowers := rfl
+  body_lowers := rfl
+  effects _ := le_rfl
+  iterative := rfl
+
+-- The first reply selects the second opcode and its typed argument.
+-- A low reply to the second read jumps back to the original state.
+example : twoRequests.table twoRequests.start =
+    .call read PUnit.unit (fun reply => .inr (.inr reply)) := rfl
+
+example : twoRequests.table (.inr off) = .call read PUnit.unit (fun
+    | .inl _ => .inr (.inl PUnit.unit)
+    | .inr _ => .inl PUnit.unit) := by
+  apply congrArg (Row.call read PUnit.unit)
+  funext reply
+  cases reply <;> rfl
+
+example : twoRequests.table (.inr on) = .call notify on (fun _ => .inl PUnit.unit) := rfl
+
+example : twoRequests.native ≠ twoRequestsLiteral.native := by
+  intro same
+  cases same
+
+example : ∃ (dp : Derivation Ops Γ₀ .nil twoRequests.native Ty.unit)
+    (dq : Derivation Ops Γ₀ .nil twoRequestsLiteral.native Ty.unit),
+    HasTypeEffect Γ₀ .nil twoRequests.endpoint.val Ty.unit strict ∧
+    HasTypeEffect Γ₀ .nil twoRequestsLiteral.endpoint.val Ty.unit strict ∧
+    repairedDenoteInSyntax (⊥ : Fx) dp = repairedDenoteInSyntax (⊥ : Fx) dq ∧
+    AbortEquiv (⊥ : Fx) Γ₀ .nil twoRequests.native twoRequestsLiteral.native Ty.unit := by
+  obtain ⟨dp⟩ := Derivation.ofHasType twoRequests.typed.1
+  obtain ⟨dq⟩ := Derivation.ofHasType twoRequestsLiteral.typed.1
+  have runs : twoRequests.table.run twoRequests.start =
+      twoRequestsLiteral.table.run twoRequestsLiteral.start := rfl
+  have obs := (twoRequests.denote_eq_run dp noPure visible).trans
+    (runs.trans (twoRequestsLiteral.denote_eq_run dq noPure visible).symm)
+  exact ⟨dp, dq, twoRequests.typed, twoRequestsLiteral.typed,
+    (twoRequests.packed_eq_iff_denote_eq twoRequestsLiteral dp dq noPure visible).mpr obs,
+    (twoRequests.abortEquiv_iff_denote_eq twoRequestsLiteral dp dq noPure visible).mpr obs⟩
 
 end LetIterHeterogeneousFeedbackFixture

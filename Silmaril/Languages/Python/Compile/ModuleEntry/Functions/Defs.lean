@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Languages.Python.Compile.Closure.Body.Defs
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Defs
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.NumericArgument.Defs
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.TupleChain.Defs
 
 /-! # Lower module function bindings and positional call sites
@@ -83,10 +84,22 @@ def lowerDestination (scope : Scope) : (source : Placement) →
     let some reference := globalReference? scope name | throw (.unresolvedGlobal name)
     return ⟨.store name reference, rfl⟩
 
+inductive ArgumentOperandTranslation (scope : Scope) : Source.Expr → Operand scope → Prop where
+  | scalar {source operand} (translated : OperandTranslation scope source operand) :
+      ArgumentOperandTranslation scope source operand
+  | numeric {source result} (checked : NumericArgument.check source = some result) :
+      ArgumentOperandTranslation scope source (result.operand scope)
+
+def lowerArgumentOperand (scope : Scope) (source : Source.Expr) :
+    Except ModuleEntry.Error {operand // ArgumentOperandTranslation scope source operand} :=
+  match checked : NumericArgument.check source with
+  | some result => .ok ⟨result.operand scope, .numeric checked⟩
+  | none => (lowerOperand scope source).map fun operand => ⟨operand.val, .scalar operand.property⟩
+
 inductive Positional (scope : Scope) :
     List (Source.ArgumentKind × Source.Expr) → List (Operand scope) → Prop where
   | nil : Positional scope [] []
-  | cons {source operand rest targets} (first : OperandTranslation scope source operand)
+  | cons {source operand rest targets} (first : ArgumentOperandTranslation scope source operand)
       (tail : Positional scope rest targets) :
       Positional scope ((.positional, source) :: rest) (operand :: targets)
 
@@ -94,7 +107,7 @@ def lowerArguments (scope : Scope) : (source : List (Source.ArgumentKind × Sour
     Except Error {target // Positional scope source target}
   | [] => .ok ⟨[], .nil⟩
   | (.positional, expression) :: rest => do
-    let operand ← (lowerOperand scope expression).mapError .scalar
+    let operand ← (lowerArgumentOperand scope expression).mapError .scalar
     let tail ← lowerArguments scope rest
     return ⟨operand.val :: tail.val, .cons operand.property tail.property⟩
   | _ => .error .argumentProfile
@@ -105,7 +118,7 @@ inductive CallArgument (scope : Scope) where
   | call (name : Name) (reference : GlobalReference scope name) (arguments : List (Operand scope))
 
 inductive ArgumentTranslation (scope : Scope) : Source.Expr → CallArgument scope → Prop where
-  | scalar {source operand} (translated : OperandTranslation scope source operand) :
+  | scalar {source operand} (translated : ArgumentOperandTranslation scope source operand) :
       ArgumentTranslation scope source (.scalar operand)
   | call {source name arguments reference operands}
       (shape : CallExpression source name arguments) (translated : Positional scope arguments operands) :
@@ -125,7 +138,7 @@ def lowerCallArgument (scope : Scope) (source : Source.Expr) :
     let operands ← lowerArguments scope arguments
     return ⟨.call name reference operands.val, .call shape operands.property⟩
   else
-    let operand ← (lowerOperand scope source).mapError .scalar
+    let operand ← (lowerArgumentOperand scope source).mapError .scalar
     return ⟨.scalar operand.val, .scalar operand.property⟩
 
 def lowerCallArguments (scope : Scope) : (source : List (Source.ArgumentKind × Source.Expr)) →

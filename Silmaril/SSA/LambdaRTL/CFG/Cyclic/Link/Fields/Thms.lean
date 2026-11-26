@@ -14,6 +14,12 @@ open Comparison
 variable {V K F α : Type} [DecidableEq V] {n a b : Nat}
 
 omit [DecidableEq V] in
+theorem packed_eval {M : Type → Type} (model : Model F M α) (store : V → α)
+    (values : Fin n → Val V) :
+    (packed values).eval model store = encode model (fun i => (values i).eval model store) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.eval_packed model store values
+
+omit [DecidableEq V] in
 theorem read?_eval {M : Type → Type} {model : Model F M α} {packet : Fin n → α}
     {env : V → Option (Val (Fin n))} {store : V → α} (agrees : StoreAgrees model packet env store)
     {value : Val V} {shape : Val (Fin n)} (found : read? env value = some shape) :

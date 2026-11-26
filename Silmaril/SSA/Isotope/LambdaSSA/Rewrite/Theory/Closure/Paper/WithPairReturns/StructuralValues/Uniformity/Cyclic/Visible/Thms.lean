@@ -49,4 +49,31 @@ theorem visible_cycle :
       out (runFrom secondMode) = Part.some (.vis Event.poll (fun _ => runFrom firstMode)) :=
   ⟨CyclicFoldVisible.first_visible, CyclicFoldVisible.second_visible⟩
 
+/-- Replies can select either recursive copy, and the actual quotient square still commutes. -/
+theorem mixed_square :
+    mixedSourceStep ≫ coprod.map (𝟙 One) fold = fold ≫ mixedTargetStep :=
+  CyclicFoldVisible.mixed_square
+
+/-- Folding the reply-dependent cycle preserves guarded iteration in the ordered-pair quotient. -/
+theorem mixed_iteration :
+    iterateChosen Seed mixedSourceStep = fold ≫ iterateChosen Seed mixedTargetStep :=
+  CyclicFoldVisible.mixed_iteration
+
+/-- The two mode arrows are distinct, and each orders its reply branches as self then switch. -/
+theorem mixed_edges :
+    firstMode ≠ secondMode ∧
+    firstMode ≫ mixedSourceStep = choose ≫ replyIso.hom ≫
+      coprod.desc (firstMode ≫ (coprod.inr : Three ⟶ One ⨿ Three)) (secondMode ≫ coprod.inr) ∧
+    secondMode ≫ mixedSourceStep = choose ≫ replyIso.hom ≫
+      coprod.desc (secondMode ≫ (coprod.inr : Three ⟶ One ⨿ Three)) (firstMode ≫ coprod.inr) :=
+  ⟨CyclicFoldVisible.modes_ne, CyclicFoldVisible.mixed_first_edge, CyclicFoldVisible.mixed_second_edge⟩
+
+/-- In either copy, the typed Boolean reply selects self on false and switch on true. -/
+theorem mixed_visible :
+    out (runMixed firstMode) = Part.some (.vis Event.poll (fun b =>
+      if b then runMixed secondMode else runMixed firstMode)) ∧
+    out (runMixed secondMode) = Part.some (.vis Event.poll (fun b =>
+      if b then runMixed firstMode else runMixed secondMode)) :=
+  CyclicFoldVisible.mixed_visible
+
 end Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.StructuralValues.Uniformity.Cyclic.Visible

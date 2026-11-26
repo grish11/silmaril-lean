@@ -160,6 +160,25 @@ factory path for the lambda input.
 | 4 | `testfunctions8.py` compares named call results in assertions. `testscope1.py` immediately calls a returned closure inside an assertion. | Both complete normally in every reference. They need checked call results as comparison operands. The first also uses a standalone Boolean assignment in the seeded namespace. The second needs a call-result callee and the assertion-message evaluation rule. |
 | 5 | `testfunctions11.py` omits two trailing literal positional defaults after six supplied values. | All references finish normally. It needs a saved-default positional binder, a conjunctive assertion, and a seeded ordinary discard with the completed argument list. Larger default and unpacking rows also require tuple, mapping or exception semantics. |
 
+### Checked calls as equality-helper arguments
+
+The published-closure operand adapter accepts up to three exact integer
+arguments after confirming the closure's same-run publication. The
+current module selector uses it for admitted zero-argument published
+calls. Ordinary entry checks arity and runs the body with the reached heap. Settled inner receipts precede outer helper settlement. Flat tuple
+results retain their exact tags in the inner receipt. The helper's
+comparison still requires two integers. A defined inner stop retains
+earlier receipts and skips later arguments and the outer invocation.
+Faults and exhausted prefixes retain the reached heap without a settled
+receipt for the interrupted inner call.
+
+`varargs.py` still needs checked source variadic signatures. Its
+first supplied-seed call has an empty positional list. When variadic
+metadata is linked, ordinary entry can bind the empty tail through
+this argument path using the same-run descriptor. Starred operands
+inside an inner call, tuple equality, and typed callbacks have their own
+prerequisites.
+
 ### Checked positional preparation and variadic binding
 
 The closure call layer can prepare a positional list from single values

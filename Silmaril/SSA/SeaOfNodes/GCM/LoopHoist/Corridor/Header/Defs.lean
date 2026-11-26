@@ -79,14 +79,23 @@ def moveAt? (cfg : Cfg TargetOp (SourceLabel carried result) Input [result])
     (swapAt? insertion (cfg.block .header)).map (withHeader cfg)
   else none
 
-/-- Rank the actual nominated binding's sites and try the selected intra-header
-cut. Preheader scheduling uses the existing `Corridor.pickAndHoist?` entry point. -/
-def pickAndMove? (g : Program Input carried result entrySigs headerSigs) (index : Nat) :
+/-- Resolve and rank the nominated binding on the input CFG, then ask the
+emitter to realize the chosen cut. -/
+def pickAndEmit? (g : Program Input carried result entrySigs headerSigs) (index : Nat)
+    (emit : Cfg TargetOp (SourceLabel carried result) Input [result] →
+      Nat → Point (SourceLabel carried result) →
+      Option (Cfg TargetOp (SourceLabel carried result) Input [result])) :
     Option (Point (SourceLabel carried result) × Cfg TargetOp (SourceLabel carried result) Input [result]) := do
   let cfg := lower g
   let ⟨_, binding⟩ ← findBinding index 0 headerOrigins (cfg.block .header)
   let cut ← chooseCut? g binding.operands binding.uses
-  let moved ← moveAt? cfg index cut
+  let moved ← emit cfg index cut
   pure (cut, moved)
+
+/-- Try the selected adjacent earlier cut. Preheader scheduling uses the
+existing `Corridor.pickAndHoist?` entry point. -/
+def pickAndMove? (g : Program Input carried result entrySigs headerSigs) (index : Nat) :
+    Option (Point (SourceLabel carried result) × Cfg TargetOp (SourceLabel carried result) Input [result]) :=
+  pickAndEmit? g index moveAt?
 
 end Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header

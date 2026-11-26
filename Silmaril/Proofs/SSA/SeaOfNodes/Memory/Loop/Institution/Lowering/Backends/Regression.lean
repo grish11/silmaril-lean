@@ -6,7 +6,10 @@ import Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.Regression
 
 namespace Silmaril.SSA.SeaOfNodes.Memory.Loop.Institution.Lowering.Backends
 
+open CategoryTheory
 open Fixture
+open Loop.Institution (Equation mapGraph)
+open Memory.Diamond.Institution (reduct)
 open Memory.Diamond.Institution renaming Signature → EntrySignature, Model → EntryModel
 open Memory.Diamond.LambdaSSA (packet)
 open Memory.Diamond.MLIR.Finite (Profile)
@@ -62,5 +65,42 @@ example : ∀ label payload final, ¬ lambdaReturns (lowerLambda clearTail) mode
 
 example : thetaObservation clearTail model cycling = Part.none :=
   (theta_no_return_iff_mlir clearTail model cycling).2 noCF
+
+private def equation : Equation sig := ⟨shift, clearTail⟩
+private def shiftHeap : Heap 3 := update (initial 0) 2
+private def clearedHeap : Heap 3 := (initial 0).write tailCell 0
+
+private theorem observeImmediate (graph : Graph args) (final : Heap 3)
+    (evaluated : graph.evalAfter model.input (initial 0) 0 = some (0, final)) :
+    MLIR.MemRef.CF.Institution.observe (P := sig) graph model (initial 0) = Part.some (0, final) := by
+  refine (MLIR.MemRef.CF.Institution.observe_eq (P := sig) graph model (initial 0)).trans ?_
+  exact Part.eq_some_iff.mpr ((graph.returns_iff_mem_denote model.input (initial 0) 0 final).mp
+    ⟨0, (graph.returnsAfter_iff_evalAfter model.input (initial 0) 0 0 final).mpr evaluated⟩)
+
+-- The emitted programs return the same word at the same initial heap.
+-- The first program writes the old tail word to the head cell.
+example : ¬ MLIR.MemRef.CF.Institution.Holds equation model := by
+  intro holds
+  have same := (observeImmediate shift shiftHeap (by cbv)).symm.trans
+    ((holds (initial 0)).trans (observeImmediate clearTail clearedHeap (by cbv)))
+  have cell := congrArg (fun result : Word × Heap 3 => result.2 headCell) (Part.some_inj.mp same)
+  exact (by decide : shiftHeap headCell ≠ clearedHeap headCell) cell
+
+private theorem noMemRef : MLIR.MemRef.CF.Institution.observe (P := sig) clearTail model cycling = Part.none :=
+  (MLIR.MemRef.CF.Institution.observe_eq (P := sig) clearTail model cycling).trans
+    ((mlir_no_return_iff clearTail model cycling).mp noCF)
+
+example : MLIR.Institution.observe (P := sig) clearTail model cycling = Part.none :=
+  (mlir_observation_eq_map_memref (P := sig) clearTail model cycling).trans (by rw [noMemRef, Part.map_none])
+
+private def swap : sig ⟶ sig :=
+  ⟨fun
+    | .head => .tail .head
+    | .tail .head => .head
+    | .tail (.tail .head) => .tail (.tail .head)⟩
+
+example : MLIR.MemRef.CF.Institution.observe (mapGraph swap shift) model (initial 0) =
+    MLIR.MemRef.CF.Institution.observe shift (reduct swap model) (initial 0) :=
+  MLIR.MemRef.CF.Institution.observe_mapGraph swap shift model (initial 0)
 
 end Silmaril.SSA.SeaOfNodes.Memory.Loop.Institution.Lowering.Backends

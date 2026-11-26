@@ -116,7 +116,7 @@ theorem routeSuffix_agrees (flow : Dataflow Op args past sigs)
     erw [sameNext]
     exact ih (route.push [.value out]) (old.snoc next) (new.snoc next) (push_agrees m entry agree next)
 
-private theorem drop_agrees (replacement : Origin args past (.value out))
+theorem drop_agrees (replacement : Origin args past (.value out))
     (locals : Locals (Val m.value) past) (next : Tuple (Val m.value) [.value out])
     (same : next.get .head = Diamond.read m replacement entry locals) :
     Routing.Agrees (dropNewest replacement) m entry (locals.snoc next) locals := by

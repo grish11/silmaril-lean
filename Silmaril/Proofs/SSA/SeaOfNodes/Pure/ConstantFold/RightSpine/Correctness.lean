@@ -117,6 +117,11 @@ private def sound (entry : Tuple (Val model.value) args) : AddRewrite.Sound rule
     rw [readRight, rotate_eval]
     exact (BitVec.add_assoc _ _ _).symm
 
+theorem match_agrees {lhs rhs : WordWire args past} {edit : AddRewrite.Splice args past}
+    (agree : known.Agrees entry locals) (accepted : matchAdd? known lhs rhs = some edit) :
+    AddRewrite.evalAdd lhs rhs entry locals = edit.eval entry locals :=
+  (sound entry).replaceAdd agree accepted
+
 variable {program : Program SubZero.Opcode inputs out}
 variable {rewrite : Rewrite SubZero.Opcode (dataPorts inputs) [] program.sigs}
 

@@ -7,6 +7,12 @@ import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Prefix
 public section
 namespace Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run
 
+theorem callOperand_numericArgument (scope : Source.Scope) (result : NumericArgument.Result) :
+    callOperand? (result.operand scope) = some (.literal (match result with
+      | .integer value => .int value
+      | .boolean value => .bool value)) := by
+  cases result <;> rfl
+
 theorem seed_lookup (globals : Core.Module.Globals) (heap : Core.Closure.Heap) (name : String) :
     (seed globals heap).globals name = (globals.lookup name).map embed := rfl
 

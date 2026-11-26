@@ -37,6 +37,9 @@ number of exchanges. `runs_translate` transports such runs in both directions.
 allow a program with no admitted return and do not classify stuck requests,
 faults, or divergence. Concurrent scheduling is outside this profile.
 
+The [finite trace institution](itree-trace-institution.md) uses the same model
+reduct and checks predicates on the whole finite handled observation.
+
 ## Heap, read-only view and clock
 
 The heap model uses the typed events and the actual `Heap.step` handler from

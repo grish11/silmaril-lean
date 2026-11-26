@@ -8,7 +8,7 @@ open Silmaril.Isotope Silmaril.Isotope.LetIter.LocallyNameless
 
 namespace Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.TerminalProofs
 
-variable {n : Nat} {F : Family n} {S B C : Code} {ε : Type} [HasEff (Opcode F) ε] {pe : ε}
+variable {n : Nat} {F : Family n} {S T B C : Code} {ε : Type} [HasEff (Opcode F) ε] {pe : ε}
 
 local notation "Ops" => Opcode F
 local notation "Free" => (Ctx.nil : Ctx Empty (Ty Unit))
@@ -31,24 +31,44 @@ theorem bind_value {h : Tm Empty Ops 1} {A : Ty Unit}
   rw [plug_eq_instantiate]
   exact .equiv (Equiv.letBeta (value_pure C v 0) (value_typed C v .nil) ht)
 
+/-- Push a native continuation through a call and exhaustively prove its
+reply branches by constructor specialization. -/
+theorem bind_dispatch {f : Ops} (x : f.argCode.Value)
+    (left right : ∀ n, f.replyCode.Value → Tm Empty Ops n)
+    {A R : Ty Unit}
+    (leftTy : ∀ {n} (β : BoundCtx (Ty Unit) n) r, H β (left n r) A)
+    (rightTy : ∀ {n} (β : BoundCtx (Ty Unit) n) r, H β (right n r) R)
+    (leftClosed : ∀ {n m} (σ : Fin n → Tm Empty Ops m) r, (left n r).bsubst σ = left m r)
+    (rightClosed : ∀ {n m} (σ : Fin n → Tm Empty Ops m) r, (right n r).bsubst σ = right m r)
+    {h : Tm Empty Ops 1} (ht : H (.snoc .nil A) h R)
+    (eq : ∀ r, E .nil (.let₁ (left 0 r) h) (right 0 r) R) :
+    E .nil
+      (.let₁ (.let₁ (.op f (nativeValue Ops f.argCode x)) (dispatch f.replyCode left (.bv 0))) h)
+      (.let₁ (.op f (nativeValue Ops f.argCode x)) (dispatch f.replyCode right (.bv 0))) R := by
+  have req : H .nil (.op f (nativeValue Ops f.argCode x)) f.replyCode.ty :=
+    .op (value_typed f.argCode x .nil)
+  have v : H (.snoc .nil f.replyCode.ty) (.bv 0) f.replyCode.ty := .bv
+  have lhs := dispatch_typed f.replyCode leftTy v
+  have rhs := dispatch_typed f.replyCode rightTy v
+  have cont := by_values f.replyCode (.let₁ lhs ht.underBinder) rhs (fun r => by
+    rw [plug_bind]
+    simp only [plug, dispatch_subst f.replyCode leftClosed, dispatch_subst f.replyCode rightClosed, Tm.bsubst]
+    exact (Refinement.let₁ (dispatch_beta f.replyCode leftTy leftClosed .nil r) (.refl ht)).trans
+      ((eq r).trans (dispatch_beta f.replyCode rightTy rightClosed .nil r).symm))
+  exact (Refinement.equiv (Equiv.bindLet req lhs ht)).trans (.let₁ (.refl req) cont)
+
 /-- Postcompose a rendered call by a native handler. A typed proof at each
 constructor reply rewrites the whole continuation. -/
 theorem bind_call {f : Ops} (x : f.argCode.Value)
-    (k : f.replyCode.Value → B.Value ⊕ S.Value) (next : f.replyCode.Value → C.Value ⊕ S.Value)
-    {h : Tm Empty Ops 1} (ht : H (.snoc .nil (Code.sum B S).ty) h (Code.sum C S).ty)
+    (k : f.replyCode.Value → B.Value ⊕ S.Value) (next : f.replyCode.Value → C.Value ⊕ T.Value)
+    {h : Tm Empty Ops 1} (ht : H (.snoc .nil (Code.sum B S).ty) h (Code.sum C T).ty)
     (eq : ∀ r, E .nil (plug h (nativeValue Ops (Code.sum B S) (k r)))
-      (nativeValue Ops (Code.sum C S) (next r)) (Code.sum C S).ty) :
-    E .nil (.let₁ (nativeRow (.call f x k) 0) h) (nativeRow (.call f x next) 0) (Code.sum C S).ty := by
-  have req : H .nil (.op f (nativeValue Ops f.argCode x)) f.replyCode.ty :=
-    .op (value_typed f.argCode x .nil)
-  have lhs := reply_typed k (show H (.snoc .nil f.replyCode.ty) (.bv 0) f.replyCode.ty from .bv)
-  have rhs := reply_typed next (show H (.snoc .nil f.replyCode.ty) (.bv 0) f.replyCode.ty from .bv)
-  have cont := by_values f.replyCode (.let₁ lhs ht.underBinder) rhs (fun r => by
-    rw [plug_bind]
-    simp only [plug, reply_subst, Tm.bsubst] at ⊢
-    have same := eq r
-    exact (Refinement.let₁ (reply_beta k r) (.refl ht)).trans
-      ((bind_value ht (k r)).trans (same.trans (reply_beta next r).symm)))
-  exact (Refinement.equiv (Equiv.bindLet req lhs ht)).trans (.let₁ (.refl req) cont)
+      (nativeValue Ops (Code.sum C T) (next r)) (Code.sum C T).ty) :
+    E .nil (.let₁ (nativeRow (.call f x k) 0) h) (nativeRow (.call f x next) 0) (Code.sum C T).ty := by
+  exact bind_dispatch x (fun _ r => nativeValue Ops (Code.sum B S) (k r))
+    (fun _ r => nativeValue Ops (Code.sum C T) (next r))
+    (fun β r => value_typed (Code.sum B S) (k r) β) (fun β r => value_typed (Code.sum C T) (next r) β)
+    (fun σ r => value_bsubst σ (Code.sum B S) (k r)) (fun σ r => value_bsubst σ (Code.sum C T) (next r))
+    ht (fun r => (bind_value ht (k r)).trans (eq r))
 
 end Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.TerminalProofs

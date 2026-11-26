@@ -1,7 +1,8 @@
 module
 
 import Silmaril.SSA.PEG.Thms
-import Silmaril.SSA.PEG.Semantics.Thms
+import Silmaril.SSA.PEG.Semantics.Reindex.Thms
+import Mathlib.Logic.Equiv.Basic
 
 namespace Silmaril.SSA.PEG.Tests
 
@@ -349,6 +350,11 @@ private def nestedRank : DemandRank 5 2 :=
 example : nestedRank.check (nested true) = true := by decide
 example : nestedRank.check (nested false) = false := by decide
 
+example : (nestedRank.reindex reverseFive swapTwo).check
+    ((nested true).reindex reverseFive swapTwo) = true := by
+  rw [Graph.rank_check_reindex]
+  decide
+
 example : ∃! values, (nested true).Solves model .nil values :=
   (nested true).existsUnique_solves_of_check model .nil nestedRank (by decide)
 
@@ -485,7 +491,7 @@ private theorem passAt (k : Nat) : runningValue (4, clock k) = some ⟨2⟩ := b
   exact e
 
 -- A selected index greater than the current iteration still returns the exact sample.
-example : runningValue (5, clock 0) = some ⟨2⟩ := by
+private theorem selectedEval : runningValue (5, clock 0) = some ⟨2⟩ := by
   have e := runningEq (5, clock 0)
   change runningValue (5, clock 0) =
     (runningValue (4, clock 0)).elim none
@@ -517,7 +523,7 @@ private theorem partialAt (k : Nat) :
 example : runningValue (6, clock 2) = some ⟨2⟩ := partialAt 2
 
 -- The sample at two is defined, but eval is bottom because index zero is bottom.
-example : runningValue (7, clock 0) = none := by
+private theorem blockedEval : runningValue (7, clock 0) = none := by
   have e := runningEq (7, clock 0)
   change runningValue (7, clock 0) =
     (runningValue (4, clock 0)).elim none
@@ -566,13 +572,30 @@ private theorem blockedPass : runningValue (9, clock 0) = none := by
   exact e
 
 -- Eval with an undefined count has no defined observation.
-example : runningValue (10, clock 0) = none := by
+private theorem undefinedEval : runningValue (10, clock 0) = none := by
   have e := runningEq (10, clock 0)
   change runningValue (10, clock 0) =
     (runningValue (9, clock 0)).elim none
       (fun k => monotonize (fun j => runningValue (0, (clock 0).set 0 j)) k.down) at e
   rw [blockedPass] at e
   exact e
+
+-- Renumbering a typed table preserves the order of all three outputs
+-- and retains both forms of bottom.
+private def runningRows : Fin 11 ≃ Fin 11 := Equiv.swap 0 5
+private def movedRunning := runningGraph.reindex runningRows (Equiv.refl (Fin 1))
+
+example (wf : WellFounded movedRunning.Demand) :
+    movedRunning.observe model (movedRunning.denote model .nil wf) (clock 0) =
+      .cons (some ⟨2⟩) (.cons none (.cons none .nil)) := by
+  have moved := runningGraph.observe_denote_reindex runningRows (Equiv.refl (Fin 1))
+    model .nil (runningGraph.demandWellFounded_of_check runningRank (by decide)) wf (clock 0)
+  change ((runningGraph.reindex runningRows (Equiv.refl (Fin 1))).observe model
+    ((runningGraph.reindex runningRows (Equiv.refl (Fin 1))).denote model .nil wf) (clock 0)) = _
+  rw [moved]
+  change Tuple.cons (F := fun t => Option (model.Value t)) (runningValue (5, clock 0))
+    (.cons (runningValue (7, clock 0)) (.cons (runningValue (10, clock 0)) .nil)) = _
+  rw [selectedEval, blockedEval, undefinedEval]
 
 example : firstTrue (fun _ => some false) = none := by
   apply (firstTrue_eq_none_iff _).mpr

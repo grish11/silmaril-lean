@@ -405,3 +405,32 @@ record to the original two seeds, checks trace inclusion in both
 directions, and preserves `tick 2 5`, a continuing reply, then
 `tick 5 2` in both evaluators.
 [Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Relabelling primitive instructions
+
+Primitive relabelling acts on the block bodies. It preserves predecessor
+keys, φ operands, normalization, and the result of checking the same
+arrival table. The checked φ lowering and cyclic versioning commute with
+the opcode map. `Admitted.map` transports existing well-formedness and
+the ordinary named typed-entry certificate at its exact capture, block,
+and exit profiles. Generation still runs at the original signature and
+produces the split admissions and pure closure used by that route.
+Relabelling those admissions consumes their stored evidence. Running
+generation again at a different signature would check a new result.
+[Graph and arrival transport](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/InstructionMap/Thms.lean)
+
+`EntryComparison.map` keeps the checked slot projection and transports
+the admitted endpoints. Mapping before or after composing the comparisons
+gives the same result, including the shared admitted table. At every
+supplied final record, pointwise comparisons of the named and packed trees
+agree with the original comparisons in the existing typed-entry model
+reduct. The signature map preserves primitive input and output types and
+the bottom effect. The event family and reply types are shared.
+[Comparison and reduct](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/InstructionMap/Thms.lean)
+
+The two-split fixture identifies the distinct `tick` and `finish`
+opcodes. After the continuing reply and the simultaneous swap, the
+second tick replies with `11`. The finishing primitive requests
+`tick 11 11` and its typed reply `23` is the returned payload in both
+relabelled evaluators.
+[Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)

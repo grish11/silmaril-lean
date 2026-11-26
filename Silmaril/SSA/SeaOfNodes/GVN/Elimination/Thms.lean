@@ -34,6 +34,14 @@ theorem Routing.push_agrees {route : Routing args past target} {m : Model.{u,v,w
     Routing.Agrees (route.push head) m entry (old.snoc next) (new.snoc next) :=
   Silmaril.Proofs.SSA.SeaOfNodes.GVN.Elimination.push_agrees m entry agree next
 
+/-- Redirecting the newest singleton to an equal prefix read preserves all reads. -/
+theorem dropNewest_agrees (replacement : Origin args past (.value out))
+    (m : Model.{u,v,w} Op) (entry : Tuple (Val m.value) args) (locals : Locals (Val m.value) past)
+    (next : Tuple (Val m.value) [.value out])
+    (same : next.get .head = Diamond.read m replacement entry locals) :
+    Routing.Agrees (dropNewest replacement) m entry (locals.snoc next) locals :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GVN.Elimination.drop_agrees m entry replacement locals next same
+
 /-- Routing a suffix preserves every source wire when the incoming
 producer stores agree along the supplied routing. -/
 theorem routeSuffix_agrees (flow : Dataflow Op args past sigs)

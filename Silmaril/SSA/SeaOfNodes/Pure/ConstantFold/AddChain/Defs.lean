@@ -8,11 +8,11 @@ public import Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.AddRewrite.Defs
 
 namespace Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.AddChain
 
-open Diamond (Dataflow Ty ValueSort dataPorts)
+open Diamond (Dataflow Ty Val ValueSort dataPorts)
 open GVN (weaken)
 open GVN.Elimination (Rewrite splitOrigin)
-open SubZero (wordPort)
-open RVSDG (Origin Wires)
+open SubZero (model wordPort)
+open RVSDG (Locals Origin Tuple Wires)
 
 variable {args : List (Ty Unit)} {past sigs : List (List (Ty Unit))}
 variable {ins : List (ValueSort Unit)} {out : ValueSort Unit}
@@ -30,6 +30,14 @@ structure Prefix (args : List (Ty Unit)) (past : List (List (Ty Unit))) where
   additions : WordWire args past → Option (Offset args past)
 
 def Prefix.empty : Prefix args [] := ⟨fun _ => none, fun _ => none⟩
+
+/-- Explicit literal and constant-offset facts agree with the original prefix. -/
+def Prefix.Agrees (known : Prefix args past) (entry : Tuple (Val model.value) args)
+    (locals : Locals (Val model.value) past) : Prop :=
+  Scan.Literals.Agrees known.literals entry locals ∧
+  ∀ (wire : WordWire args past) {offset}, known.additions wire = some offset →
+    Diamond.read model wire entry locals =
+      BitVec.add (Diamond.read model offset.base entry locals) offset.value
 
 /-- An add with a literal right operand and a left operand without a literal
 fact. Leave two-literal adds and the right identity to their existing rules. -/

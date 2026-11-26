@@ -47,6 +47,32 @@ theorem fold_square_iff {B : Q}
         coprod.map (𝟙 C) (coprod.desc (𝟙 X) (𝟙 X)) ≫ e :=
   CyclicStructuralFold.fold_square_iff S R d e
 
+/-- The second Unit mode may recur into itself exclusively.
+The first mode and the retained row can be arbitrary quotient computations. -/
+theorem uniformity_of_right_self {B : Q}
+    (d : C ⨿ (X ⨿ X) ⟶ (B ⨿ C) ⨿ (X ⨿ X))
+    (e : C ⨿ X ⟶ (B ⨿ C) ⨿ X)
+    (square : realize S (sourceIso S R) d ≫ coprod.map (𝟙 B) F = F ≫ realize S (targetIso S R) e)
+    (self : coprod.inr ≫ (coprod.inr ≫ d) =
+      (coprod.inr ≫ e) ≫ coprod.map (𝟙 (B ⨿ C)) (coprod.inr : X ⟶ X ⨿ X)) :
+    iterateChosen S (realize S (sourceIso S R) d) =
+      F ≫ iterateChosen S (realize S (targetIso S R) e) :=
+  CyclicStructuralFold.uniformity_of_right_self S R d e square self
+
+/-- Eliminate the second Unit copy within the folded block and then
+eliminate the first. This identity suffices to reconnect the retained row. -/
+theorem uniformity_of_mixed_identity {B : Q}
+    (d : C ⨿ (X ⨿ X) ⟶ (B ⨿ C) ⨿ (X ⨿ X))
+    (e : C ⨿ X ⟶ (B ⨿ C) ⨿ X)
+    (square : realize S (sourceIso S R) d ≫ coprod.map (𝟙 B) F = F ≫ realize S (targetIso S R) e)
+    (mixed :
+      let a := (coprod.inr ≫ d) ≫ (coprod.associator (B ⨿ C) X X).inv
+      iterateChosen S ((coprod.inl ≫ a) ≫ coprod.desc (𝟙 ((B ⨿ C) ⨿ X))
+        (iterateChosen S (coprod.inr ≫ a))) = iterateChosen S (coprod.inr ≫ e)) :
+    iterateChosen S (realize S (sourceIso S R) d) =
+      F ≫ iterateChosen S (realize S (targetIso S R) e) :=
+  CyclicStructuralFold.uniformity_of_mixed_identity S R d e square mixed
+
 /-- The exact square is uniform when the second Unit mode sends every
 Unit recurrence to the first copy. The other rows can use arbitrary quotient computations. -/
 theorem uniformity_of_right_switch
@@ -60,5 +86,21 @@ theorem uniformity_of_right_switch
     iterateChosen S (realize S (sourceIso S R) d) =
       F ≫ iterateChosen S (realize S (targetIso S R) e) :=
   CyclicStructuralFold.uniformity_of_right_switch S R includeUnit d e square switch
+
+/-- The copied Unit modes can both stay or switch on a recursive result.
+They run a common decision and interpret its two recursive tags relative to
+the current copy. The retained state and outward result are arbitrary. -/
+theorem uniformity_of_shared_choice
+    (includeUnit : ∀ {Γ : VCtx τ} {r q : Region Φ} {L : LCtx τ},
+      Paper.WithUnitEta.Step Γ r q L → S Γ r q L)
+    {B : Q} (d : C ⨿ (X ⨿ X) ⟶ (B ⨿ C) ⨿ (X ⨿ X))
+    (e : C ⨿ X ⟶ (B ⨿ C) ⨿ X)
+    (square : realize S (sourceIso S R) d ≫ coprod.map (𝟙 B) F = F ≫ realize S (targetIso S R) e)
+    (decision : X ⟶ (B ⨿ C) ⨿ (X ⨿ X))
+    (route : coprod.inr ≫ d = coprod.desc decision
+      (decision ≫ coprod.map (𝟙 (B ⨿ C)) (coprod.desc coprod.inr coprod.inl))) :
+    iterateChosen S (realize S (sourceIso S R) d) =
+      F ≫ iterateChosen S (realize S (targetIso S R) e) :=
+  CyclicStructuralFold.uniformity_of_shared_choice S R includeUnit d e square decision route
 
 end Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.StructuralValues.Uniformity.Cyclic

@@ -116,12 +116,16 @@ theorem swapAt?_eval {insertion : Nat}
       obtain ⟨body, swappedRest, rfl⟩ := Option.map_eq_some_iff.mp swapped
       exact ih swappedRest (.cons (evalOp op (operands.eval env)) env)
 
-private theorem picked_spec (picked : pickAndMove? g index = some (cut, out)) :
+theorem pickAndEmit?_spec
+    {emit : Cfg TargetOp (SourceLabel carried result) Input [result] →
+      Nat → Point (SourceLabel carried result) →
+      Option (Cfg TargetOp (SourceLabel carried result) Input [result])}
+    (picked : pickAndEmit? g index emit = some (cut, out)) :
     (∃ (saved : Width) (binding : Binding Input (carried :: Input) saved carried result),
       findBinding index 0 headerOrigins ((lower g).block .header) = some ⟨saved, binding⟩ ∧
       chooseCut? g binding.operands binding.uses = some cut) ∧
-    moveAt? (lower g) index cut = some out := by
-  unfold pickAndMove? at picked
+    emit (lower g) index cut = some out := by
+  unfold pickAndEmit? at picked
   obtain ⟨⟨saved, binding⟩, found, chosen⟩ := Option.bind_eq_some_iff.mp picked
   obtain ⟨point, selected, emitted⟩ := Option.bind_eq_some_iff.mp chosen
   obtain ⟨cfg, rewritten, eq⟩ := Option.bind_eq_some_iff.mp emitted
@@ -139,6 +143,16 @@ private theorem moved_spec {cfg : Cfg TargetOp (SourceLabel carried result) Inpu
     exact ⟨atInsertion.1, atInsertion.2, header, rewritten, rfl⟩
   · simp [moveAt?, atInsertion] at moved
 
+theorem chooseCut_sound {operands : List (Point (SourceLabel carried result))}
+    {uses : List (Use (SourceLabel carried result))}
+    (selected : chooseCut? g operands uses = some cut) :
+    cut ∈ candidateCuts (lower g) blocks ∧ Legal (lower g) operands uses cut := by
+  let _ : DecidableEq (Target (SourceLabel carried result)) := sourceTargetDecEq carried result
+  unfold chooseCut? at selected
+  rw [Silmaril.SSA.SeaOfNodes.GCM.Corridor.chooseSynthesized?_eq] at selected
+  obtain ⟨tree, _, ranked⟩ := Option.bind_eq_some_iff.mp selected
+  exact LoopForest.choosePlacement_sound ranked
+
 theorem pickAndMove?_placement (picked : pickAndMove? g index = some (cut, out)) :
     cut.block = headerId ∧ cut.cut + 1 = index ∧ afterRemoval index cut.cut = cut.cut ∧
     cut ∈ candidateCuts (lower g) blocks ∧
@@ -146,19 +160,14 @@ theorem pickAndMove?_placement (picked : pickAndMove? g index = some (cut, out))
       findBinding index 0 headerOrigins ((lower g).block .header) = some ⟨saved, binding⟩ ∧
       chooseCut? g binding.operands binding.uses = some cut ∧
       Legal (lower g) binding.operands binding.uses cut := by
-  obtain ⟨⟨saved, binding, found, selected⟩, moved⟩ := picked_spec picked
+  obtain ⟨⟨saved, binding, found, selected⟩, moved⟩ := pickAndEmit?_spec picked
   obtain ⟨atHeader, atInsertion, _⟩ := moved_spec moved
   have translates : afterRemoval index cut.cut = cut.cut := by
     unfold afterRemoval at atInsertion ⊢
     split at atInsertion <;> rename_i relation
     · omega
     · simp [relation]
-  let _ : DecidableEq (Target (SourceLabel carried result)) := sourceTargetDecEq carried result
-  have checked := selected
-  unfold chooseCut? at checked
-  rw [Silmaril.SSA.SeaOfNodes.GCM.Corridor.chooseSynthesized?_eq] at checked
-  obtain ⟨tree, _, ranked⟩ := Option.bind_eq_some_iff.mp checked
-  obtain ⟨candidate, legal⟩ := LoopForest.choosePlacement_sound ranked
+  obtain ⟨candidate, legal⟩ := chooseCut_sound selected
   exact ⟨atHeader, translates ▸ atInsertion, translates, candidate, saved, binding, found, selected, legal⟩
 
 theorem pickAndMove?_refuses (outside : ¬ (cut.block = headerId ∧
@@ -167,32 +176,38 @@ theorem pickAndMove?_refuses (outside : ¬ (cut.block = headerId ∧
     (found : findBinding index 0 headerOrigins ((lower g).block .header) = some ⟨saved, binding⟩)
     (selected : chooseCut? g binding.operands binding.uses = some cut) :
     pickAndMove? g index = none := by
-  simp [pickAndMove?, found, selected, moveAt?, outside]
+  simp [pickAndMove?, pickAndEmit?, found, selected, moveAt?, outside]
 
-theorem pickAndMove?_frames (picked : pickAndMove? g index = some (cut, out))
-    (input : Env Input) :
-    out.entry = (lower g).entry ∧
+section HeaderReplacement
+
+variable {cfg : Cfg TargetOp (SourceLabel carried result) Input [result]}
+variable {header : Block TargetOp (SourceLabel carried result) (carried :: Input) [result]}
+variable (agrees : ∀ env, header.eval evalOp (fun term vals => term.eval vals) env =
+  (cfg.block .header).eval evalOp (fun term vals => term.eval vals) env)
+include agrees
+
+theorem withHeader_frames (input : Env Input) :
+    (withHeader cfg header).entry = cfg.entry ∧
     ∀ frame : Frame (SourceLabel carried result),
-      (out.block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input) =
-        ((lower g).block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input) := by
-  obtain ⟨_, _, header, swapped, rfl⟩ := moved_spec (picked_spec picked).2
+      ((withHeader cfg header).block frame.label).eval evalOp (fun term env => term.eval env)
+          (frame.args.append input) =
+        (cfg.block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input) := by
   refine ⟨rfl, ?_⟩
   rintro ⟨label, args⟩
   cases label with
-  | header => exact swapAt?_eval swapped (args.append input)
+  | header => exact agrees (args.append input)
   | exit => rfl
 
-theorem pickAndMove?_run_eq (picked : pickAndMove? g index = some (cut, out))
-    (input : Env Input) (fuel : Nat) :
-    out.run evalOp fuel input = (lower g).run evalOp fuel input := by
-  obtain ⟨entry, block⟩ := pickAndMove?_frames picked input
+theorem withHeader_run_eq (input : Env Input) (fuel : Nat) :
+    (withHeader cfg header).run evalOp fuel input = cfg.run evalOp fuel input := by
+  obtain ⟨entry, block⟩ := withHeader_frames agrees input
   have runs (fuel : Nat) (frame : Frame (SourceLabel carried result)) :
-      out.runFrom evalOp fuel input frame = (lower g).runFrom evalOp fuel input frame := by
+      (withHeader cfg header).runFrom evalOp fuel input frame = cfg.runFrom evalOp fuel input frame := by
     induction fuel generalizing frame with
     | zero => rfl
     | succ fuel ih =>
       simp only [Cfg.runFrom, Cfg.runBlock, block frame]
-      cases ((lower g).block frame.label).eval evalOp (fun term env => term.eval env)
+      cases (cfg.block frame.label).eval evalOp (fun term env => term.eval env)
           (frame.args.append input) with
       | inl next => exact ih next
       | inr _ => rfl
@@ -200,9 +215,34 @@ theorem pickAndMove?_run_eq (picked : pickAndMove? g index = some (cut, out))
   | zero => rfl
   | succ fuel =>
     simp only [Cfg.run, Cfg.runBlock, entry]
-    cases (lower g).entry.eval evalOp (fun term env => term.eval env) input with
+    cases cfg.entry.eval evalOp (fun term env => term.eval env) input with
     | inl next => exact runs fuel next
     | inr _ => rfl
+
+theorem withHeader_denotePart (input : Env Input) :
+    (Silmaril.MLIR.CF.SwitchAssert.Cfg.embed (withHeader cfg header)).denotePart evalOp input =
+      (Silmaril.MLIR.CF.SwitchAssert.Cfg.embed cfg).denotePart evalOp input := by
+  open Silmaril.MLIR.CF.SwitchAssert in
+  apply Part.ext
+  intro outcome
+  simp only [Cfg.mem_denotePart_iff, Cfg.embed_run, withHeader_run_eq agrees]
+
+end HeaderReplacement
+
+theorem pickAndMove?_frames (picked : pickAndMove? g index = some (cut, out))
+    (input : Env Input) :
+    out.entry = (lower g).entry ∧
+    ∀ frame : Frame (SourceLabel carried result),
+      (out.block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input) =
+        ((lower g).block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input) := by
+  obtain ⟨_, _, _, swapped, rfl⟩ := moved_spec (pickAndEmit?_spec picked).2
+  exact withHeader_frames (swapAt?_eval swapped) input
+
+theorem pickAndMove?_run_eq (picked : pickAndMove? g index = some (cut, out))
+    (input : Env Input) (fuel : Nat) :
+    out.run evalOp fuel input = (lower g).run evalOp fuel input := by
+  obtain ⟨_, _, _, swapped, rfl⟩ := moved_spec (pickAndEmit?_spec picked).2
+  exact withHeader_run_eq (swapAt?_eval swapped) input fuel
 
 theorem pickAndMove?_budget (picked : pickAndMove? g index = some (cut, out))
     (input : Env Input) (budget : Nat) :
@@ -215,9 +255,7 @@ theorem pickAndMove?_denotePart (picked : pickAndMove? g index = some (cut, out)
     (input : Env Input) :
     (Silmaril.MLIR.CF.SwitchAssert.Cfg.embed out).denotePart evalOp input =
       (Silmaril.MLIR.CF.SwitchAssert.Cfg.embed (lower g)).denotePart evalOp input := by
-  open Silmaril.MLIR.CF.SwitchAssert in
-  apply Part.ext
-  intro outcome
-  simp only [Cfg.mem_denotePart_iff, Cfg.embed_run, pickAndMove?_run_eq picked]
+  obtain ⟨_, _, _, swapped, rfl⟩ := moved_spec (pickAndEmit?_spec picked).2
+  exact withHeader_denotePart (swapAt?_eval swapped) input
 
 end Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header

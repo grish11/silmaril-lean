@@ -1,8 +1,10 @@
 # Finite multicore VM executions
 
 Import `Silmaril.Machine.MulticoreVM.Thms` for the generic interface or
-`Silmaril.Machine.MulticoreVM.Toy.Thms` for the runnable register VM.
-[Generic definitions][defs] · [Generic theorems][thms] · [Toy executor][toy]
+`Silmaril.Machine.MulticoreVM.Toy.Thms` for the runnable register VM. Import
+`Silmaril.Machine.MulticoreVM.Placed.Thms` for the layer with explicit core placement.
+[Generic definitions][defs] · [Generic theorems][thms] · [Toy executor][toy] ·
+[Placement definitions][placed] · [Placement theorems][placed-thms]
 
 ## Scheduling and observations
 
@@ -33,9 +35,42 @@ schedule. Operational commutation requires a separate proof about the
 transition relation. The correspondence covers successful finite prefixes.
 Fairness and termination are outside its scope.
 
+## Explicit core placement
+
+`Placed.Config` has separate core and thread IDs and stores. Its placement is a
+partial map from present cores to allocated threads, injective on occupied slots.
+An allocated thread can wait without a core. When the core ID type is finite,
+`Config.resident_card_le_present` bounds the number of resident threads by the
+number of configured cores, even when thread IDs are infinite.
+
+An `execute` action names both the core and its resident thread. The instruction
+relation may read core state and return an updated valid configuration.
+`ofThreadStep` lifts an existing thread-store transition while keeping core state
+and placement fixed. For example, a spawn can allocate a waiting child and report
+both participants before the child has a core. An `idle` action clears a configured
+core. `assign` installs a waiting thread, leaving any displaced thread allocated.
+`migrate` moves a resident thread to a configured idle core and leaves its source
+idle. All three placement commands preserve both stores and emit the empty word.
+
+`Scheduled.refines` projects any successful finite concrete schedule to a
+successful current-thread schedule given `Instruction.Refines`, the per-instruction
+obligation on thread stores. The projected execution has the projected final
+thread store and the thread word. `Scheduled.mem_threadRun` places the result in
+the abstract run at the filtered length, counting every instruction, including
+silent ones, and omitting placement commands.
+
+Each emitted letter carries the executing core and thread. `threadWord` recovers
+the thread event or the original sync participants. `coreWord` keeps the executing
+core and encodes a payload as `some value` and a sync as `none`, an opaque marker on
+that core. Both projections commute with fragment concatenation. To descend to a
+trace quotient, a projection would have to respect the swaps generating the source
+quotient. Two threads time-sharing a core give commuting thread events whose core
+images can be dependent. Moving one thread between cores can give the opposite
+discrepancy. [Placement regressions][placed-tests]
+
 ## Register VM and adapters
 
-A configuration is `ThreadId → Option Core`. Each core owns a natural-number
+A configuration in the original register VM is `ThreadId → Option Core`. Each slot owns a natural-number
 register and an instruction list. Addition updates the register silently.
 Emit outputs its value. Spawn uses the supplied fresh ID, initializes its
 register and program, and emits `sync [parent, child]`. Cores with empty
@@ -61,11 +96,14 @@ registers, output, and spawn. [Machine traces][machine] · [Process.Mt][process]
 ## Checks
 
 ```sh
-make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.Toy.Thms +Silmaril.Proofs.Machine.MulticoreVM.Regression +Silmaril.Proofs.Semantics.ConcurrentTrace.Regression'
+make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.Toy.Thms +Silmaril.Proofs.Machine.MulticoreVM.Regression +Silmaril.Proofs.Semantics.ConcurrentTrace.Regression +Silmaril.Machine.MulticoreVM.Placed.Thms +Silmaril.Proofs.Machine.MulticoreVM.Placed.Regression'
 ```
 
 [defs]: ../../Silmaril/Machine/MulticoreVM/Defs.lean
 [thms]: ../../Silmaril/Machine/MulticoreVM/Thms.lean
+[placed]: ../../Silmaril/Machine/MulticoreVM/Placed/Defs.lean
+[placed-thms]: ../../Silmaril/Machine/MulticoreVM/Placed/Thms.lean
+[placed-tests]: ../../Silmaril/Proofs/Machine/MulticoreVM/Placed/Regression.lean
 [toy]: ../../Silmaril/Machine/MulticoreVM/Toy/Defs.lean
 [toy-thms]: ../../Silmaril/Machine/MulticoreVM/Toy/Thms.lean
 [tests]: ../../Silmaril/Proofs/Machine/MulticoreVM/Regression.lean

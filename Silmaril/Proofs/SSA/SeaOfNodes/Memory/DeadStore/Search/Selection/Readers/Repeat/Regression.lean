@@ -1,12 +1,15 @@
 module
 
 import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.MemRef.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Thms
 meta import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.Defs
+meta import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.MemRef.Defs
 
 namespace Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat
 
 open RVSDG (Origin Port Tuple)
+open Silmaril.MLIR.MemRef (Buffer)
 
 private abbrev args : List ValueSort := [.address, .address, .word, .word]
 
@@ -67,5 +70,22 @@ example : source.denote (input 0) initial = (8, aliasHeap) := by
   let disjoint := rewrite source (input 1)
   (disjoint.deleted, (Readers.rewrite disjoint.graph (input 1)).isNone,
     (rewrite source (input 0)).deleted)
+
+private def readback (result : Word × Buffer 3) : List Word :=
+  result.1 :: (List.finRange 3).map result.2.cell
+
+private def memrefComparison (yCell : Address 3) : Nat × List Word × List Word :=
+  let lowered := MemRef.lower source (input yCell)
+  (lowered.deleted, readback (lowered.runOriginal ⟨initial⟩),
+    readback (lowered.runOptimized ⟨initial⟩))
+
+-- Each list contains the returned word followed by every buffer cell.
+/-- info: (2, [4#64, 11#64, 11#64, 1#64], [4#64, 11#64, 11#64, 1#64]) -/
+#guard_msgs in
+#eval memrefComparison 1
+
+/-- info: (1, [8#64, 11#64, 4#64, 1#64], [8#64, 11#64, 4#64, 1#64]) -/
+#guard_msgs in
+#eval memrefComparison 0
 
 end Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat

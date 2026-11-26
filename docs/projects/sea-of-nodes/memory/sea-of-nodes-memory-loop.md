@@ -206,20 +206,45 @@ the profile.
 [Pure specialization](../../../../Silmaril/SSA/MLIR/CF/Ordered/Thms.lean) ·
 [CFG regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/CF/Regression.lean)
 
+### Equations for emitted MemRef CF
+
+`MemRef.CF.Institution.observe` collects finite returns of the emitted CFG
+as a partial word-and-heap value at the native model's cell count and
+typed entry valuation. `observe_eq` identifies that value with the native
+partial denotation, including absence of a finite return.
+`satisfaction` gives both directions of equation truth over all initial
+heaps. `observe_mapGraph` and `satisfaction_reindex` reuse the native
+typed entry-port maps and valuation reduct.
+[MemRef equation theorems](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/MLIR/MemRef/CF/Institution/Thms.lean)
+
+`mlir_observation_eq_map_memref` packs the MemRef result's word and every
+cell into the scalar CF backend's partial observation.
+The regression rejects two emitted programs with the same returned word
+and different final heaps, and checks the absence of a finite return.
+[Backend theorem](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Thms.lean) ·
+[Equation regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/Institution/Lowering/Backends/Regression.lean)
+
 Save this example to a Lean file and run `lake env lean <file>`. The
 activation results list the selector, word, and both final cells. The
 feedback and CFG results list the word and both final cells on return.
+The final examples check a partial observation and an equation at that
+typed valuation.
 
 ```lean
 module
 
-import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Institution.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.Feedback.Defs
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.Thms
 meta import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Defs
 meta import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.Feedback.Defs
 
 open Silmaril.SSA.RVSDG (Tuple)
-open Silmaril.SSA.SeaOfNodes.Memory (Address ValueSort Val Word)
+open Silmaril.SSA.SeaOfNodes.Memory (Address Heap ValueSort Val Word)
+open Silmaril.SSA.SeaOfNodes.Memory.Diamond.Institution (Signature Model)
 open Silmaril.SSA.SeaOfNodes.Memory.Loop (Graph)
+open Silmaril.SSA.SeaOfNodes.Memory.Loop.Institution (Equation)
+open Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Institution (Holds observe observe_eq satisfaction)
 open Silmaril.MLIR.MemRef (Buffer)
 open Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef (runActivation runAfter)
 open Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF renaming run → runCfg
@@ -264,4 +289,20 @@ private def cfgResult (budget : Nat) (old : Word) : Option (Nat × Nat × Nat) :
 #eval cfgResult 0 8  -- none
 #eval cfgResult 1 8  -- some (7, 7, 99)
 #eval cfgResult 2 8  -- some (7, 7, 99)
+
+private def signature : Signature := ⟨args⟩
+private def model : Model signature := ⟨2, input⟩
+
+example : observe graph model (start 8).cell = Part.some (7, (start 7).cell) := by
+  refine (observe_eq (P := signature) graph model (start 8).cell).trans ?_
+  apply Part.eq_some_iff.mpr
+  apply (graph.returns_iff_mem_denote input (start 8).cell 7 (start 7).cell).mp
+  refine ⟨1, (graph.returnsAfter_iff_evalAfter input (start 8).cell 1 7 (start 7).cell).mpr ?_⟩
+  cbv
+  congr 2
+  funext i
+  by_cases atHead : i = 0 <;> simp [Heap.write, Function.update, atHead]
+
+example (e : Equation signature) : Holds e model ↔ e.Holds model :=
+  satisfaction e model
 ```

@@ -1,5 +1,7 @@
 module
 
+import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.Thms
+meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.Defs
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Reverse.Thms
 meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Reverse.Defs
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Thms
@@ -958,7 +960,7 @@ example (coherent : Coherent) :
     Flat.Serial.returns (ε := Bool) wiredRoute.1 (0 : Nat) 0 (.inl PUnit.unit) 1 :=
   (wiredRoute.2.region_returns_iff coherent (PUnit.unit, (0 : Nat)) _ 0 1).mpr (routedBypass coherent)
 
-example (coherent : Coherent) :
+private theorem routedGraphConsumerReturns (coherent : Coherent) :
     Flat.Serial.returns (ε := Bool) wiredRoute.1 (1 : Nat) 0 (.inr (.inl (9 : Nat))) 93 :=
   (wiredRoute.2.region_returns_iff coherent (PUnit.unit, (1 : Nat)) _ 0 93).mpr (routedConsumerReturns coherent)
 
@@ -1006,8 +1008,7 @@ example (coherent : Coherent) :
 example (coherent : Coherent) :
     (Region.denote (ε := Bool) (m := Runtime) recoveredRoute.2.typing (PUnit.unit,(1 : Nat))).run 0 =
       Part.some ((.inr (.inl (9 : Nat)) : RoutedExit), 93) :=
-  recoveredRouteReturns coherent 1 93 _ <|
-    (wiredRoute.2.region_returns_iff coherent (PUnit.unit, (1 : Nat)) _ 0 93).mpr (routedConsumerReturns coherent)
+  recoveredRouteReturns coherent 1 93 _ (routedGraphConsumerReturns coherent)
 
 example (coherent : Coherent) :
     (Region.denote (ε := Bool) (m := Runtime) recoveredRoute.2.typing (PUnit.unit,(99 : Nat))).run 0 =
@@ -1033,6 +1034,53 @@ private def staleRoute := (staleRouteTerm rebuiltRoute.toTerm).toGraph
     throw (IO.userError "could not recover the routed γ")
   unless (Flat.Serial.Routed.Reverse.candidate staleRoute).isSome && (recognize staleRoute).isNone do
     throw (IO.userError "the routed γ did not reject a stale token after parsing")
+
+private theorem mixedGraphReturns (coherent : Coherent) :
+    Flat.Serial.returns (ε := Bool) compiledGraph (1 : Nat) 0 (.inl (4579923 : Nat)) 41223444 := by
+  apply (NestedTheta.Partial.observe_eq_some _ _ _ _).mp
+  refine (normalizedRecovered.2.region_observe coherent (PUnit.unit,(1 : Nat)) 0).trans ?_
+  exact (congrArg (Part.map (ExplicitRuntime.exitTuple (A := number)))
+    (normalizedReturns coherent 1 45345 412234 (recursiveLeftResult coherent))).trans (Part.map_some _ _)
+
+-- Use the same public compile/recover client on both admitted interfaces.
+private def translateThenRecover {A X Z L E D : Ty} {sigs : List (Ports (OrderedRuntime.Structured.Ty Ty))}
+    (source : Translation.Source Op A X Z L E D sigs) :
+    Translation.Fibre source.layout (Translation.compile source) :=
+  (Translation.recover source.layout (Translation.compile source)).get (Translation.recover_compiled source)
+
+private theorem translatedReturn {X Z L E D : Ty} {sigs : List (Ports (OrderedRuntime.Structured.Ty Ty))}
+    (source : Translation.Source Op number X Z L E D sigs)
+    (coherent : Coherent) (exit : LabelDen [E,D]) (token : Nat)
+    (expected : Flat.Serial.returns (ε := Bool) (Translation.compile source) (1 : Nat) 0 exit token) :
+    (Region.denote (ε := Bool) (m := Runtime) (translateThenRecover source).typing
+      (PUnit.unit,(1 : Nat))).run 0 = Part.some (exit,token) := by
+  have agrees := Translation.Fibre.region_observe (translateThenRecover source) coherent
+    (PUnit.unit,(1 : Nat)) 0
+  have output := (NestedTheta.Partial.observe_eq_some _ _ _ _).mpr expected
+  have member := Part.eq_some_iff.mp (agrees.symm.trans output)
+  rw [Part.mem_map_iff] at member
+  obtain ⟨out, finite, equal⟩ := member
+  exact Part.eq_some_iff.mpr (ExplicitRuntime.exitTuple_injective equal ▸ finite)
+
+
+example (coherent : Coherent) :
+    (Region.denote (ε := Bool) (m := Runtime)
+      (translateThenRecover (.mixed unnormalized)).typing (PUnit.unit,(1 : Nat))).run 0 =
+        Part.some ((.inl (4579923 : Nat) : Exits),41223444) :=
+  translatedReturn (.mixed unnormalized) coherent _ 41223444 (mixedGraphReturns coherent)
+
+example (coherent : Coherent) :
+    (Region.denote (ε := Bool) (m := Runtime)
+      (translateThenRecover (.routed routed)).typing (PUnit.unit,(1 : Nat))).run 0 =
+        Part.some ((.inr (.inl (9 : Nat)) : RoutedExit),93) :=
+  translatedReturn (.routed routed) coherent _ 93 (routedGraphConsumerReturns coherent)
+
+#eval show IO Unit from do
+  unless (Translation.recover .mixed (Translation.compile (.mixed unnormalized))).isSome &&
+      (Translation.recover .routed (Translation.compile (.routed routed))).isSome do
+    throw (IO.userError "the public translation interface did not round trip both layouts")
+  unless (Translation.recover .routed staleRoute).isNone do
+    throw (IO.userError "the public translation interface accepted a stale routing token")
 
 end Composition
 

@@ -42,6 +42,12 @@ theorem match_exact (accepted : matchAdd? known lhs rhs = some edit) :
         edit = rotate lhs right :=
   Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.RightSpine.match_exact accepted
 
+/-- The accepted right-spine splice has the original add's value. -/
+theorem match_agrees {entry : Tuple (Val model.value) args} {locals : Locals (Val model.value) past}
+    (agree : known.Agrees entry locals) (accepted : matchAdd? known lhs rhs = some edit) :
+    AddRewrite.evalAdd lhs rhs entry locals = edit.eval entry locals :=
+  Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.RightSpine.match_agrees agree accepted
+
 variable {inputs : List (ValueSort Unit)} {out : ValueSort Unit}
 variable {program : Program SubZero.Opcode inputs out}
 variable {rewrite : Rewrite SubZero.Opcode (dataPorts inputs) [] program.sigs}

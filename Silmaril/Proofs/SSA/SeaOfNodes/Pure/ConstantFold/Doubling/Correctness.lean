@@ -16,7 +16,7 @@ open Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.Doubling
 open Diamond (Ty Val ValueSort dataPorts)
 open GVN.Elimination (Rewrite Routing)
 open SubZero (model wordPort)
-open Silmaril.SSA.RVSDG (Origin Tuple Wires)
+open Silmaril.SSA.RVSDG (Locals Origin Tuple Wires)
 
 variable {args : List (Ty Unit)} {past : List (List (Ty Unit))}
 variable {known : Literals args past} {lhs rhs : Origin args past wordPort} {edit : AddRewrite.Edit args past}
@@ -47,6 +47,12 @@ private def sound (entry : Tuple (Val model.value) args) : AddRewrite.Sound rule
     obtain ⟨rfl, rfl⟩ := match_exact found
     rw [AddRewrite.Edit.splice_eval]
     exact mul_two _
+
+theorem match_agrees {entry : Tuple (Val model.value) args} {locals : Locals (Val model.value) past}
+    {splice : AddRewrite.Splice args past} (agree : Scan.Literals.Agrees known entry locals)
+    (accepted : rules.matchAdd? known lhs rhs = some splice) :
+    AddRewrite.evalAdd lhs rhs entry locals = splice.eval entry locals :=
+  (sound entry).replaceAdd agree accepted
 
 variable {inputs : List (ValueSort Unit)} {out : ValueSort Unit} {program : Program SubZero.Opcode inputs out}
 variable {rewrite : Rewrite SubZero.Opcode (dataPorts inputs) [] program.sigs}

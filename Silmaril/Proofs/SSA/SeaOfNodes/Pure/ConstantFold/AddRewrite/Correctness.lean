@@ -32,11 +32,9 @@ theorem splice_eval (edit : Edit args past) (entry : Tuple (Val model.value) arg
   simp only [read_weaken, read_newest]
   rfl
 
-private theorem insert_agrees (lhs rhs : Origin args past wordPort) (edit : Splice args past)
+theorem insert_agrees (lhs rhs : Origin args past wordPort) (edit : Splice args past)
     (rest : Dataflow SubZero.Opcode args (past ++ [[wordPort]]) sigs)
-    (equal :
-      model.run .add (.cons (Diamond.read model lhs entry locals) (.cons (Diamond.read model rhs entry locals) .nil)) =
-        edit.eval entry locals) :
+    (equal : evalAdd lhs rhs entry locals = edit.eval entry locals) :
     let original := Dataflow.cons SubZero.Opcode.add (.cons lhs (.cons rhs .nil)) rest
     let rewritten := insertSplice edit rest
     Routing.Agrees rewritten.route model entry (original.eval model entry locals)
@@ -45,8 +43,7 @@ private theorem insert_agrees (lhs rhs : Origin args past wordPort) (edit : Spli
   let lifted : Routing args past (past ++ [[wordPort]]) := fun wire => weaken [wordPort] wire
   have liftedAgrees : Routing.Agrees lifted model entry locals (locals.snoc fresh) :=
     fun _ wire => (read_weaken wire model entry locals fresh).symm
-  let originalValue := model.run .add
-    (.cons (Diamond.read model lhs entry locals) (.cons (Diamond.read model rhs entry locals) .nil))
+  let originalValue := evalAdd lhs rhs entry locals
   let suffix := routeSuffix rest (lifted.push [wordPort])
   change Routing.Agrees suffix.2 model entry
     (rest.eval model entry (locals.snoc (.cons originalValue .nil)))

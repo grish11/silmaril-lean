@@ -1,10 +1,18 @@
 module
 
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Defs
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.NumericArgument.Thms
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Thms
 
 public section
 namespace Silmaril.Languages.Python.Compile.ModuleEntry.Functions
+
+theorem lowerArgumentOperand_numeric (scope : Source.Scope) {source : Source.Expr}
+    {result : NumericArgument.Result} (checked : NumericArgument.check source = some result) :
+    lowerArgumentOperand scope source = .ok ⟨result.operand scope, .numeric checked⟩ := by
+  unfold lowerArgumentOperand
+  split <;> rename_i found <;> simp [checked] at found
+  cases found; rfl
 
 theorem Positional.length {scope : Source.Scope} {sources targets}
     (translated : Positional scope sources targets) : targets.length = sources.length :=

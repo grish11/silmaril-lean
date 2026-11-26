@@ -12,7 +12,7 @@ open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields
 
 variable {V K F α : Type} {n w : Nat} {M : Type → Type}
 
-private theorem eval_packed (model : Model F M α) (store : V → α) (values : Fin w → Val V) :
+theorem eval_packed (model : Model F M α) (store : V → α) (values : Fin w → Val V) :
     (packed values).eval model store = encode model (fun i => (values i).eval model store) := by
   induction w with
   | zero => rfl

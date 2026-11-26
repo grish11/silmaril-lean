@@ -10,7 +10,7 @@ namespace Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.Doubling
 open Diamond (Ty Val ValueSort dataPorts)
 open GVN.Elimination (Rewrite Routing)
 open SubZero (model word wordPort)
-open RVSDG (Origin Tuple)
+open RVSDG (Locals Origin Tuple)
 
 variable {args : List (Ty Unit)} {past : List (List (Ty Unit))}
 variable {known : Literals args past} {lhs rhs : Origin args past wordPort}
@@ -25,6 +25,13 @@ theorem match_refuses_literal {literal : SubZero.Opcode [] word}
     (folded : binaryLiteral? known .add (.cons lhs (.cons rhs .nil)) = some literal) :
     matchAdd? known lhs rhs = none := by
   simp [matchAdd?, folded]
+
+/-- The accepted doubling splice has the original add's value. -/
+theorem match_agrees {entry : Tuple (Val model.value) args} {locals : Locals (Val model.value) past}
+    {splice : AddRewrite.Splice args past} (agree : Scan.Literals.Agrees known entry locals)
+    (accepted : rules.matchAdd? known lhs rhs = some splice) :
+    AddRewrite.evalAdd lhs rhs entry locals = splice.eval entry locals :=
+  Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.Doubling.match_agrees agree accepted
 
 variable {inputs : List (ValueSort Unit)} {out : ValueSort Unit}
 variable {program : Program SubZero.Opcode inputs out}

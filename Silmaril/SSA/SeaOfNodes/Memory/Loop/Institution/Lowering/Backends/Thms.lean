@@ -2,11 +2,12 @@ module
 
 public import Silmaril.SSA.SeaOfNodes.Memory.Loop.Institution.Lowering.Thms
 public import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.Institution.Thms
+public import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Institution.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.Thms
 import Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.Institution.Lowering.Backends.Observation
 
-/-! Compare the actual λSSA, numbered θ and scalar MLIR CF observations at
-a shared native typed valuation and initialized heap. -/
+/-! Compare emitted λSSA, numbered θ, scalar CF, and MemRef CF
+observations at a shared native typed valuation and initialized heap. -/
 
 public section
 
@@ -68,6 +69,14 @@ theorem theta_observation_iff_mlir (graph : Graph P.args) (model : EntryModel P)
         Part.some (.returned (encodeCFResult (Profile.ofCells model.cells) word final)) :=
   (theta_observation_iff graph model initial word final).trans
     (mlir_observation_iff graph model initial word final).symm
+
+/-- Pack a MemRef CFG's returned word and all cells into the scalar CF
+observation. Absence of a finite return is preserved by the same map. -/
+theorem mlir_observation_eq_map_memref (graph : Graph P.args) (model : EntryModel P) (initial : Heap model.cells) :
+    MLIR.Institution.observe graph model initial =
+      (MLIR.MemRef.CF.Institution.observe graph model initial).map (fun result =>
+        Outcome.returned (encodeCFResult (Profile.ofCells model.cells) result.1 result.2)) := by
+  rw [MLIR.MemRef.CF.Institution.observe_eq, MLIR.Institution.observe_eq]
 
 theorem mlir_no_return_iff (graph : Graph P.args) (model : EntryModel P) (initial : Heap model.cells) :
     MLIR.Institution.observe graph model initial = Part.none ↔ graph.denote model.input initial = Part.none :=

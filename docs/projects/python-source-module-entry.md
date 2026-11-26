@@ -75,6 +75,21 @@ Text arguments of other lengths fail the source check. Run the unchanged
 `testord.py` and CPython 3.13.5 controls with
 `python3.13 -I scripts/check-python-ordinal.py --upstream /path/to/pinned/rigorous`.
 
+The positional argument checker can emit exact literals for closed signed
+integer bit operations and single numeric comparisons. The integer profile
+accepts unary sign and complement, bitwise AND, OR and XOR, and nonnegative
+shifts. Left shift counts up to 4096 bound compile-time growth. Comparisons
+accept exact Boolean literals and closed integer operands and retain the
+Boolean result tag. Each operand is checked in full before a result is emitted.
+
+Both runners receive the same literal argument and use their existing
+call preparation and delivery. Lookup stays live and module-first. A missing
+callee stops before reading arguments, while a noncallable binding is tested
+after preparing the arguments. Seeded receipts come from the reached call
+path and retain the existing error and result tags. Run the unchanged
+`bool-compare.py` and `bitwise_test.py` with the CPython 3.13.5 controls using
+`python3.13 -I scripts/check-python-numeric-arguments.py --upstream /path/to/pinned/rigorous`.
+
 A message-free assertion can use `bool()` or `bool(scalar)` on the left
 of a single `is` or `is not` link. The checker certifies the optional
 positional operand in the shared scalar profile and the right operand in

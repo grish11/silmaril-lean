@@ -28,12 +28,6 @@ private abbrev readWord (entry : Tuple (Val model.value) args) (locals : Locals 
     (wire : WordWire args past) : BitVec 64 :=
   Diamond.read model wire entry locals
 
-private def PrefixAgrees (known : Prefix args past) (entry : Tuple (Val model.value) args)
-    (locals : Locals (Val model.value) past) : Prop :=
-  ConstantFold.Scan.Literals.Agrees known.literals entry locals ∧
-  ∀ (wire : WordWire args past) {offset}, known.additions wire = some offset →
-    readWord entry locals wire = readWord entry locals offset.base + offset.value
-
 private theorem rightLiteral_sound {lhs rhs : WordWire args past} {offset : Offset args past}
     (agree : ConstantFold.Scan.Literals.Agrees known.literals entry locals)
     (found : known.rightLiteral? lhs rhs = some offset) :
@@ -45,11 +39,11 @@ private theorem rightLiteral_sound {lhs rhs : WordWire args past} {offset : Offs
   · obtain rfl := Option.some.inj found
     exact congrArg (readWord entry locals lhs + ·) (agree rhs right)
 
-private theorem push_agrees (agree : PrefixAgrees known entry locals)
+private theorem push_agrees (agree : known.Agrees entry locals)
     {actual : BitVec 64} {literal : Option (BitVec 64)} {addition : Option (Offset args past)}
     (litSound : ∀ value, literal = some value → actual = value)
     (addSound : ∀ offset, addition = some offset → actual = readWord entry locals offset.base + offset.value) :
-    PrefixAgrees (known.push literal addition) entry (locals.snoc (.cons actual .nil)) := by
+    (known.push literal addition).Agrees entry (locals.snoc (.cons actual .nil)) := by
   refine ⟨ConstantFold.Scan.Literals.push_agrees (out := SubZero.word) agree.1 litSound, ?_⟩
   intro wire offset found
   let next : Tuple (Val model.value) [wordPort] := .cons actual .nil
@@ -73,9 +67,9 @@ private theorem push_agrees (agree : PrefixAgrees known entry locals)
       exact read.symm.trans ((addSound original fromNew).trans (weakening original).symm)
     | tail empty => nomatch empty
 
-private theorem record_agrees (agree : PrefixAgrees known entry locals)
+theorem record_agrees (agree : known.Agrees entry locals)
     (op : SubZero.Opcode ins out) (operands : Wires args past (dataPorts ins)) :
-    PrefixAgrees (known.record op operands) entry
+    (known.record op operands).Agrees entry
       (locals.snoc (.cons (model.run op (operands.read entry locals)) .nil)) := by
   cases op with
   | literal value =>
@@ -93,21 +87,36 @@ private theorem record_agrees (agree : PrefixAgrees known entry locals)
           (fun _ found => rightLiteral_sound agree.1 found)
 
 private theorem combine_sound {lhs rhs : WordWire args past} {offset : Offset args past}
-    (agree : PrefixAgrees known entry locals) (found : known.combine? lhs rhs = some offset) :
+    (agree : known.Agrees entry locals) (found : known.combine? lhs rhs = some offset) :
     readWord entry locals lhs + readWord entry locals rhs = readWord entry locals offset.base + offset.value := by
   obtain ⟨outer, outerFound, found⟩ := Option.bind_eq_some_iff.mp found
   obtain ⟨inner, innerFound, found⟩ := Option.bind_eq_some_iff.mp found
   obtain rfl := Option.some.inj found
-  rw [rightLiteral_sound agree.1 outerFound, agree.2 outer.base innerFound]
+  have readInner : readWord entry locals outer.base = readWord entry locals inner.base + inner.value :=
+    agree.2 outer.base innerFound
+  rw [rightLiteral_sound agree.1 outerFound, readInner]
   exact BitVec.add_assoc _ _ _
 
 private def sound (entry : Tuple (Val model.value) args) : ConstantFold.AddRewrite.Sound rules entry where
-  Agrees facts locals := PrefixAgrees facts entry locals
+  Agrees facts locals := facts.Agrees entry locals
   record op operands agree := record_agrees agree op operands
   replaceAdd agree accepted := by
     obtain ⟨offset, found, rfl⟩ := Option.map_eq_some_iff.mp accepted
     rw [ConstantFold.AddRewrite.Edit.splice_eval]
     exact combine_sound agree found
+
+theorem match_agrees {lhs rhs : WordWire args past} {edit : ConstantFold.AddRewrite.Splice args past}
+    (agree : known.Agrees entry locals) (accepted : rules.matchAdd? known lhs rhs = some edit) :
+    ConstantFold.AddRewrite.evalAdd lhs rhs entry locals = edit.eval entry locals :=
+  (sound entry).replaceAdd agree accepted
+
+theorem empty_agrees (entry : Tuple (Val model.value) args) :
+    (Prefix.empty (args := args)).Agrees entry PUnit.unit := by
+  constructor
+  · intro t wire value impossible
+    cases impossible
+  · intro wire offset impossible
+    cases impossible
 
 variable {inputs : List (ValueSort Unit)} {program : Program SubZero.Opcode inputs out}
 variable {rewrite : Rewrite SubZero.Opcode (dataPorts inputs) [] program.sigs}
@@ -115,12 +124,7 @@ variable {rewrite : Rewrite SubZero.Opcode (dataPorts inputs) [] program.sigs}
 theorem step_agrees (accepted : step? program = some rewrite)
     (entry : Tuple (Val model.value) (dataPorts inputs)) :
     Routing.Agrees rewrite.route model entry (program.dataflow.eval model entry PUnit.unit)
-      (rewrite.flow.eval model entry PUnit.unit) := by
-  apply ConstantFold.AddRewrite.scan_agrees (sound entry) program.dataflow _ accepted
-  constructor
-  · intro t wire value impossible
-    cases impossible
-  · intro wire offset impossible
-    cases impossible
+      (rewrite.flow.eval model entry PUnit.unit) :=
+  ConstantFold.AddRewrite.scan_agrees (sound entry) program.dataflow (empty_agrees entry) accepted
 
 end Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.AddChain

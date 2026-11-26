@@ -1,21 +1,17 @@
 module
 
-public import Silmaril.SSA.Isotope.LetIter.Heap.Institution.Thms
+public import Silmaril.SSA.Isotope.LetIter.Heap.Institution.Clock.Defs
+public import Silmaril.Logic.ITree.Institution.Thms
 
 @[expose] public section
 
 namespace Silmaril.Isotope.LetIter.Heap.InstitutionRegression
 
 open CategoryTheory Silmaril.Elgot Silmaril.Elgot.ITree
-open Silmaril.Logic.ITree (Model Sentence Sat Runs runs_vis runs_ret runs_vis_zero runs_ret_succ)
-
-inductive Clock : Type → Type where
-  | tick : Clock Bool
+open Silmaril.Logic.ITree (Sentence Sat Runs runs_vis runs_ret runs_vis_zero runs_ret_succ)
 
 inductive OptionalClock : Type → Type where
   | tick : OptionalClock (Option Bool)
-
-abbrev clockSignature : ITree.Signature := ⟨Clock⟩
 
 abbrev optionalClockSignature : ITree.Signature := ⟨OptionalClock⟩
 
@@ -24,16 +20,6 @@ by reporting `some` of the actual reply. The backward map misses `none`. -/
 def optionalToClock : optionalClockSignature ⟶ clockSignature where
   request | ⟨_, .tick⟩ => ⟨Bool, .tick⟩
   reply | ⟨_, .tick⟩ => some
-
-def clockStep : Handler Nat Clock
-  | ⟨_, .tick⟩, x, r, y => r = true ∧ y = x + 1
-
-def heapClockModel (I : Type) : Model.{0,0} ((heapSignature I).sum clockSignature) where
-  State := Store I × Nat
-  initial x := x.2 = 0
-  step
-    | ⟨_, .inl ev⟩, x, r, y => step ⟨_, ev⟩ x.1 r y.1 ∧ y.2 = x.2
-    | ⟨_, .inr ev⟩, x, r, y => clockStep ⟨_, ev⟩ x.2 r y.2 ∧ y.1 = x.1
 
 def optionalTick : Sentence.{0,0} optionalClockSignature where
   Result := Option Bool

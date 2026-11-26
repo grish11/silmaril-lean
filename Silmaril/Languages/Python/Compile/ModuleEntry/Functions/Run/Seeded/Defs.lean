@@ -424,31 +424,49 @@ def observeNestedCall (space : Namespace) (destination : Core.Module.Functions.D
       ⟨(observed.result.bind (acceptCall destination)).mapError ModuleFailure.ofCall,
         calls ++ [⟨name, observed⟩]⟩
 
-/-- The published zero-argument path and the checked escaped zero/one
-argument paths carry their result and reached heap to the next argument. -/
+/-- Invoke a resolved same-run publication with checked integer operands.
+The authorization of the call site belongs to the caller. Ordinary entry
+checks arity or prepares the linked signature. -/
+def invokePublishedArgument (space : Namespace) (context : CallContext) (closure : Function)
+    (values : List Value) : Except ModuleFailure CallObservation × Heap :=
+  if closure ∈ context.published then
+    match factoryOperands values with
+    | some operands => observeDirectCall space (ordinaryCall space context closure operands)
+    | none => (.ok ⟨.error .unsupported, none⟩, context.heap)
+  else (.ok ⟨.error .unsupported, none⟩, context.heap)
+
+def invokeArgumentIn (space : Namespace) (context : CallContext) (allowEscaped : Bool)
+    (callee : Value) (values : List Value) : Except ModuleFailure CallObservation × Heap :=
+  match callee, values with
+  | .function closure, [] =>
+    if allowEscaped && context.acceptsEscapedArgument closure 0 then
+      observeDirectCall space (ordinaryCall space context closure [])
+    else if context.acceptsPublishedCall closure then
+      invokePublishedArgument space context closure []
+    else (.ok ⟨.error .unsupported, none⟩, context.heap)
+  | .function closure, [.int value] =>
+    if allowEscaped && context.acceptsEscapedArgument closure then
+      observeDirectCall space (ordinaryCall space context closure [.literal (.int value)])
+    else (.ok ⟨.error .unsupported, none⟩, context.heap)
+  | _, _ => (.ok (Core.Module.SeededCall.invokeObserved callee values), context.heap)
+
+/-- Attribute a settled argument call to the inner name. A fault or live
+prefix carries its reached heap without a settled receipt. -/
+def argumentObservation (name : String) :
+    Except ModuleFailure CallObservation × Heap → Except ModuleFailure Value × List CallEvent × Heap
+  | (.ok observed, heap) => (observed.result.mapError .ofCall, [⟨name, observed⟩], heap)
+  | (.error error, heap) => (.error error, [], heap)
+
 def observeArgumentIn (space : Namespace) (context : CallContext) (argument : Argument)
     (allowEscaped : Bool := false) : Except ModuleFailure Value × List CallEvent × Heap :=
   match argument with
   | .scalar operand =>
     (((lowerCallOperand operand).eval space #v[]).mapError .ofCall, [], context.heap)
   | .call name arguments =>
-    let outcome : Except ModuleFailure CallObservation × Heap :=
+    argumentObservation name <|
       match Core.Module.SeededCall.resolveCall space #v[] (.global name) (arguments.map lowerCallOperand) with
       | .error error => (.ok ⟨.error error, none⟩, context.heap)
-      | .ok (callee, values) =>
-        match callee, values with
-        | .function closure, [] =>
-          if allowEscaped && context.acceptsEscapedArgument closure 0 then
-            observeDirectCall space (ordinaryCall space context closure [])
-          else invokeFlatCall space context .discard callee values
-        | .function closure, [.int value] =>
-          if allowEscaped && context.acceptsEscapedArgument closure then
-            observeDirectCall space (ordinaryCall space context closure [.literal (.int value)])
-          else (.ok ⟨.error .unsupported, none⟩, context.heap)
-        | _, _ => (.ok (Core.Module.SeededCall.invokeObserved callee values), context.heap)
-    match outcome with
-    | (.ok observed, heap) => (observed.result.mapError .ofCall, [⟨name, observed⟩], heap)
-    | (.error error, heap) => (.error error, [], heap)
+      | .ok (callee, values) => invokeArgumentIn space context allowEscaped callee values
 
 def observeArgumentsIn (space : Namespace) (context : CallContext) (arguments : List Argument)
     (allowEscaped : Bool := false) : Except ModuleFailure (List Value) × List CallEvent × Heap :=

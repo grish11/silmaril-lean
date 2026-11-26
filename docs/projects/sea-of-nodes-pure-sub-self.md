@@ -26,6 +26,10 @@ wraps `0 - 1` to the maximum unsigned word. One call applies one fold.
 
 ## Chapter 8 rule coverage
 
+The [ordered word-add dispatcher](sea-of-nodes-pure-add-idealize.md)
+selects one checked branch at a nominated add and reports unsupported
+earlier branches and missing source order.
+
 | Source rule | Checked native scope |
 | --- | --- |
 | [Right identities for addition](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter08/src/main/java/com/seaofnodes/simple/node/AddNode.java#L36-L39), [subtraction](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter08/src/main/java/com/seaofnodes/simple/node/SubNode.java#L37-L40), and [multiplication](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter08/src/main/java/com/seaofnodes/simple/node/MulNode.java#L33-L40) | The [right-identity pass](sea-of-nodes-pure-right-identity-pass.md) covers explicit right literals. The [shared scan](sea-of-nodes-pure-mul-order.md) commutes a literal-left multiplication. |

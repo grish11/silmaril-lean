@@ -174,3 +174,34 @@ graphs and both complete heap observations.
 make check CHECK_TARGETS='+Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Forwarding.Disjoint.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.DeadStore.Regression'
 lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Repeat/Regression.lean
 ```
+
+## Run both emitted MemRef blocks
+
+`DeadStore.Search.Selection.Readers.Repeat.MemRef.lower graph input`
+returns the original and optimized typed MLIR blocks, the deletion count,
+and the scalar input used to check the deletions. `runOriginal` and
+`runOptimized` execute the corresponding emitted block at that scalar
+input and any initialized buffer. The blocks use the existing lowering
+of each ordered Load and Store to `memref.load` and `memref.store`.
+[Wrapper definitions](../../Silmaril/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Repeat/MemRef/Defs.lean) ·
+[Existing MemRef lowering](sea-of-nodes/memory/sea-of-nodes-memory.md#one-initialized-rank-one-memref)
+
+`runOptimized_eq_runOriginal` compares the word and the entire final
+buffer. `runOptimized_returns_iff` also identifies the optimized block's
+result with the original graph's finite return relation. The proof uses
+the repeated deletion theorem between the two instances of the existing
+lowering theorem. The runner is total for a single initialized rank-one
+`memref<nxi64>` block with typed in-bounds indices, and the observation
+theorems compare results at the checked input without a fuel parameter.
+[Wrapper theorems](../../Silmaril/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Repeat/MemRef/Thms.lean) ·
+[Pinned upstream operations](https://github.com/llvm/llvm-project/blob/4434dabb69916856b824f68a64b029c67175e532/mlir/include/mlir/Dialect/MemRef/IR/MemRefOps.td)
+
+The same runnable deletion fixture executes both MemRef blocks. With
+disjoint addresses it deletes two Stores, and each block returns `4`
+with cells `[11, 11, 1]`. With aliasing it deletes one Store, and each
+block returns `8` with cells `[11, 4, 1]`.
+[Executable regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/DeadStore/Search/Selection/Readers/Repeat/Regression.lean)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.MLIR.MemRef.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Memory.DeadStore.Regression'
+```

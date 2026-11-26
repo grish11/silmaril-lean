@@ -12,7 +12,7 @@ open GVN (weaken)
 open GVN.Elimination (Rewrite Routing)
 open RightSpine (Prefix WordWire)
 open SubZero (model)
-open RVSDG (Tuple)
+open RVSDG (Locals Tuple)
 
 variable {args : List (Ty Unit)} {past : List (List (Ty Unit))}
 variable {ids : SourceIds} {known : Prefix args past} {lhs rhs : WordWire args past}
@@ -48,6 +48,13 @@ theorem match_exact {edit : AddRewrite.Splice args past} (accepted : matchAdd? i
       ∃ left, known.addends lhs = some left ∧ compare? ids known.literals left.right rhs = some true ∧
         edit = permute left rhs :=
   Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.LeftSpine.match_exact accepted
+
+/-- The accepted left-spine splice has the original add's value. -/
+theorem match_agrees {entry : Tuple (Val model.value) args} {locals : Locals (Val model.value) past}
+    {edit : AddRewrite.Splice args past} (agree : known.Agrees entry locals)
+    (accepted : matchAdd? ids known lhs rhs = some edit) :
+    AddRewrite.evalAdd lhs rhs entry locals = edit.eval entry locals :=
+  Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.LeftSpine.match_agrees agree accepted
 
 variable {inputs : List (ValueSort Unit)} {out : ValueSort Unit}
 variable {program : Program SubZero.Opcode inputs out}

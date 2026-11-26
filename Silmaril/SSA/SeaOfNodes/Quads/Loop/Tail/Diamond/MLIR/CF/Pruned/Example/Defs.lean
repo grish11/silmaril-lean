@@ -12,7 +12,7 @@ namespace Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example
 open CF.Example (checked input regs width)
 open Diamond.Prune (Checked carriedMask checkMask prune)
 open Blocks.Prune (Mask)
-open SeaOfNodes.Loop.MLIR.CF (TargetOp evalOp)
+open SeaOfNodes.Loop.MLIR.CF (TargetOp evalOp model)
 open SeaOfNodes.MLIR.Lowering (encodeValues)
 open Silmaril.MLIR.Arith (Width)
 open Silmaril.MLIR.CF (Cfg)
@@ -24,6 +24,9 @@ def accepted : Checked checked mask :=
 
 def runCF (fuel : Nat) : Option Nat :=
   ((lower accepted).run evalOp fuel (encodeValues input)).map (fun env => (env.get .here).toNat)
+
+def runRVSDG (activations : Nat) : Option Nat :=
+  (accepted.lower.run (Join.model model) activations input).map (fun values => (values.get .head).toNat)
 
 /-- Inspect the actual branch frames leaving the full and pruned CF entries. -/
 def headerArities : Option Nat × Option Nat := by

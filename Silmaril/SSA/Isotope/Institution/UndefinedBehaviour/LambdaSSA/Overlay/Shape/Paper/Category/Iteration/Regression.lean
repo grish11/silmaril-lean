@@ -13,7 +13,7 @@ open Silmaril.Isotope.LambdaSSA.Region (ValueBranches)
 open Silmaril.Isotope.LambdaSSA.Region.Paper.TypeCategory (ofType ofRegion iterateSum)
 open Silmaril.Isotope.LambdaSSA.UB.Overlay
 open Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.Category
-  (singlePayload iterationGraph tagIterationOutcome)
+  (singlePayload iterationGraph tagIterationOutcome iterationGraph_block_ordinary)
 open Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.Paper
 
 namespace LambdaSSAUBPaperIterationRegression
@@ -77,10 +77,8 @@ private theorem first_step (s : Nat) : Feedback.Step graph (.entry s) (.block 0 
   .branch ⟨WithTop.coe_ne_top, rfl⟩
 
 private theorem block_ordinary (s : Nat) (o : Outcome 2 Unit Nat) :
-    (graph (.block 0 .unit s)).Ordinary o ↔ (seenAt s).Ordinary (tagIterationOutcome o) := by
-  change Behaviour.Ordinary ((seen.total (0 : Fin 1) input.val s).map (Set.preimage tagIterationOutcome)) o ↔ _
-  rw [Shape.Category.Arrow.total_typed seen (0 : Fin 1) input s]
-  exact ⟨fun h => ⟨WithTop.coe_ne_top, h.2⟩, fun h => ⟨WithTop.coe_ne_top, h.2⟩⟩
+    (graph (.block 0 .unit s)).Ordinary o ↔ (seenAt s).Ordinary (tagIterationOutcome o) :=
+  iterationGraph_block_ordinary seen input input s o
 
 private theorem step_return (s : Nat) :
     (seenAt s).Ordinary (.ret 0 (if s + 1 = 2 then .inl .unit else .inr .unit) (s + 1)) :=
@@ -129,6 +127,7 @@ private theorem infinite_replay :
   exact ⟨infinite, (singleton_iterateSum_ordinary_iff fixture step input 2 _).mpr (.inr ⟨rfl, infinite⟩)⟩
 
 #print axioms singleton_map_iterateSum
+#print axioms singleton_map_iterateSum_eq_overlay
 #print axioms singleton_map_iterateSum_unfold
 #print axioms singleton_iterateSum_ordinary_iff
 #print axioms return_after_repeat

@@ -1,8 +1,7 @@
 module
 
-public import Mathlib.Algebra.FreeMonoid.Basic
+public import Silmaril.Semantics.ConcurrentTrace.TraceMonoid.Defs
 public import Mathlib.Algebra.Group.Pointwise.Set.Basic
-public import Mathlib.GroupTheory.Congruence.Hom
 
 /-! # Finite concurrent traces
 
@@ -41,11 +40,15 @@ def map (f : T → T') (g : E → E') : Letter T E → Letter T' E'
 end Letter
 
 /-- The pairs of length-two words generating the congruence. -/
-inductive Swap : FreeMonoid (Letter T E) → FreeMonoid (Letter T E) → Prop where
-  | pair {a b : Letter T E} : a.Independent b → Swap (.ofList [a, b]) (.ofList [b, a])
+abbrev Swap := TraceMonoid.Swap (Letter.Independent (T := T) (E := E))
+
+theorem Swap.pair {a b : Letter T E} (h : a.Independent b) :
+    Swap (.ofList [a, b]) (.ofList [b, a]) :=
+  TraceMonoid.Swap.pair h
 
 /-- The least concatenation congruence containing the generating swaps. -/
-def congruence (T : Type u) (E : Type v) : Con (FreeMonoid (Letter T E)) := conGen Swap
+def congruence (T : Type u) (E : Type v) : Con (FreeMonoid (Letter T E)) :=
+  TraceMonoid.congruence Letter.Independent
 
 /-- Equivalence of raw words under the swap congruence. -/
 def Equivalent (x y : Word T E) : Prop := congruence T E (.ofList x) (.ofList y)
@@ -54,7 +57,7 @@ def Equivalent (x y : Word T E) : Prop := congruence T E (.ofList x) (.ofList y)
 abbrev Trace (T : Type u) (E : Type v) := (congruence T E).Quotient
 
 /-- The class of a word. Multiplication of classes is induced by concatenation. -/
-def ofWord (word : Word T E) : Trace T E := (congruence T E).mk' (.ofList word)
+def ofWord (word : Word T E) : Trace T E := TraceMonoid.ofWord Letter.Independent word
 
 /-- The trace containing a single letter. -/
 def singleton (letter : Letter T E) : Trace T E := ofWord [letter]
@@ -67,26 +70,21 @@ theorem ofWord_eq_iff (x y : Word T E) : ofWord x = ofWord y ↔ Equivalent x y 
   (congruence T E).eq
 
 theorem swap {a b : Letter T E} (h : a.Independent b) :
-    singleton a * singleton b = singleton b * singleton a := by
-  apply (congruence T E).eq.mpr
-  exact Con.le_conGen (r := Swap) _ _ (Swap.pair h)
+    singleton a * singleton b = singleton b * singleton a :=
+  TraceMonoid.swap h
 
-theorem ofWord_surjective : Function.Surjective (ofWord (T := T) (E := E)) := by
-  intro x
-  obtain ⟨w, rfl⟩ := Con.mk'_surjective (c := congruence T E) x
-  exact ⟨w.toList, rfl⟩
+theorem ofWord_surjective : Function.Surjective (ofWord (T := T) (E := E)) :=
+  TraceMonoid.ofWord_surjective
 
 /-- Interpret letters in a monoid where images of independent letters commute. -/
 def lift {M : Type w} [Monoid M] (f : Letter T E → M)
     (commutes : ∀ ⦃a b⦄, a.Independent b → f a * f b = f b * f a) : Trace T E →* M :=
-  (congruence T E).lift (FreeMonoid.lift f) (Con.conGen_le.mpr (by
-    rintro _ _ ⟨h⟩
-    simpa [Con.ker_apply, FreeMonoid.lift_ofList] using commutes h))
+  TraceMonoid.lift f commutes
 
 @[simp] theorem lift_singleton {M : Type w} [Monoid M] (f : Letter T E → M)
     (h : ∀ ⦃a b⦄, a.Independent b → f a * f b = f b * f a) (a : Letter T E) :
     lift f h (singleton a) = f a :=
-  FreeMonoid.lift_eval_of f a
+  TraceMonoid.lift_singleton f h a
 
 /-- Raw words admit arbitrary pointwise maps. -/
 def mapWord (f : T → T') (g : E → E') (word : Word T E) : Word T' E' :=

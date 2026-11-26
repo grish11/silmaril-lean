@@ -88,6 +88,34 @@ theorem binary_fold_of_closed_mode {A B : Q}
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.HiddenBitFeedback.TwoMode.binary_fold_of_closed_mode
     Seed f g square closed
 
+/-- A closed mode can be eliminated in any contextual quotient. -/
+theorem binary_fold_of_closed_mode_of_seed
+    (S : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+    {A B : Extension.Singleton.TypeCategory S}
+    (f : A ⨿ A ⟶ B ⨿ (A ⨿ A)) (g : A ⟶ B ⨿ A)
+    (square : f ≫ coprod.map (𝟙 B) (coprod.desc (𝟙 A) (𝟙 A)) =
+      coprod.desc (𝟙 A) (𝟙 A) ≫ g)
+    (closed :
+      coprod.inl ≫ f = g ≫ coprod.map (𝟙 B) (coprod.inl : A ⟶ A ⨿ A) ∨
+      coprod.inr ≫ f = g ≫ coprod.map (𝟙 B) (coprod.inr : A ⟶ A ⨿ A)) :
+    iterateChosen S f = coprod.desc (𝟙 A) (𝟙 A) ≫ iterateChosen S g :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.HiddenBitFeedback.TwoMode.binary_fold_of_closed_mode
+    S f g square closed
+
+/-- After eliminating the right mode, the remaining iteration equation is
+equivalent to uniformity of the binary fold. -/
+theorem binary_fold_iff_mixed_of_seed
+    (S : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+    {A B : Extension.Singleton.TypeCategory S}
+    (f : A ⨿ A ⟶ (B ⨿ A) ⨿ A) (g : A ⟶ B ⨿ A)
+    (right : (coprod.inr ≫ f) ≫ coprod.desc (𝟙 (B ⨿ A)) coprod.inr = g) :
+    iterateChosen S (f ≫ (coprod.associator B A A).hom) =
+      coprod.desc (𝟙 A) (𝟙 A) ≫ iterateChosen S g ↔
+      iterateChosen S ((coprod.inl ≫ f) ≫ coprod.desc (𝟙 (B ⨿ A))
+        (iterateChosen S (coprod.inr ≫ f))) = iterateChosen S g :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.HiddenBitFeedback.TwoMode.iterate_iff_mixed
+    S f g right
+
 /-- When the right mode always switches on recurrence, doubling the left
 row at its enlarged outward coproduct suffices for fold uniformity. -/
 theorem binary_fold_of_right_switch_and_double {A B : Q}

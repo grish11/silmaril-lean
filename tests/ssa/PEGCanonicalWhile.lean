@@ -2,12 +2,12 @@ module
 
 import Silmaril.SSA.PEG.Simple.Revert.While.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Thms
-import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Automatic.Thms
+import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Reindexed.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Thms
 import Silmaril.SSA.PEG.Simple.Thms
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Defs
-meta import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Automatic.Defs
+meta import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Reindexed.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Defs
 
 namespace Silmaril.SSA.PEG.Simple.Revert.While.Tests
@@ -619,5 +619,52 @@ private def bypassCapture {n : Nat} (g : Graph Op Outer [.count] n n) :
 #guard_msgs in
 #eval ((Automatic.extract (bypassCapture form.compile)).isNone,
   (Automatic.extract wrongParent).isNone)
+
+private def reverseId {width : Nat} (i : Fin width) : Fin width :=
+  ⟨width - 1 - i.val, by have := i.isLt; omega⟩
+
+private theorem reverseTwice {width : Nat} (i : Fin width) : reverseId (reverseId i) = i := by
+  apply Fin.ext
+  have := i.isLt
+  simp only [reverseId]
+  omega
+
+private def reversed (width : Nat) : Fin width ≃ Fin width :=
+  ⟨reverseId, reverseId, reverseTwice, reverseTwice⟩
+
+private def moved : Graph Op Outer [.count] form.size form.size :=
+  form.compile.reindex (reversed form.size) (reversed form.size)
+
+private def runMoved : Option Nat := do
+  let ids ← checkFinEquiv (reverseId (width := form.size)) reverseId
+  let accepted ← Reindexed.extract moved ids ids
+  (accepted.form.runFuel model 3 3 (outerStore 3 0)).map ULift.down
+
+-- Both the row addresses and loop keys have changed.
+/-- info: some 10 -/
+#guard_msgs in
+#eval runMoved
+
+-- The supplied maps cannot certify a table whose child counter captures
+-- a different old slot than the reference graph.
+private def wrongWire : Graph Op Outer [.count] form.size form.size :=
+  wrongCapture.compile.reindex (reversed form.size) (reversed form.size)
+
+/-- info: true -/
+#guard_msgs in
+#eval let ids := reversed form.size
+  (form.compile.checkReindex wrongWire ids ids).isNone
+
+private def movedCertificate :
+    form.compile.ReindexCertificate moved (reversed form.size) (reversed form.size) :=
+  ⟨rfl⟩
+
+private theorem movedWF : WellFounded moved.Demand :=
+  movedCertificate.demandWellFounded_iff.mpr cert.demandWellFounded
+
+example (i : Index form.size) :
+    moved.observe model (moved.denote model (outerStore 3 0) movedWF) i = .cons (some ⟨10⟩) .nil :=
+  (movedCertificate.observe_denote model (outerStore 3 0) cert.demandWellFounded movedWF i).trans
+    (observedTen _)
 
 end Silmaril.SSA.PEG.Simple.Revert.While.Nested.Tests

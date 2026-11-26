@@ -15,7 +15,7 @@ open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Width (Profile)
 
 variable {V K F α : Type} [DecidableEq V] {a b n : Nat}
 
-private theorem select_sound (model : BooleanModel F α) (width : K → Nat) (packet : Packet n)
+theorem select_sound (model : BooleanModel F α) (width : K → Nat) (packet : Packet n)
     (env : V → Option (Val (Fin n))) (store : V → α) (term : Term V K F)
     (result : (target : K) × Route n (width target))
     (agrees : StoreAgrees model.pairModel.val (model.bit ∘ packet) env store)
@@ -70,5 +70,15 @@ theorem private_step (model : BooleanModel F α) (profile : Profile graph inputs
     subst next
     simp [Graph.step, At.render, block_sound model profile.width state.2 (graph.block state.1)
       (fun _ => model.pairModel.val.unit) checked]
+
+theorem pure_sound (model : BooleanModel F α) (profile : Profile graph inputs outputs) :
+    StepSound model profile (pureAdvance profile) := by
+  intro state result found
+  cases checked : next? profile state with
+  | none => simp [pureAdvance, checked, Step.predict] at found
+  | some next =>
+    have same : Part.some (.inr (At.render model next)) = result := by
+      simpa [pureAdvance, checked, Step.predict] using found
+    exact (private_step model profile state checked).trans same
 
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean

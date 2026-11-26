@@ -67,6 +67,41 @@ write on empty input. Those two calls can interleave with other threads. The net
 returns the unsent suffix after a short acceptance. The receive operation returns a byte chunk,
 EOF, a zero-size result, or would-block.
 
+## Exact lowering and satisfaction
+
+Import `Silmaril.Process.AbstractIO.Exact.Thms` to use `ITreeTrace.Exact.lowering` with a
+`TypedSyscall.Signature.Hom`. Each source event lowers to one target request, and the target's
+typed reply passes through the homomorphism's response function before the source continuation
+resumes. The abstract Linux kernel retains all transfer choices and emits exactly one
+`AbstractIO.Observation` per reply, carrying the actual request and its dependent reply.
+The profile uses a unit environment and takes the initial `Store` from the caller. The same
+store and concrete trace labels are used on both sides of institution satisfaction.
+
+`copySentence` takes an initial-store predicate and an observation predicate. Its test is
+`positionedCopy`, an explicit tree of positioned reads and writes. The theorem
+`lower_positionedCopy` identifies the lowered tree with the existing `fileAPI` copy handler,
+including the empty-read and error returns and the write on nonempty input.
+`copy_satisfies_iff` applies exact satisfaction to that handler and the reduct of the abstract
+Linux kernel. The copy is a program of up to two single-exchange events. For the nonblocking
+network API, `lower_network_call` checks each existing handler against its single-exchange
+lowering. A send projects a byte count to the unsent suffix and preserves the would-block and
+error cases. A receive passes its typed reply through unchanged.
+
+`ITreeTrace.Exact.returned_iff_sequential` compares the completed-return fragment with
+`ITreeTrace.Sequential` (singleton `Flatten`). It preserves labels, return value and final
+store in both directions. The finite runner needs fuel at least the log length, because each
+completed call emits one label and inspecting a return uses no slot. Both sides use weak trees,
+where `tau` is the identity. Exact silent divergence self-loops without labels; the finite
+runner has separate silent and fuel-exhausted endpoints. The correspondence is restricted to completed
+sequential returns. The lowering covers the single-exchange signature maps and the
+explicit copy program above.
+
+At the generic adapter boundary, a typed exit becomes an exact stop carrying status, final store
+and one label. A visible request with no completion is blocked. In the abstract Linux profile,
+every modeled request replies, and `finish_iff` shows that only a tree return can finish a run.
+A would-block response or descriptor error is a completed typed reply. Unsupported syscalls
+outside the request signature and ABI memory faults are outside this profile.
+
 ## Boundary with existing process models
 
 - `ofByteStreamRequest` reads the request type of `TypedSyscall.Linux.signature`. It erases a read
@@ -94,3 +129,10 @@ interleaving over aliased descriptors, independent opens, short and positioned w
 replies, the interpreted file and network operations, finite endpoints, and the boundary maps.
 The `Silmaril` target includes the regression through its Process proof glob.
 [Examples](../../Silmaril/Proofs/Process/AbstractIO/Regression.lean)
+
+`lake build --wfail +Silmaril.Proofs.Process.AbstractIO.Exact.Regression` checks satisfaction
+for the existing positioned copy handler with a fixed initial store and all transfer choices.
+The regression checks completed traces against the finite runner, including a send that replies
+would-block. It also evaluates the positioned and ordinary writes. The ordinary write copies
+the same byte to the same location and is rejected for advancing the open description.
+[Exact I/O regressions](../../Silmaril/Proofs/Process/AbstractIO/Exact/Regression.lean)

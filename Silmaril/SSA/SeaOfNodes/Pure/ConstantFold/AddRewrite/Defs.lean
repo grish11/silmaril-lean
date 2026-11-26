@@ -55,6 +55,11 @@ def Splice.eval (edit : Splice args past) (entry : Tuple (Val model.value) args)
 def Edit.splice (edit : Edit args past) : Splice args past :=
   ⟨⟨[], .literal edit.right, .nil⟩, ⟨[word, word], edit.opcode, edit.operands⟩⟩
 
+/-- Evaluate an addition at its two actual prefix wires. -/
+def evalAdd (lhs rhs : Origin args past wordPort) (entry : Tuple (Val model.value) args)
+    (locals : Locals (Val model.value) past) : BitVec 64 :=
+  model.run .add (.cons (Diamond.read model lhs entry locals) (.cons (Diamond.read model rhs entry locals) .nil))
+
 /-- Extend analyzed prefix facts or propose an edit for the actual ordered add operands. -/
 structure Rules (args : List (Ty Unit)) (Facts : List (List (Ty Unit)) → Type) where
   record : ∀ {past ins out}, Facts past → SubZero.Opcode ins out → Wires args past (dataPorts ins) →
@@ -70,8 +75,7 @@ structure Sound (rules : Rules args Facts) (entry : Tuple (Val model.value) args
     Agrees (rules.record facts op operands) (locals.snoc (.cons (model.run op (operands.read entry locals)) .nil))
   replaceAdd : ∀ {past} {facts : Facts past} {locals} {lhs rhs : Origin args past wordPort} {edit},
     Agrees facts locals → rules.matchAdd? facts lhs rhs = some edit →
-    model.run .add (.cons (Diamond.read model lhs entry locals) (.cons (Diamond.read model rhs entry locals) .nil)) =
-      edit.eval entry locals
+    evalAdd lhs rhs entry locals = edit.eval entry locals
 
 /-- Insert the private binding, attach the original result to the replacement,
 and route every original wire through the extended scope. -/

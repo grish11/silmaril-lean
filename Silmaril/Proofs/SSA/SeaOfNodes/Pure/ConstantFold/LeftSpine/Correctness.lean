@@ -91,6 +91,11 @@ private def sound (ids : SourceIds) (entry : Tuple (Val model.value) args) : Add
       _ = x + (z + y) := congrArg (x + ·) (BitVec.add_comm _ _)
       _ = (x + z) + y := (BitVec.add_assoc _ _ _).symm
 
+theorem match_agrees {edit : AddRewrite.Splice args past}
+    (agree : known.Agrees entry locals) (accepted : matchAdd? ids known lhs rhs = some edit) :
+    AddRewrite.evalAdd lhs rhs entry locals = edit.eval entry locals :=
+  (sound ids entry).replaceAdd agree accepted
+
 variable {inputs : List (ValueSort Unit)} {out : ValueSort Unit}
 variable {program : Program SubZero.Opcode inputs out}
 variable {rewrite : Rewrite SubZero.Opcode (dataPorts inputs) [] program.sigs}

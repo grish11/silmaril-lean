@@ -2,7 +2,7 @@ module
 
 public import Silmaril.Proofs.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.Terminal.Iteration
 
-public section
+@[expose] public section
 
 open Silmaril.Isotope Silmaril.Isotope.LetIter.LocallyNameless
 
@@ -18,19 +18,24 @@ local notation "E" => AbortEquiv (Φ := Ops) pe Free
 local notation "C" => Code.sum B S
 local notation "J" => Code.sum (Code.sum B S) S
 
-private def stageReply (M : Table F S B) : B.Value ⊕ S.Value → (Code.sum B S).Value ⊕ S.Value
+def stageReply (inner : S.Value → Bool) : B.Value ⊕ S.Value → (Code.sum B S).Value ⊕ S.Value
   | .inl b => .inl (.inl b)
-  | .inr t =>
-    match M t with
-    | .ret _ => .inr t
-    | .call .. => .inl (.inr t)
+  | .inr t => if inner t then .inr t else .inl (.inr t)
 
-/-- In a nested iteration, use the inner repeat only for immediate-return
-targets. Yield all other repeats to the outer iterator. -/
-private def stage (M : Table F S B) : Table F S (Code.sum B S) := fun s =>
+/-- Mark selected repeats as inner repeats. The unmarked repeats are
+returned as control values for the outer iterator. -/
+def stageWith (M : Table F S B) (inner : S.Value → S.Value → Bool) : Table F S (Code.sum B S) := fun s =>
   match M s with
   | .ret v => .ret (.inl v)
-  | .call f x k => .call f x (fun r => stageReply M (k r))
+  | .call f x k => .call f x (fun r => stageReply (inner s) (k r))
+
+private def terminal (M : Table F S B) (t : S.Value) : Bool :=
+  match M t with
+  | .ret _ => true
+  | .call .. => false
+
+private def stage (M : Table F S B) : Table F S (Code.sum B S) :=
+  stageWith M (fun _ => terminal M)
 
 omit [HasEff (Opcode F) ε] in
 private theorem flatten_typed : H (.snoc .nil (J).ty) (flattenHandler Ops) (C).ty :=
@@ -44,48 +49,48 @@ private theorem flatten_right (v : S.Value) :
     E .nil (plug (flattenHandler Ops) (nativeValue Ops J (.inr v))) (nativeValue Ops C (.inr v)) (C).ty :=
   handler_right (l := .bv 0) (r := .inr (.bv 0)) rfl .bv (.inr .bv) v
 
-private theorem flatten_stage_reply (M : Table F S B) (v : (C).Value) :
-    E .nil (plug (flattenHandler Ops) (nativeValue Ops J (stageReply M v))) (nativeValue Ops C v) (C).ty := by
+private theorem flatten_stage_reply (inner : S.Value → Bool) (v : (C).Value) :
+    E .nil (plug (flattenHandler Ops) (nativeValue Ops J (stageReply inner v))) (nativeValue Ops C v) (C).ty := by
   cases v with
   | inl a => exact flatten_left (.inl a)
   | inr s =>
-    cases row : M s with
-    | ret _ => simpa only [stageReply, row] using (flatten_right (F := F) (B := B) (pe := pe) s)
-    | call _ _ _ =>
-      simpa only [stageReply, row] using (flatten_left (F := F) (B := B) (pe := pe) (.inr s))
+    cases row : inner s with
+    | true => simpa [stageReply, row] using (flatten_right (F := F) (B := B) (pe := pe) s)
+    | false =>
+      simpa [stageReply, row] using (flatten_left (F := F) (B := B) (pe := pe) (.inr s))
 
-private theorem flatten_stage (M : Table F S B) :
-    E (.snoc .nil S.ty) (.case (nativeBody (stage M)) (.bv 0) (.inr (.bv 0))) (nativeBody M) (C).ty := by
-  have ht := body_typed (stage M)
+theorem flatten_stage_with (M : Table F S B) (inner : S.Value → S.Value → Bool) :
+    E (.snoc .nil S.ty) (.case (nativeBody (stageWith M inner)) (.bv 0) (.inr (.bv 0))) (nativeBody M) (C).ty := by
+  have ht := body_typed (stageWith M inner)
   have bind := Equiv.bindCase (pureEff := pe) ht
     (show H (.snoc (.snoc .nil S.ty) (C).ty) (.bv 0) (C).ty from .bv)
     (show H (.snoc (.snoc .nil S.ty) S.ty) (.inr (.bv 0)) (C).ty from .inr .bv)
-  change LocallyNameless.Equiv pe Free _ _ (.let₁ (nativeBody (stage M)) (flattenHandler Ops).underBinder) _ at bind
+  change LocallyNameless.Equiv pe Free _ _ (.let₁ (nativeBody (stageWith M inner)) (flattenHandler Ops).underBinder) _ at bind
   refine (Refinement.equiv bind).trans (by_values S (.let₁ ht flatten_typed.underBinder) (body_typed M) (fun s => ?_))
   rw [plug_bind]
-  refine (Refinement.let₁ (body_beta (stage M) s) (.refl flatten_typed)).trans
+  refine (Refinement.let₁ (body_beta (stageWith M inner) s) (.refl flatten_typed)).trans
     (Refinement.trans ?_ (body_beta M s).symm)
   cases row : M s with
   | ret v =>
-    simp only [stage, row, nativeRow]
+    simp only [stageWith, row, nativeRow]
     exact (bind_value flatten_typed (.inl (.inl v))).trans (flatten_left (.inl v))
   | call f x k =>
-    simp only [stage, row]
-    exact bind_call x (fun r => stageReply M (k r)) k flatten_typed (fun r => flatten_stage_reply M (k r))
+    simp only [stageWith, row]
+    exact bind_call x (fun r => stageReply (inner s) (k r)) k flatten_typed (fun r => flatten_stage_reply (inner s) (k r))
 
 private theorem handle_stage_reply (M : Table F S B) (v : (C).Value) :
-    E .nil (plug (loopHandler (nativeBody (stage M))) (nativeValue Ops J (stageReply M v)))
+    E .nil (plug (loopHandler (nativeBody (stage M))) (nativeValue Ops J (stageReply (terminal M) v)))
       (nativeValue Ops C (M.contractReply v)) (C).ty := by
   cases v with
   | inl b => exact loopHandler_left (body_typed (stage M)) (.inl b)
   | inr s =>
     cases row : M s with
     | ret b =>
-      have terminal : (stage M) s = .ret (.inl b) := by simp [stage, row]
-      simpa only [stageReply, Table.contractReply, row] using
-        (loopHandler_right (pe := pe) (body_typed (stage M)) s).trans (loop_return (stage M) s terminal)
+      have exitRow : (stage M) s = .ret (.inl b) := by simp [stage, stageWith, row]
+      simpa [stageReply, terminal, Table.contractReply, row] using
+        (loopHandler_right (pe := pe) (body_typed (stage M)) s).trans (loop_return (stage M) s exitRow)
     | call _ _ _ =>
-      simpa only [stageReply, Table.contractReply, row] using
+      simpa [stageReply, terminal, Table.contractReply, row] using
         (loopHandler_left (pe := pe) (body_typed (stage M)) (.inr s))
 
 private theorem inner_at_value (M : Table F S B) (s : S.Value) :
@@ -97,11 +102,11 @@ private theorem inner_at_value (M : Table F S B) (s : S.Value) :
   refine Refinement.trans ?_ (body_beta M.contract s).symm
   cases row : M s with
   | ret v =>
-    simp only [stage, Table.contract, row, nativeRow]
+    simp only [stage, stageWith, Table.contract, row, nativeRow]
     exact (bind_value handler (.inl (.inl v))).trans (loopHandler_left hb (.inl v))
   | call f x k =>
-    simp only [stage, Table.contract, row]
-    exact bind_call x (fun r => stageReply M (k r)) (fun r => M.contractReply (k r))
+    simp only [stage, stageWith, Table.contract, row]
+    exact bind_call x (fun r => stageReply (terminal M) (k r)) (fun r => M.contractReply (k r))
       handler (fun r => handle_stage_reply M (k r))
 
 private theorem inner_stage (M : Table F S B) :
@@ -120,7 +125,7 @@ theorem contract_native (M : Table F S B) (s : S.Value) :
     E .nil (.iter (nativeValue Ops S s) (nativeBody M)) (.iter (nativeValue Ops S s) (nativeBody M.contract)) B.ty := by
   have ha := value_typed S s (Φ := Ops) .nil
   have diagonal := Equiv.codiagonal (pureEff := pe) ha (body_typed (stage M))
-  exact (AbortEquiv.symm (Refinement.iter (.refl ha) (flatten_stage (pe := pe) M))).trans
+  exact (AbortEquiv.symm (Refinement.iter (.refl ha) (flatten_stage_with (pe := pe) M (fun _ => terminal M)))).trans
     ((Refinement.equiv diagonal.symm).trans (Refinement.iter (.refl ha) (inner_stage M)))
 
 end Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.TerminalProofs

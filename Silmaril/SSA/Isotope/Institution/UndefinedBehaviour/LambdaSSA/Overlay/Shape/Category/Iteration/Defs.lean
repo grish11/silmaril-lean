@@ -32,6 +32,12 @@ noncomputable def iterationGraph
   Feedback.run (fun s => WithTop.some {Outcome.ret (0 : Fin 2) a.val s})
     (fun _ b s => (f.total 0 b s).map (Set.preimage tagIterationOutcome))
 
+/-- An ordinary right tag transfers the exact typed payload and the final
+machine state to the next step. Fresh UB supplies no repeat edge. -/
+def Repeat (f : single A ⟶ (single (.coprod B A) : Interface α σ atomType))
+    (p q : singlePayload (atomType := atomType) A × σ) : Prop :=
+  (f.run 0 p.1 p.2).Ordinary (.ret 0 (.inr q.1.val) q.2)
+
 /-- Collect finite results, reachable step divergence, and infinite
 repetition, with the overlay's existing priority for reachable top. -/
 noncomputable def iterateObservations

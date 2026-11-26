@@ -536,6 +536,34 @@ from one to two removes the original return and reaches a fault
 instead, so the erased comparison does not imply iterator refinement.
 [Monotonicity][ssa-ub-paper-iteration] [Refinement regression][ssa-ub-paper-iteration-refinement]
 
+### Exact-sum iteration of explicit overlay steps
+
+An exactly typed overlay step with one input binder, no captures, and
+one exact-sum exit interprets directly as a shaped singleton arrow.
+`iterateOverlay` closes that arrow through the existing directed feedback
+and returns an arrow whose ordinary successful outputs have the result
+type. The same `WithTop (Set Outcome)` carrier applies at each initial
+machine state. `Overlay.Refines` on two steps implies pointwise
+refinement of their iterators through the existing feedback order.
+
+The closed behaviour is greatest exactly when finitely many ordinary
+right-tagged repeats reach a step at fresh top, including zero repeats.
+Every repeat carries a typed payload and its exact final machine state.
+A start whose first step is ordinary and has no repeat sees exactly the
+terminal observations of that step. With native representatives the
+whole shaped arrow agrees with the installed guarded `iterateSum`,
+including ordinary divergence.
+
+The regression runs the same overlay step at two initial states. From
+one it repeats at a new state and takes the explicit `ub` continuation,
+so the result is greatest. From the other it returns at once, and its
+exact ordinary singleton behaviour is independent of the unused
+continuation. Replacing an ordinary continuation with `ub` is checked
+as a typed refinement. The construction is at the shaped observation
+interface of the empty-capture fragment.
+[Overlay iteration][ssa-ub-shaped-overlay-iteration] [Regression][ssa-ub-shaped-overlay-iteration-regression]
+[Native agreement][ssa-ub-paper-iteration]
+
 ## Coverage and gaps
 
 | Language | Refinement and institutions in the repository | UB construction and remaining hypotheses |
@@ -574,6 +602,7 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Product.Regression
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Iteration.Regression
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Iteration.Refinement.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Category.Iteration.Regression
 ```
 
 [ordered]: ../../Silmaril/Raw/SSA/Isotope/Institution/Refinement/Ordered.lean
@@ -653,3 +682,5 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-paper-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Thms.lean
 [ssa-ub-paper-iteration-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Regression.lean
 [ssa-ub-paper-iteration-refinement]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Refinement/Regression.lean
+[ssa-ub-shaped-overlay-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Thms.lean
+[ssa-ub-shaped-overlay-iteration-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Regression.lean

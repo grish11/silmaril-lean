@@ -27,42 +27,60 @@ instance : AtomValues Atom where
 
 inductive Op where
   | poll
+  | choose
 
 inductive Event : Type → Type where
   | poll : Event Bool
 
 instance : HasTy Op (Ty Atom) where
   src _ := .unit
-  trg _ := .unit
+  trg
+    | .poll => .unit
+    | .choose => .coprod .unit .unit
 
 instance : HasEff Op Bool where
   eff _ := true
 
 abbrev Tree := ModelTree Event
 abbrev Atoms := AtomValues.carrier (κ := Atom)
+abbrev UnitTy : Ty Atom := Silmaril.unit
+abbrev ReplyTy : Ty Atom := Silmaril.coprod UnitTy UnitTy
+
+/-- False keeps the current copy, and true switches it. -/
+def replyValue : Bool → Ty.denote Atoms ReplyTy
+  | false => .inl PUnit.unit
+  | true => .inr PUnit.unit
 
 attribute [local instance] typeModel categoricalInstructions
 
 instance : InstructionModel Op (Ty Atom) Bool Tree where
-  denote _ _ := vis .poll (fun _ => pure PUnit.unit)
+  denote
+    | .poll, _ => vis .poll (fun _ => pure PUnit.unit)
+    | .choose, _ => vis .poll (fun b => pure (replyValue b))
   denotePure _ h := by cases h
   denote_pure _ h := by cases h
 
-def raw : Primitive Event Op (Sigma Atoms) :=
-  fun _ _ => vis .poll (fun _ => pure .unit)
+def raw : Primitive Event Op (Sigma Atoms)
+  | .poll, _ => vis .poll (fun _ => pure .unit)
+  | .choose, _ => vis .poll (fun b => pure (encodeValue Atoms ReplyTy (replyValue b)))
 
 theorem compatible :
     Compatible (κ' := Atom) ⟨fun f x => InstructionModel.denote
       (τ := Ty Atom) (ε := Bool) (m := Tree) f x⟩ raw := by
   intro f x
-  change raw f .unit = ((vis .poll (fun _ => pure PUnit.unit) : Tree (Ty.denote Atoms .unit)) >>=
-    fun y => pure (encodeValue Atoms .unit y))
-  rw [raw, vis_bind]
-  exact congrArg (vis .poll) (funext fun _ => (pure_bind (m := Tree) PUnit.unit
-    (fun y : PUnit.{2} => pure (encodeValue Atoms .unit y))).symm)
+  cases f
+  · change raw Op.poll .unit = ((vis .poll (fun _ => pure PUnit.unit) : Tree (Ty.denote Atoms .unit)) >>=
+      fun y => pure (encodeValue Atoms .unit y))
+    rw [raw, vis_bind]
+    exact congrArg (vis .poll) (funext fun _ => (pure_bind (m := Tree) PUnit.unit
+      (fun y : PUnit.{2} => pure (encodeValue Atoms .unit y))).symm)
+  · change raw Op.choose .unit = ((vis .poll (fun b => pure (replyValue b)) : Tree (Ty.denote Atoms ReplyTy)) >>=
+      fun y => pure (encodeValue Atoms ReplyTy y))
+    rw [raw, vis_bind]
+    exact congrArg (vis .poll) (funext fun b => (pure_bind (m := Tree) (replyValue b)
+      (fun y => pure (encodeValue Atoms ReplyTy y))).symm)
 
 abbrev Seed := WithPairReturns.JoinedStep (τ := Ty Atom) (Φ := Op) false
-abbrev UnitTy : Ty Atom := Silmaril.unit
 abbrev Obj := ofType Seed
 abbrev One := Obj UnitTy
 abbrev Two := Obj (coprod UnitTy UnitTy)
@@ -107,5 +125,32 @@ noncomputable def interpretation : Extension.Singleton.TypeCategory Seed ⥤ Kle
 /-- Observe actual guarded iteration from a selected Unit mode. -/
 noncomputable def runFrom (enter : One ⟶ Three) : Tree PUnit.{2} :=
   (interpretation.map (enter ≫ Extension.Singleton.iterateChosen Seed sourceStep)).of PUnit.unit
+
+/-- The guarded primitive returns a typed two-way reply. -/
+abbrev choose : One ⟶ Two := Extension.Singleton.Generation.primitive Seed Op.choose
+
+noncomputable abbrev replyIso : Two ≅ One ⨿ One := Extension.Singleton.sumIso Seed UnitTy UnitTy
+
+/-- False stays in the first mode, while true switches to the second. -/
+noncomputable abbrev decision : One ⟶ (One ⨿ One) ⨿ (One ⨿ One) :=
+  choose ≫ replyIso.hom ≫ coprod.inr
+
+noncomputable def mixedSourceRows : One ⨿ (One ⨿ One) ⟶ (One ⨿ One) ⨿ (One ⨿ One) :=
+  coprod.desc (coprod.inl ≫ coprod.inl)
+    (coprod.desc decision (decision ≫ coprod.map (𝟙 (One ⨿ One)) (coprod.desc coprod.inr coprod.inl)))
+
+noncomputable def mixedTargetRows : One ⨿ One ⟶ (One ⨿ One) ⨿ One :=
+  coprod.desc (coprod.inl ≫ coprod.inl)
+    (decision ≫ coprod.map (𝟙 (One ⨿ One)) (coprod.desc (𝟙 One) (𝟙 One)))
+
+noncomputable abbrev mixedSourceStep : Three ⟶ One ⨿ Three :=
+  realize Seed (sourceIso Seed UnitTy) mixedSourceRows
+
+noncomputable abbrev mixedTargetStep : Two ⟶ One ⨿ Two :=
+  realize Seed (targetIso Seed UnitTy) mixedTargetRows
+
+/-- Observe actual feedback under the reply-dependent step. -/
+noncomputable def runMixed (enter : One ⟶ Three) : Tree PUnit.{2} :=
+  (interpretation.map (enter ≫ Extension.Singleton.iterateChosen Seed mixedSourceStep)).of PUnit.unit
 
 end Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.StructuralValues.Uniformity.Cyclic.Visible

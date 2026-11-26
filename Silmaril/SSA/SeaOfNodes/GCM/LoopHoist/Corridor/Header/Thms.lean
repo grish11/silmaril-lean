@@ -27,6 +27,53 @@ theorem swapAt?_eval {insertion : Nat}
       before.eval evalOp (fun term vals => term.eval vals) env :=
   Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.swapAt?_eval swapped env
 
+/-- Successful emission uses the original CFG's binding sites and chosen cut. -/
+theorem pickAndEmit?_spec
+    {emit : Cfg TargetOp (SourceLabel carried result) Input [result] →
+      Nat → Point (SourceLabel carried result) →
+      Option (Cfg TargetOp (SourceLabel carried result) Input [result])}
+    (picked : pickAndEmit? g index emit = some (cut, out)) :
+    (∃ (saved : Width) (binding : Binding Input (carried :: Input) saved carried result),
+      findBinding index 0 headerOrigins ((lower g).block .header) = some ⟨saved, binding⟩ ∧
+      chooseCut? g binding.operands binding.uses = some cut) ∧
+    emit (lower g) index cut = some out :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.pickAndEmit?_spec picked
+
+/-- The synthesized chooser reports an actual legal cut in the source CFG. -/
+theorem chooseCut_sound {operands : List (Point (SourceLabel carried result))}
+    {uses : List (Use (SourceLabel carried result))}
+    (selected : chooseCut? g operands uses = some cut) :
+    cut ∈ candidateCuts (lower g) blocks ∧ Legal (lower g) operands uses cut :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.chooseCut_sound selected
+
+section HeaderReplacement
+
+variable {cfg : Cfg TargetOp (SourceLabel carried result) Input [result]}
+variable {header : Block TargetOp (SourceLabel carried result) (carried :: Input) [result]}
+variable (agrees : ∀ env, header.eval evalOp (fun term vals => term.eval vals) env =
+  (cfg.block .header).eval evalOp (fun term vals => term.eval vals) env)
+include agrees
+
+/-- Replacing a header with pointwise equal evaluation preserves every transfer. -/
+theorem withHeader_frames (input : Env Input) :
+    (withHeader cfg header).entry = cfg.entry ∧
+    ∀ frame : Frame (SourceLabel carried result),
+      ((withHeader cfg header).block frame.label).eval evalOp (fun term env => term.eval env)
+          (frame.args.append input) =
+        (cfg.block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input) :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.withHeader_frames agrees input
+
+theorem withHeader_run_eq (input : Env Input) (fuel : Nat) :
+    (withHeader cfg header).run evalOp fuel input = cfg.run evalOp fuel input :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.withHeader_run_eq agrees input fuel
+
+theorem withHeader_denotePart (input : Env Input) :
+    (Silmaril.MLIR.CF.SwitchAssert.Cfg.embed (withHeader cfg header)).denotePart evalOp input =
+      (Silmaril.MLIR.CF.SwitchAssert.Cfg.embed cfg).denotePart evalOp input :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.withHeader_denotePart agrees input
+
+end HeaderReplacement
+
 /-- The emitted move uses the synthesized legal cut for the actual binding.
 The adjacent earlier cut retains its index after removal. -/
 theorem pickAndMove?_placement (picked : pickAndMove? g index = some (cut, out)) :

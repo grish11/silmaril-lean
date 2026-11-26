@@ -30,6 +30,23 @@ theorem singleton_map_iterateSum :
       iterateObservations ((singletonInterpretation M).map f) a s :=
   Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Paper.Category.Iteration.map_iterateSum M f a s
 
+/-- The typed observation iterator extends the installed guarded iterator. -/
+theorem singleton_map_iterateSum_eq_shaped :
+    (singletonInterpretation M).map (iterateSum f) =
+      Shape.Category.iterateSum ((singletonInterpretation M).map f) := by
+  apply Shape.Category.arrow_ext
+  intro i b t
+  obtain rfl := Fin.eq_zero i
+  exact singleton_map_iterateSum M f b t
+
+/-- On a native step representative the explicit-overlay interface agrees
+with the installed guarded iterator, including faults and divergence. -/
+theorem singleton_map_iterateSum_eq_overlay {r : LambdaSSA.Region Φ}
+    (hr : r.ValueBranches [A] [.coprod B A]) :
+    (singletonInterpretation M).map (iterateSum (LambdaSSA.Region.Paper.TypeCategory.ofRegion hr)) =
+      Shape.Category.iterateOverlay M (.native ⟨r, hr.hasType⟩) :=
+  singleton_map_iterateSum_eq_shaped M (LambdaSSA.Region.Paper.TypeCategory.ofRegion hr)
+
 /-- The installed iterator is monotone in the shaped observation order.
 Larger behaviour includes additional ordinary outcomes or fresh top. -/
 theorem singleton_map_iterateSum_mono {g : ofType (Φ := Φ) A ⟶ ofType (.coprod B A)}

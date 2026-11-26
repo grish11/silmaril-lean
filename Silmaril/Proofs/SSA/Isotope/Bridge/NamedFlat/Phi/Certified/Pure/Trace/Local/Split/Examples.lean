@@ -1,7 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Split.Thms
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Split.Comparison.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.InstructionMap.Thms
 
 /-! A visible loop swaps two live values on the split edge. The admitted
 entry fixtures also exercise a second split after extending the record. -/
@@ -12,15 +12,16 @@ open Silmaril.SSA.LambdaRTL
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi (Graph Block Pending assign br ret)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Split (Plan Checked)
 open Silmaril.Elgot.ITree (Tree Trace TraceLE HasTrace vis vis_bind resume resume_body
-  hasTrace_vis_exchange_iff hasTrace_vis_request)
-open LambdaSSA (Region)
+  hasTrace_vis_exchange_iff hasTrace_vis_request out_ret)
+open LambdaSSA (Region FiniteCFG)
 open LambdaSSA.Semantics (Env extend)
 open LambdaSSA.Semantics.Interaction (Primitive Transfer region)
 open Silmaril.Isotope.Semantics (encodeValue)
 open LambdaSSA.Semantics.Interaction.Typed (AtomValues ModelTree Compatible)
 open LambdaSSA.Semantics.Interaction.Typed.Ordered
 open Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry
-open CategoryTheory (Discrete)
+open CategoryTheory
+open Silmaril.Isotope.Morphism (SignatureMap)
 open NamedFlat.Entry.Record (Input reindex reindex_comp)
 
 attribute [local instance] LambdaSSA.Semantics.Interaction.Typed.typeModel
@@ -35,6 +36,7 @@ private abbrev Store := Reg → Value Runtime
 
 private inductive Opcode
   | tick
+  | finish
   deriving DecidableEq
 
 private inductive Event : Type → Type
@@ -48,7 +50,8 @@ private instance : HasTy Opcode (Ty SortName) where
   trg _ := .coprod num .unit
 
 private def instr : Primitive Event Opcode Runtime
-  | .tick, .pair (.atom left) (.atom right) => vis (.tick left.2.down right.2.down) fun
+  | .tick, .pair (.atom left) (.atom right)
+  | .finish, .pair (.atom left) (.atom right) => vis (.tick left.2.down right.2.down) fun
       | .inl result => pure (.inl (atom result))
       | .inr _ => pure (.inr .unit)
   | _, _ => Silmaril.Elgot.ITree.diverge
@@ -59,11 +62,15 @@ private def x : Reg := ⟨2⟩
 private def y : Reg := ⟨3⟩
 private def doneName : Reg := ⟨4⟩
 private def backName : Reg := ⟨5⟩
+private def answerName : Reg := ⟨10⟩
+private def discardName : Reg := ⟨11⟩
 private def header : Key := ⟨17⟩
 
 private def tickBody (next : Key) : CFG.Body Reg (Option Key) Opcode :=
   .term (.case (.app .tick (.pair (.var x) (.var y)))
-    doneName (ret (.var doneName)) backName (br next))
+    doneName (.case (.app .finish (.pair (.var doneName) (.var doneName)))
+      answerName (ret (.var answerName)) discardName (ret (.var doneName)))
+    backName (br next))
 
 private def headerBlock : Block Reg Key Opcode :=
   ⟨[⟨x, [(none, .var seedX), (some header, .var y)]⟩,
@@ -114,26 +121,35 @@ private def originalStore : Store := entryCaptures.store supplied
 
 private def writePair (store : Store) (a b : Nat) : Store := upd (upd store x (atom a)) y (atom b)
 
-private def response (next : Key) (store : Store) : Nat ⊕ Unit → State
-  | .inl result => (.returned (atom result), upd store doneName (atom result))
-  | .inr _ => (.jump (some header) next, upd store backName .unit)
+private def response (next : Key) (store : Store) : Nat ⊕ Unit → Tree Event State
+  | .inl result =>
+    let returned := upd store doneName (atom result)
+    vis (.tick result result) fun
+      | .inl reply => pure (.returned (atom reply), upd returned answerName (atom reply))
+      | .inr _ => pure (.returned (atom result), upd returned discardName .unit)
+  | .inr _ => pure (.jump (some header) next, upd store backName .unit)
 
 private theorem tick_step_of (graph : Graph Reg Key Opcode) (next : Key)
     (pred : Option Key) (store : Store) (a b : Nat) {block : Block Reg Key Opcode}
     (found : graph.blocks.lookup header = some block) (body : block.body = tickBody next)
     (assigned : assign (treeModel instr) pred store block.rows store = writePair store a b) :
     stepTree instr graph (.jump pred header, store) =
-      vis (.tick a b) (fun reply => pure (.inr (response next (writePair store a b) reply))) := by
+      vis (.tick a b) (fun reply => response next (writePair store a b) reply >>= fun p => pure (.inr p)) := by
   rw [step_jump _ _ _ _ _ found, assigned, body]
   simp [CFG.Cyclic.Phi.execute, tickBody, CFG.Body.exec, CFG.Term.exec, Op.eval, Val.eval,
     treeModel, instr, writePair, upd, x, y, atom, ← bind_pure_comp, bind_assoc, vis_bind]
   funext reply
-  cases reply <;> simp [response, br, ret, CFG.Term.exec, Val.eval, upd, atom]
+  cases reply with
+  | inl result =>
+    simp [response, ret, CFG.Term.exec, Val.eval, upd, atom, vis_bind]
+    funext reply
+    cases reply <;> simp [doneName, discardName]
+  | inr => simp [response, br, CFG.Term.exec, Val.eval]
 
 private theorem tick_step (pred : Option Key) (store : Store) (a b : Nat)
     (assigned : assign (treeModel instr) pred store headerBlock.rows store = writePair store a b) :
     stepTree instr source (.jump pred header, store) =
-      vis (.tick a b) (fun reply => pure (.inr (response header (writePair store a b) reply))) :=
+      vis (.tick a b) (fun reply => response header (writePair store a b) reply >>= fun p => pure (.inr p)) :=
   tick_step_of source header pred store a b rfl rfl assigned
 
 private theorem resume_transfer {source : Graph Reg Key Opcode} (p : State) :
@@ -145,21 +161,38 @@ private theorem resume_transfer {source : Graph Reg Key Opcode} (p : State) :
 private def swappedTrace : Trace Event (Transfer Runtime) :=
   .exchange (.tick 2 5) (.inr ()) (.request (.tick 5 2))
 
-private theorem source_swap :
-    HasTrace (sourceObservation instr source originalStore) swappedTrace := by
+private theorem source_after_continue (tail : Trace Event (Transfer Runtime)) :
+    HasTrace (sourceObservation instr source originalStore) (.exchange (.tick 2 5) (.inr ()) tail) ↔
+      HasTrace (vis (.tick 5 2) (fun reply =>
+        resume (stepTree instr source)
+          (response header (writePair (upd (writePair originalStore 2 5) backName .unit) 5 2) reply >>=
+            fun p => pure (.inr p)))) tail := by
   have entry : entryTree instr source originalStore =
       pure (.inr (.jump none header, originalStore)) := by
     simp [entryTree, source, CFG.Cyclic.Phi.execute, CFG.Body.exec, CFG.Term.exec, br]
-  rw [sourceObservation_eq_resume, entry, resume_transfer, tick_step none originalStore 2 5 rfl,
-    swappedTrace]
-  simp only [resume, vis_bind, hasTrace_vis_exchange_iff, pure_bind, Sum.elim_inr]
+  rw [sourceObservation_eq_resume, entry, resume_transfer, tick_step none originalStore 2 5 rfl]
+  simp only [response, resume, vis_bind, hasTrace_vis_exchange_iff, pure_bind, Sum.elim_inr]
   rw [← resume_body]
   change HasTrace (resume (stepTree instr source)
     (stepTree instr source (.jump (some header) header,
-      upd (writePair originalStore 2 5) backName .unit))) _
+      upd (writePair originalStore 2 5) backName .unit))) _ ↔ _
   rw [tick_step (some header) _ 5 2 rfl]
-  simp only [resume, vis_bind]
-  exact hasTrace_vis_request _ _
+  simp only [response, resume, vis_bind]
+
+private theorem source_swap :
+    HasTrace (sourceObservation instr source originalStore) swappedTrace :=
+  (source_after_continue _).mpr (hasTrace_vis_request _ _)
+
+private def finishedTrace : Trace Event (Transfer Runtime) :=
+  .exchange (.tick 2 5) (.inr ()) (.exchange (.tick 5 2) (.inl 11)
+    (.exchange (.tick 11 11) (.inl 23) (.result (FiniteCFG.packedTreeOutput (0, atom 23)))))
+
+private theorem source_finish :
+    HasTrace (sourceObservation instr source originalStore) finishedTrace := by
+  rw [finishedTrace, source_after_continue, hasTrace_vis_exchange_iff]
+  simp only [response, resume, vis_bind, hasTrace_vis_exchange_iff, pure_bind, Sum.elim_inr]
+  rw [← resume_body, step_return]
+  simp [HasTrace, resume, FiniteCFG.packedTreeOutput, Region.packedExitValue]
 
 private def init : Key := ⟨16⟩
 private def latch : Key := ⟨18⟩
@@ -229,7 +262,7 @@ private theorem distinct_source_swap :
   rw [sourceObservation_eq_resume, entry, resume_transfer, straight_step none init header _ rfl,
     resume_transfer, tick_step_of distinctSource latch (some init) originalStore 2 5
       (block := distinctHeader) rfl rfl rfl, swappedTrace]
-  simp only [resume, vis_bind, hasTrace_vis_exchange_iff, pure_bind, Sum.elim_inr]
+  simp only [response, resume, vis_bind, hasTrace_vis_exchange_iff, pure_bind, Sum.elim_inr]
   rw [← resume_body]
   change HasTrace (resume (stepTree instr distinctSource)
     (stepTree instr distinctSource (.jump (some header) latch,
@@ -297,21 +330,22 @@ private instance : HasEff Opcode Bool := ⟨fun _ => true⟩
 private def typed : Silmaril.Isotope.Semantics.InstructionModel
     (Ty.denote (AtomValues.carrier (κ := SortName))) Opcode (ModelTree Event) where
   eval
-    | .tick, (left, right) => vis (.tick left.down right.down) fun
+    | .tick, (left, right)
+    | .finish, (left, right) => vis (.tick left.down right.down) fun
       | .inl result => pure (.inl ⟨result⟩)
       | .inr _ => pure (.inr PUnit.unit)
 
 private theorem compatible : Compatible (κ' := SortName) typed instr := by
   intro op arg
-  cases op
+  have tickCompatible (left right : Atom) :
+      instr .tick (.pair (atom left.down) (atom right.down)) =
+        (typed.eval .tick (left, right) >>= fun reply => pure (encodeValue _ (.coprod num .unit) reply)) := by
+    simp only [instr, atom, typed, vis_bind]
+    congr 1
+    funext reply
+    cases reply <;> erw [pure_bind] <;> rfl
   obtain ⟨left, right⟩ := arg
-  change instr .tick (.pair (atom left.down) (atom right.down)) =
-    (typed.eval .tick (left, right) >>= fun reply =>
-      pure (Silmaril.Isotope.Semantics.encodeValue _ (.coprod num .unit) reply))
-  simp only [instr, atom, typed, vis_bind]
-  congr 1
-  funext reply
-  cases reply <;> erw [pure_bind] <;> rfl
+  cases op <;> exact tickCompatible left right
 
 private def signature : FlatInstitution.Signature.{0, 0} SortName where
   Instr := Opcode
@@ -389,14 +423,19 @@ theorem appended_split_satisfies (ambient : Env Runtime) :
   split_related_satisfies seedOriginal plan generated extendedLayout model
     seedRecord extendedRecord extended_retains_seed ambient
 
-private theorem seed_packed_swap (ambient : Env Runtime) :
-    HasTrace (seedOriginal.observePacked model seedRecord ambient) swappedTrace := by
+private theorem seed_packed_trace (ambient : Env Runtime) {trace : Trace Event (Transfer Runtime)}
+    (h : HasTrace (sourceObservation instr source originalStore) trace) :
+    HasTrace (seedOriginal.observePacked model seedRecord ambient) trace := by
   have shared := seedOriginal.observe_toFlat_of_capture model seedRecord ambient originalStore
     (fun i => Fin.cases rfl (Fin.cases rfl (fun j => j.elim0)) i)
   change HasTrace (region model.raw (extend ambient (encodeValue _ _ seedRecord))
     (Program.ofCFGEntry seedOriginal.toSSA.table.typed).code) _
   rw [← shared]
-  exact source_swap
+  exact h
+
+private theorem seed_packed_swap (ambient : Env Runtime) :
+    HasTrace (seedOriginal.observePacked model seedRecord ambient) swappedTrace :=
+  seed_packed_trace ambient source_swap
 
 theorem appended_split_swap (ambient : Env Runtime) :
     HasTrace (seedSplit.observePacked model extendedRecord ambient) swappedTrace := by
@@ -486,6 +525,82 @@ theorem two_splits_trace_order (ambient : Env Runtime) :
       (fun t => TraceLE t (seedOriginal.observePacked model seedRecord ambient))).mpr
     rw [composed_retains_seed]
     exact ⟨TraceLE.refl _, TraceLE.refl _⟩
+
+/-! ## Relabel both instructions to the same opcode after the two splits -/
+
+private def collapse : SignatureMap Opcode Opcode (Ty SortName) (Ty SortName) Bool Bool where
+  instr _ := .tick
+  ty := id
+  eff := id
+  source _ := rfl
+  target _ := rfl
+  effect _ := rfl
+
+private def relabel : signature ⟶ signature :=
+  ⟨collapse, rfl, rfl⟩
+
+theorem relabel_noninjective : ¬ Function.Injective relabel.toSignatureMap.instr :=
+  fun injective => Opcode.noConfusion (injective (a₁ := .tick) (a₂ := .finish) rfl)
+
+-- Check the exact existing arrival rows under relabelling, independently of
+-- the transported lexical typing certificate.
+example : CFG.Cyclic.Phi.GlobalSSA.check (seedSplit.map relabel).source seedSplit.inputs
+    transportedArrivals = true :=
+  (CFG.Cyclic.Phi.GlobalSSA.check_mapOp collapse.instr seedSplit.source seedSplit.inputs
+    transportedArrivals).trans transportedArrivals_check
+
+private def relabelled : EntryComparison Event (seedOriginal.map relabel) (finalSplit.map relabel) :=
+  (firstComparison.map relabel).comp (secondComparison.map relabel)
+
+private theorem relabelled_slots : relabelled.slots = composedComparison.slots :=
+  congrArg EntryComparison.slots
+    (EntryComparison.map_comp firstComparison secondComparison relabel).symm
+
+private abbrev reduct := FlatInstitution.reduct Event relabel model
+
+private theorem reduct_raw : reduct.raw = model.raw := by
+  funext opcode arg
+  change instr .tick arg = instr opcode arg
+  cases opcode with
+  | tick => rfl
+  | finish =>
+    cases arg <;> try rfl
+    rename_i left right
+    cases left <;> cases right <;> rfl
+
+theorem relabelled_visible_order (ambient : Env Runtime) :
+    HasTrace ((finalSplit.map relabel).toSSA.observe model finalRecord) finishedTrace ∧
+    HasTrace ((finalSplit.map relabel).observePacked model finalRecord ambient) finishedTrace := by
+  apply (relabelled.satisfies_iff model finalRecord ambient
+    (fun tree => HasTrace tree finishedTrace) (fun tree => HasTrace tree finishedTrace)).mpr
+  have projected : reindex relabelled.slots finalRecord = seedRecord := by
+    rw [relabelled_slots, composed_retains_seed]
+  have packedTrace (env : Env Runtime) :
+      HasTrace (seedOriginal.observePacked reduct seedRecord env) finishedTrace := by
+    unfold Admitted.observePacked
+    rw [reduct_raw]
+    exact seed_packed_trace env source_finish
+  have namedTrace : HasTrace (seedOriginal.toSSA.observe reduct seedRecord) finishedTrace :=
+    (NamedFlat.Entry.SSA.observe_tree reduct seedOriginal.toSSA seedRecord (fun _ => .unit)).symm ▸
+      packedTrace (fun _ => .unit)
+  have namedEq :=
+    (congrArg (fun record : Input seedTypes => (seedOriginal.map relabel).toSSA.observe model record) projected).trans
+      (seedOriginal.observe_named_map relabel model seedRecord)
+  have packedEq :=
+    (congrArg (fun record => (seedOriginal.map relabel).observePacked model record ambient) projected).trans
+      (seedOriginal.observePacked_map relabel model seedRecord ambient)
+  exact ⟨namedEq.symm ▸ namedTrace, packedEq.symm ▸ packedTrace ambient⟩
+
+theorem relabelled_trace_order (ambient : Env Runtime) :
+    TraceLE ((seedOriginal.map relabel).toSSA.observe model seedRecord)
+        ((finalSplit.map relabel).toSSA.observe model finalRecord) ∧
+      TraceLE ((seedOriginal.map relabel).observePacked model seedRecord ambient)
+        ((finalSplit.map relabel).observePacked model finalRecord ambient) := by
+  have sound := (composedComparison.satisfies_map_iff relabel model finalRecord ambient TraceLE TraceLE).mpr
+    ⟨(composedComparison.named reduct finalRecord) ▸ TraceLE.refl _,
+      (composedComparison.packed reduct finalRecord ambient) ▸ TraceLE.refl _⟩
+  rw [composed_retains_seed] at sound
+  exact sound
 
 private def entryCandidate := (profileCandidate entryPlan source seedCaptures originalProfile).get (by decide)
 

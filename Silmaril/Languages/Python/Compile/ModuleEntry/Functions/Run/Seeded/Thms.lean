@@ -528,8 +528,13 @@ theorem observeArgumentIn_published {space : Namespace} {context : CallContext}
       match observeDirectCall space (invocation.runPrefix context.table context.fuel).2.state with
       | (.ok observed, heap) => (observed.result.mapError .ofCall, [⟨name, observed⟩], heap)
       | (.error error, heap) => (.error error, [], heap) := by
-  simp [observeArgumentIn, Core.Module.SeededCall.resolveCall, Core.Module.SeededCall.Operand.eval,
-    Core.Module.SeededCall.Operand.evalList, Except.bind, Except.map, found, invokeFlatCall, admitted]
+  have recorded : closure ∈ context.published := by
+    by_contra absent
+    simp [CallContext.acceptsPublishedCall, CallContext.acceptsCallFrom, absent] at admitted
+  simp [observeArgumentIn, argumentObservation, invokeArgumentIn, invokePublishedArgument,
+    Core.Module.SeededCall.resolveCall, Core.Module.SeededCall.Operand.eval,
+    Core.Module.SeededCall.Operand.evalList, Except.bind, Except.map, found, admitted, recorded,
+    factoryOperands, ordinaryCall, callbackInvocation]
   rfl
 
 theorem observeArgumentIn_escaped {space : Namespace} {context : CallContext}
@@ -541,8 +546,8 @@ theorem observeArgumentIn_escaped {space : Namespace} {context : CallContext}
       match observeDirectCall space (ordinaryCall space context closure [.literal (.int value)]) with
       | (.ok observed, heap) => (observed.result.mapError .ofCall, [⟨name, observed⟩], heap)
       | (.error error, heap) => (.error error, [], heap) := by
-  simp only [observeArgumentIn, resolved, admitted, Bool.and_self, ite_true]
-  cases observeDirectCall space (ordinaryCall space context closure [.literal (.int value)]); rfl
+  simp [observeArgumentIn, resolved, invokeArgumentIn, admitted, argumentObservation]
+  rfl
 
 theorem observeArgumentIn_escapedZero {space : Namespace} {context : CallContext}
     {name : String} {closure : Function}
@@ -552,9 +557,42 @@ theorem observeArgumentIn_escapedZero {space : Namespace} {context : CallContext
       match observeDirectCall space (ordinaryCall space context closure []) with
       | (.ok observed, heap) => (observed.result.mapError .ofCall, [⟨name, observed⟩], heap)
       | (.error error, heap) => (.error error, [], heap) := by
-  simp [observeArgumentIn, Core.Module.SeededCall.resolveCall, Core.Module.SeededCall.Operand.eval,
-    Core.Module.SeededCall.Operand.evalList, Except.bind, Except.map, found, admitted]
-  cases observeDirectCall space (ordinaryCall space context closure []); rfl
+  simp [observeArgumentIn, argumentObservation, invokeArgumentIn, Core.Module.SeededCall.resolveCall, Core.Module.SeededCall.Operand.eval,
+    Core.Module.SeededCall.Operand.evalList, Except.bind, Except.map, found,
+    admitted]
+  rfl
+
+theorem invokePublishedArgument_admitted {space : Namespace} {context : CallContext}
+    {closure : Function} {operands : List Core.Module.Functions.Operand} {values : List Value}
+    (published : closure ∈ context.published) (bounded : factoryOperands values = some operands) :
+    invokePublishedArgument space context closure values =
+      observeDirectCall space (ordinaryCall space context closure operands) := by
+  simp [invokePublishedArgument, published, bounded]
+
+theorem invokePublishedArgument_unrecorded (space : Namespace) (context : CallContext)
+    (closure : Function) (values : List Value) (unrecorded : closure ∉ context.published) :
+    invokePublishedArgument space context closure values =
+      (.ok ⟨.error .unsupported, none⟩, context.heap) := by
+  simp [invokePublishedArgument, unrecorded]
+
+theorem observeArgumentIn_resolutionFailure {space : Namespace} {context : CallContext}
+    {allowClosureCalls : Bool} {name : String} {arguments : List Core.Module.Functions.Operand}
+    {error : Failure}
+    (failed : Core.Module.SeededCall.resolveCall space #v[] (.global name)
+      (arguments.map lowerCallOperand) = .error error) :
+    observeArgumentIn space context (.call name arguments) allowClosureCalls =
+      (.error (.ofCall error), [⟨name, ⟨.error error, none⟩⟩], context.heap) := by
+  simp [observeArgumentIn, failed, argumentObservation, Except.mapError]
+
+theorem argumentObservation_tuple (space : Namespace) (name : String) (heap : Heap)
+    (items : List Core.Module.Value) :
+    argumentObservation name (observeDirectCall space (.finished heap (.ok (.tuple items)))) =
+      (.ok (.returnedTuple items), [⟨name, ⟨.ok (.returnedTuple items), none⟩⟩], heap) := rfl
+
+theorem argumentObservation_fault (space : Namespace) (name : String) (heap : Heap)
+    (stack : Core.Closure.Executor.Stack) (fault : Fault) :
+    argumentObservation name (observeDirectCall space (.faulted heap stack fault)) =
+      (.error (.directCallFault fault), [], heap) := rfl
 
 theorem observeArgumentsIn_stop {space : Namespace} {context : CallContext} {allowEscaped : Bool}
     {argument : Argument} {rest : List Argument} {error : ModuleFailure} {calls : List CallEvent} {heap : Heap}
@@ -585,5 +623,16 @@ theorem observeNestedCallIn_failedArguments {space : Namespace} {context : CallC
       (.error error, calls, heap)) :
     observeNestedCallIn space context destination name arguments = (⟨.error error, calls⟩, heap) := by
   simp [observeNestedCallIn, found, failed]
+
+theorem observeNestedCallIn_settledArguments {space : Namespace} {context : CallContext}
+    {destination : Core.Module.Functions.Destination} {name : String} {callee : Value}
+    {arguments : List Argument} {values : List Value} {calls : List CallEvent} {heap : Heap}
+    (found : space.lookupGlobal name = some callee)
+    (evaluated : observeArgumentsIn space context arguments (allowsEscapedArgument destination callee) =
+      (.ok values, calls, heap)) :
+    observeNestedCallIn space context destination name arguments =
+      let outer := acceptObservation destination name (Core.Module.SeededCall.invokeObserved callee values)
+      ({ outer with calls := calls ++ outer.calls }, heap) := by
+  simp [observeNestedCallIn, found, evaluated]
 
 end Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded
