@@ -42,6 +42,19 @@ theorem mapOp_comp (h : F → F') (k : F' → F'') (graph : CFG V K F) :
 
 end MapOp
 
+section Relabel
+
+variable {V K K' : Type w} {F : Type v} {M : Type w → Type w} {α : Type w}
+  [Monad M] [DecidableEq V]
+
+theorem Body.exec_relabel (model : Model F M α) {R : Type w} (rename : K → K')
+    (next : K' → α → (V → α) → M R) (body : Body V K F) (store : V → α) :
+    (body.relabel rename).exec model next store =
+      body.exec model (fun label => next (rename label)) store :=
+  Silmaril.Proofs.SSA.LambdaRTL.CFG.Body.exec_relabel model rename next body store
+
+end Relabel
+
 variable {V L K : Type w} {F : Type v} {M : Type w → Type w} {α : Type w} [Monad M]
   [LawfulMonad M] [DecidableEq V] [DecidableEq L] [DecidableEq K]
 

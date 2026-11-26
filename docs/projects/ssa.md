@@ -165,6 +165,15 @@ reads its free inputs from the incoming packet, even across back edges.
 With a store-reading continuation, a single discarded assignment suffices
 to [distinguish equal classes](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/Institution/Refinement/Plugging/Regression.lean).
 
+[Executable cyclic linking](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Link/Thms.lean)
+uses finite input and output ports carrying one value of the common carrier.
+Every private address names a packet-closed block. Linking allocates disjoint
+private ranges and a forwarding block per intermediate port. The right stage
+can loop within its own range and can exit through its public ports. Running
+the resulting ordinary named CFG agrees with staged exit plugging.
+Observational classes of these graphs form a category with the wire identity
+and linker composition, which is monotone for terminating-result inclusion.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`
