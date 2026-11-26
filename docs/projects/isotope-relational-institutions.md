@@ -185,15 +185,36 @@ With pointwise agreement at projected environments, visible-environment
 validity implies full-environment validity. The converse requires coverage
 of the visible valuations.
 
-For a vertical comparison over shared signatures, check
-`embed_T (translate f e) = translate f (embed_S e)` and naturality of the
-model comparison with respect to reduct along `f`. Pointwise denotation
-agreement gives a satisfaction equivalence when the environment comparison
-covers the valuations on both sides. For a horizontal comparison, use the
-image of `f` under the comparison's signature functor and preserve the
-fixed structural operations and observation used by the adapter. These are
-the components to compare when proving a square of institution morphisms or
-comorphisms. The term, quotient and denotation squares are separate work.
+### Witness transport and restrictions
+
+A semantic sentence retains its two particular derivations. The satisfaction
+quantifiers range over environments and observations at those endpoints.
+A restriction that transports witnesses has two distinct obligations.
+
+- For a sentence comparison, specify how each endpoint derivation is
+  transported, including its context and result index. Prove pointwise
+  agreement with the chosen observation at those witnesses. To obtain a
+  comorphism, prove the sentence square
+  `embed_T (translate f e) = translate f (embed_S e)` with the transported
+  witnesses included, and prove naturality of the model comparison with
+  respect to the reduct. To deduce both directions of satisfaction transport
+  from pointwise agreement, account for all quantified valuations on both
+  sides.
+- For a comparison of generated theories, prove that each source generator
+  is respected at the transported endpoints, using its typing and purity
+  premises. For example, the upper native generator requires
+  `TypedEquiv.Related` at the specified `nativeTyping` witnesses.
+  Extending the comparison from generators to derivable equations also
+  requires compatibility with the closure operations used by the theory.
+
+A quotient-to-observation map needs a separate proof that its observation
+factors through the specified equivalence. A canonical-representative
+construction may instead choose specific witnesses and prove the necessary
+endpoint, generator, and relabelling compatibility for that choice. A
+quotient-indexed choice also needs a well-definedness proof.
+For a horizontal comparison, the same squares use the image of `f` under
+the comparison's signature functor and preserve the structural operations
+and observation specified by the adapter.
 
 The fixed index, forward relabelling, backward reduct and `Room` follow the
 fixed-world SC institution design. The fixtures follow its concrete
