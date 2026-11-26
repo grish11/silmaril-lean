@@ -38,20 +38,20 @@ column records the initial scalar coverage and the boundary for each typed slice
 | --- | --- | --- |
 | `scf.condition` | The `while` before-region terminator tests an `i1` and forwards a tuple to the after-region or to the loop results. | The merged scalar slice types the tuple against the after-region arguments and loop results. [#3167][while-cf] |
 | `scf.execute_region` | Runs a region once, with no operands or entry arguments. It allows dominating captures and multiple blocks and exits. | Start with a single block and typed exit, then relate multiple blocks and captures to a typed CFG. |
-| `scf.for` | Counts over a half-open range with positive step and optional loop-carried arguments and results. | Specify bound arithmetic, overflow and the empty range. Tie the body's yielded values to the carried tuple. |
+| `scf.for` | Counts over a half-open range with positive step and optional loop-carried arguments and results. | The merged unsigned scalar slice checks positive step, no-wrap admission, and lowering to typed CF. [#3214](https://github.com/hiloopai/silmaril-lean/pull/3214) |
 | `scf.forall` | Invokes a multidimensional body across virtual threads with shared tensor outputs and implicit synchronization. | Start with a specified shared-output update and disjoint slices. Add effect order and target mapping separately. |
 | `scf.forall.in_parallel` | Terminates the `forall` body and groups the actions that contribute to the shared outputs. | Type actions against the enclosing destinations and specify how updates combine. |
-| `scf.if` | Selects a then-region or optional else-region using an `i1`. A result-bearing `if` requires both arms to yield the result tuple. | Type captures and a common result tuple, including the resultless case with no else-region. |
-| `scf.index_switch` | Selects one region by an `index` selector and integer case labels, with a mandatory default region. | Type the labels and common yielded result tuple. Execute only the selected region. |
-| `scf.parallel` | Iterates a multidimensional half-open index space in unspecified order and supports parallel execution. Its single body block ends in `scf.reduce`. Data races have undefined behavior. | Admit positive steps and the documented no-overflow condition. Separate independent pure contributions from shared effects. |
-| `scf.reduce` | Terminates the `parallel` body. Each operand and binary combiner region shares a type with the matching initial value and result. The order is unspecified. | Match each contribution, combiner and result slot. Model the allowed orders before proving order independence. |
-| `scf.reduce.return` | Exits a combiner region with one value of its reduction type. | Tie the returned type to the corresponding pair of combiner arguments. |
+| `scf.if` | Selects a then-region or optional else-region using an `i1`. A result-bearing `if` requires both arms to yield the result tuple. | The merged slice checks typed scalar arms, optional nested while loops, and their common result tuple under lowering to CF. [#3198](https://github.com/hiloopai/silmaril-lean/pull/3198) |
+| `scf.index_switch` | Selects one region by an `index` selector and integer case labels, with a mandatory default region. | The merged 64-bit index slice checks case selection, the common yielded tuple and lowering to typed `cf.switch`. [#3223](https://github.com/hiloopai/silmaril-lean/pull/3223) |
+| `scf.parallel` | Iterates a multidimensional half-open index space in unspecified order and supports parallel execution. Its single body block ends in `scf.reduce`. Data races have undefined behavior. | The merged pure model handles one mathematical natural-index dimension. The typed follow-on checks a statically admitted unsigned scalar induction value and passes the grouped result to an enclosing yield. [#3202][parallel-pure] · [Typed boundary](../../Silmaril/SSA/MLIR/SCF/ParallelYield/Thms.lean) |
+| `scf.reduce` | Terminates the `parallel` body. Each operand and binary combiner region shares a type with the matching initial value and result. The order is unspecified. | The typed boundary indexes the contribution tuple, initial values and combiner regions by the same slot types. The result theorem ranges over the pure model's admitted orders and trees. [Typed boundary](../../Silmaril/SSA/MLIR/SCF/ParallelYield/Thms.lean) |
+| `scf.reduce.return` | Exits a combiner region with one value of its reduction type. | The typed boundary checks a single returned value at the width of both combiner parameters. [Typed combiner interface](../../Silmaril/SSA/MLIR/SCF/ParallelYield/Defs.lean) |
 | `scf.while` | Alternates two single-block regions. The initial operands go to the before-region, and the after-region sends the next inputs back. The before-region tuple and the loop results may have different types from the initial inputs. | The merged scalar slice checks separate region interfaces and proves that CF lowering preserves and reflects finite returns and divergence. [#3167][while-cf] |
-| `scf.yield` | Returns a tuple at a structured region boundary. The parent decides the next destination, including the next iteration's before-region in `while`. | The merged scalar slice covers the after-region exit of `while`. Other parents need their own typed exit interfaces. [#3167][while-cf] |
-| `cf.assert` | Tests an `i1` with a message attribute. True continues and false aborts execution. | Reserved for the CF follow-on. Use a sequenced effect and explicit abort observation. Decide whether the message is observed. |
+| `scf.yield` | Returns a tuple at a structured region boundary. The parent decides the next destination, including the next iteration's before-region in `while`. | The merged while slice covers the after-region exit. The typed follow-on checks a one-shot enclosing yield and its agreement with a fragment return. [#3167][while-cf] · [Typed boundary](../../Silmaril/SSA/MLIR/SCF/ParallelYield/Thms.lean) |
+| `cf.assert` | Tests an `i1` with a message attribute. True continues and false aborts execution. | The merged typed CF slice observes abort and keeps the message as syntax metadata. [#3184][switch-assert] |
 | `cf.br` | Transfers control and operands to one successor block. | The merged scalar CFG types the operand tuple against the destination's block arguments. [#3167][while-cf] |
 | `cf.cond_br` | Selects one of two successor edges using an `i1`. Each edge carries its own operands. Both can target the same block, and neither can target the entry block. | The merged scalar CFG types operand tuples per edge and puts the entry outside the destination labels. [#3167][while-cf] |
-| `cf.switch` | Selects a successor by a signless integer selector and distinct case constants of the same type, with a mandatory default edge. | Reserved for the CF follow-on. Check case uniqueness at the selector width and type every edge's operands against its destination. [Pinned CF verifier](https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/lib/Dialect/ControlFlow/IR/ControlFlowOps.cpp#L713) |
+| `cf.switch` | Selects a successor by a signless integer selector and distinct case constants of the same type, with a mandatory default edge. | The merged typed CF slice checks distinct full-width case patterns and destination-typed operand tuples for every edge. [#3184][switch-assert] · [Pinned CF verifier](https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/lib/Dialect/ControlFlow/IR/ControlFlowOps.cpp#L713) |
 
 Natural subsets follow the interfaces in the matrix.
 
@@ -67,6 +67,34 @@ The scalar while-to-CF slice is on main at `8e0c832ace328d4c238f16fa84faa50c04f2
 observations are a result tuple or divergence on total deterministic scalar operations. [While-to-CF lowering][while-cf]
 
 [while-cf]: https://github.com/hiloopai/silmaril-lean/pull/3167
+[parallel-pure]: https://github.com/hiloopai/silmaril-lean/pull/3202
+[switch-assert]: https://github.com/hiloopai/silmaril-lean/pull/3184
+
+## Checked typed parallel and structural yield boundary
+
+`ParallelYield.Program` uses the merged one-dimensional pure reduction model at
+`698b53c652a5db0e4afe2693ac17116d9e64b9e7`. It supplies the bounds as a mathematical index
+space and requires the positive step and exit index to fit a fixed unsigned width.
+`bounds_fit` and `indexValue_exact` check that the bounds and each induction value fit that width.
+The body sees the induction value and the parent captures. Each combiner sees two values of
+its slot type and the parent captures. Its `reduce.return` passes one value at the slot width.
+The enclosing region receives the reduced tuple and the parent captures, and completes
+with structural `scf.yield`. [Pure reduction model][parallel-pure] · [Typed definitions](../../Silmaril/SSA/MLIR/SCF/ParallelYield/Defs.lean)
+
+`YieldRegion.asReturn_eval` proves agreement with a fragment return for any body in this
+straight-line profile. The yield observation is the resulting tuple. A resumable effect would
+have its own request, reply type and continuation. `Program.returns_iff_eq_denote` proves
+that under slotwise associativity and commutativity the local reduction relation yields
+exactly the reference result of the enclosing region. It inherits the initial-first and
+shared-tree choices of the pure model. `Program.returns_iff_of_empty` shows that with zero
+trips the enclosing region still runs on the initial tuple, with no algebraic hypotheses.
+The checked examples use two widths, capture a parent value, and reorder the yielded tuple
+after a local operation. [Theorems](../../Silmaril/SSA/MLIR/SCF/ParallelYield/Thms.lean) · [Lean examples](../../Silmaril/SSA/MLIR/SCF/ParallelYield/Examples.lean)
+
+```sh
+lake build --wfail +Silmaril.SSA.MLIR.SCF.ParallelYield.Examples
+make check CHECK_TARGETS=+Silmaril.SSA.MLIR.SCF.ParallelYield.Examples
+```
 
 ## Parallel and yield with LetIter
 
@@ -91,25 +119,18 @@ constructors or explicit interpretations. In particular, the end of an upstream
 
 | Extension | LetIter AST research gap | MLIR-like AST research gap |
 | --- | --- | --- |
-| LetIter + Parallel | Add typed finite indexed bodies, captures and joins, with separately typed reduction operations. Show how the existing typing and sequential observations embed. | Start with typed `scf.parallel`-like iteration and reduction slots. Check bound admission and zero-trip initialization. Specify explicit shared outputs and synchronization as a separate `forall` slice. |
-| LetIter + Yield | Add typed exits with explicit parent and payload interfaces for structured yield. A suspension extension needs a request, a reply type, a continuation and a choice of visible observations. | Check each structured exit against its parent or successor interface. A suspending or scheduling instruction needs its own operation and state, including a resume point if resumption is observable. |
-| LetIter + Parallel + Yield | Type the owner of each yield across workers and the join. For resumable workers, define who resumes them and how suspension interacts with completion, divergence and cancellation if admitted. | Keep per-worker exits, reduction return and join results typed separately. For suspending workers, expose the scheduler and continuation state with explicit ordering of effects around a join. |
+| LetIter + Parallel | Add typed finite indexed bodies, captures and joins, with separately typed reduction operations. Show how the existing typing and sequential observations embed. | The checked typed pure slice covers one unsigned dimension and zero-trip initialization. Explicit shared outputs and synchronization belong to the `forall` slice. |
+| LetIter + Yield | Add typed exits with explicit parent and payload interfaces for structured yield. A suspension extension needs a request, a reply type, a continuation and a choice of visible observations. | The checked one-shot structural boundary has a typed payload and explicit captures. A suspending or scheduling instruction needs its own operation and state, including a resume point if resumption is observable. |
+| LetIter + Parallel + Yield | Type the owner of each yield across workers and the join. For resumable workers, define who resumes them and how suspension interacts with completion, divergence and cancellation if admitted. | The typed pure slice distinguishes per-trip contributions, combiner returns and the enclosing yield. A worker semantics still needs a scheduler, continuation state and a contract for effects around the join. |
 
-**Operational stage.** For structured exits, first prove scope and typing preservation for
-transfers of payloads to parents. For parallel reduction, first give a finite pure semantics with
-an explicit iteration domain, admissible enumeration and reduction orders, and initialization.
-Compare a sequential reference fold with the relational outcomes for that profile. Add a worker
-and join transition system for concurrency, with the treatment of shared memory, races and
-synchronization stated as part of the profile. For suspension, specify resume steps and which
-requests, replies, exits and finite prefixes are visible. State any fairness hypothesis used in
-a liveness claim.
+**Operational stage.** The typed pure boundary fixes the scope of transferred payloads and
+the finite iteration domain. A concurrent profile needs a worker and join transition system
+with explicit rules for shared memory, races and synchronization. For suspension, specify
+resume steps and which requests, replies, exits and finite prefixes are visible. State any
+fairness hypothesis used in a liveness claim.
 
-**Denotational stage.** A fixed-order sequential pure fold computes one result. A pure reduction
-can collapse to a deterministic value once enumeration and permitted reassociation are proved
-irrelevant, for example with a total associative and commutative combiner and each contribution
-and initial value used exactly once. The empty iteration space returns the initial value. Without
-such a proof, even pure reductions can expose multiple results. For effects or suspension,
-choose observations of scheduling, traces, abort and divergence and prove an adequacy or
-refinement theorem against the operational semantics. A trace or resumption model must account
-for how parallel composition, sequencing and iteration interact before it can support their
-combined equations.
+**Denotational stage.** In the pure model, the fixed-order sequential fold agrees with all
+locally admitted orders and trees under the slotwise laws. Pure order-sensitive combiners
+can expose multiple results. An effectful or suspending model needs observations of scheduling,
+traces, abort and divergence and an adequacy or refinement theorem against the operational
+semantics. Its equations depend on how parallel composition, sequencing and iteration interact.
