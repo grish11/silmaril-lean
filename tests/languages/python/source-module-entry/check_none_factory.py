@@ -4,7 +4,6 @@
 from pathlib import Path
 import runpy
 import sys
-import tempfile
 
 
 REBIND = """f3 = lambda x: lambda y: global_x + y
@@ -114,7 +113,6 @@ if __name__ == "__main__":
     directory = Path(__file__).resolve().parent
     existing = runpy.run_path(str(directory / "check_return_local_call.py"))
     reference = runpy.run_path(str(directory / "check_factory_results.py"))["reference"]
-    shared = runpy.run_path(str(directory.parent / "source-scope/check_intake.py"))
     for placement in ("empty", "builtin", "preamble"):
         completion, space = reference(REBIND, placement)
         assert completion == ("NameError:___assertEqual" if placement == "empty" else "normal")
@@ -142,10 +140,5 @@ if __name__ == "__main__":
         error = f'(.nameError "{missing}")' if missing else "(.positionalArity 1 2)"
         seeded = f'(.raised (.runtime {error}))' if missing else ".unsupported"
         fixtures.append((source, f'#guard orderedStop pythonSource "{callee}" {error} {seeded}'))
-    with tempfile.TemporaryDirectory() as tmp:
-        source_path, lean_path = Path(tmp) / "Example.py", Path(tmp) / "Example.lean"
-        for source, guard in fixtures:
-            shared["emit"](source_path, lean_path, source)
-            shared["check_lean"](lean_path, existing["LEAN"] + LEAN + "\n" + guard + "\n",
-                                 extra_imports=existing["IMPORTS"])
+    existing["check_fixtures"](fixtures, existing["LEAN"] + LEAN)
     print(f"CPython {sys.version.split()[0]} and Lean checked exact None binding and live factory globals.")
