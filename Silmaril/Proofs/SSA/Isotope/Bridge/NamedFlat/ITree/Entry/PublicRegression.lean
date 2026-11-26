@@ -1,13 +1,12 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Construction.Thms
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.HandledTrace.Readback.Construction.Defs
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
 namespace Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
 
 open Silmaril.Isotope (Value)
-open Silmaril.SSA.LambdaRTL (CFG upd)
+open Silmaril.SSA.LambdaRTL (CFG Val upd)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 
 private abbrev bit : PacketType := .coprod .unit .unit
@@ -70,22 +69,50 @@ example : ¬ inclusion false true packet := by
   have rejected : (built false).program.refinementAt? (built true).program 0 packet = false := by cbv
   simp [rejected] at accepted
 
--- This is a valid structural seed for the phi builder. Its literal erased
--- entry is a constant, so it cannot certify the public slot read in #4232.
+-- The written constant differs from the public slot read. The literal
+-- constructor still requires whole-table equality.
 private def constantSeed : CFG Name Name Unit :=
   ⟨.term (.br ⟨9⟩ .unit), [(⟨9⟩, ⟨⟨6⟩, .term (.br ⟨22⟩ .unit)⟩)]⟩
 
 private def noFields (_ : Name) : List Name := []
 private def unitExits (_ : Fin exits.length) : PacketType := .product .unit .unit
-private def constantReadback :=
-  NamedFlat.elaborate (Silmaril.SSA.LambdaRTL.CFG.Cyclic.LiveOut.attach noFields constantSeed)
-    exits (fun _ : Fin 1 => capture)
 
-example :
-    (constantReadback.map (fun flat => (Phi.Certified.Entry.OrderedExits.Readback.construct
-      signature (fun _ => .unit) unitExits flat).isSome)).getD false = true := by decide
+example : (constructSeeded signature constantSeed exits noFields capture .unit (fun _ => .unit) unitExits).isSome :=
+  by decide
 
 example : (construct signature constantSeed exits noFields capture .unit (fun _ => .unit) unitExits).isNone = true :=
   by decide
+
+private def pairSeed (first : Val Name) :=
+  constructSeeded signature {constantSeed with entry := .term (.br ⟨9⟩ (.pair first .unit))}
+    exits noFields capture (.product .unit .unit) (fun _ => .product .unit .unit) unitExits
+
+example : (pairSeed .unit).isSome := by decide
+example : (pairSeed (.var capture)).isNone := by decide
+
+private def seededGraph (constant : Bool) : CFG Name Name Unit :=
+  if constant then constantSeed else {constantSeed with entry := .term (.br ⟨9⟩ (.var capture))}
+
+private def seedFields (_ : Name) : List Name := [⟨6⟩]
+private def seedExits (_ : Fin exits.length) : PacketType := .product .unit (.product .unit .unit)
+private def seedBuilt (constant : Bool) :
+    Seeded signature (seededGraph constant) exits seedFields capture .unit seedExits :=
+  (constructSeeded signature (seededGraph constant) exits seedFields capture .unit (fun _ => .unit) seedExits).get
+    (by cases constant <;> decide)
+
+-- The live-out is the register filled by the actual entry jump. Both sides
+-- need a seed check, even though their erased internal rows coincide.
+example :
+    ∀ policy : Silmaril.Logic.ITree.Model.{0,0} signature.traceSignature.toSignature,
+      ∀ x, policy.initial x → ∀ trace,
+        Silmaril.Elgot.ITree.HandledTrace policy.step x
+          (LiveOut.observeRaw signature.primitive exits seedFields (seededGraph true) (fun _ => .unit)) trace →
+        Silmaril.Elgot.ITree.HandledTrace policy.step x
+          (LiveOut.observeRaw signature.primitive exits seedFields (seededGraph false) (fun _ => .unit)) trace :=
+  ((seedBuilt true).refinementAt?_iff_namedHandledTrace (seedBuilt false)
+    (fun _ => .unit) ⟨⟩ (fun _ => .unit) (fun _ => .unit) (by decide) (by decide)).mp (by cbv)
+
+example : (seedBuilt true).checkSeed (fun _ => .pair .unit .unit) ⟨⟩ = true := by decide
+example : (seedBuilt false).checkSeed (fun _ => .pair .unit .unit) ⟨⟩ = false := by decide
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
