@@ -29,8 +29,8 @@ theorem caseIter_commutes (t : LetCase.LocallyNameless.Tm ν Φ n) :
 /-- The outer rectangle commutes from LetSeq to LetParIter. -/
 theorem seqIter_commutes (t : LetSeq.LocallyNameless.Tm ν Φ n) :
     LetParIter.embed (Morphism.CaseIter.embed (Morphism.SeqCase.embed t)) =
-      LetParIter.ofLetParCase (LetParCase.ofLetPar (LetPar.embed t)) := by
-  rw [caseIter_commutes, seqCase_commutes]
+      LetParIter.ofLetParCase (LetParCase.ofLetPar (LetPar.embed t)) :=
+  LetParIter.embed_seqIter t
 
 /-- The composite embedding commutes with renaming under every binder. -/
 theorem seqIter_rename (ρ : Fin n → Fin m) (t : LetSeq.LocallyNameless.Tm ν Φ n) :
@@ -133,7 +133,7 @@ theorem iterParTerm_injective : Function.Injective (iterParTerm : _ → TypedTer
 
 theorem parCaseIterTerm_injective :
     Function.Injective (parCaseIterTerm : _ → TypedTerm .iter Φ Γ i) :=
-  Subtype.map_injective _ (Tm.widen_injective Tier.caseIter)
+  Subtype.map_injective _ LetParIter.ofLetParCase_injective
 
 /-- The composite parallel inclusion is also injective before taking any quotient. -/
 theorem seqIterTerm_injective :
