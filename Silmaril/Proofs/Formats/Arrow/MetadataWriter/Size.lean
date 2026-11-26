@@ -36,7 +36,7 @@ private theorem field_size (field : Field) :
   obtain ⟨name, nullable, type⟩ := field
   have size : name.toByteArray.data.toList.length = name.utf8ByteSize := rfl
   cases type <;>
-    simp only [fieldBytes, pad, words, Writer.emitWords_length, append_length, zeros_length,
+    simp only [fieldBytes, fieldFragment, pad, words, Writer.emitWords_length, append_length, zeros_length,
       List.length_cons, List.length_nil, List.length_map, size]
   all_goals
     have count : 4 * 7 + (4 * 5 + (4 * 1 + (1 * name.utf8ByteSize + 1))) =
@@ -83,7 +83,7 @@ private theorem batch_wf (batch : RecordBatch) (bodyLength : Nat) :
 
 theorem schemaPayload_size (fields : List Field) :
     (schemaPayload fields).len = schemaPayloadSize fields := by
-  simp only [schemaPayload, schemaPayloadSize, words, Writer.emitWords_length,
+  simp only [schemaPayload, schemaPayloadOf, schemaPayloadSize, words, Writer.emitWords_length,
     append_length, zeros_length, List.length_cons, vectorLength, List.length_map, objects_size]
   omega
 
