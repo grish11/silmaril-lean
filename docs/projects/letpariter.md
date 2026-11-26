@@ -77,17 +77,60 @@ its own pairing and proves the record's fields for its chosen observations.
 [Soundness](../../Silmaril/SSA/Isotope/LetParIter/Thms.lean) ·
 [Model regression](../../tests/ssa/LetParPairingModel.lean)
 
-## Native compatibility
+## Tier inclusions
 
-`embed` is constructor-preserving and `toLetIter?` is its left inverse.
-`derivation` preserves native exact typing. The embedding commutes with type-preserving
-renaming, simultaneous bound substitution and the native inclusion from
-LetCase. `denote_embed` preserves
-native denotation in every model supplied with a pairing. The native
-denotation on these terms is therefore independent of the chosen pairing
-on that same model. This gives syntactic injectivity and conservativity of
-the interpretation on native programs. Reflection of the extended
-equational theory into native syntactic equality would require a separate
-argument.
+```mermaid
+flowchart LR
+  Seq[LetSeq] --> Case[LetCase]
+  Case --> Iter[LetIter]
+  Par[LetPar] --> ParCase[LetParCase]
+  ParCase --> ParIter[LetParIter]
+  Seq --> Par
+  Case --> ParCase
+  Iter --> ParIter
+```
+
+The vertical embeddings and the parallel-tier widenings are injective on
+constructor trees. `LetParCase.embed_seqCase` and `LetParIter.embed_caseIter`
+give the adjacent squares. `LetParIter.embed_seqIter` gives the composite
+rectangle. The widening from LetParCase and the composite widening from LetPar
+also preserve exact typing and their common monadic denotation.
+
+[LetParCase squares](../../Silmaril/SSA/Isotope/LetParCase/Thms.lean) ·
+[LetParIter squares](../../Silmaril/SSA/Isotope/LetParIter/Thms.lean)
+
+## Native compatibility and reflection
+
+`embed` preserves native constructors and `toLetIter?` is its left inverse.
+The embedding commutes with bound renaming and simultaneous bound substitution.
+`denote_embed` preserves exact native denotation independently of the choice
+of pairing in that model. These are facts about syntax, typing, and
+interpretation at fixed derivations.
+
+Equational conservativity asks whether equality between two embedded native
+typing derivations implies the original native proof-relevant equation.
+`native_denote_eq` gives the semantic step: equality of embedded endpoints
+implies native denotational equality in every model equipped with lawful
+parallel pairing.
+
+The word separation test proves this reflection for canonical closed
+straight-line programs over two effectful `unit → unit` instructions. The
+partial writer's sequential bind concatenates instruction words in order.
+Its symmetric parallel operation retains a lone nonempty word and uses a
+fixed nonempty word when both operands have output. The resulting model
+distinguishes every pair of distinct words even when a proposed equality
+uses parallel terms in the derivation. In particular, emitting the two
+instructions in opposite orders stays inequivalent.
+
+General equational reflection still needs a family of models that validates
+parallel pairing and separates all inequivalent native typed endpoints,
+including arbitrary sums, environments, and feedback. The partial writer
+argument identifies only the listed canonical programs. Its log records
+terminating output and carries no observation of an infinite run. The
+reflection target is native `TypedEquiv.Related` at exact endpoints. The
+lower tiers' raw, independently typed equations and the iteration tier's
+aligned proof-relevant equations are different judgments.
+
+[Word separation test](../../tests/ssa/LetParPairingModel.lean)
 
 Run `make check CHECK_TARGETS="LetParTests LetParIterTests"` for the focused checks.
