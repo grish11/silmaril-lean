@@ -20,7 +20,7 @@ private theorem quotient_nonnegative (numerator divisor : Int) :
   unfold quotientMagnitude
   exact div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
 
-private theorem rounded_finite_iff (negative : Bool) {magnitude : ℚ} (nonnegative : 0 ≤ magnitude) :
+theorem rounded_finite_iff (negative : Bool) {magnitude : ℚ} (nonnegative : 0 ≤ magnitude) :
     (F64.ofBits (roundSigned negative magnitude)).IsFinite ↔ magnitude < overflowThreshold := by
   have noOverflow := (not_congr (roundIndex_overflow_iff magnitude nonnegative)).trans not_le
   rw [← noOverflow, F64.IsFinite, exponent_magnitude]

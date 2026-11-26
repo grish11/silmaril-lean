@@ -94,6 +94,14 @@ theorem graph_observe (s : Loop Φ A B K E D) (a : TyDen A) (initial : σ) :
       Part.map (exitTuple (A := A)) ((iter (round (ε := ε) (m := StateT σ Part.{u}) s) a).run initial) :=
   Proofs.graph_observe s a initial
 
+/-- A θ entered at a completed carrier passes it through with the same
+token. Its header instruction and body actions are skipped. -/
+theorem graph_completed (s : Loop Φ A B K E D) (out : TyDen E ⊕ TyDen D) (token : σ) :
+    NestedTheta.Partial.observe (wireModel (ε := ε)) (graph s)
+      (point (TwoBlock.TwoExit.finish out) token) =
+      Part.some (point (TwoBlock.TwoExit.finish out) token) :=
+  Proofs.graph_completed s out token
+
 /-- Interpret the actual flat loop by iterating its typed activation. -/
 theorem denote_rounds (s : Loop Φ A B K E D)
     (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := StateT σ Part.{u}))

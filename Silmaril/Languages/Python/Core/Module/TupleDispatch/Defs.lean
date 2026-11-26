@@ -122,13 +122,14 @@ def construct (heap : Heap) (binding : Option TypeBinding)
     let (empty, reached) := current.materialize []
     (.ok empty, reached)) .ok
 
-/-- The exact empty display is prepared only after resolving the callee.
-Its fresh list stays in the allocation table after invocation. -/
-def constructFromEmptyList (heap : ListHeap) (binding : Option TypeBinding) :
-    Except Failure Unit × ListHeap :=
+/-- Resolve the constructor before allocating the exact display. Stock dispatch
+reads the argument at its new address in the reached list heap. -/
+def constructFromListDisplay (heap : ListHeap) (binding : Option TypeBinding) (contents : List Value) :
+    Except Failure (List Value) × ListHeap :=
   constructWith heap binding (fun current =>
-    let (object, reached) := current.allocate []
-    (.ok object, reached)) (fun _ => .ok ())
+    let (object, reached) := current.allocate contents
+    (.ok (object.address, reached), reached)) (fun (address, reached) =>
+      (reached.lookup address).elim (.error .unsupported) .ok)
 
 def BoundMethod.invoke (bound : BoundMethod) (heap : Heap) (argument : Operand) :
     Except Failure Result × Heap :=

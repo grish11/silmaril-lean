@@ -204,6 +204,11 @@ def trueDivideInt (numerator divisor : Int) : Except RuntimeError Silmaril.Numer
     | .zeroDivisionError => .arithmetic .zeroDivisionError
     | .overflowError => .overflowError
 
+def mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite) : Except Failure Value :=
+  (Core.Binary64.mixedAdd integer floating).map .float64 |>.mapError fun
+    | .conversionOverflow => .defined .overflowError
+    | .nonfiniteResult => .unsupportedFloatOperand
+
 /-- A shared heap with monotone cell allocation. Only addresses below
 `next` denote allocated cells. An allocated cell may be unbound. -/
 structure Heap where
@@ -239,6 +244,15 @@ def Heap.saveTupleOrigin (heap : Heap) (head : Core.Module.Value) (tail : List C
   let descriptor : Core.Module.TupleDispatch.Object := ⟨some heap.next, head :: tail⟩
   (descriptor, (heap.allocate (.tupleObject descriptor)).2)
 
+/-- Materialize a new exact tuple. The empty tuple keeps its canonical
+representation and needs no allocation. -/
+def Heap.materializeFreshTuple (heap : Heap) (contents : List Core.Module.Value) : Value × Heap :=
+  match contents with
+  | [] => (.tuple [], heap)
+  | _ :: _ =>
+    let (reference, reached) := heap.allocate (.tuple contents)
+    (.tupleObject ⟨some reference.address, contents⟩, reached)
+
 /-- A display with a live item read builds a fresh object. A closed
 nonempty display can save its origin when identity is observed. Empty
 tuples need no heap slot. -/
@@ -247,9 +261,7 @@ def Heap.materializeModuleTuple (heap : Heap) (items : List GlobalTupleItem)
   match contents with
   | [] => (.tuple [], heap)
   | head :: tail =>
-    if items.any GlobalTupleItem.isRead then
-      let (reference, reached) := heap.allocate (.tuple contents)
-      (.tupleObject ⟨some reference.address, contents⟩, reached)
+    if items.any GlobalTupleItem.isRead then heap.materializeFreshTuple contents
     else if trackClosed then
       let (descriptor, reached) := heap.saveTupleOrigin head tail
       (.tupleObject descriptor, reached)

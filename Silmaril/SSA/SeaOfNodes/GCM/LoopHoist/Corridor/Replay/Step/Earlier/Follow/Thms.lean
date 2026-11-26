@@ -17,6 +17,11 @@ variable {Input extra : List Width} {saved carried result : Width}
 variable {state : Step.State Input saved carried result extra} {first second : Nomination}
 variable {prior : Earlier.Emission Input saved carried result extra} {moved : Emission prior}
 
+/-- A successful earlier splice is also a valid starting state for finite replay. -/
+theorem toLayout_invariant (firstDone : Earlier.emit? state first = some prior) :
+    Layout.Invariant (toLayout prior) :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Earlier.Follow.toLayout_invariant firstDone
+
 /-- The physical scope contains exactly one definition per logical save. -/
 theorem savedCount_eq (firstDone : Earlier.emit? state first = some prior) :
     savedCount prior = ((CurrentExtra prior) ++ [saved]).length :=

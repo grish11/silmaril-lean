@@ -411,6 +411,99 @@ second = alias()
 	fmt.Println("PASS duplicate binding precedes a missing formal, repeated unmatched syntax is static, and first errors skip continuation")
 }
 
+func checkPositionalSpread(opts *syntax.FileOptions) {
+	for _, test := range []struct {
+		operand string
+		result  string
+	}{
+		{"()", "()"},
+		{"(data, 73, data)", "(73, [0, 22])"},
+		{"[data, 73, data]", "(73, [0, 22])"},
+	} {
+		source := fmt.Sprintf(`data = [0, 22]
+def factory(data):
+    def child(first, second=[41], *rest, key):
+        return (first, second, key, rest)
+    copy = child
+    result = copy([17], key=[31], *%s)
+    return result
+result = factory(data)
+`, test.operand)
+		globals, err := starlark.ExecFileOptions(opts, new(starlark.Thread), "tracked-positional-spread.star", source, nil)
+		require(err == nil, err)
+		bound := globals["result"].(starlark.Tuple)
+		require(bound[0].String() == "[17]" && bound[2].String() == "[31]" && bound[3].String() == test.result, bound)
+		if rest := bound[3].(starlark.Tuple); len(rest) == 0 {
+			require(bound[1].String() == "[41]", bound)
+		} else {
+			require(bound[1] == globals["data"] && rest[1] == globals["data"], bound)
+		}
+	}
+	fmt.Println("PASS empty tuple and ordered tuple/list spreads feed fixed slots, saved defaults, and *args with live aliases")
+
+	globals, err := starlark.ExecFileOptions(opts, new(starlark.Thread), "ordinary-positional-spread.star", `data = [0, 22]
+def factory(data):
+    def child(x, y=[41]):
+        return y
+    copy = child
+    first = copy(*[data])
+    second = copy(*(data, data))
+    return [first, second]
+result = factory(data)
+`, nil)
+	require(err == nil, err)
+	list := globals["result"].(*starlark.List)
+	require(list.Index(0).String() == "[41]" && list.Index(1) == globals["data"], globals)
+
+	for _, test := range []struct {
+		arguments string
+		order     string
+		errorText string
+	}{
+		{"observe(1, [17]), first=observe(2, [31]), *observe(3, 7)", "callee,1,2,3", "argument after * must be iterable"},
+		{"observe(1, [17]), key=observe(2, [0])[1], *observe(3, [])", "callee,1,2", "index 1 out of range"},
+		{"observe(1, [17]), key=observe(2, [31]), *[observe(3, [53]), observe(4, [0])[1], observe(5, [77])]",
+			"callee,1,2,3,4", "index 1 out of range"},
+		{"observe(1, [17]), first=observe(2, [31]), *observe(3, [])", "callee,1,2,3", `multiple values for parameter "first"`},
+	} {
+		var observed []string
+		thread := &starlark.Thread{
+			Print: func(_ *starlark.Thread, msg string) { observed = append(observed, msg) },
+		}
+		source := fmt.Sprintf(`def observe(n, value):
+    print(n)
+    return value
+def factory():
+    def child(first, second=[41], *rest, key):
+        print("body")
+    def callee():
+        print("callee")
+        return child
+    value = callee()(%s)
+    print("tail")
+result = factory()
+`, test.arguments)
+		_, err := starlark.ExecFileOptions(opts, thread, "positional-spread-effects.star", source, nil)
+		require(err != nil && strings.Contains(err.Error(), test.errorText), err)
+		require(strings.Join(observed, ",") == test.order, observed)
+	}
+	fmt.Println("PASS callee and operands evaluate once in order, with operand failures before expansion and expansion failure before binding")
+
+	for _, test := range []struct {
+		arguments string
+		errorText string
+	}{
+		{"*[], key=1", "keyword argument may not follow *args"},
+		{"*[], 1", "positional argument may not follow *args"},
+		{"*[], *[]", "multiple *args not allowed"},
+	} {
+		source := fmt.Sprintf("def child(*rest, **extras):\n    pass\nchild(%s)\n", test.arguments)
+		_, _, err := starlark.SourceProgramOptions(opts, "positional-spread-placement.star", source, nil)
+		require(err != nil && strings.Contains(err.Error(), test.errorText), err)
+	}
+	fmt.Println("PASS the pinned resolver rejects explicit arguments after * and repeated positional spreads")
+}
+
 func main() {
 	opts := &syntax.FileOptions{}
 	for _, test := range []struct {
@@ -445,5 +538,6 @@ func main() {
 	checkKeywordOnlyDefaults(opts)
 	checkVarargs(opts)
 	checkKwargs(opts)
+	checkPositionalSpread(opts)
 	checkExplicitOperandOrder(opts)
 }

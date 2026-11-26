@@ -87,3 +87,55 @@ solver is supplied; the finite algorithm transforms only the Boolean skeleton.
 ```sh
 make check CHECK_TARGETS='Silmaril.Calculi.PERConstraints.Finite.Examples.Thms'
 ```
+
+## Intervals and admissible completions
+
+`Interval.Thms` adds C3 semantics over the existing `CNF` and `PER` types. An
+ordered pair `[L, U]` denotes every PER `M` with `L ≤ M ≤ U`, where `≤` is
+relation inclusion. An admissibility predicate can impose guarded constructor
+closure or a background theory. `Bounds.Certain` quantifies over every admissible
+completion, `Bounds.Refuted` asks whether each completion refutes the query, and
+`Bounds.Possible` asks for a satisfying completion. Both universal flags hold on
+an empty fiber, as in `conflict_fiber_empty` for the original conflicting
+EQ/DISTINCT dictionary. `Bounds.satisfaction_exact` and
+`Bounds.reduct_exact` recover the original institution's satisfaction and reduct
+on singleton intervals.
+
+`CNF.holds_mono_of_eqOnly` covers arbitrary conjunctions and disjunctions of EQ
+atoms. `Bounds.eqOnly_endpoints` tests certainty at `L` and possibility at `U`
+when both endpoints are admissible. With occurrence DISTINCT, increasing a PER
+can add required validity or destroy required separation. If all designated terms
+are already valid at `L`, `Bounds.distinctList_endpoints` gives the reversed tests
+for that atom. Without that domain hypothesis, `distinct_interior_only` shows
+that both endpoints can reject a CNF satisfied by an interior PER.
+
+A minimal or maximal model rules out a strictly smaller or larger admissible
+model, respectively. A least or greatest model must compare with every
+admissible model. `either_pair_two_minimal` and `either_pair_no_least` exhibit
+this difference for `a = b ∨ b = c`. `separate_ends_two_maximal` and
+`separate_ends_no_greatest` exhibit it for `DISTINCT [a, c]`. Joining the two
+maximal witnesses would identify `a` and `c` by transitivity. These examples
+preclude a single interval description of the respective model families.
+For a conjunction of EQs with a closed, satisfying upper bound,
+`eq_conjunction_isLeast` constructs a least completion by applying the existing
+[guarded congruence closure](per-constraint-congruence.md) to the lower bound
+joined with the required pairs. The upper bound itself is then greatest.
+
+`Bounds.pull_mapsTo` pulls back both endpoints and every completion whose
+admissibility transports. `Bounds.pull_mapsTo_closed` applies this to guarded
+signature morphisms. `Bounds.flags_of_subset` preserves both universal flags as
+the completion family shrinks. `Bounds.flags_map` compares the reduct's evidence
+to the target translation's evidence in that direction, component by component.
+When every admissible source completion lifts, `Bounds.flags_map_iff_of_coverage`
+gives both flag equivalences and `Bounds.completion_image_eq_of_coverage`
+identifies the reduct image with the source family. `Bounds.pull_surjOn_of_injective`
+proves coverage for unrestricted PERs along injective term maps. For a collapsing
+map, `collapse_refutation_strict` shows that the refutation flag can increase, and
+`collapse_reduct_not_least` shows that reduct can lose leastness in a theory
+fiber. A generalized institution adapter can evaluate the same completion sets
+with its evidence type. An adapter for restricted fibers also needs to choose
+admissibility coherently across its signatures.
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Calculi.PERConstraints.Interval.Examples.Thms'
+```

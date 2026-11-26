@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.RedundantTest.Defs
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.PacketCases.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Extension.Singleton.Values.Discard.Syntax.Defs
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.OpenReplay.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithCaseBind.Normalization.Thms
@@ -44,7 +45,7 @@ private theorem oncePost (a : Tm signature.Instr) (r : Region signature.Instr) :
   change Region.let₁ a (compLSubst labelId (fun _ => r) 0) = _
   rw [compLSubst_id_left]
 
-private theorem prefix_congr {Γ L : List (Ty Empty)} {r s : Region signature.Instr}
+theorem prependEmits_congr {Γ L : List (Ty Empty)} {r s : Region signature.Instr}
     (bits : List Bool) (h : E Γ r s L) : E Γ (prependEmits bits r) (prependEmits bits s) L := by
   induction bits with
   | nil => exact h
@@ -86,7 +87,7 @@ private theorem prefix_post {X D : Ty Empty} {L : List (Ty Empty)}
       have eq : _ = D := List.mem_singleton.mp (List.mem_of_getElem? hi)
       exact eq.symm ▸ hk.hasType)
   rw [prefix_lsubst] at moved
-  exact moved.trans (prefix_congr bits tail)
+  exact moved.trans (prependEmits_congr bits tail)
 
 private theorem constructorSubst {Γ : VCtx (Ty Empty)} {X : Ty Empty} {a : Tm signature.Instr}
     (ha : Tm.BranchValue Γ a X) :
@@ -314,7 +315,7 @@ theorem redundant_test {X : Ty Empty} {L : List (Ty Empty)} {n : Nat}
   have skip := Paper.WithCaseBind.case_eq_of_returnDiscards Or.inr inclUnary
     (slots 0).elaborate.property tail.property drop
   exact (terminal_prefix (.split e e) pos slots bits).trans
-    ((prefix_congr bits (arms.trans skip)).trans (terminal_prefix e pos (fun i => slots i.succ) bits).symm)
+    ((prependEmits_congr bits (arms.trans skip)).trans (terminal_prefix e pos (fun i => slots i.succ) bits).symm)
 
 theorem snd_discards (X D : Ty Empty) :
     Paper.Extension.ReturnDiscards Seed [product X D] (Term.snd (Φ := signature.Instr) X D).elaborate.val := by
@@ -345,5 +346,160 @@ theorem packed_second_quote {L : List (Ty Empty)} (pos : Position L) (bits : Lis
     packed (.ret (n := 2) bits pos 1) = packed (.retExpr bits pos (Finite.Expr.quote 2 (fun env => env 1))) :=
   Paper.WithCaseBind.OpenReplay.packed_congr
     (second_quote pos (readReply 2) bits (snd_discards (replyContext 1) Bit))
+
+
+private def literalRegion {L : List (Ty Empty)} (pos : Position L) (b : Bool) : Region signature.Instr :=
+  .let₁ .unit (.br pos.1 (if b then .inr (.var 0) else .inl (.var 0)))
+
+private def tag (b : Bool) (u : Tm signature.Instr) : Tm signature.Instr :=
+  if b then .inr u else .inl u
+
+private theorem case_choose {Γ L : List (Ty Empty)} {a u : Tm signature.Instr} {l r : Region signature.Instr}
+    (b : Bool) (ha : Tm.HasType Γ a Bit) (hu : Tm.BranchValue Γ u unit)
+    (hl : ValueBranches (unit :: Γ) l L) (hr : ValueBranches (unit :: Γ) r L)
+    (value : E Γ (returnOnce a) (.br 0 (tag b u)) [Bit]) :
+    E Γ (.case a l r) ((if b then r else l).substVars (Tm.singleSubst u)) L := by
+  cases b
+  · let hv : Tm.BranchValue Γ (.inl u) Bit := .inl hu
+    have ret : E Γ (returnOnce (.inl u)) (.br 0 (.inl u)) [Bit] :=
+      .paper (.cfgEta (.native (.letValue hv (.br rfl (.var (i := 0) rfl)))))
+    exact (case_congr_returnOnce ha hv.hasType hl hr (value.trans ret.symm)).trans
+      (.paper (.cfgEta (.native ((SubstitutionEquiv.base (.caseInl hu.hasType hl.hasType hr.hasType)).trans
+        (.letValue hu hl.hasType)))))
+  · let hv : Tm.BranchValue Γ (.inr u) Bit := .inr hu
+    have ret : E Γ (returnOnce (.inr u)) (.br 0 (.inr u)) [Bit] :=
+      .paper (.cfgEta (.native (.letValue hv (.br rfl (.var (i := 0) rfl)))))
+    exact (case_congr_returnOnce ha hv.hasType hl hr (value.trans ret.symm)).trans
+      (.paper (.cfgEta (.native ((SubstitutionEquiv.base (.caseInr hu.hasType hl.hasType hr.hasType)).trans
+        (.letValue hu hr.hasType)))))
+
+private theorem packed_payload_subst {X : Ty Empty} {L : List (Ty Empty)}
+    {r : Region signature.Instr} {a u : Tm signature.Instr}
+    (hr : HasType [product X unit] r L) :
+    ((Paper.PackedBody.applyPacked r).substVars (Tm.liftSubst (Tm.singleSubst a))).substVars
+        (Tm.singleSubst u) = r.substVars (Tm.singleSubst (.pair a u)) := by
+  rw [open_packed_arm hr, substVars_comp]
+  apply Paper.SingletonReification.SingleCfg.singleton_subst hr
+  change Tm.pair ((a.rename Nat.succ).subst (Tm.singleSubst u)) u = _
+  rw [Tm.subst_rename]
+  have idSubst : Tm.singleSubst u ∘ Nat.succ = Tm.var := rfl
+  rw [idSubst, Tm.subst_var]
+  rfl
+
+set_option backward.isDefEq.respectTransparency false in
+private theorem quote_subst_no_emits {Γ L : List (Ty Empty)} {n : Nat} {X : Ty Empty}
+    (pos : Position L) (table : Finite.Table n) (slots : Fin n → Term signature.Instr X Bit)
+    {a : Tm signature.Instr} (ha : Tm.BranchValue Γ a X) (env : Finite.Assignment n)
+    (payload : Fin n → Tm signature.Instr) (hu : ∀ j, Tm.BranchValue Γ (payload j) unit)
+    (slot : ∀ j, E Γ (returnOnce ((slots j).elaborate.val.subst (Tm.singleSubst a)))
+      (.br 0 (tag (env j) (payload j))) [Bit]) :
+    E Γ ((selectTerminal pos (Finite.Expr.quote n table) slots []).elaborate.val.substVars (Tm.singleSubst a))
+      (literalRegion pos (table env)) L := by
+  induction n generalizing Γ X a with
+  | zero =>
+    have emptyEnv : (Fin.elim0 : Fin 0 → Bool) = env := Subsingleton.elim _ _
+    change E Γ ((selectTerminal pos (.literal (table Fin.elim0)) slots []).elaborate.val.substVars
+      (Tm.singleSubst a)) _ L
+    rw [emptyEnv]
+    cases h : table env
+    · exact .refl (.let₁ .unit (.br pos.typed (.inl (.var (i := 0) rfl))))
+    · exact .refl (.let₁ .unit (.br pos.typed (.inr (.var (i := 0) rfl))))
+  | succ n ih =>
+    let older (j : Fin n) := retainSlot (A := unit) (slots j.succ)
+    let low := (selectTerminal pos (Finite.Expr.quote n (fun row => table (row.push false))) older []).elaborate
+    let high := (selectTerminal pos (Finite.Expr.quote n (fun row => table (row.push true))) older []).elaborate
+    have sub : ∀ ⦃j D⦄, At [unit, X] j D →
+        Tm.BranchValue (unit :: Γ) (Tm.liftSubst (Tm.singleSubst a) j) D := by
+      intro j D hj
+      cases j with
+      | zero => cases Option.some.inj hj; exact .var (i := 0) rfl
+      | succ j => exact weaken_value (constructorSubst ha hj)
+    let hl := (applyPacked_typed_exits low.property).substVars sub
+    let hr := (applyPacked_typed_exits high.property).substVars sub
+    let test := (slots 0).elaborate.property.subst (fun _ _ hj => (constructorSubst ha hj).hasType)
+    have chosen := case_choose (env 0) test (hu 0) hl hr (slot 0)
+    have recover : env.tail.push (env 0) = env := by
+      funext j
+      cases j using Fin.cases <;> rfl
+    have olderSlot (j : Fin n) :
+        E Γ (returnOnce ((older j).elaborate.val.subst (Tm.singleSubst (.pair a (payload 0)))))
+          (.br 0 (tag (env.tail j) (payload j.succ))) [Bit] :=
+      (retained_returnOnce (slots j.succ) ha (hu 0)).trans (slot j.succ)
+    have rest := ih (fun row => table (row.push (env 0))) older (.pair ha (hu 0))
+      env.tail (fun j => payload j.succ) (fun j => hu j.succ) olderSlot
+    rw [recover] at rest
+    cases h : env 0
+    · simp only [h, Bool.false_eq_true, ↓reduceIte] at chosen rest
+      rw [packed_payload_subst low.property.hasType] at chosen
+      exact chosen.trans rest
+    · simp only [h, ↓reduceIte] at chosen rest
+      rw [packed_payload_subst high.property.hasType] at chosen
+      exact chosen.trans rest
+
+private theorem tagged {Γ : List (Ty Empty)} {u : Tm signature.Instr}
+    (b : Bool) (hu : Tm.BranchValue Γ u unit) : Tm.BranchValue Γ (tag b u) Bit := by
+  cases b
+  · exact .inl hu
+  · exact .inr hu
+
+private theorem snd_returnOnce {Γ : List (Ty Empty)} {A B : Ty Empty} {a b : Tm signature.Instr}
+    (ha : Tm.BranchValue Γ a A) (hb : Tm.BranchValue Γ b B) :
+    E Γ (returnOnce ((Term.snd (Φ := signature.Instr) A B).elaborate.val.subst (Tm.singleSubst (.pair a b))))
+      (.br 0 b) [B] := by
+  let projection := Paper.WithProjectionReturns.Step.snd (Φ := signature.Instr) A B
+  have proj : E [product A B] (returnOnce (.let₂ (.var 0) (.var 0))) (.let₂ (.var 0) (.br 0 (.var 0))) [B] :=
+    .extra projection.valueBranches.1.hasType projection.valueBranches.2.hasType (inclProjection projection)
+  exact (proj.substVars (constructorSubst (.pair ha hb))).trans
+    (.paper (.productBeta (.let₂Beta ha hb (.br rfl (.var (i := 0) rfl)))))
+
+private theorem replyPacket_typed {Γ : List (Ty Empty)} {n : Nat}
+    (env : Finite.Assignment n) (payload : Fin n → Tm signature.Instr) {base : Tm signature.Instr}
+    (hb : Tm.BranchValue Γ base unit) (hp : ∀ j, Tm.BranchValue Γ (payload j) unit) :
+    Tm.BranchValue Γ (replyPacket env payload base) (replyContext n) := by
+  induction n with
+  | zero => exact hb
+  | succ n ih =>
+    exact .pair (ih env.tail (fun j => payload j.succ) (fun j => hp j.succ)) (tagged (env 0) (hp 0))
+
+private theorem packet_slot {Γ : List (Ty Empty)} {n : Nat}
+    (env : Finite.Assignment n) (payload : Fin n → Tm signature.Instr) {base : Tm signature.Instr}
+    (hb : Tm.BranchValue Γ base unit) (hp : ∀ j, Tm.BranchValue Γ (payload j) unit) (j : Fin n) :
+    E Γ (returnOnce ((readReply n j).elaborate.val.subst (Tm.singleSubst (replyPacket env payload base))))
+      (.br 0 (tag (env j) (payload j))) [Bit] := by
+  induction n with
+  | zero => exact j.elim0
+  | succ n ih =>
+    have retained := replyPacket_typed env.tail (fun j => payload j.succ) hb (fun j => hp j.succ)
+    have newest := tagged (env 0) (hp 0)
+    cases j using Fin.cases with
+    | zero => exact snd_returnOnce retained newest
+    | succ j =>
+      exact (retained_returnOnce (readReply n j) retained newest).trans
+        (ih env.tail (fun k => payload k.succ) (fun k => hp k.succ) j)
+
+theorem quoted_replyPacket {Γ L : List (Ty Empty)} {n : Nat}
+    (pos : Position L) (table : Finite.Table n) (order : Fin n → Fin n)
+    (env : Finite.Assignment n) (payload : Fin n → Tm signature.Instr) {base : Tm signature.Instr}
+    (hb : Tm.BranchValue Γ base unit) (hp : ∀ j, Tm.BranchValue Γ (payload j) unit) :
+    E Γ ((selectTerminal pos (Finite.Expr.quote n table) (readReply n ∘ order) []).elaborate.val.substVars
+      (Tm.singleSubst (replyPacket env payload base)))
+      (.let₁ .unit (.br pos.1 (if table (env ∘ order) then .inr (.var 0) else .inl (.var 0)))) L :=
+  quote_subst_no_emits pos table _ (replyPacket_typed env payload hb hp) (env ∘ order) (payload ∘ order)
+    (fun j => hp (order j)) (fun j => packet_slot env payload hb hp (order j))
+
+theorem quoted_packet {Γ L : List (Ty Empty)} (pos : Position L) (table : Finite.Table 2)
+    (order : Fin 2 → Fin 2) (older newer : Bool) {u x y : Tm signature.Instr}
+    (hu : Tm.BranchValue Γ u unit) (hx : Tm.BranchValue Γ x unit) (hy : Tm.BranchValue Γ y unit) :
+    E Γ ((selectTerminal pos (Finite.Expr.quote 2 table) (readReply 2 ∘ order) []).elaborate.val.substVars
+      (Tm.singleSubst (.pair (.pair u (if older then .inr x else .inl x)) (if newer then .inr y else .inl y))))
+      (.let₁ .unit (.br pos.1 (if table (Fin.cases newer (fun _ => older) ∘ order)
+        then .inr (.var 0) else .inl (.var 0)))) L := by
+  let env : Finite.Assignment 2 := Fin.cases newer (fun _ => older)
+  let payload : Fin 2 → Tm signature.Instr := Fin.cases y (fun _ => x)
+  have typed (j : Fin 2) : Tm.BranchValue Γ (payload j) unit := by
+    cases j using Fin.cases
+    · exact hy
+    · exact hx
+  exact quoted_replyPacket pos table order env payload hu typed
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.RedundantSelectedTest

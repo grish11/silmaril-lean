@@ -60,12 +60,16 @@ def Sentence.numbered : Sentence P → RuntimeObservation.Sentence target
   | .equation lhs rhs => .equation lhs.program rhs.program
   | .terminates program => .terminates program.program
 
-/-- At the model's typed valuation, compare complete partial results or
-require a finite result for every initialized heap. -/
-def Sentence.Holds (s : Sentence P) (model : EntryModel P) : Prop :=
+/-- Compare complete partial results or require a finite result for every
+initialized heap at the valuation supplied by the observer. -/
+def Sentence.HoldsWith (s : Sentence P) {cells : Nat}
+    (observe : GeneratedProgram P.args → Heap cells → Part (Tuple (WireVal cells) (Threaded wordPorts))) : Prop :=
   match s with
-  | .equation lhs rhs => ∀ initial, lhs.observe model initial = rhs.observe model initial
-  | .terminates program => ∀ initial, (program.observe model initial).Dom
+  | .equation lhs rhs => ∀ initial, observe lhs initial = observe rhs initial
+  | .terminates program => ∀ initial, (observe program initial).Dom
+
+def Sentence.Holds (s : Sentence P) (model : EntryModel P) : Prop :=
+  s.HoldsWith (GeneratedProgram.observe · model)
 
 def room (P : EntrySignature) : Room.{0, 0, 0} where
   Sen := Sentence P

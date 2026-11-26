@@ -15,7 +15,7 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows
 open CategoryTheory
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy WordOp model word)
-open Silmaril.SSA.RVSDG (Locals Tuple Wires)
+open Silmaril.SSA.RVSDG (Locals Port Tuple Wires)
 open Silmaril.SSA.SeaOfNodes.Diamond (Model Val)
 open Silmaril.SSA.SeaOfNodes.Diamond.Institution (reduct)
 open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA (Atom inputEnv instruction)
@@ -78,6 +78,11 @@ theorem denote_mapGraph_reindex {Q : Silmaril.SSA.SeaOfNodes.Diamond.Institution
     (mapGraph h (p.reindexInputs perm).program.graph).denote m input =
       p.program.graph.denote (reduct h m) (perm.pull input) :=
   (denote_mapGraph h m _ input).trans (denote_reindex p perm (reduct h m) input)
+
+/-- Applying the inverse permutation restores the identical typed capture port. -/
+theorem InputPermutation.port_symm (perm : InputPermutation arity) {t : PortTy}
+    (p : Port (wordPorts arity) t) : InputPermutation.port perm.symm (perm.port p) = p :=
+  Proofs.Reindex.port_symm perm p
 
 /-- Every old valuation is the pullback of its inverse-permuted valuation. -/
 theorem InputPermutation.pull_symm {value : Unit → Type w} (perm : InputPermutation arity)

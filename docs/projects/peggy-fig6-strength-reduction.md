@@ -73,13 +73,25 @@ and six. Definedness of the operands alone would allow that mismatch.
 ## Executable SIMPLE counterpart of Figure 6(e)
 
 The same worked test passes the actual result of (b→c→d) to the
-[closed-loop reverter](../../Silmaril/SSA/PEG/Simple/Revert/While/Region/Closed/Thms.lean).
-It supplies the two θ slots, their shared zero initializer, the existing
-exit predicate and pass, the unit-counter port, and typed readouts. The
-checker reuses the primitive scheduler for the closed initializer and the
-guard and update slices. It validates the rank and the first/second
-operand of every observed eval against the selected θ and the one shared
-pass. It checks that the raw pass root names that same row.
+[automatic closed-loop reverter](../../Silmaril/SSA/PEG/Simple/Revert/While/Region/Closed/Automatic/Thms.lean).
+The call names only the graph and the instruction identities for zero,
+unit increment and Boolean negation. The first ordered root identifies
+the pass, and that row identifies the exit predicate. Every root must be
+an eval sampling a θ at that pass or a direct reference to that same pass.
+The reverter collects all θ rows in table order, reads their typed initial
+and feedback operands, and looks up each sampled θ in the resulting
+carried vector. Repeated output roots retain their positions.
+
+Exactly one carried slot must initialize from the designated zero opcode
+and update through the designated unary increment wired to itself.
+The reverter proposes a whole-table demand rank. It propagates phase
+requirements from operands for one round per row, with a strict drop
+on sampling edges, then uses bounded sink ranking on edges that tie in
+phase and loop counter. This admits the retained dead multiplication
+that consumes an eval. The existing closed-loop checker validates the
+proposed rank, the boundary and the primitive schedules over the empty
+initializer scope and the old θ scope. The checker retains proof that
+the emitted program uses the requested opcode roles.
 
 The emitted syntax initializes `(x, scaled)` to `(0, 0)`, continues while
 `x < 3`, and simultaneously updates `(x, scaled)` to `(x + 1, 5 + scaled)`.
@@ -101,17 +113,23 @@ defined samples justify the Figure 11 evals and raw pass. The fixture
 composes this theorem with the existing (b→c) replay and (c→d)
 strength-reduction theorems under their rank and arithmetic-law premises.
 The bounded execution returns `[15, 3, 3, 15]` with three body steps.
-A bound of two is exhausted, and an eval wired to a different count is
-rejected.
+A bound of two is exhausted. The same roles recover a row-permuted
+graph, including a changed internal slot order and relocated pass and
+predicate. That program returns the same ordered tuple. An eval naming
+a second pass for the same predicate and an increment reading the
+wrong θ both fail extraction despite having valid demand ranks.
 
-The adapter supports a supplied descriptor for a closed, parentless
-single loop with primitive initializer, guard and update slices. General
-CFG reversion, optimizer completeness or optimality, runtime speedup,
-and Java, memory, or alias behavior remain outside scope.
+The supported shape is a closed, parentless single loop with nonempty
+ordered eval/pass roots, one structurally recognized unit counter, and
+primitive initializer, guard and update slices over the inferred scopes.
+Discovery collects every θ, so unsupported slices in extra carried
+rows can cause rejection. There is no completeness theorem for boundary
+or rank discovery. General CFG reversion, optimizer optimality, runtime
+speedup, and Java, memory, or alias behavior remain outside scope.
 
 ```sh
-lake build --wfail +Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Thms PeggyEggTests
+lake build --wfail +Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Automatic.Thms PeggyEggTests
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/PeggyEgg.lean
-lake env leanchecker --fresh Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Thms
+lake env leanchecker --fresh Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Automatic.Thms
 lake env leanchecker tests.ssa.PeggyEgg
 ```

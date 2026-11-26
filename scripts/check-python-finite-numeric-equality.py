@@ -130,7 +130,7 @@ def observe(source, expected, lookup_receipts=None):
             if error is None:
                 completion = ".normal"
             else:
-                assert error.startswith(".runtime (") or error == ".runtime .notCallable"
+                assert error.startswith(".runtime ")
                 completion = f".raised {error.removeprefix('.runtime ')}"
             guards.append(TRANSPORT["ordinary"](completion, values, functions, absent))
         else:
@@ -274,10 +274,12 @@ def controls(upstream):
         fixtures.append((full, rejected))
         fixtures.append(prefix_control("".join(lines[:2])))
         assert lines[2] == "___assertEqual(4 + 2.0, 6.0)\n"
-        fixtures.append(("".join(lines[:3]), rejected))
+        assert lines[6] == "___assertEqual(4.0 + 2.0, 6.0)\n"
+        fixtures.append(("".join(lines[:6]), "#guard (compile pythonSource).isOk"))
+        fixtures.append(("".join(lines[:7]), rejected))
         observations["first prefix cutoffs"] = {
-            "first_rejected_compiler_prefix": 3,
-            "source": lines[2].rstrip("\n"),
+            "first_rejected_compiler_prefix": 7,
+            "source": lines[6].rstrip("\n"),
             "seeded_runtime_line": 2,
             "seeded_runtime_cutoff": "unsupported isinstance(int, int)",
         }

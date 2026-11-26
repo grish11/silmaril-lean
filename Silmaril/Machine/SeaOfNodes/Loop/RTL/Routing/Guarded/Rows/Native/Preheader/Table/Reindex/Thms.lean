@@ -4,6 +4,7 @@ public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.P
 public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Institution.Thms
 public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Reindex.Thms
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Reindex
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Reindex.WellFormed
 
 /-! Capture reindexing at the pulled valuation and actual re-emitted observations. -/
 
@@ -28,6 +29,11 @@ variable (perm : InputPermutation arity)
 variable {g : SourceWithEntry arity entrySigs sigs}
 variable {p : Plan arity entrySigs}
 
+/-- The inverse permutation restores the exact source graph. -/
+theorem reindexCaptures_symm (g : SourceWithEntry arity entrySigs sigs) :
+    reindexCaptures perm.symm (reindexCaptures perm g) = g :=
+  Proofs.reindexCaptures_symm perm g
+
 /-- Changing capture addresses commutes with the entire dependent entry
 table and the entry latch. -/
 theorem initial_reindex (g : SourceWithEntry arity entrySigs sigs)
@@ -45,6 +51,18 @@ theorem denote_reindex (recognized : recognize g = some p)
 
 variable {before after : Checked.Phi.Targets}
 
+/-- The ordinary checker accepts the mapped graph whenever it accepts the original. -/
+theorem lowerChecked_reindex (accepted : lowerChecked g = some before) :
+    ∃ targets, lowerChecked (reindexCaptures perm g) = some targets :=
+  Proofs.lowerChecked_reindex perm accepted
+
+/-- Acceptance is reflected by rechecking with the inverse permutation. -/
+theorem lowerChecked_reindex_iff :
+    (∃ targets, lowerChecked (reindexCaptures perm g) = some targets) ↔
+      ∃ targets, lowerChecked g = some targets := by
+  refine ⟨fun ⟨_, accepted⟩ => ?_, fun ⟨_, accepted⟩ => lowerChecked_reindex perm accepted⟩
+  simpa only [reindexCaptures_symm] using lowerChecked_reindex perm.symm accepted
+
 /-- Once the mapped graph passes the ordinary checker, both actual
 re-emissions have the original behaviours at the pulled input. The λSSA
 observation-set equality ranges over all initial and final memories. -/
@@ -55,6 +73,17 @@ theorem observations_reindex (accepted : lowerChecked g = some before)
       ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory input) (scope emitted) =
         ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory (perm.pull input)) (scope accepted) :=
   Proofs.observations_reindex perm accepted emitted input initial
+
+/-- Starting from one successful check, re-emit with the ordinary checker
+and compare both actual target behaviours at every pulled valuation. -/
+theorem reemit_observations (accepted : lowerChecked g = some before) :
+    ∃ targets, ∃ emitted : lowerChecked (reindexCaptures perm g) = some targets,
+      ∀ (input : WordTuple arity) (initial : Memory),
+        rtlBehaviors input initial targets.1 = rtlBehaviors (perm.pull input) initial before.1 ∧
+          ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory input) (scope emitted) =
+            ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory (perm.pull input)) (scope accepted) := by
+  obtain ⟨targets, emitted⟩ := lowerChecked_reindex perm accepted
+  exact ⟨targets, emitted, observations_reindex perm accepted emitted⟩
 
 variable {right : SourceWithEntry arity rightEntry rightSigs}
 variable {rightBefore rightAfter : Checked.Phi.Targets}

@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.DependentRequestTree.Native.OpenOperands.Thms
+import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.DependentRequestTree.Native.OpenOperands.Refinement.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands
 
@@ -97,6 +97,87 @@ example : Shape.denote (withExitUB marked.native marked.selected)
     (Syntax.model primitives (marked.bindings left)) (2 : Fin 3) =
       WithTop.some {Outcome.diverge} :=
   (marked.observe (raw := marked.native) rfl left primitives 2).symm
+
+private abbrev sourceTree := source.extract rfl left
+private abbrev callerTree := readsCaller.extract rfl left
+private abbrev markedTree := marked.extract rfl left
+
+/-- Both trees have the same entry query. Its single reply position carries
+the right bit, so the next arguments differ even though the opcode matches. -/
+private def probe : Prefix sig.replies 1 :=
+  .step .flip left.val 0 right (.stop (some (.test, right.val)))
+
+example : sourceTree.Follows probe := .step (.stop _ _)
+example : callerTree.Follows probe := .step (.stop _ _)
+
+example : Shape.denote (withExitUB source.native source.selected)
+    (Syntax.model (sig.primitives probe.handler) (source.bindings left)) 0 =
+      WithTop.some {Outcome.fault (1 : Fin 2)} :=
+  (source.observe_extract (raw := source.native) (tree := sourceTree) rfl _ 0).symm
+
+example : Shape.denote (withExitUB readsCaller.native readsCaller.selected)
+    (Syntax.model (sig.primitives probe.handler) (readsCaller.bindings left)) 0 =
+      WithTop.some {Outcome.diverge} :=
+  (readsCaller.observe_extract (raw := readsCaller.native) (tree := callerTree) rfl _ 0).symm
+
+private def otherReply : Prefix sig.replies 1 :=
+  .step .flip left.val 0 left (.stop (some (.test, left.val)))
+
+example : sourceTree.execute (sig.primitives otherReply.handler) 0 = .fault 1 := rfl
+example : callerTree.execute (sig.primitives otherReply.handler) 0 = .fault 1 := rfl
+
+private theorem changedArgument : ¬ sourceTree.Refines callerTree := by
+  intro h
+  have results := Tree.refines_execute h (sig.primitives probe.handler) 0
+  change (Result.fault (1 : Fin 2) : Result 2 2).refines .diverge at results
+  simp [Result.refines] at results
+
+example :
+    ∃ (n : Nat) (witness : Prefix sig.replies n),
+      n ≤ 3 ∧ sourceTree.Follows witness ∧ callerTree.Follows witness ∧
+      ¬ Shape.denote (withExitUB source.native source.selected)
+          (Syntax.model (sig.primitives witness.handler) (source.bindings left)) 0 ≤
+        Shape.denote (withExitUB readsCaller.native readsCaller.selected)
+          (Syntax.model (sig.primitives witness.handler) (readsCaller.bindings left)) 0 :=
+  Table.exists_prefix_countermodel (g₀ := source) (g₁ := readsCaller)
+    (raw₀ := source.native) (raw₁ := readsCaller.native) rfl rfl rfl changedArgument
+
+private theorem return_below_marked : sourceTree.Refines markedTree := by
+  refine ⟨rfl, rfl, fun i a => ?_⟩
+  obtain rfl := Fin.eq_zero i
+  refine ⟨rfl, rfl, fun j b => ?_⟩
+  obtain rfl := Fin.eq_zero j
+  exact Or.inl rfl
+
+example (n : Nat) (prim : Syntax.Primitives Op n) (s : Fin n) :
+    Shape.denote (withExitUB source.native source.selected) (Syntax.model prim (source.bindings left)) s ≤
+      Shape.denote (withExitUB marked.native marked.selected) (Syntax.model prim (marked.bindings left)) s :=
+  (Table.refines_iff (g₀ := source) (g₁ := marked) (raw₀ := source.native)
+    (raw₁ := marked.native) (input := left) (p := sourceTree) (q := markedTree) rfl rfl rfl).mpr
+      return_below_marked n prim s
+
+example : ¬ markedTree.Refines sourceTree := by
+  intro related
+  have results := Tree.refines_execute related primitives 0
+  change (Result.ub : Result 2 3).refines (.ret 0 2) at results
+  simp [Result.refines] at results
+
+private abbrev otherExit : Table sig Packets := { marked with selected := fun _ => false }
+
+example : ¬ sourceTree.Refines (otherExit.extract rfl left) := by
+  intro related
+  have results := Tree.refines_execute related primitives 0
+  change (Result.ret 0 (2 : Fin 3) : Result 2 3).refines (.ret 1 2) at results
+  simp [Result.refines] at results
+
+example : sourceTree.Refines (.stop .ub) := trivial
+example : ¬ (Tree.stop .ub).Refines markedTree := not_false
+
+/-- info: 'Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.Table.refines_iff' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms Table.refines_iff
 
 /-- info: 'Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.Table.observe_extract' depends on axioms: [propext,
  Classical.choice,

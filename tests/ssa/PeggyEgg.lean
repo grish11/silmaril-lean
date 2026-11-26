@@ -14,7 +14,7 @@ import Silmaril.SSA.Peggy.Optimizer.Thms
 import Silmaril.SSA.Peggy.Optimizer.Contextual.Thms
 import Silmaril.SSA.Peggy.Worked.EvalScale.Thms
 import Silmaril.SSA.Peggy.Worked.StrengthReduction.Thms
-import Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Thms
+import Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Automatic.Thms
 import Silmaril.SSA.PEG.Projection.Defs
 meta import Silmaril.SSA.Peggy.Optimizer.Cyclic.Defs
 meta import Silmaril.SSA.Peggy.EPEG.Selection.Legality.Defs
@@ -33,7 +33,7 @@ meta import Silmaril.SSA.Peggy.Optimizer.Contextual.Defs
 meta import Silmaril.SSA.Peggy.Optimizer.Extension.Defs
 meta import Silmaril.SSA.Peggy.Worked.EvalScale.Defs
 meta import Silmaril.SSA.Peggy.Worked.StrengthReduction.Defs
-meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Defs
+meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Closed.Automatic.Defs
 meta import Silmaril.SSA.PEG.Projection.Defs
 meta import Mathlib.Tactic.FinCases
 
@@ -1548,52 +1548,42 @@ example (idx : Index 1) :
       .cons (some ⟨15⟩) (.cons (some ⟨3⟩) (.cons (some ⟨3⟩) (.cons (some ⟨15⟩) .nil))) :=
   (figure6_rewrites idx).symm.trans (observed idx)
 
-private abbrev carried : List (Ty Unit) := [.count, .count]
+-- The reverter receives instruction identities only. It obtains the
+-- carried vector and the ordered readouts from the actual rewritten PEG.
+private def roles : Closed.Automatic.Roles Op := ⟨.zero, .succ, .negate⟩
 
--- The existing unscaled counter still drives the pass. The scaled value
--- and the raw pass are returned in the original order, including repeats.
-private def region : Closed.Descriptor reduced.candidate carried where
-  theta := .cons ⟨0, rfl⟩ (.cons ⟨8, rfl⟩ .nil)
-  initial := .cons ⟨1, rfl⟩ (.cons ⟨1, rfl⟩ .nil)
-  next := .cons ⟨2, rfl⟩ (.cons ⟨10, rfl⟩ .nil)
-  exit := ⟨3, rfl⟩
-  pass := ⟨4, rfl⟩
-  clock := .head
-  zero := .zero
-  tick := .succ
-  negate := .negate
-  outputs := .cons (.eval (.tail .head)) (.cons (.eval .head)
-    (.cons .pass (.cons (.eval (.tail .head)) .nil)))
+private def checkedRegion := Closed.Automatic.extract reduced.candidate roles
 
-private def checkedRegion := Closed.check reduced.candidate region strengthRank
+private def relocation : Equiv.Perm (Fin 11) :=
+  (Equiv.swap 0 8).trans ((Equiv.swap 4 9).trans (Equiv.swap 3 6))
 
--- Even though the operands have the same type, a different count at
--- the unscaled eval cannot be used as part of the shared exit bundle.
-private def wrongCount : Graph Op [] result 11 1 :=
+private def relocated := reduced.candidate.reindex relocation (Equiv.refl (Fin 1))
+private def checkedRelocated := Closed.Automatic.extract relocated roles
+
+-- A second, well-typed pass for the same predicate does not satisfy the
+-- shared-pass boundary when one of the evals names it instead.
+private def wrongPass : Graph Op [] result 11 1 :=
   { reduced.candidate with node := fun i =>
-    if h : i = 5 then h.symm ▸ Node.ofLabel (.eval 0) (.cons ⟨0, rfl⟩ (.cons ⟨1, rfl⟩ .nil))
+    if h : i = 5 then h.symm ▸ Node.ofLabel (.eval 0) (.cons ⟨0, rfl⟩ (.cons ⟨7, rfl⟩ .nil))
+    else if h : i = 7 then h.symm ▸ Node.ofLabel (.pass 0) (.cons ⟨3, rfl⟩ .nil)
     else reduced.candidate.node i }
 
-private def wrongRegion : Closed.Descriptor wrongCount carried where
-  theta := region.theta
-  initial := region.initial
-  next := region.next
-  exit := region.exit
-  pass := region.pass
-  clock := region.clock
-  zero := region.zero
-  tick := region.tick
-  negate := region.negate
-  outputs := region.outputs
+-- Keep the tick opcode and zero initializer but wire the tick to the
+-- other θ. Neither carried slot now implements the unit recurrence.
+private def wrongClock : Graph Op [] result 11 1 :=
+  { reduced.candidate with node := fun i =>
+    if h : i = 2 then h.symm ▸ Node.ofLabel (.op Op.succ) (.cons ⟨8, rfl⟩ .nil)
+    else reduced.candidate.node i }
 
 private def asList : {ts : List (Ty Unit)} → Tuple (model false).Value ts → List Nat
   | _, .nil => []
   | .count :: _, .cons value rest => value.down :: asList rest
   | .bool :: _, .cons _ rest | .data _ :: _, .cons _ rest => asList rest
 
-private def runFigure6 (fuel : Nat) : Option (List Nat) := do
-  let cert ← checkedRegion
-  (cert.val.runFuel (model false) fuel).map asList
+private def runFigure6 {g : Graph Op [] result 11 1}
+    (recovered : Option (Closed.Automatic.Recovered g roles)) (fuel : Nat) : Option (List Nat) := do
+  let cert ← recovered
+  (cert.certificate.runFuel (model false) fuel).map asList
 
 private def opcode {is : List (Ty Unit)} {t : Ty Unit} : Op is t → String
   | .zero => "zero" | .five => "five" | .succ => "succ" | .exit => "exit"
@@ -1615,30 +1605,36 @@ private def opcodes {loops : Bool} {vars outs : List (Ty Unit)} : Stmt Op loops 
   | .branch e a b => exprOpcodes e ++ opcodes a ++ opcodes b
   | .while _ e body => exprOpcodes e ++ opcodes body
 
-#guard runFigure6 3 == some [15, 3, 3, 15]
-#guard (runFigure6 2).isNone
-#guard (Closed.check wrongCount wrongRegion strengthRank).isNone
-#guard (checkedRegion.map fun cert => opcodes cert.val.step.lower) == some ["succ", "five", "add"]
-#guard (checkedRegion.map fun cert => opcodes cert.val.revert) ==
+#guard runFigure6 checkedRegion 3 == some [15, 3, 3, 15]
+#guard (runFigure6 checkedRegion 2).isNone
+#guard (checkedRegion.map fun recovered => opcodes recovered.certificate.revert) ==
   some ["zero", "exit", "negate", "succ", "five", "add", "exit"]
-#guard (checkedRegion.bind fun cert => (cert.val.step.lower.runLoopFree (model false)
-  (.cons ⟨2⟩ (.cons ⟨10⟩ .nil))).map asList) == some [3, 15]
+#guard (checkedRegion.bind fun recovered => do
+  let cert := recovered.certificate
+  let initial ← cert.start.lower.runLoopFree (model false) .nil
+  (cert.step.lower.runLoopFree (model false) initial).map asList) == some [1, 5]
 
--- The checker retains the descriptor, so the actual fixture discharges
--- all three reversion laws. The rank and arithmetic premises of the
--- earlier rewrites were already checked in figure6_rewrites.
-private theorem figure6Laws (cert : {a : Closed.Accepted reduced.candidate carried //
-    a.descriptor = region}) : cert.val.Laws (model false) := by
-  constructor
-  · rw [cert.property]; rfl
-  · intro k; rw [cert.property]; rfl
-  · intro b; rw [cert.property]; rfl
+#guard runFigure6 checkedRelocated 3 == some [15, 3, 3, 15]
+#guard (runFigure6 checkedRelocated 2).isNone
+#guard (checkedRelocated.map fun recovered => opcodes recovered.certificate.step.lower) ==
+  some ["five", "add", "succ"]
+#guard (checkedRelocated.map fun recovered =>
+  let d := recovered.certificate.descriptor
+  ((d.theta.get d.clock).id.val, d.pass.id.val, d.exit.id.val)) == some (8, 9, 6)
 
-example (cert : {a : Closed.Accepted reduced.candidate carried // a.descriptor = region})
+#guard (Closed.Automatic.inferRank wrongPass).check wrongPass
+#guard (Closed.Automatic.inferRank wrongClock).check wrongClock
+#guard (Closed.Automatic.extract wrongPass roles).isNone
+#guard (Closed.Automatic.extract wrongClock roles).isNone
+
+private theorem figure6Laws : roles.Laws (model false) :=
+  ⟨rfl, fun _ => rfl, fun _ => rfl⟩
+
+example (recovered : Closed.Automatic.Recovered reduced.candidate roles)
     (idx : Index 1) (out : Tuple (model false).Value result)
-    (ran : Exec (model false) cert.val.revert .nil (some out)) :
+    (ran : Exec (model false) recovered.certificate.revert .nil (some out)) :
     source.graph.observe (model false) (values false) idx = out.map (fun _ => some) :=
-  (figure6_rewrites idx).trans (cert.val.observe_of_exec (figure6Laws cert) idx ran)
+  (figure6_rewrites idx).trans (recovered.observe_of_exec figure6Laws idx ran)
 
 private def wrongAdd : Interpretation.{0,0,0} Op where
   carrier := (model false).carrier

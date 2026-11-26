@@ -110,18 +110,18 @@ theorem advance_callTupleIdentity_failure {scope : Source.Scope} (table : Core.C
       ([], .finished session error) := by
   simp [advance, failed]
 
-theorem tupleFromEmptyList_outer_missing (session : Core.Module.Functions.Session) {name : String}
-    (remaining : List Argument) (missing : session.globals name = none) :
-    tupleFromEmptyListCompletion session (some (name, remaining)) =
+theorem tupleFromListDisplay_outer_missing (session : Core.Module.Functions.Session) {name : String}
+    (contents : List Core.Module.Value) (remaining : List Argument) (missing : session.globals name = none) :
+    tupleFromListDisplayCompletion session contents (some (name, remaining)) =
       (.raised (.nameError name), session.lists) := by
-  simp [tupleFromEmptyListCompletion, missing]
+  simp [tupleFromListDisplayCompletion, missing]
 
-theorem tupleFromEmptyList_direct_mask (session : Core.Module.Functions.Session)
+theorem tupleFromListDisplay_direct_mask (session : Core.Module.Functions.Session) (contents : List Core.Module.Value)
     (masked : session.globals "tuple" = some .none) :
-    tupleFromEmptyListCompletion session none =
-      (.raised .notCallable, (session.lists.allocate []).2) := by
-  simp [tupleFromEmptyListCompletion, tupleFromEmptyListCompletion.reachedTupleFromEmptyList,
-    tupleBinding, masked, (Core.Module.TupleDispatch.constructFromEmptyList_mask session.lists).1, TupleChain.runtimeError?]
+    tupleFromListDisplayCompletion session contents none =
+      (.raised .notCallable, (session.lists.allocate contents).2) := by
+  simp [tupleFromListDisplayCompletion, tupleFromListDisplayCompletion.reachedDisplay,
+    tupleBinding, masked, (Core.Module.TupleDispatch.constructFromListDisplay_mask session.lists contents).1, TupleChain.runtimeError?]
 
 theorem advance_literalArmBoolean {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
     (session : Core.Module.Functions.Session) (value : Bool) (rest : List (Instruction scope)) :

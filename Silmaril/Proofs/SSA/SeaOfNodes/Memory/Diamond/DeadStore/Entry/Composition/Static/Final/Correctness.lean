@@ -1,10 +1,13 @@
 module
 
 public import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Static.Final.Defs
+public import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Retained.Load.Defs
 import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Static.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Discovery.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Discovery.MemRef.CF.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Retained.Load.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Thms
 
 public section
 
@@ -13,15 +16,23 @@ namespace Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Sta
 open RVSDG (Locals Tuple)
 open SeaOfNodes.Diamond (Projection)
 open Silmaril.MLIR.MemRef (Buffer)
-open Memory.DeadStore.Search.Selection.Readers.Repeat (DeletesStores operations)
+open Memory.DeadStore.Search.Selection.Readers.Repeat (DeletesStores operations reindex_operations)
 open Discovery.MemRef.CF (entryDestination entryTransition lowerDiamond lowerDiamond_entryTransition
   lowerDiamond_run run)
 
 variable {args : List ValueSort} {cells : Nat}
 
-theorem cut_preserves {past : List (List ValueSort)} {live version : Nat}
+private theorem cutWith_preserves {past : List (List ValueSort)} {live version : Nat}
     {body retainedEntry : Memory.Body args past live} {store : PrefixStore args}
-    (input : Tuple (Val cells) args) (accepted : cut version body = some (store, retainedEntry)) :
+    (input : Tuple (Val cells) args)
+    (check : PrefixStore args → {past : List (List ValueSort)} → {live : Nat} → Memory.Body args past live → Bool)
+    (transfer : ∀ {past : List (List ValueSort)} {live : Nat} (tail : Memory.Body args past live)
+      (store : PrefixStore args), check store tail = true →
+      ∀ (locals : Locals (Val cells) past) (initial : Heap cells),
+        let retained := tail.denote input locals initial
+        tail.denote input locals (store.table.denote input initial).2 =
+          (retained.1, (store.table.denote input retained.2).2))
+    (accepted : cutWith check version body = some (store, retainedEntry)) :
     DeletesStores 1 (operations body) (operations retainedEntry) ∧
       ∀ (locals : Locals (Val cells) past) (initial : Heap cells),
         let retained := retainedEntry.denote input locals initial
@@ -34,18 +45,51 @@ theorem cut_preserves {past : List (List ValueSort)} {live version : Nat}
     obtain ⟨order, same⟩ := ih checked
     exact ⟨.keep (.load address) order,
       fun locals initial => same (.cons (initial.read (readValue address input locals)) .nil, locals) initial⟩
-  | @store _ live _ address word _ ih =>
-    simp only [cut] at accepted
+  | @store _ live _ address word rest ih =>
+    simp only [cutWith] at accepted
     split at accepted
     · split at accepted
-      · cases Option.some.inj accepted
-        exact ⟨.drop _ _ (DeletesStores.refl _), fun _ _ => rfl⟩
+      · split at accepted
+        next safe =>
+          cases Option.some.inj accepted
+          constructor
+          · simp only [operations, reindex_operations]
+            exact .drop _ _ (DeletesStores.refl _)
+          · intro locals initial
+            rw [Memory.DeadStore.reindexMemory_denote]
+            exact transfer rest _ safe locals initial
+        next => contradiction
       · contradiction
     · obtain ⟨⟨_, _⟩, checked, packed⟩ := Option.map_eq_some_iff.mp accepted
       cases packed
       obtain ⟨order, same⟩ := ih checked
       exact ⟨.keep (.store address word) order,
         fun locals initial => same locals (initial.write (readValue address input locals) (readValue word input locals))⟩
+
+theorem cutWith_disjoint_preserves {past : List (List ValueSort)} {live version : Nat}
+    {body retainedEntry : Memory.Body args past live} {store : PrefixStore args}
+    (input : Tuple (Val cells) args)
+    (check : PrefixStore args → {past : List (List ValueSort)} → {live : Nat} → Memory.Body args past live → Bool)
+    (safe : ∀ {past : List (List ValueSort)} {live : Nat} (tail : Memory.Body args past live)
+      (store : PrefixStore args), check store tail = true → Retained.Load.checkTail store input tail = true)
+    (accepted : cutWith check version body = some (store, retainedEntry)) :
+    DeletesStores 1 (operations body) (operations retainedEntry) ∧
+      ∀ (locals : Locals (Val cells) past) (initial : Heap cells),
+        let retained := retainedEntry.denote input locals initial
+        body.denote input locals initial = (retained.1, (store.table.denote input retained.2).2) :=
+  cutWith_preserves input check
+    (fun tail store accepted => Retained.Load.tail_transfer tail store input (safe tail store accepted)) accepted
+
+theorem cut_preserves {past : List (List ValueSort)} {live version : Nat}
+    {body retainedEntry : Memory.Body args past live} {store : PrefixStore args}
+    (input : Tuple (Val cells) args) (accepted : cut version body = some (store, retainedEntry)) :
+    DeletesStores 1 (operations body) (operations retainedEntry) ∧
+      ∀ (locals : Locals (Val cells) past) (initial : Heap cells),
+        let retained := retainedEntry.denote input locals initial
+        body.denote input locals initial = (retained.1, (store.table.denote input retained.2).2) := by
+  apply cutWith_preserves input _ _ accepted
+  intro _ _ tail _ safe _ _
+  cases tail <;> first | rfl | contradiction
 
 variable {graph : Graph args} {entry retainedEntry : Memory.Graph args} {version : Nat}
 variable {store : PrefixStore args} {artifacts : Artifacts cells args}

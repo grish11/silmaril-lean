@@ -124,14 +124,72 @@ structure Operands (block : LexicalBlock) where
 
 @[expose] def Operands.empty {block : LexicalBlock} : Operands block := ⟨[], [], [], .nil, .nil⟩
 
+/-- Direct list and tuple displays supply elements whose checked operands
+may read live references. An integer is admitted as a noniterable control. -/
+inductive Spread (block : LexicalBlock) where
+  | list {source : List Expr} {codes : List Lowering.Expr} {reads : List Binding} :
+      Call.Arguments block source codes reads → Spread block
+  | tuple {source : List Expr} {codes : List Lowering.Expr} {reads : List Binding} :
+      Call.Arguments block source codes reads → Spread block
+  | integer (value : Int) : Spread block
+
+@[expose] def Spread.source {block : LexicalBlock} : Spread block → Expr
+  | .list (source := source) _ => .list source
+  | .tuple (source := source) _ => .tuple source
+  | .integer value => .scalar (.int value)
+
+@[expose] def Spread.code {block : LexicalBlock} : Spread block → Lowering.Expr
+  | .list (codes := codes) _ => .list codes
+  | .tuple (codes := codes) _ => .tuple codes
+  | .integer value => .atom (.scalar (.int value))
+
+@[expose] def Spread.reads {block : LexicalBlock} : Spread block → List Binding
+  | .list (reads := reads) _ | .tuple (reads := reads) _ => reads
+  | .integer _ => []
+
+@[expose] def spreadReads {block : LexicalBlock} : Option (Spread block) → List Binding
+  | none => []
+  | some spread => spread.reads
+
+/-- The display is evaluated once. Expansion transports the exact original
+element values in order and leaves the display's reached state intact. -/
+inductive Spreads (block : LexicalBlock) : Option (Spread block) → State → Lists.Outcome (List Value) → Prop where
+  | absent (state : State) : Spreads block none state (.ok [] state)
+  | list {source codes reads state out} {related : Call.Arguments block source codes reads} :
+      Call.Evaluates block state source codes out →
+      Spreads block (some (.list related)) state
+        (out.resume fun values reached =>
+          Lists.Outcome.resume (Lists.allocate values reached) fun _ allocated => .ok values allocated)
+  | tuple {source codes reads state out} {related : Call.Arguments block source codes reads} :
+      Call.Evaluates block state source codes out →
+      Spreads block (some (.tuple related)) state
+        (out.resume fun values reached =>
+          Lists.Outcome.resume (Lists.allocateTuple values reached) fun _ allocated => .ok values allocated)
+  | invalid (state : State) (value : Int) : Spreads block (some (.integer value)) state (.error .invalidStar state)
+
 @[expose] def expression (name : String) (positional : List Lowering.Expr)
-    (keywords : List (String × Lowering.Expr)) : Lowering.Expr :=
-  .call (Leaf.readOperand (fileSlot name)) positional keywords none none
+    (keywords : List (String × Lowering.Expr)) (star : Option Lowering.Expr := none) : Lowering.Expr :=
+  .call (Leaf.readOperand (fileSlot name)) positional keywords star none
 
 /-- The flattened successful operand values are partitioned by the
 syntactic positional count and paired with the original keyword names. -/
-@[expose] def collect (positional : Nat) (keywords : List String) (values : List Value) : Actual :=
-  ⟨values.take positional, keywords.zip (values.drop positional)⟩
+@[expose] def collect (positional : Nat) (keywords : List String) (values : List Value) (spread : List Value := []) : Actual :=
+  ⟨values.take positional ++ spread, keywords.zip (values.drop positional)⟩
+
+/-- The terminal spread runs after explicit operands and before binding. -/
+inductive Actuals (block : LexicalBlock) (source : List Expr) (codes : List Lowering.Expr)
+    (positional : Nat) (keywords : List String) (star : Option (Spread block)) :
+    State → Lists.Outcome Actual → Prop where
+  | operandError {state final error} : Call.Evaluates block state source codes (.error error final) →
+      Actuals block source codes positional keywords star state (.error error final)
+  | spreadError {state reached final values error} :
+      Call.Evaluates block state source codes (.ok values reached) →
+      Spreads block star reached (.error error final) →
+      Actuals block source codes positional keywords star state (.error error final)
+  | expanded {state reached final values elements} :
+      Call.Evaluates block state source codes (.ok values reached) →
+      Spreads block star reached (.ok elements final) →
+      Actuals block source codes positional keywords star state (.ok (collect positional keywords values elements) final)
 
 abbrev SiteBinding {parent : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
     (site : Site parent formals varargs kwargs) : Call.BindingRule BoundArguments :=
@@ -142,9 +200,11 @@ abbrev RunsWith {parent : LexicalBlock} {formals : List PlainKeywordParameter} {
     (site : Site parent formals varargs kwargs) (bodyRuns : State → Lists.Outcome Flow → Prop)
     (block : LexicalBlock) (id : DeclarationId) (name : String)
     (arguments : List Expr) (codes : List Lowering.Expr) (keywords : List (String × Expr))
-    (compiled : List (String × Lowering.Expr)) :=
-  Call.RunsPacked site bodyRuns block id name (arguments ++ keywords.map Prod.snd) (codes ++ compiled.map Prod.snd)
-    (collect codes.length (compiled.map Prod.fst)) (SiteBinding site)
+    (compiled : List (String × Lowering.Expr)) (star : Option (Spread block) := none) :=
+  Call.RunsActual site bodyRuns block id name
+    (Actuals block (arguments ++ keywords.map Prod.snd) (codes ++ compiled.map Prod.snd)
+      codes.length (compiled.map Prod.fst) star)
+    (SiteBinding site)
     (Packs site.declaration.signature.varargs site.declaration.signature.kwargs)
 
 end Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named

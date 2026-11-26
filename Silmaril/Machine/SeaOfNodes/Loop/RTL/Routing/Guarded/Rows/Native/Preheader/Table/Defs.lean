@@ -59,16 +59,24 @@ def Plan.entrySteps (_ : Plan arity entrySigs) : Nat := entrySigs.length + 1
 
 def Plan.rtlFuel (backedges : Nat) : Nat := p.row.rtlFuel backedges + entrySigs.length
 
+/-- The entry gate requires at least one computed initializer. -/
+def isComputedEntry : Address → Bool
+  | .output _ _ => true
+  | .arg _ => false
+
+/-- The body recognizer uses an argument placeholder for a computed initializer. -/
+def entryPlaceholder : Address → Nat
+  | .arg i => i
+  | .output _ _ => 0
+
 /-- Keep the actual source entry column. Use a checked argument-only column
 solely to recover the shared header plan through the existing recognizer. -/
 def recognize {sigs : List (List PortTy)} (g : SourceWithEntry arity entrySigs sigs) :
     Option (Plan arity entrySigs) :=
   let entry := g.phiInputs .entry
   if h : supported g.preheader = true then
-    if entry.addresses.any (fun wire => match wire with | .output _ _ => true | .arg _ => false) then
-      (checkColumn arity arity (entry.addresses.map (fun wire => match wire with
-        | .arg i => i
-        | .output _ _ => 0))).bind fun column =>
+    if entry.addresses.any isComputedEntry then
+      (checkColumn arity arity (entry.addresses.map entryPlaceholder)).bind fun column =>
         (Native.recognize (bodyGraph g column)).bind fun spec =>
           (Rows.checkPlan arity spec).map fun row => ⟨g.preheader, h, entry, row⟩
     else none

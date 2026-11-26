@@ -58,7 +58,7 @@ private theorem readPorts_safe {past : List (List ValueSort)} {live : Nat}
       have next := ih checked (fun port member => distinct port (List.mem_cons_of_mem _ member))
       simp [Retained.Load.checkTail, first, next]
 
-private theorem checkTail_safe {past : List (List ValueSort)} {live : Nat}
+theorem checkTail_disjoint {past : List (List ValueSort)} {live : Nat}
     (tail : Memory.Body args past live) (store : PrefixStore args)
     (safe : checkTail facts store tail = true) (valid : facts.Valid input) :
     Retained.Load.checkTail store input tail = true := by
@@ -90,7 +90,7 @@ theorem cut_preserves {entry retained : Memory.Graph args} {version : Nat} {stor
       entry.denote input initial =
         ((retained.denote input initial).1, (store.table.denote input (retained.denote input initial).2).2) := by
   obtain ⟨order, same⟩ := Retained.Load.cutWith_disjoint_preserves input (checkTail facts)
-    (fun tail selected safe => checkTail_safe tail selected safe valid) accepted
+    (fun tail selected safe => checkTail_disjoint tail selected safe valid) accepted
   exact ⟨order, same PUnit.unit initial⟩
 
 variable {graph : Graph args} {entry : Memory.Graph args} {version : Nat} {artifacts : Artifacts cells args}

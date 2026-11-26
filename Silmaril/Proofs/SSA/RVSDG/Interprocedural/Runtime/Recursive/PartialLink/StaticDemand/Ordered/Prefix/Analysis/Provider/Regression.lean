@@ -1,12 +1,15 @@
 module
 
-import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Analysis.Provider.Thms
+import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Analysis.Provider.Relocation.Thms
 import Silmaril.SSA.RVSDG.Interprocedural.Terms.Thms
-meta import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Analysis.Provider.Thms
+import Silmaril.SSA.RVSDG.NestedTheta.Isomorphism.Thms
+meta import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Analysis.Provider.Relocation.Thms
 
 namespace Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.ProviderRegression
 
 open NestedTheta.Liveness (Demand)
+open Isomorphism (OutcomesRelated)
+open Isomorphism.RecursiveCall.Numbered.Prefix (AdmittedExport)
 open Continuation.Partial.Executable (Actions Observation observe runFor)
 open Isomorphism.RecursiveCall.Numbered (ExactValueCheck OrdinaryOutputs decidePort instructionCode)
 open Isomorphism.RecursiveCall.Numbered.Prefix (AllocatingClient GraphPlan checkGraphProvider admitAllocatingClient)
@@ -196,5 +199,169 @@ private def replaced (cap : Nat) :=
 #guard (replaced 0).bind blocked == some (83, 0, 0, 30)
 #guard resumed (args 4) == some (41, 54)
 #guard (replaced 0).bind resumed == some (41, 54)
+
+-- The second layout inserts an empty φ before each allocated global.
+private def providerLayout (shifted : Bool) :
+    AllocationPlan Op (Scope.ordinary machine).table single providerFn (.data ()) shifted where
+  init := ⟨single, .cons (.arg .head) .nil, [single], initializer⟩
+  binding :=
+    { context := [global]
+      captures := .cons (by
+        cases shifted
+        · exact .output (0 : Fin 1) .head
+        · exact .output (1 : Fin 2) .head) .nil
+      sigs := [[]]
+      body := providerBinding.body }
+
+private def allocated (shifted : Bool) (cap : Nat) : Tuple machine.Val [global] :=
+  .cons (.global 83 (if shifted then 1 else 0) (.data (2 * cap))) .nil
+
+private def providerInitialized (shifted : Bool) (cap : Nat) :
+    (providerLayout shifted).Initialized actions 83 (one cap) (one cap) 20 :=
+  ⟨allocated shifted cap, allocated shifted cap, 20 + cap + 4,
+    by cases shifted <;> rfl, by cases shifted <;> rfl⟩
+
+private def analyzeProvider (shifted : Bool) (cap : Nat) :=
+  (providerLayout shifted).analyze (Scope.Checked.ordinary actions).state.dispatch 83 (one cap) (one cap) 20
+    (providerInitialized shifted cap) (fun _ => none) (fun _ => none)
+    (by cases shifted <;> exact fun _ _ _ => trivial)
+    (by cases shifted <;> exact fun _ _ _ => trivial)
+
+private def providerSound (shifted : Bool) (cap : Nat) :=
+  ((analyzeProvider shifted cap).get (by cases shifted <;> rfl)).linked
+
+private def clientLayout (shifted : Bool) :
+    AllocationPlan Op (prepend providerBinding.summary (Scope.ordinary machine).table)
+      imports clientFn (.data ()) shifted where
+  init := ⟨single, .cons (.arg (.tail (.tail .head))) .nil, [single], initializer⟩
+  binding :=
+    { context := context
+      captures := .cons (.arg .head) (.cons (.arg (.tail .head)) (.cons (by
+        cases shifted
+        · exact .output (0 : Fin 1) .head
+        · exact .output (1 : Fin 2) .head) .nil))
+      sigs := [single, []]
+      body := clientBinding.body }
+
+private def relocatedEntry (shifted : Bool) (cap : Nat) (target : machine.Val providerFn.port) :
+    Tuple machine.Val imports :=
+  .cons target (.cons ((allocated shifted cap).get .head) (one 2))
+
+private def analyzeRelocated (shifted : Bool) (cap : Nat) (target : machine.Val providerFn.port) :
+    Option (ExportAnalysis actions (clientLayout shifted).binding.summary
+      (Executable.link actions 84 (clientLayout shifted).numbered.toGraph (relocatedEntry shifted cap target)
+        (providerSound shifted cap).store)
+      (Executable.link actions 84 (clientLayout shifted).numbered.toGraph (relocatedEntry shifted cap target)
+        (providerSound shifted cap).store)) := by
+  cases shifted
+  · exact (clientLayout false).analyzeImported (providerSound false cap) exact 84
+      (relocatedEntry false cap target) (relocatedEntry false cap target)
+      (fun same _ _ _ => ⟨⟨same, rfl⟩, fun _ _ => trivial⟩)
+      (fun same _ _ _ => ⟨⟨same, rfl⟩, fun _ _ => trivial⟩)
+  · exact (clientLayout true).analyzeImported (providerSound true cap) exact 84
+      (relocatedEntry true cap target) (relocatedEntry true cap target)
+      (fun same _ _ _ => ⟨⟨same, rfl⟩, fun _ _ => trivial⟩)
+      (fun same _ _ _ => ⟨⟨same, rfl⟩, fun _ _ => trivial⟩)
+
+private def relocateIds : GlobalRel := fun left right => right = (left.1, left.2 + 1)
+
+private def relocatedProviderPlan :
+    GraphPlan (providerLayout false).numbered.toGraph (providerLayout true).numbered.toGraph :=
+  .skipL (.skipR (.skipR (.start (.lambda .done))))
+
+private def relocatedProviderCheck (cap : Nat) :=
+  checkGraphProvider keys actions relocateIds ordinary 83 83 (one cap) (one cap)
+    (providerLayout false).numbered.toGraph (providerLayout true).numbered.toGraph
+    relocatedProviderPlan (providerFn := providerFn) .head 20 20
+
+private def pairedAdmission (cap : Nat) (targetR : machine.Val providerFn.port) :=
+  match relocatedProviderCheck cap with
+  | none => false
+  | some provider =>
+    (admitAllocatingClient actions ordinary exact provider 84 84
+      (relocatedEntry false cap (providerSound false cap).targetL) (relocatedEntry true cap targetR)
+      (clientLayout false).numbered (clientLayout true).numbered).isSome
+
+#guard pairedAdmission 3 (providerSound true 3).targetL
+#guard pairedAdmission 0 (providerSound true 0).targetL
+-- Same signature, code, unit and payload, but the old allocation vertex.
+#guard !(pairedAdmission 3 (providerSound false 3).targetL)
+#guard (analyzeRelocated true 3 (providerSound false 3).targetL).isNone
+
+private def relocatedResult (shifted : Bool) (cap : Nat) :=
+  analyzeRelocated shifted cap (providerSound shifted cap).targetL
+
+#guard [false, true].all fun shifted => (relocatedResult shifted 3).any fun checked =>
+  checked.linked.store == 33 &&
+  checked.liveCapture emptyDemand (.tail .head) &&
+  checked.liveCapture emptyDemand (.tail (.tail .head)) &&
+  checked.liveFormal requested .head &&
+  !checked.liveFormal requested (.tail .head) &&
+  (match checked.linked.capsL.get (.tail (.tail .head)) with
+    | .global unitId vertex (.data n) =>
+      let n : Nat := n
+      unitId == 84 && vertex == (if shifted then 1 else 0) && n == 4)
+
+private def relocatedRun (shifted : Bool) (cap : Nat) (values : Tuple machine.Val pair) :=
+  let source := providerSound shifted cap
+  Executable.run actions 60 84 (clientLayout shifted).numbered.toGraph
+    (relocatedEntry shifted cap source.targetL) .head values source.store
+
+private def relocatedLink (shifted : Bool) (cap : Nat) :=
+  let source := providerSound shifted cap
+  Executable.link actions 84 (clientLayout shifted).numbered.toGraph
+    (relocatedEntry shifted cap source.targetL) source.store
+
+private theorem providerRelated (cap : Nat) :
+    ValueRelated machine relocateIds (providerSound false cap).targetL (providerSound true cap).targetL :=
+  .closure (.cons (.global rfl (.data _)) .nil) (NestedTheta.Graph.Isomorphic.refl _)
+
+private theorem relocatedLinksRelated (cap : Nat) :
+    OutcomesRelated machine relocateIds Nat (· + 1) [clientFn.port]
+      (relocatedLink false cap) (relocatedLink true cap) :=
+  .linked (.cons (.closure (.cons (providerRelated cap)
+    (.cons (.global rfl (.data _)) (.cons (.global rfl (.data _)) .nil)))
+      (NestedTheta.Graph.Isomorphic.refl _)) .nil) (20 + cap + 4 + 2 + 4)
+
+private theorem argumentsRelated (spare : Nat) : TupleRelated machine relocateIds (args spare) (args spare) :=
+  .cons (ValueRelated.data (m := machine) (ids := relocateIds) (t := ()) (41 : Nat))
+    (.cons (ValueRelated.data (m := machine) (ids := relocateIds) (t := ()) spare) .nil)
+
+example (cap : Nat)
+    (left : ExportAnalysis actions clientBinding.summary (relocatedLink false cap) (relocatedLink false cap))
+    (right : ExportAnalysis actions clientBinding.summary (relocatedLink true cap) (relocatedLink true cap))
+    (admitted : AdmittedExport actions.toPrimitives relocateIds (fn := clientFn) .head
+      (relocatedLink false cap) (relocatedLink true cap)) :=
+  left.relocated_substituted_starts right (relocatedLinksRelated cap) admitted requested
+    (argumentsRelated 4) (argumentsRelated 40) rfl
+
+private def relocatedBlock (shifted : Bool) (values : Tuple machine.Val pair) :
+    Option (Nat × Nat × Nat × Nat) :=
+  match relocatedRun shifted 0 values with
+  | .ok (.blocked ⟨⟨_, _, .probe, _, _, .cons (.global unitId vertex (.data n)) .nil⟩, _⟩ store) =>
+    some (unitId, vertex, n, store)
+  | _ => none
+
+private def relocatedResume (shifted : Bool) (values : Tuple machine.Val pair) :=
+  match relocatedRun shifted 0 values with
+  | .ok (.blocked ⟨⟨_, _, .probe, _, _, _⟩, stack⟩ _) =>
+    returned (observe actions (runFor actions 60 ⟨.returned .nil stack, 50⟩))
+  | _ => none
+
+private def relocatedReplacement (shifted : Bool) (cap : Nat) :=
+  (relocatedResult shifted cap).map fun checked => checked.substituteDeadFormals requested (args 4) (args 40)
+
+#guard [false, true].all fun shifted =>
+  let attempt := some (83, if shifted then 1 else 0, 0, 30)
+  let success := some (41, 43)
+  let resumed := some (41, 54)
+  (relocatedReplacement shifted 3).map (fun values => match values.get (.tail .head) with
+    | .data n => n) == some (40 : Nat) &&
+  (relocatedRun shifted 3 (args 4)).toOption.bind returned == success &&
+  (relocatedReplacement shifted 3).bind (fun values => (relocatedRun shifted 3 values).toOption.bind returned) == success &&
+  relocatedBlock shifted (args 4) == attempt &&
+  (relocatedReplacement shifted 0).bind (relocatedBlock shifted) == attempt &&
+  relocatedResume shifted (args 4) == resumed &&
+  (relocatedReplacement shifted 0).bind (relocatedResume shifted) == resumed
 
 end Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.ProviderRegression

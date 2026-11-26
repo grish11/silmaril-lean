@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Python.Core.Binary64.Defs
+import Silmaril.Proofs.Languages.Python.Core.Binary64.Addition
 import Silmaril.Proofs.Languages.Python.Core.Binary64.Division
 import Silmaril.Proofs.Languages.Python.Core.Binary64.Equality
 
@@ -37,6 +38,57 @@ theorem equalInt_iff_exact (left : F64.Finite) (right : Int) :
 theorem signed_zeros_equal :
     equal ⟨F64.ofBits 0, by decide⟩ ⟨F64.ofBits 0x8000000000000000, by decide⟩ = true := by
   decide +kernel
+
+theorem intToFinite_none_iff (integer : Int) :
+    intToFinite? integer = none ↔ overflowThreshold ≤ (integer.natAbs : ℚ) :=
+  Proofs.Languages.Python.Core.Binary64.intToFinite_none_iff integer
+
+theorem intToFinite_nearestEven {integer : Int} {result : F64.Finite}
+    (converted : intToFinite? integer = some result) :
+    result.val.signBit = decide (integer < 0) ∧
+      NearestEven magnitude (integer.natAbs : ℚ) (magnitudeBits result.val.bits).toNat :=
+  Proofs.Languages.Python.Core.Binary64.intToFinite_nearestEven converted
+
+theorem addFinite_nearestEven {left right result : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
+    (added : addFinite? left right = some result) :
+    result.val.signBit = sumNegative left right (lhs + rhs) ∧
+      NearestEven magnitude |lhs + rhs| (magnitudeBits result.val.bits).toNat :=
+  Proofs.Languages.Python.Core.Binary64.addFinite_nearestEven leftValue rightValue added
+
+theorem addFinite_comm (left right : F64.Finite) : addFinite? left right = addFinite? right left :=
+  Proofs.Languages.Python.Core.Binary64.addFinite_comm left right
+
+/-- Exact cancellation has positive zero unless both input signs are negative. -/
+theorem addFinite_zero {left right : F64.Finite} {lhs rhs : ℚ}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
+    (zero : lhs + rhs = 0) :
+    (addFinite? left right).map (fun result => result.val.bits) =
+      some (if left.val.signBit && right.val.signBit then 0x8000000000000000 else 0) :=
+  Proofs.Languages.Python.Core.Binary64.addFinite_zero leftValue rightValue zero
+
+/-- A nonzero exact sum on the subnormal grid retains its exact magnitude bits. -/
+theorem addFinite_subnormal {left right : F64.Finite} {lhs rhs : ℚ} {index : Nat}
+    (leftValue : left.val.toRat? = some lhs) (rightValue : right.val.toRat? = some rhs)
+    (positive : 0 < index) (subnormal : index < 2 ^ 52)
+    (sum : |lhs + rhs| = magnitude index) :
+    (addFinite? left right).map (fun result => (magnitudeBits result.val.bits).toNat) = some index :=
+  Proofs.Languages.Python.Core.Binary64.addFinite_subnormal leftValue rightValue positive subnormal sum
+
+theorem mixedAdd_conversion_overflow_iff (integer : Int) (floating : F64.Finite) :
+    mixedAdd integer floating = .error .conversionOverflow ↔ overflowThreshold ≤ (integer.natAbs : ℚ) :=
+  Proofs.Languages.Python.Core.Binary64.mixedAdd_conversion_overflow_iff integer floating
+
+theorem mixedAdd_ok_iff (integer : Int) (floating result : F64.Finite) :
+    mixedAdd integer floating = .ok result ↔
+      ∃ converted, intToFinite? integer = some converted ∧ addFinite? converted floating = some result :=
+  Proofs.Languages.Python.Core.Binary64.mixedAdd_ok_iff integer floating result
+
+theorem mixedAdd_nonfinite_iff {integer : Int} {floating converted : F64.Finite} {lhs rhs : ℚ}
+    (coercion : intToFinite? integer = some converted)
+    (leftValue : converted.val.toRat? = some lhs) (rightValue : floating.val.toRat? = some rhs) :
+    mixedAdd integer floating = .error .nonfiniteResult ↔ overflowThreshold ≤ |lhs + rhs| :=
+  Proofs.Languages.Python.Core.Binary64.mixedAdd_nonfinite_iff coercion leftValue rightValue
 
 theorem trueDivide_zeroDivision_iff (numerator divisor : Int) :
     trueDivide numerator divisor = .error .zeroDivisionError ↔ divisor = 0 :=

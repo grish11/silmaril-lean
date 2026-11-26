@@ -40,6 +40,20 @@ theorem Heap.allocate_distinct (heap : Heap) (first second : Value) :
     ((heap.allocate first).2.allocate second).1 ≠ (heap.allocate first).1 := by
   simp [Heap.allocate, Heap.reserve]
 
+theorem Heap.materializeFreshTuple_empty (heap : Heap) :
+    heap.materializeFreshTuple [] = (.tuple [], heap) := rfl
+
+theorem Heap.materializeFreshTuple_nonempty (heap : Heap) (head : Core.Module.Value)
+    (tail : List Core.Module.Value) :
+    heap.materializeFreshTuple (head :: tail) =
+      (.tupleObject ⟨some heap.next, head :: tail⟩, (heap.allocate (.tuple (head :: tail))).2) := rfl
+
+theorem Heap.materializeFreshTuple_distinct (heap : Heap) (first second : Core.Module.Value)
+    (restFirst restSecond : List Core.Module.Value) :
+    let (object, reached) := heap.materializeFreshTuple (first :: restFirst)
+    object ≠ (reached.materializeFreshTuple (second :: restSecond)).1 := by
+  simp [Heap.materializeFreshTuple, Heap.allocate, Heap.reserve]
+
 theorem Heap.moduleTuple_empty (heap : Heap) (items : List GlobalTupleItem) :
     heap.materializeModuleTuple items [] = (.tuple [], heap) ∧
       (Value.tuple []).tupleObject? = some ⟨none, []⟩ := ⟨rfl, rfl⟩
@@ -60,7 +74,7 @@ theorem Heap.moduleTuple_fresh (heap : Heap) (items : List GlobalTupleItem)
     (reads : items.any GlobalTupleItem.isRead = true) :
     heap.materializeModuleTuple items (head :: tail) =
       (.tupleObject ⟨some heap.next, head :: tail⟩, (heap.allocate (.tuple (head :: tail))).2) := by
-  simp [Heap.materializeModuleTuple, reads, Heap.allocate]
+  simp [Heap.materializeModuleTuple, Heap.materializeFreshTuple, reads, Heap.allocate]
 
 theorem Heap.write_spec {heap updated : Heap} {identity : CellId} {value : Value}
     (write : heap.write identity value = some updated) :

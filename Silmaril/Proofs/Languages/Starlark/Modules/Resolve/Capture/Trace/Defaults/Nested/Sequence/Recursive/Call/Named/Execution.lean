@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.Operands
+import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.Spread
 public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.Binder
 public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Thms
 
@@ -22,15 +23,6 @@ open Silmaril.Languages.Starlark.Functions
 open Silmaril.Languages.Starlark.Lists (State Outcome Value)
 open Silmaril.Languages.Starlark.Lists.Iteration (Flow finishState)
 
-private theorem expands (state : State) (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr))
-    (values : List Value) :
-    Lowering.Expands ((Lowering.argumentShape positional keywords none none).collect values) state
-      (.ok (collect positional.length (keywords.map Prod.fst) values) state) := by
-  simpa [Lowering.argumentShape, ArgumentShape.collect, collect] using
-    Lowering.Expands.success
-      (args := ⟨values.take positional.length, (keywords.map Prod.fst).zip (values.drop positional.length), none, none⟩)
-      (keys := []) (values := []) (next := state) rfl .empty
-
 theorem runs {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
     (site : Site parent formals varargs kwargs)
     (bodyRuns : State → Outcome Flow → Prop)
@@ -45,17 +37,17 @@ theorem runs {parent block : LexicalBlock} {formals : List PlainKeywordParameter
     (record : ClosureAt site id defining state address)
     {arguments : List Lowering.Resolve.SourceExpr} {codes : List Lowering.Expr} {reads : List Binding}
     (related : Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Arguments
-      block arguments codes reads) (keywords : Operands block) :
-    ∃ out, RunsWith site bodyRuns block id name arguments codes keywords.source keywords.codes state out ∧
-      ExecExpr resolved.program available state (expression name codes keywords.codes) out ∧
-      Lowering.denoteExpr resolved.program available (expression name codes keywords.codes) state = out ∧
+      block arguments codes reads) (keywords : Operands block) (star : Option (Spread block) := none) :
+    ∃ out, RunsWith site bodyRuns block id name arguments codes keywords.source keywords.codes star state out ∧
+      ExecExpr resolved.program available state (expression name codes keywords.codes (star.map Spread.code)) out ∧
+      Lowering.denoteExpr resolved.program available (expression name codes keywords.codes (star.map Spread.code)) state = out ∧
       Body.Keeps state.heap.size state (finishState out) :=
-  Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.runs_packed
-    site bodyRuns resolved.program id available permitted enterBody callee record (ordered_operands related keywords)
-    codes keywords.codes rfl _ (SiteBinding site) (Packs site.declaration.signature.varargs site.declaration.signature.kwargs)
-    (fun state values _ => expands state codes keywords.codes values)
+  Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.runs_actual
+    site bodyRuns resolved.program id available permitted enterBody callee record codes keywords.codes
+    (star.map Spread.code) _ (actuals_total resolved.program available related keywords star)
+    (SiteBinding site) (Packs site.declaration.signature.varargs site.declaration.signature.kwargs)
     (fun _ _ => binds_total _ _ _ _ _ _) (by
-      intro reached closure values result binding
-      cases result <;> exact prepare_exact site resolved.program available id permitted found closure _ binding)
+      intro reached closure actual result _ binding
+      cases result <;> exact prepare_exact site resolved.program available id permitted found closure actual binding)
 
 end Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named

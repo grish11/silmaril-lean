@@ -9,12 +9,12 @@ namespace Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Order
 open Silmaril.Isotope
 open Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback
 open Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.RequestPrefix
-open LambdaSSA (FiniteCFG Region)
+open LambdaSSA (FiniteCFG Flat Region)
 open LambdaSSA.Semantics (Env extend extend_zero extend_succ)
 open LambdaSSA.Semantics.Interaction (BlockInput Primitive Transfer region splitTransfer term)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible (Expr PacketType PrimitiveSignature Slot)
-open Silmaril.Elgot (iter)
-open Silmaril.Elgot.ITree (Tree iterate_fixpoint)
+open Silmaril.Elgot (iter flattenBody flatten liftPure)
+open Silmaril.Elgot.ITree (Tree diverge diverge_bind iterate_fixpoint iterate_uniformity iterate_codiagonal)
 
 universe u w
 variable {E : Type w → Type w} {F : Type} {α : Type u}
@@ -99,35 +99,39 @@ private noncomputable def step (instr : Primitive E F α) (env : Env α)
     Tree E (Transfer α ⊕ BlockInput α blocks) :=
   region instr (extend env p.2) (graph.block p.1).erase >>= fun out => pure (splitTransfer blocks out)
 
-private theorem follow (instr : Primitive E F α) (env : Env α)
-    (graph : FiniteCFG F blocks exits captures) (row : Row sig outputs Γ)
-    (frame : Frame Γ) (values : Values Γ α) (labels : Fin (row.requests + 1) → Fin blocks)
-    (rows : ∀ i, (graph.block (labels i)).erase = (row.cells blocks frame (fun j => (labels j).val) i).2) :
-    iter (step instr env graph) (labels 0, frame.pack values) = row.run instr values := by
+private theorem follow {β : Type u}
+    (instr : Primitive E F α) (env : Env α)
+    (next : BlockInput α blocks → Tree E (β ⊕ BlockInput α blocks)) (finish : Transfer α → β)
+    (row : Row sig outputs Γ) (frame : Frame Γ) (values : Values Γ α)
+    (labels : Fin (row.requests + 1) → Fin blocks)
+    (rows : ∀ i packet, next (labels i, packet) =
+      (region instr (extend env packet) (row.cells blocks frame (fun j => (labels j).val) i).2 >>=
+        fun out => pure (Sum.map finish id (splitTransfer blocks out)))) :
+    iter next (labels 0, frame.pack values) = (row.run instr values >>= fun out => pure (finish out)) := by
   induction row with
   | exit port value =>
-    rw [congrFun (iterate_fixpoint (step instr env graph)) (labels 0, frame.pack values)]
-    simp only [step, rows 0, Row.cells]
+    rw [congrFun (iterate_fixpoint next) (labels 0, frame.pack values), rows 0]
+    simp only [Row.cells]
     rw [unpack_tree instr frame values _ 0 _ rfl]
     simp only [region, operand_tree instr _ _ values value (load_slot frame values (extend env (frame.pack values)) 0 rfl),
-      pure_bind, exit_transfer, Sum.elim_inl, Row.run]
+      pure_bind, exit_transfer, Sum.map_inl, Sum.elim_inl, Row.run]
   | request op arg tail ih =>
-    rw [congrFun (iterate_fixpoint (step instr env graph)) (labels 0, frame.pack values)]
-    simp only [step, rows 0, Row.cells, Fin.cases_zero]
+    rw [congrFun (iterate_fixpoint next) (labels 0, frame.pack values), rows 0]
+    simp only [Row.cells, Fin.cases_zero]
     rw [unpack_tree instr frame values _ 0 _ rfl]
     have saved : frame.load values (extend env (frame.pack values)) frame.shift = frame.pack values := by
       simpa only [Nat.add_zero, extend_zero] using
         load_ambient frame values (extend env (frame.pack values)) 0
     simp only [region, term, operand_tree instr _ _ values arg (load_slot frame values (extend env (frame.pack values)) 0 rfl),
-      pure_bind, bind_assoc, extend_succ, extend_zero, saved, local_transfer, Sum.elim_inr, Row.run]
+      pure_bind, bind_assoc, extend_succ, extend_zero, saved, local_transfer, Sum.map_inr, id_eq, Sum.elim_inr, Row.run]
     apply bind_congr
     intro reply
     exact ih (.push (sig.reply op) frame) (bindReply values reply) (labels ∘ Fin.succ)
-      (fun i => by
-        have next := rows i.succ
-        simp only [Row.cells] at next
-        erw [Fin.cases_succ] at next
-        exact next)
+      (fun i packet => by
+        have equation := rows i.succ packet
+        simp only [Row.cells] at equation
+        erw [Fin.cases_succ] at equation
+        exact equation)
 
 variable {packets : Fin blocks → PacketType} {source : FiniteCFG F blocks exits captures}
   (s : Shape sig outputs packets source) (emitted : Emitted s)
@@ -164,49 +168,136 @@ private theorem entry_run (instr : Primitive E F α) (env : Env α)
   simp only [FiniteCFG.erase, region, entry, bind_assoc, pure_bind, local_transfer, Sum.elim_inr]
   rfl
 
-private theorem selected_run (instr : Primitive E F α) (env : Env α) (packet : Value α) :
-    iter (step instr env source) (s.selected, packet) =
-      iter (step instr env emitted.code) (oldLabel s.row.requests s.selected, packet) := by
-  let values : Values [packets s.selected] α := readSlots position (extend env packet)
-  calc
-    _ = s.row.run instr values := by
-      rw [congrFun (iterate_fixpoint (step instr env source)) (s.selected, packet)]
-      change ((region instr (extend env packet) (source.block s.selected).erase >>= fun out =>
-        pure (splitTransfer blocks out)) >>= _) = _
+/-- Run the same flat row with two continuations that agree on its
+relocated labels. This includes malformed raw operands that diverge. -/
+private theorem rename_transfer {n labels : Nat} {β : Type u}
+    (instr : Primitive E F α) (env : Env α) (row : Flat F labels n)
+    (rename : Nat → Nat) (before after : Transfer α → Tree E β)
+    (agree : ∀ i value, after (rename i, value) = before (i, value)) :
+    (region instr env (row.erase.renameLabels rename) >>= after) = (region instr env row.erase >>= before) := by
+  induction row generalizing env with
+  | br label arg => simp only [Flat.erase, Region.renameLabels, region, bind_assoc, pure_bind, agree]
+  | let₁ arg body ih => simp only [Flat.erase, Region.renameLabels, region, bind_assoc, ih]
+  | let₂ arg body ih =>
+    simp only [Flat.erase, Region.renameLabels, region, bind_assoc]
+    apply bind_congr
+    intro value
+    cases value <;> first
+      | exact ih _
+      | change (diverge >>= after) = (diverge >>= before); rw [diverge_bind, diverge_bind]
+  | case arg left right hl hr =>
+    simp only [Flat.erase, Region.renameLabels, region, bind_assoc]
+    apply bind_congr
+    intro value
+    cases value <;> first
+      | exact hl _
+      | exact hr _
+      | change (diverge >>= after) = (diverge >>= before); rw [diverge_bind, diverge_bind]
+
+private def embed (count : Nat) (state : BlockInput α blocks) : BlockInput α (blocks + count) :=
+  (oldLabel count state.1, state.2)
+
+private theorem relocate_transfer (count label : Nat) (value : Value α) :
+    splitTransfer (blocks + count) (moveExit blocks count label, value) =
+      Sum.map id (embed count) (splitTransfer blocks (label, value)) := by
+  by_cases internal : label < blocks
+  · have moved : label < blocks + count := by omega
+    simp [moveExit, splitTransfer, internal, moved, embed, oldLabel]
+  · have moved : ¬ blocks + count + (label - blocks) < blocks + count := by omega
+    simp [moveExit, splitTransfer, internal, moved]
+
+private theorem unchanged (instr : Primitive E F α) (env : Env α) (i : Fin blocks)
+    (other : i ≠ s.selected) (packet : Value α) :
+    step instr env emitted.code (embed s.row.requests (i, packet)) =
+      Sum.map id (embed s.row.requests) <$> step instr env source (i, packet) := by
+  unfold step
+  change (region instr (extend env packet) (emitted.code.block (oldLabel s.row.requests i)).erase >>= _) = _
+  rw [emitted.row_eq, table_old s i other]
+  simp only [map_eq_pure_bind, bind_assoc, pure_bind]
+  apply rename_transfer
+  intro label payload
+  rw [relocate_transfer]
+
+theorem unchanged_step (instr : Primitive E F α) (env : Env α) (i : Fin blocks)
+    (other : i ≠ s.selected) (packet : Value α) :
+    blockStep instr emitted.code env (oldLabel s.row.requests i, packet) =
+      Sum.map id (fun state => (oldLabel s.row.requests state.1, state.2)) <$>
+        blockStep instr source env (i, packet) := by
+  change blockStep instr emitted.code env (embed s.row.requests (i, packet)) =
+    Sum.map id (embed s.row.requests) <$> blockStep instr source env (i, packet)
+  simpa only [blockStep, transfer, map_eq_pure_bind, step] using unchanged s emitted instr env i other packet
+
+/-- Follow internal continuations of the selected chain in the inner
+iterator. Every unchanged row hands control back to the outer iterator. -/
+private noncomputable def phased {A B : Type u} (run : A → Tree E (B ⊕ A)) (inside : A → Bool) (p : A) :
+    Tree E ((B ⊕ A) ⊕ A) :=
+  if inside p then Sum.map Sum.inl id <$> run p else Sum.inl <$> run p
+
+private theorem flatten_phased {A B : Type u} (run : A → Tree E (B ⊕ A)) (inside : A → Bool) :
+    flattenBody (phased run inside) = run := by
+  funext p
+  have flatInner (x : B ⊕ A) : flatten (Sum.map Sum.inl id x) = x := by
+    cases x <;> rfl
+  by_cases h : inside p = true
+  · simp only [flattenBody, Bind.kleisliRight, liftPure, Function.comp_apply, phased, ite_eq_left h, bind_map_left]
+    calc
+      _ = run p >>= pure := bind_congr fun x => congrArg pure (flatInner x)
+      _ = _ := bind_pure _
+  · simp only [flattenBody, Bind.kleisliRight, liftPure, Function.comp_apply, phased, ite_eq_right h, bind_map_left,
+      flatten, Sum.elim_inl, id_eq, bind_pure]
+
+private def insideChain (p : BlockInput α (blocks + s.row.requests)) : Bool :=
+  decide (p.1.val = s.selected.val ∨ blocks ≤ p.1.val)
+
+private theorem chain_inside (i : Fin (s.row.requests + 1)) (packet : Value α) :
+    insideChain s (chainLabel s.selected s.row.requests i, packet) = true := by
+  refine Fin.cases ?_ (fun k => ?_) i
+  · simp [insideChain, chainLabel, oldLabel]
+  · simp [insideChain, chainLabel, freshLabel]
+
+private theorem unchanged_outside (i : Fin blocks) (other : i ≠ s.selected) (packet : Value α) :
+    insideChain s (embed s.row.requests (i, packet)) = false := by
+  simp [insideChain, embed, oldLabel, show i.val ≠ s.selected.val from fun h => other (Fin.ext h),
+    Nat.not_le_of_lt i.isLt]
+
+private theorem step_square (instr : Primitive E F α) (env : Env α) (p : BlockInput α blocks) :
+    (Sum.map id (embed s.row.requests) <$> step instr env source p) =
+      iter (phased (step instr env emitted.code) (insideChain s)) (embed s.row.requests p) := by
+  rcases p with ⟨i, packet⟩
+  by_cases selected : i = s.selected
+  · subst i
+    let values : Values [packets s.selected] α := readSlots position (extend env packet)
+    have original : step instr env source (s.selected, packet) = (s.row.run instr values >>= fun out => pure (.inl out)) := by
+      change (region instr (extend env packet) (source.block s.selected).erase >>= _) = _
       rw [s.row_eq, unsplit_step instr s.row (extend env packet) values (fun _ => rfl)]
-      simp only [bind_assoc, pure_bind, Sum.elim_inl, bind_pure]
-    _ = _ := (follow instr env emitted.code s.row (.entry (packets s.selected)) values
-      (chainLabel s.selected s.row.requests) fun i => by
-        rw [emitted.row_eq, table_chain]
-        rfl).symm
+    have compiled := follow instr env (phased (step instr env emitted.code) (insideChain s)) Sum.inl s.row
+      (.entry (packets s.selected)) values (chainLabel s.selected s.row.requests) (fun j incoming => by
+        simp only [phased, chain_inside, ite_true, step, emitted.row_eq, table_chain s, Shape.chain,
+          map_eq_pure_bind, bind_assoc, pure_bind])
+    change iter (phased (step instr env emitted.code) (insideChain s)) (embed s.row.requests (s.selected, packet)) =
+      (s.row.run instr values >>= fun out => pure (.inl out)) at compiled
+    rw [original, compiled]
+    simp only [map_eq_pure_bind, bind_assoc, pure_bind, Sum.map_inl, id_eq]
+  · rw [congrFun (iterate_fixpoint (phased (step instr env emitted.code) (insideChain s)))
+      (embed s.row.requests (i, packet))]
+    simp only [phased, unchanged_outside s i selected, Bool.false_eq_true, ite_false, bind_map_left, Sum.elim_inl,
+      bind_pure]
+    exact (unchanged s emitted instr env i selected packet).symm
 
-private theorem jump_run (instr : Primitive E F α) (env : Env α)
-    (graph : FiniteCFG F blocks exits captures) (here there : Fin blocks) (packet : Value α)
-    (arg : LambdaSSA.Tm F) (row : (graph.block here).erase = .br there.val arg) :
-    iter (step instr env graph) (here, packet) =
-      term instr (extend env packet) arg >>= fun out => iter (step instr env graph) (there, out) := by
-  rw [congrFun (iterate_fixpoint (step instr env graph)) (here, packet)]
-  simp only [step, row, region, bind_assoc, pure_bind, local_transfer, Sum.elim_inr]
-
-private theorem route_run (instr : Primitive E F α) (env : Env α) {here : Fin blocks}
-    (route : Route source s.selected here) (packet : Value α) :
-    iter (step instr env source) (here, packet) =
-      iter (step instr env emitted.code) (oldLabel s.row.requests here, packet) := by
-  induction route generalizing packet with
-  | done => exact selected_run s emitted instr env packet
-  | jump here next arg other row tail ih =>
-    have moved : (emitted.code.block (oldLabel s.row.requests here)).erase =
-        .br (oldLabel s.row.requests next).val arg := by
-      rw [emitted.row_eq, table_old s here other, row]
-      simp [Region.renameLabels, moveExit, next.isLt, oldLabel]
-    rw [jump_run instr env source here next packet arg row,
-      jump_run instr env emitted.code _ _ packet arg moved]
-    exact bind_congr ih
+private theorem old_run (instr : Primitive E F α) (env : Env α) (p : BlockInput α blocks) :
+    iter (step instr env source) p = iter (step instr env emitted.code) (embed s.row.requests p) := by
+  let phases := phased (step instr env emitted.code) (insideChain s)
+  have simulation := iterate_uniformity (step instr env source) (iter phases) (embed s.row.requests) (by
+    funext state
+    simp only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind]
+    exact step_square s emitted instr env state)
+  simpa only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, iterate_codiagonal,
+    phases, flatten_phased] using congrFun simulation p
 
 theorem preserves_run (instr : Primitive E F α) (env : Env α) :
     region instr env source.erase = region instr env emitted.code.erase := by
   rw [entry_run instr env source s.entry _ s.entry_eq,
     entry_run instr env emitted.code (oldLabel s.row.requests s.entry) _ (emitted.entry_eq.trans s.entry_eq)]
-  exact bind_congr (route_run s emitted instr env s.route)
+  exact bind_congr fun packet => old_run s emitted instr env (s.entry, packet)
 
 end Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.RequestPrefix

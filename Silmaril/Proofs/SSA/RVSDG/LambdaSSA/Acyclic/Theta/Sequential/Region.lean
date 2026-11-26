@@ -519,6 +519,42 @@ private theorem fragment_run (p : Fragment Φ A E D) {I : Type u}
     simpa only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, raw, loc, Sum.elim_inr, Sum.map_inr] using
       congrFun loop i
 
+theorem flat_splitReturn_denote (p : Fragment Φ A E D)
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m))
+    (env : Env [Silmaril.coprod A E]) :
+    Region.denote (ε := ε) (m := m) p.splitReturn.typing env =
+      match TypeModel.coprodEquiv A E env.2 with
+      | .inl x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x)
+      | .inr e => pure (.inl e) := by
+  rw [fragment_run p.splitReturn id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent]
+  change (Sum.elim _ _ (TypeModel.coprodEquiv A E env.2) >>= _) = _
+  cases TypeModel.coprodEquiv A E env.2 with
+  | inl x => exact (fragment_run p id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent (PUnit.unit,x)).symm
+  | inr e =>
+    simp only [Sum.elim_inr, runBlock, pure_bind]
+    change Sum.elim pure (iter (fragStep (ε := ε) p))
+      (route p.localTypes [E,D] id (externalSite p.localTypes [E,D] 0) e) = _
+    rw [route_external]
+    rfl
+
+theorem flat_gateCarrier_denote (p : Fragment Φ M E D)
+    (gate : TwoBlock.Instruction Φ A (TwoBlock.TwoExit.Carrier M E D))
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m) (p.gateCarrier gate).typing env =
+      callCase (ε := ε) gate env.2 >>= fun
+        | .inl e => pure (TwoBlock.TwoExit.exitLabel (TypeModel.coprodEquiv E D e))
+        | .inr x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x) := by
+  rw [fragment_run (p.gateCarrier gate) id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent]
+  simp only [Fragment.gateCarrier, runBlock, bind_assoc]
+  congr 1
+  funext result
+  cases result with
+  | inl e =>
+    simp only [Sum.elim_inl]
+    cases TypeModel.coprodEquiv E D e <;>
+      simp only [Sum.elim_inl, Sum.elim_inr, route_external, pure_bind] <;> rfl
+  | inr x => exact (fragment_run p id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent (PUnit.unit,x)).symm
+
 theorem flat_bindChooseLoop_denote {V W : τ} (value : TwoBlock.Instruction Φ A A)
     (test : TwoBlock.Instruction Φ A (Silmaril.coprod V W))
     (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :

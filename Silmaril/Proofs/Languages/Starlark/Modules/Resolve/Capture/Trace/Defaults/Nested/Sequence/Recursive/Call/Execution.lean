@@ -75,6 +75,95 @@ theorem callee_error {parent block : LexicalBlock} (site : Site parent) (id : De
       Lowering.EvaluatesManyWith.headError (tail := codes) (Body.evaluates_with program available _ read)
   exact ⟨.calleeError read, agreement native⟩
 
+theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
+    (site : Site parent formals varargs kwargs)
+    (bodyRuns : State → Outcome Flow → Prop)
+    (program : Program) (id : DeclarationId) (available : List DeclarationId) (permitted : id ∈ available)
+    (enterBody : BodyEntry site program available id bodyRuns)
+    {name : String} {state defining : State} {address : Nat}
+    (callee : Body.Evaluates block state (.scalar (.read name)) (Leaf.readOperand (fileSlot name))
+      (.ok (.function address) state))
+    (record : ClosureAt site id defining state address)
+    (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star : Option Lowering.Expr)
+    (actuals : State → Outcome Actual → Prop)
+    (reaches : ∀ state, ∃ out, actuals state out ∧
+      NativeActuals program available positional keywords star state out ∧
+      Body.Keeps state.heap.size state (finishState out))
+    {Bound : Type} (binds : BindingRule Bound) (packs : PackRule Bound)
+    (total : ∀ defaults actual, ∃ result, binds defaults actual result)
+    (prepare : ∀ {reached : State} (closure : ClosureAt site id defining reached address) actual result,
+      actuals state (.ok actual reached) → binds closure.defaults actual result →
+      match result with
+      | .error error => prepareExpanded program available actual (.function address) reached =
+          .error error reached
+      | .ok bound => ∃ assigned packed, packs reached bound assigned packed ∧
+          Body.Keeps reached.heap.size reached packed ∧ packed.bindings = reached.bindings ∧
+          prepareExpanded program available actual (.function address) reached =
+            .ok (.closure ⟨id, permitted, site.declaration.body⟩)
+              (activate packed site.declaration closure.captures assigned)) :
+    let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star none
+    ∃ out, RunsActual site bodyRuns block id name actuals binds packs state out ∧
+      ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
+      Body.Keeps state.heap.size state (finishState out) := by
+  let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star none
+  change ∃ out, RunsActual site bodyRuns block id name actuals binds packs state out ∧
+    ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
+    Body.Keeps state.heap.size state (finishState out)
+  let calls := Lowering.coreClosureRuns program available
+  have read := Body.evaluates_with program available calls callee
+  obtain ⟨args, source, evaluated, kept⟩ := reaches state
+  have applyCall {reached : State} {values : List Value} {out : Outcome Value}
+      (operands : Lowering.EvaluatesManyWith program available calls (fun _ => True) state
+        (Lowering.argumentExprs positional keywords star none) (.ok values reached))
+      (dispatch : Lowering.AppliesWith program available calls (Lowering.argumentShape positional keywords star none)
+        reached (.function address :: values) out) :
+      Operational program available state code out := by
+    dsimp [code]
+    apply Lowering.EvaluatesWith.call
+    · simpa only [Lowering.sourceOperands, Lowering.argumentExprs] using
+        Lowering.EvaluatesManyWith.cons read operands
+    · exact dispatch
+  cases args with
+  | error error residual =>
+    have native : Operational program available state code (.error error residual) := by
+      cases evaluated with
+      | operandError operands =>
+        dsimp [code]
+        apply Lowering.EvaluatesWith.callError
+        simpa only [Lowering.sourceOperands, Lowering.argumentExprs] using
+          Lowering.EvaluatesManyWith.tailError read operands
+      | expanded operands expansion =>
+        exact applyCall operands (.expansionError expansion)
+    exact ⟨_, .argumentError callee source, (agreement native).1, (agreement native).2, kept⟩
+  | ok actual actualState =>
+    have invoke {out : Outcome Value}
+        (dispatch : Lowering.DispatchesWith program available calls actualState (.function address) actual out) :
+        Operational program available state code out := by
+      cases evaluated with
+      | expanded operands expansion => exact applyCall operands (.expanded expansion dispatch)
+    let reached := keep_record record kept
+    obtain ⟨bound, binding⟩ := total reached.defaults actual
+    have ready := prepare reached actual bound source binding
+    cases bound with
+    | error error =>
+      have ⟨native, meaning⟩ := agreement (invoke (.reject ready))
+      exact ⟨_, .bindingError callee source reached binding, native, meaning, kept⟩
+    | ok bound =>
+      obtain ⟨assigned, packed, packedArgs, packedKept, sameBindings, ready⟩ := ready
+      let packedRecord := keep_record reached packedKept
+      obtain ⟨out, bodyRun, executable, restored⟩ :=
+        enterBody packed defining packedRecord.captures packedRecord.installed packedRecord.live assigned
+      have sameCaller : Leaf.returnTo packed out = Leaf.returnTo actualState out := by
+        cases out <;> simp [Leaf.returnTo, restoreCaller, packedKept.1, sameBindings, finishState]
+      have dispatch : Lowering.DispatchesWith program available calls actualState (.function address)
+          actual (Leaf.returnTo actualState out) := by
+        cases out with
+        | ok flow final => exact .returned ready executable
+        | error error final => exact .failed ready executable
+      have ⟨native, meaning⟩ := agreement (invoke dispatch)
+      exact ⟨_, .invoked callee source reached binding packedArgs bodyRun, native, meaning,
+        sameCaller ▸ keeps_all (keeps_all kept packedKept) restored⟩
+
 theorem runs_packed {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
     (site : Site parent formals varargs kwargs)
     (bodyRuns : State → Outcome Flow → Prop)
@@ -107,54 +196,22 @@ theorem runs_packed {parent block : LexicalBlock} {formals : List PlainKeywordPa
     ∃ out, RunsPacked site bodyRuns block id name arguments codes collect binds packs state out ∧
       ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
       Body.Keeps state.heap.size state (finishState out) := by
-  let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords none none
-  change ∃ out, RunsPacked site bodyRuns block id name arguments codes collect binds packs state out ∧
-    ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
-    Body.Keeps state.heap.size state (finishState out)
-  let calls := Lowering.coreClosureRuns program available
-  have read := Body.evaluates_with program available calls callee
-  obtain ⟨operands, ran, kept, length⟩ := arguments_total related state
-  have applyCall {actualState : State} {values : List Value} {out : Outcome Value}
-      (evaluated : Evaluates block state arguments codes (.ok values actualState))
-      (size : values.length = codes.length)
-      (dispatch : Lowering.DispatchesWith program available calls actualState (.function address) (collect values) out) :
-      Operational program available state code out := by
-    dsimp [code]
-    apply Lowering.EvaluatesWith.call
-    · simpa only [Lowering.sourceOperands, Option.toList_none, List.append_nil, ordered] using
-        Lowering.EvaluatesManyWith.cons read (evaluates_many program available calls evaluated)
-    · exact .expanded (expands actualState values size) dispatch
-  cases operands with
-  | error error residual =>
-    have native : Operational program available state code (.error error residual) := by
-      dsimp [code]
-      apply Lowering.EvaluatesWith.callError
-      simpa only [Lowering.sourceOperands, Option.toList_none, List.append_nil, ordered] using
-        Lowering.EvaluatesManyWith.tailError read (evaluates_many program available calls ran)
-    exact ⟨_, .operandError callee ran, (agreement native).1, (agreement native).2, kept⟩
-  | ok values actualState =>
-    let reached := keep_record record kept
-    obtain ⟨bound, binding⟩ := total reached.defaults (collect values)
-    have ready := prepare reached values bound binding
-    cases bound with
-    | error error =>
-      have ⟨native, meaning⟩ := agreement (applyCall ran (length _ _ rfl) (.reject ready))
-      exact ⟨_, .bindingError callee ran reached binding, native, meaning, kept⟩
-    | ok bound =>
-      obtain ⟨assigned, packed, packedArgs, packedKept, sameBindings, ready⟩ := ready
-      let packedRecord := keep_record reached packedKept
-      obtain ⟨out, bodyRun, executable, restored⟩ :=
-        enterBody packed defining packedRecord.captures packedRecord.installed packedRecord.live assigned
-      have sameCaller : Leaf.returnTo packed out = Leaf.returnTo actualState out := by
-        cases out <;> simp [Leaf.returnTo, restoreCaller, packedKept.1, sameBindings, finishState]
-      have dispatch : Lowering.DispatchesWith program available calls actualState (.function address)
-          (collect values) (Leaf.returnTo actualState out) := by
-        cases out with
-        | ok flow final => exact .returned ready executable
-        | error error final => exact .failed ready executable
-      have ⟨native, meaning⟩ := agreement (applyCall ran (length _ _ rfl) dispatch)
-      exact ⟨_, .invoked callee ran reached binding packedArgs bodyRun, native, meaning,
-        sameCaller ▸ keeps_all (keeps_all kept packedKept) restored⟩
+  refine runs_actual site bodyRuns program id available permitted enterBody callee record positional keywords none _
+    (fun reached => ?_) binds packs total ?_
+  · obtain ⟨out, ran, kept, length⟩ := arguments_total related reached
+    have native := evaluates_many program available (Lowering.coreClosureRuns program available) ran
+    have nativeOrdered : Lowering.EvaluatesManyWith program available (Lowering.coreClosureRuns program available)
+        (fun _ => True) reached (Lowering.argumentExprs positional keywords none none) out := by
+      simpa only [Lowering.argumentExprs, Option.toList_none, List.append_nil, ordered] using native
+    cases out with
+    | error error residual => exact ⟨_, .operandError ran, .operandError nativeOrdered, kept⟩
+    | ok values final =>
+      exact ⟨_, .expanded ran rfl, .expanded nativeOrdered (expands final values (length _ _ rfl)), kept⟩
+  · intro reached closure actual result assembled binding
+    cases assembled with
+    | expanded _ collected =>
+      cases collected
+      exact prepare closure _ result binding
 
 theorem runs_preserving_with {parent block : LexicalBlock} (site : Site parent)
     (bodyRuns : State → Outcome Flow → Prop)

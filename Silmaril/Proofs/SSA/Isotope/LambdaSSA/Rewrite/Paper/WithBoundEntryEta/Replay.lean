@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithBoundEntryEta.Replay.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Singleton.Iteration.Uniformity.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithBoundEntryEta.Comparison.Thms
+import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithBoundEntryEta.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithEntryLet.Replay.Operand.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithEntryLet.Replay.Operand.Traversal.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Dispatcher.Eta.Thms
@@ -40,6 +41,29 @@ theorem move₂_substVars (site : Site) (r : Region Φ) (θ : Nat → Tm Φ) :
   Site.rewriteAt_substVars moveEntry₂ moveEntry₂_subst site r θ
 
 variable {τ : Type u} [TypeFormers τ] [HasTy Φ τ]
+
+private theorem moveEntry₁_exact {Γ : VCtx τ} {L : LCtx τ} {r s : Region Φ}
+    (hr : HasType Γ r L) (hm : Site.moveEntry r = some s) :
+    HasType Γ s L ∧ WithBoundEntryEta.Eqv Γ r s L := by
+  cases hr with
+  | cfg R he hb =>
+    cases he with
+    | let₁ ha hd =>
+      simp only [Site.moveEntry, Option.some.injEq] at hm
+      subst s
+      exact ⟨.let₁ ha (.cfg R hd (fun i => (hb i).renameVars ((Ren.wk _ _).lift (R i)))),
+        WithBoundEntryEta.entryLet R ha hd hb⟩
+    | _ => simp [Site.moveEntry] at hm
+  | _ => simp [Site.moveEntry] at hm
+
+theorem move₁_pullback (site : Site) {Γ : VCtx τ} {L : LCtx τ} {r s : Region Φ}
+    (hr : HasType Γ r L) (θ : Nat → Tm Φ)
+    (hm : site.move (r.substVars θ) = some s) :
+    ∃ q, site.move r = some q ∧ s = q.substVars θ ∧
+      HasType Γ q L ∧ WithBoundEntryEta.Eqv Γ r q L := by
+  rw [Site.move_substVars] at hm
+  obtain ⟨q, he, rfl⟩ := Option.map_eq_some_iff.mp hm
+  exact ⟨q, he, rfl, Site.rewriteAt_exact Site.moveEntry moveEntry₁_exact site hr he⟩
 
 private theorem moveEntry₂_sound {Γ : VCtx τ} {L : LCtx τ} {r s : Region Φ}
     (hr : HasType Γ r L) (hm : moveEntry₂ r = some s) :

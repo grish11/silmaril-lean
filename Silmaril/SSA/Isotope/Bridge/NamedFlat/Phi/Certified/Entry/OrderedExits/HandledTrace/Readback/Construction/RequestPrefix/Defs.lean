@@ -2,7 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.HandledTrace.Readback.Construction.Defs
 
-/-! # Split a typed finite request prefix at a selected entry row -/
+/-! # Split a typed finite request prefix at a selected row -/
 
 @[expose] public section
 
@@ -107,32 +107,7 @@ def Row.cells (blocks : Nat) : {Γ : List PacketType} → (row : Row sig outputs
         (.br (labels (0 : Fin (tail.requests + 1)).succ) (.pair (.var (frame.shift + 1)) (.var 0)))))
       (fun k => tail.cells blocks (.push (sig.reply op) frame) (labels ∘ Fin.succ) k) i
 
-/-- A finite route from the structural entry to the selected row may use
-ordinary old-label jumps. Their arguments are carried exactly as written. -/
-inductive Route (source : FiniteCFG F blocks exits captures) (selected : Fin blocks) : Fin blocks → Type
-  | done : Route source selected selected
-  | jump (here next : Fin blocks) (arg : Tm F) (other : here ≠ selected)
-      (row : (source.block here).erase = .br next.val arg)
-      (tail : Route source selected next) : Route source selected here
-
-def readRoute (source : FiniteCFG F blocks exits captures) (selected : Fin blocks) :
-    Nat → (here : Fin blocks) → Option (Route source selected here)
-  | fuel, here =>
-    if same : here = selected then some (by subst here; exact .done)
-    else
-      match fuel with
-      | 0 => none
-      | remaining + 1 =>
-        match row : (source.block here).erase with
-        | .br target arg => do
-          if inside : target < blocks then
-            let next : Fin blocks := ⟨target, inside⟩
-            let tail ← readRoute source selected remaining next
-            return .jump here next arg same row tail
-          else none
-        | _ => none
-
-/-- Exact provenance for the selected original row and its entry route. -/
+/-- Exact provenance for the selected original row and the structural entry. -/
 structure Shape (sig : PrimitiveSignature F) (outputs : Fin exits → PacketType)
     (packets : Fin blocks → PacketType) (source : FiniteCFG F blocks exits captures) where
   entry : Fin blocks
@@ -141,22 +116,20 @@ structure Shape (sig : PrimitiveSignature F) (outputs : Fin exits → PacketType
   row : Row sig outputs [packets selected]
   entry_eq : source.entry.erase = .br entry.val (packetTerm seed)
   row_eq : (source.block selected).erase = row.erase blocks
-  route : Route source selected entry
 
 variable {packets : Fin blocks → PacketType} {source : FiniteCFG F blocks exits captures}
 
 /-- Recheck exact erasure at the readback boundary. The default selects the
-entry row. An explicit selection may be reached by a finite chain of jumps. -/
+entry row. An explicit selection is checked independently of reachability. -/
 def read [DecidableEq F] (sig : PrimitiveSignature F) (outputs : Fin exits → PacketType)
     (packets : Fin blocks → PacketType) (source : FiniteCFG F blocks exits captures)
     (selected : Option (Fin blocks) := none) : Option (Shape sig outputs packets source) := do
   let entry ← readEntry source
   let picked := selected.getD entry.val.1
-  let route ← readRoute source picked blocks entry.val.1
   let row ← readRow sig outputs blocks [packets picked] (source.block picked).erase
   let exactRow ← commonRow (blocks + exits) (source.block picked).erase (row.erase blocks)
   return ⟨entry.val.1, picked, entry.val.2, row, entry.property,
-    exactRow.property.1.trans exactRow.property.2.symm, route⟩
+    exactRow.property.1.trans exactRow.property.2.symm⟩
 
 def Shape.chain (s : Shape sig outputs packets source) :
     Fin (s.row.requests + 1) → PacketType × Region F :=

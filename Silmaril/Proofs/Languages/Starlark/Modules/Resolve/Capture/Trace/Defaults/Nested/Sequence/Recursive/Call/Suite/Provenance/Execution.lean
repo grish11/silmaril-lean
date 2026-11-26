@@ -176,11 +176,11 @@ private theorem runs_guarded {commands : List Command} {linked : Program} {resol
       obtain ⟨address, defining, callee, ⟨record⟩⟩ := evaluated_local live tracked call.calleeOwned
       obtain ⟨result, ran, exec, _, kept⟩ :=
         Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.runs
-          entry.site _ checked entry.id found available permitted enter callee record call.operands call.keywords
+          entry.site _ checked entry.id found available permitted enter callee record call.operands call.keywords call.star
       have reached := Body.frame_preserved frame kept
       cases result with
       | error error stopped =>
-        exact ⟨_, .invoke ran (fun _ _ child => child) (out := .error error stopped) (fun _ _ no => nomatch no),
+        exact ⟨_, .invoke (star := call.star) ran (fun _ _ child => child) (out := .error error stopped) (fun _ _ no => nomatch no),
           reached, trim_keep kept, .seqError (.assignExpr exec)⟩
       | ok value returned =>
         have nextReady := ready_updated ready call.destination none (fun _ no => nomatch no)
@@ -193,7 +193,7 @@ private theorem runs_guarded {commands : List Command} {linked : Program} {resol
           (keeps_live live kept) (fun _ no => nomatch no)
         obtain ⟨out, trace, finalFrame, last, tailExec⟩ :=
           ih table guarded nextReady selectedTail _ written nextDistinct nextLive
-        exact ⟨out, .invoke ran (fun _ _ child => child) (fun _ _ same => by cases same; exact trace),
+        exact ⟨out, .invoke (star := call.star) ran (fun _ _ child => child) (fun _ _ same => by cases same; exact trace),
           finalFrame, Body.keeps_trans retained last, .seq (.assignExpr exec) tailExec⟩
 
 theorem runs {block : LexicalBlock} {source : Statement} {seed final : Program}

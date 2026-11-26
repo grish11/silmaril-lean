@@ -6,6 +6,8 @@ implementation, or an implementation of the ATProto repository format.
 
 See [named DASL languages](atproto-dasl-languages.md) for relational
 presentations, expansion, recognition and fail-closed CAS queries.
+[Portable string diagrams](dasl-string-diagrams.md) specify a compact wiring
+object, validation profiles and lossless incidence layouts.
 
 ## Contracts
 

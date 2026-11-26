@@ -781,6 +781,40 @@ import Silmaril.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.RuntimeRoom.Me
 lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.RuntimeRoom.Regression
 ```
 
+#### Coloured observation of the two-address θ
+
+`TwoAddress.Institution.PetriRoom.comparison` uses the generated numbered
+room's sentences, typed valuation models and capture maps. The
+`GeneratedProgram.petriObserve` observer reads the stored whole θ through
+coloured firing. The trace starts at the net's initial marking with
+the canonical typed capture bank and complete initialized heap as root
+colours. A finite completed trace witnesses the returned word and
+every final cell.
+[Coloured observer and comparison](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/PetriRoom/Thms.lean)
+
+`petriObserve_eq_numbered` identifies the entire partial value, with
+independent firing and numbered evaluation witnesses.
+`petriObserve_eq_none_iff` characterizes absence of any finite completed
+trace. In the coloured room, an equation compares these partial values
+at every initialized heap. A termination sentence requires some
+completed trace at each initialized heap.
+
+`petriObserve_map` compares the re-emitted observation with the source
+observation at the typed reduct. `numbered_satisfaction_map` gives the
+canonical numbered room's global comparison over the pulled-back target
+valuations. The regression observes equal returned words with differing
+cell 1 values, then checks the re-emitted equation after the two address
+captures are identified through the numbered comparison.
+[Runnable regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/PetriRoom/Regression.lean)
+
+```lean
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.PetriRoom.Thms
+```
+
+```sh
+lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.PetriRoom.Regression
+```
+
 ### Equations for coloured Petri completion
 
 `petriHolds` compares the two emitted graphs' finite completions for

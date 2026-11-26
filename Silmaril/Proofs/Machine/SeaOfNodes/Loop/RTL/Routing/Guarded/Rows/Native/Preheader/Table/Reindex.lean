@@ -11,7 +11,7 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Prehe
 open CategoryTheory (Discrete)
 open Silmaril.Machine.Lir (Memory)
 open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy WordOp model)
-open Silmaril.SSA.RVSDG (Locals Tuple)
+open Silmaril.SSA.RVSDG (Locals Tuple Wires)
 open Silmaril.SSA.SeaOfNodes
 open Diamond (Dataflow Model Val)
 open Diamond.LambdaSSA.Institution.Fiber (fiberRoom inputModel)
@@ -22,6 +22,38 @@ open Institution (equation rtlBehaviors scope)
 universe w
 variable {arity : Nat} {entrySigs sigs rightEntry rightSigs : List (List PortTy)}
 variable (perm : InputPermutation arity)
+
+private theorem column_symm {past : List (List PortTy)} {ports : List PortTy}
+    (wires : Wires (wordPorts arity) past ports) :
+    InputPermutation.column perm.symm (perm.column wires) = wires := by
+  induction wires with
+  | nil => rfl
+  | cons wire _ ih =>
+    cases wire <;> simp only [InputPermutation.column, Tuple.map] at ih ⊢ <;>
+      rw [ih]
+    rw [InputPermutation.port_symm]
+
+private theorem flow_symm {past : List (List PortTy)}
+    (flow : Dataflow WordOp (wordPorts arity) past sigs) :
+    reindexFlow perm.symm (reindexFlow perm flow) = flow := by
+  induction flow with
+  | nil => rfl
+  | cons op args rest ih => rw [reindexFlow, reindexFlow, column_symm, ih]
+
+theorem reindexCaptures_symm (g : SourceWithEntry arity entrySigs sigs) :
+    reindexCaptures perm.symm (reindexCaptures perm g) = g := by
+  cases g with
+  | mk preheader header phi predicate result =>
+    have columns : (fun edge => match edge with
+      | Loop.Incoming.entry => InputPermutation.column perm.symm (perm.column (phi .entry))
+      | Loop.Incoming.backedge => phi .backedge) = phi := by
+      funext edge
+      cases edge with
+      | entry => exact column_symm perm (phi .entry)
+      | backedge => rfl
+    unfold reindexCaptures
+    rw [flow_symm]
+    exact congrArg (fun inputs => Loop.Graph.mk preheader header inputs predicate result) columns
 
 private theorem eval_flow (m : Model.{0, 0, w} WordOp)
     {past sigs : List (List PortTy)} (flow : Dataflow WordOp (wordPorts arity) past sigs)

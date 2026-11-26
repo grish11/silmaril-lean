@@ -37,6 +37,14 @@ theorem arguments_total {block : LexicalBlock}
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.arguments_total
     related state
 
+theorem evaluates_many (program : Program) (available : List DeclarationId)
+    (calls : Lowering.ClosureRuns available)
+    {block : LexicalBlock} {state : State} {arguments : List NormalizedExpr} {codes : List Lowering.Expr}
+    {out : Outcome (List Value)} (ran : Evaluates block state arguments codes out) :
+    Lowering.EvaluatesManyWith program available calls (fun _ => True) state codes out :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.evaluates_many
+    program available calls ran
+
 /-- A reached callee error skips every operand and activation. -/
 theorem callee_error {parent block : LexicalBlock} (site : Site parent) (id : DeclarationId)
     (program : Program) (available : List DeclarationId) {name : String}
@@ -122,6 +130,41 @@ theorem runs_installed_alias_preserving {parent : LexicalBlock} (site : Site par
        Lowering.denoteExpr resolved.program available (expression name codes) copied = out ∧ Body.Keeps copied.heap.size copied (finishState out)) :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.runs_installed_alias_preserving
     site profile checked table id found available permitted step receipts cells owned legal frame related
+
+/-- Continue from an independently reached argument result, including an expansion failure. -/
+theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
+    (site : Site parent formals varargs kwargs)
+    (bodyRuns : State → Outcome Flow → Prop)
+    (program : Program) (id : DeclarationId) (available : List DeclarationId) (permitted : id ∈ available)
+    (enterBody : BodyEntry site program available id bodyRuns)
+    {name : String} {state defining : State} {address : Nat}
+    (callee : Body.Evaluates block state (.scalar (.read name)) (Leaf.readOperand (fileSlot name))
+      (.ok (.function address) state))
+    (record : ClosureAt site id defining state address)
+    (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star : Option Lowering.Expr)
+    (actuals : State → Outcome Actual → Prop)
+    (reaches : ∀ state, ∃ out, actuals state out ∧
+      NativeActuals program available positional keywords star state out ∧
+      Body.Keeps state.heap.size state (finishState out))
+    {Bound : Type} (binds : BindingRule Bound) (packs : PackRule Bound)
+    (total : ∀ defaults actual, ∃ result, binds defaults actual result)
+    (prepare : ∀ {reached : State} (closure : ClosureAt site id defining reached address) actual result,
+      actuals state (.ok actual reached) → binds closure.defaults actual result →
+      match result with
+      | .error error => prepareExpanded program available actual (.function address) reached =
+          .error error reached
+      | .ok bound => ∃ assigned packed, packs reached bound assigned packed ∧
+          Body.Keeps reached.heap.size reached packed ∧ packed.bindings = reached.bindings ∧
+          prepareExpanded program available actual (.function address) reached =
+            .ok (.closure ⟨id, permitted, site.declaration.body⟩)
+              (activate packed site.declaration closure.captures assigned)) :
+    let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star none
+    ∃ out, RunsActual site bodyRuns block id name actuals binds packs state out ∧
+      ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
+      Body.Keeps state.heap.size state (finishState out) :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.runs_actual
+    site bodyRuns program id available permitted enterBody callee record positional keywords star
+    actuals reaches binds packs total prepare
 
 theorem runs_packed {parent block : LexicalBlock} {formals : List PlainKeywordParameter} {varargs kwargs : Option String}
     (site : Site parent formals varargs kwargs)

@@ -947,6 +947,38 @@ and uses the payload as the next request's argument. The depth-bounded
 separation theorem applies to the closed fragment above.
 [Open extraction theorem][ssa-ub-open-operand-extraction]
 
+### Refinement at a fixed typed caller packet
+
+For two successfully extracted endpoints with the same entry packet type,
+`Table.refines_iff` identifies the installed shaped order at that packet,
+over every deterministic shaped primitive interpreter and initial state in
+the finite-state API, with the logical tree relation `Tree.Refines`.
+Matching queries agree on the opcode and evaluated argument. They compare
+continuations at every actual typed reply position and payload. A tag
+with an empty payload type contributes no comparisons; a key with no
+successful reply can still fault or diverge. Matching queries run from
+the same state, and a reply passes its final state to both continuations.
+Ordered exits and fault states remain observable. Literal UB is greatest
+on the right. A pending request can diverge or fault before a later UB.
+
+Failure selects a single finite path of shared replies and a final test.
+The deterministic handler has one state per shared reply, so repeated
+queries can receive different replies at different positions. It faults
+on the left query and diverges on the right at an unequal pair of queries.
+The successful reply steps use actual typed values. The primitive API
+permits those replies at the recorded argument and state. A stricter
+handler contract that forbids a recorded reply could prevent this witness.
+
+The checked comparison bounds the number of shared replies by the smaller
+of the two extraction budgets (entry rank plus one); the handler adds one
+final test state. Witness existence uses classical reasoning and needs no
+exhaustive reply enumeration. The regression takes two different payloads
+at the same reply tag: one distinguishes a next argument that reads the
+reply from one that reads the caller packet, and the other leaves the two
+observations equal. This equivalence quantifies over deterministic
+finite-state primitive interpretations at the supplied packet.
+[Open refinement theorems][ssa-ub-open-operand-refinement]
+
 ## Coverage and gaps
 
 | Language | Refinement and institutions in the repository | UB construction and remaining hypotheses |
@@ -1104,3 +1136,4 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-dependent-request-tree]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Thms.lean
 [ssa-ub-native-request-trees]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/Thms.lean
 [ssa-ub-open-operand-extraction]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Thms.lean
+[ssa-ub-open-operand-refinement]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Refinement/Thms.lean

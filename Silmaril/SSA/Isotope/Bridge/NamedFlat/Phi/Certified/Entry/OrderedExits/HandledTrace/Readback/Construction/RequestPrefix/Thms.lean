@@ -15,7 +15,7 @@ open LambdaSSA (FiniteCFG)
 open LambdaSSA.Semantics (Env)
 open LambdaSSA.Semantics.Interaction (Primitive region)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
-  (Atom PacketType PrimitiveSignature Program Slot)
+  (Atom Denote PacketType PrimitiveSignature Program Slot)
 open Silmaril.Elgot.ITree.Finite (Event)
 
 universe u w
@@ -73,8 +73,34 @@ theorem Shape.old_packet (s : Shape sig outputs packets source) (i : Fin blocks)
     (s.table (oldLabel s.row.requests i)).1 = packets i :=
   Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.RequestPrefix.old_packet s i
 
-/-- Both original jumps along the certified entry route and the generated
-reply continuations preserve the actual weak run and relative exit index. -/
+/-- An unchanged row has the same weak step. Internal transfers keep
+their old indices and packets, and outward transfers keep their relative
+exit indices and payloads. -/
+theorem Emitted.unchanged_step {E : Type w → Type w} {α : Type u} (emitted : Emitted s)
+    (instr : Primitive E F α) (env : Env α) (i : Fin blocks) (other : i ≠ s.selected) (packet : Value α) :
+    blockStep instr emitted.code env (oldLabel s.row.requests i, packet) =
+      Sum.map id (fun state => (oldLabel s.row.requests state.1, state.2)) <$>
+        blockStep instr source env (i, packet) :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.RequestPrefix.unchanged_step
+    s emitted instr env i other packet
+
+/-- The same comparison at a typed packet. Transport along the checked old
+packet type equality changes neither its codec nor its runtime value. -/
+theorem Emitted.unchanged_typed_step {E : Type w → Type w} (emitted : Emitted s)
+    (instr : Primitive E F Atom) (env : Env Atom) (i : Fin blocks) (other : i ≠ s.selected)
+    (packet : Denote (packets i)) :
+    blockStep instr emitted.code env (oldLabel s.row.requests i,
+      PacketType.encode _ (cast (congrArg Denote (s.old_packet i).symm) packet)) =
+      Sum.map id (fun state => (oldLabel s.row.requests state.1, state.2)) <$>
+        blockStep instr source env (i, PacketType.encode _ packet) := by
+  have encoded {a b : PacketType} (h : a = b) (p : Denote a) :
+      PacketType.encode b (cast (congrArg Denote h) p) = PacketType.encode a p := by cases h; rfl
+  rw [encoded (s.old_packet i).symm packet, emitted.unchanged_step instr env i other]
+
+/-- Local simulation on old labels and the selected prefix invariant
+preserve the actual complete weak run. No reachability or termination
+premise is required for unchanged rows. The selected prefix still has an
+external exit tail. -/
 theorem Emitted.preserves_run {E : Type w → Type w} {α : Type u} (emitted : Emitted s)
     (instr : Primitive E F α) (env : Env α) :
     region instr env source.erase = region instr env emitted.code.erase :=

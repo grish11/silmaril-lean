@@ -258,8 +258,29 @@ example :
 
 private def swapCaptures : InputPermutation 3 := Equiv.swap 0 2
 private def swappedSource := reindexCaptures swapCaptures source
-private def swappedTargets : Checked.Phi.Targets := (lowerChecked swappedSource).get (by cbv)
+private theorem swappedHasTargets : (lowerChecked swappedSource).isSome := by
+  obtain ⟨_, found⟩ := lowerChecked_reindex swapCaptures accepted
+  rw [show lowerChecked swappedSource = some _ from found]
+  rfl
+
+private def swappedTargets : Checked.Phi.Targets := (lowerChecked swappedSource).get swappedHasTargets
 private theorem swappedAccepted : lowerChecked swappedSource = some swappedTargets := by cbv
+
+private def rawEntry : SourceWithEntry 3 Entry Header :=
+  { source with
+    phiInputs
+      | .entry => .cons (.arg (capture 0)) (.cons (.arg (capture 1)) (.cons (.arg (capture 2)) .nil))
+      | .backedge => source.phiInputs .backedge }
+
+private theorem rawRefused : lowerChecked rawEntry = none := by cbv
+
+example : lowerChecked (reindexCaptures swapCaptures rawEntry) = none := by
+  cases found : lowerChecked (reindexCaptures swapCaptures rawEntry) with
+  | none => rfl
+  | some targets =>
+    obtain ⟨_, wasAccepted⟩ := (lowerChecked_reindex_iff swapCaptures (g := rawEntry)).mp ⟨targets, found⟩
+    rw [rawRefused] at wasAccepted
+    cases wasAccepted
 
 example : (swappedTargets.1.block? 0 0).map (·.ops) =
     some [.binary .sub (.arg 6) (.arg 2) (.arg 0), .binary .add (.arg 7) (.arg 6) (.arg 1)] := by cbv
@@ -280,7 +301,10 @@ example :
     Behavior.diverges ∈ Institution.rtlBehaviors swappedSpin mem swappedTargets.1 ∧
       Observation.diverge mem ∈ ssaBeh 1
         (inputModel (P := Rows.wordSignature) model Memory swappedSpin) (Institution.scope swappedAccepted) := by
-  have agree := observations_reindex swapCaptures accepted swappedAccepted swappedSpin mem
+  obtain ⟨after, found, observes⟩ := reemit_observations swapCaptures accepted
+  have same : after = swappedTargets := Option.some.inj (found.symm.trans swappedAccepted)
+  subst after
+  have agree := observes swappedSpin mem
   rw [pullSpin] at agree
   have old := (Institution.room_diverges_iff accepted spin mem).mpr spinAbsent
   exact ⟨agree.1 ▸ ((Institution.rtl_room_observation_iff accepted spin (.diverge mem)).mp old),

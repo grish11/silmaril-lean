@@ -18,6 +18,14 @@ open Silmaril.MLIR.MemRef (Buffer)
 variable {args : List ValueSort} {cells : Nat}
 variable {facts : Certificate args} {input : Tuple (Val cells) args}
 
+/-- A certified read-only suffix passes the existing concrete
+disjointness check at every valuation satisfying the certificate. -/
+theorem checkTail_disjoint {past : List (List ValueSort)} {live : Nat}
+    (tail : Memory.Body args past live) (store : PrefixStore args)
+    (safe : checkTail facts store tail = true) (valid : facts.Valid input) :
+    Retained.Load.checkTail store input tail = true :=
+  Proofs.checkTail_disjoint tail store safe valid
+
 /-- Every admitted reader sees the same word on the retained buffer
 and on that buffer with the nominated Store applied. Loads leave that
 buffer live for the entire chain. -/

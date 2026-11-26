@@ -55,7 +55,7 @@ theorem numbered_eq_translate (s : Sentence P) : s.numbered = translate s.source
   | terminates p => simp only [Sentence.numbered, Sentence.source, translate, p.generated]
 
 theorem satisfaction (s : Sentence P) (model : EntryModel P) : s.Holds model ↔ s.source.Holds model := by
-  cases s <;> simp only [Sentence.Holds, Sentence.source, Institution.Sentence.Holds,
+  cases s <;> simp only [Sentence.Holds, Sentence.HoldsWith, Sentence.source, Institution.Sentence.Holds,
     Institution.Sentence.HoldsWith, observe_eq_runtime, runtimeObserve_eq_iff_native, runtimeObserve_dom_iff_native]
 
 end Silmaril.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.RuntimeRoom.Proofs

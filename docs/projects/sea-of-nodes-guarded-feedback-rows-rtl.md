@@ -450,6 +450,11 @@ example {targets : Checked.Phi.Targets} (accepted : Table.lowerChecked dependent
     Behavior.diverges ∈ Table.Institution.rtlBehaviors (bank 0 1 1) initial targets.1 :=
   Table.Institution.rtl_room_observation_iff accepted (bank 0 1 1) (.diverge initial)
 
+example {targets : Checked.Phi.Targets} (accepted : Table.lowerChecked dependent = some targets)
+    (perm : Rows.InputPermutation 3) :
+    ∃ after, Table.lowerChecked (Table.reindexCaptures perm dependent) = some after :=
+  Table.lowerChecked_reindex perm accepted
+
 #eval do
   let swap : Rows.InputPermutation 3 := Equiv.swap 0 2
   let (rtl, ssa) ← Table.lowerChecked (Table.reindexCaptures swap dependent)
@@ -572,11 +577,17 @@ references, header bank slots and incoming occurrences retain their identity.
 result of a recognized graph.
 
 Run the ordinary `Table.lowerChecked` on the mapped graph to re-emit both
-targets. Given both successful checks, `Table.observations_reindex` equates
-the actual RTL behaviour sets and full λSSA room observations at the
-corresponding valuations. This includes exact returns with unchanged memory
-and actual divergence. The theorem takes the new check as evidence. A proof
-that every permutation passes that check is outside the current API.
+targets. `Table.lowerChecked_reindex` proves acceptance from the original
+successful check. The existing computed-initializer requirement and supported
+opcode checks still apply. The typed entry reads remain in scope at each
+instruction, and the header and exit keep their original checks.
+`Table.lowerChecked_reindex_iff` reflects acceptance by applying the inverse
+permutation.
+
+`Table.reemit_observations` takes just the original success and supplies the
+new checker result together with full RTL and λSSA observation equality
+at every pulled valuation. This includes exact returns with unchanged
+memory and actual divergence.
 
 `Table.reindex_equation_at_iff` compares each re-emitted equation at the
 pulled valuation. The all-input law covers every old valuation because
@@ -584,7 +595,8 @@ pulled valuation. The all-input law covers every old valuation because
 swapping captures 0 and 2 reverses the subtraction operands and redirects
 the entry limit. Input `(5, 2, 6)` now returns 7, and `(1, 1, 0)` reaches
 the fixed point on both targets. The original machine returns 3 at
-`(1, 1, 0)`. [Checked regression][table-regression]
+`(1, 1, 0)`. A typed table whose entry uses only raw captures is refused
+before and after permutation. [Checked regression][table-regression]
 
 ```sh
 lake build --wfail +Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Fuel.Thms \

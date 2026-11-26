@@ -30,11 +30,13 @@ private theorem cut_version {past : List (List ValueSort)} {live version : Nat}
     cases packed
     exact ih checked
   | store _ _ _ _ ih =>
-    simp only [Final.cut] at accepted
+    simp only [Final.cut, Final.cutWith] at accepted
     split at accepted
     next chosen =>
       split at accepted
-      · simpa [storeCount, storeVersions] using chosen
+      · split at accepted
+        · simpa [storeCount, storeVersions] using chosen
+        · contradiction
       · contradiction
     next =>
       obtain ⟨⟨_, _⟩, checked, packed⟩ := Option.map_eq_some_iff.mp accepted

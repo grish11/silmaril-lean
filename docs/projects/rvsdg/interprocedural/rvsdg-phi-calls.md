@@ -975,6 +975,25 @@ cover certified links in disjoint allocation histories. Opaque allocations
 and shared ancestors are outside this interface.
 [Typed provider lookup](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/Isomorphism/RecursiveCall/Numbered/Admission/Prefix/Graph/Import/Allocation/Thms.lean)
 
+### Analyzing relocated allocating layouts
+
+`AllocationPlan.analyze` also accepts the allocating layout with an empty
+φ before δ. It rebuilds the typed demand scope from the actual linked δ
+row. `AllocationPlan.analyzeImported` checks each head import against a
+provider demand receipt for its own numbered links. The outer capture
+wires may move while the exported λ uses the same demand summary.
+
+Use `ExportAnalysis.relocated_substituted_starts` with two such receipts,
+the existing related-link evidence, and `admitAllocatingClient`'s dispatch
+certificate. Related original and replacement arguments yield related
+substituted starts. The linked family transports returns and blocks at
+exact stores. `relocated_resume` reuses the reached related frames with
+typed, related, admitted response packets at a common store. The fixture
+moves both allocations from vertex 0 to 1 and checks exact success, block
+and resumption in both layouts. The right client rejects a same-payload
+provider closure that still captures vertex 0.
+[Relocated allocation API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Provider/Relocation/Thms.lean)
+
 ### Synthesizing direct call resolution
 
 `Plan.lambdaDirect` and `Plan.finishDirect` construct the existing local

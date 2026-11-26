@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Reverse.Profile.PacketLocal.LetCase.Witnessed.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Reverse.Materialize.Admission.Thms
 
 /-! # A written LetCase request and two ordered live-out exits -/
 
@@ -322,5 +323,137 @@ open Capture.Carry (graphList inferSlots) in
 example : (lower (freshRegisters 3) (fun i => (⟨i.val⟩ : Register))
     (fun _ => (⟨7⟩ : Label)) (fun _ => ⟨22⟩)
     (graphList shiftedTable (inferSlots shiftedTable))).isNone = true := by decide
+
+-- The original variable alias contracts in the case arm. Its old flat
+-- pair was not a mutable exit packet: the second number was plain data.
+open Capture.Carry (graphList inferSlots infer_packetOnly) in
+example :
+    (Materialize.graph shiftedTable).block 0 =
+      .let₂ (.pair (.bv 0) .unit)
+        (.case (.bv 3) (.br 1 (.pair (.bv 0) (.bv 5))) (.br 1 (.pair (.bv 0) (.bv 2)))) ∧
+    (lower (freshRegisters 3) (fun i => (⟨i.val⟩ : Register))
+      (fun _ => (⟨7⟩ : Label)) (fun _ => ⟨22⟩)
+      (graphList (Materialize.graph shiftedTable) (inferSlots (Materialize.graph shiftedTable)))).isSome = true :=
+  ⟨by decide, by decide⟩
+
+private abbrev shiftedExits : List Label := [⟨22⟩]
+private def shiftedOldType (_ : Fin shiftedExits.length) : Ty SortName := .product num num
+private abbrev shiftedPorts := numberedInterface shiftedContext shiftedExits shiftedOldType
+
+example (old : Fin shiftedExits.length → Ty SortName) (fields' : Label → List (Register × Ty SortName)) :
+    (LiveOut.exitInterface (numberedInterface shiftedContext shiftedExits old) fields').external ⟨0, Nat.zero_lt_succ 0⟩ ≠
+      .product num num := by
+  change Ty.product (old 0) (LiveOut.recordType (fields' ⟨22⟩)) ≠ .product num num
+  cases fields' ⟨22⟩ <;> simp [LiveOut.recordType, num]
+
+-- Keep both original payload components and explicitly project the middle
+-- caller number as a live-out. The entry's leading operand let performs a
+-- real request, so materialization must bind it before the internal jump.
+private def shiftedFields (_ : Label) : List (Register × Ty SortName) := [(⟨7⟩, num)]
+
+private def shiftedLiveTable : LambdaSSA.FiniteCFG sig.Instr 1 shiftedExits.length 3 :=
+  ⟨.br 0 (.let₁ (.op .pick (.bv 2)) (.bv 3)), fun _ =>
+    .let₂ (.pair (.bv 0) .unit)
+      (.case (.bv 3)
+        (.br 1 (.let₁ (.bv 0) (.pair (.pair (.bv 0) (.bv 6)) (.pair (.bv 6) .unit))))
+        (.br 1 (.pair (.pair (.bv 0) (.bv 2)) (.pair (.bv 5) .unit))))⟩
+
+private theorem shiftedTyped :
+    shiftedLiveTable.HasType shiftedContext (fun _ => num)
+      (LiveOut.exitInterface shiftedPorts shiftedFields).external :=
+  ⟨.br (.let₁ (.op .bv) .bv), fun _ => .let₂ (.pair .bv .unit)
+    (.case .bv (.br (.let₁ .bv (.pair (.pair .bv .bv) (.pair .bv .unit))))
+      (.br (.pair (.pair .bv .bv) (.pair .bv .unit))))⟩
+
+private def shiftedRegisters : Registers Register := freshRegisters 3
+private def shiftedLabels (_ : Fin 1) : Label := ⟨7⟩
+
+private def shiftedCompile :=
+  compileFlatInferred? (P := sig) (context := shiftedContext) (external := shiftedOldType) (fields := shiftedFields)
+    (Materialize.graph shiftedLiveTable) (fun _ => num) shiftedRegisters shiftedLabels
+
+private theorem shiftedCompile_ok : shiftedCompile.isSome = true := by decide +kernel
+private def shiftedCompiled := shiftedCompile.get shiftedCompile_ok
+
+example : Capture.Carry.inferSlots (Materialize.graph shiftedLiveTable) = [1, 0] := by decide
+
+example : shiftedCompiled.lowered.source.entry =
+    .let1 ⟨4⟩ (.app .pick (.var ⟨2⟩))
+      (.term (.br ⟨7⟩ (.pair (.pair (.var ⟨2⟩) (.var ⟨1⟩)) (.var ⟨0⟩)))) := by decide +kernel
+
+private def overwritesInput : Registers Register :=
+  { shiftedRegisters with localAt := fun depth => if depth = 0 then ⟨2⟩ else shiftedRegisters.localAt depth }
+
+example : (compileFlatInferred? (P := sig) (context := shiftedContext) (external := shiftedOldType)
+    (fields := shiftedFields) (Materialize.graph shiftedLiveTable) (fun _ => num)
+    overwritesInput shiftedLabels).isNone = true := by decide +kernel
+
+example (x : Record.Input shiftedContext) (ambient : Env Runtime) :
+    region model.raw (extend ambient (encodeValue C (Region.packedInputType shiftedContext.toList) x))
+      (Program.ofCFGEntry shiftedTyped).code =
+    LiveOut.observe model shiftedPorts shiftedFields shiftedCompiled.lowered.source x :=
+  Materialize.packed_observe shiftedTyped model shiftedCompiled x ambient
+
+example (x : Record.Input shiftedContext) (ambient : Env Runtime) :
+    region model.raw (extend ambient (encodeValue C (Region.packedInputType shiftedContext.toList) x))
+      (Program.ofCFGEntry shiftedTyped).code =
+    region model.raw (extend ambient (encodeValue C (Region.packedInputType shiftedContext.toList) x))
+      shiftedCompiled.admission.program.code :=
+  Materialize.packed_roundTrip shiftedTyped model shiftedCompiled x ambient
+
+private def shiftedInput (old middle chosen : Atom) (right : Bool) : Record.Input shiftedContext :=
+  (((PUnit.unit, old), middle), if right then Sum.inr chosen else Sum.inl chosen)
+
+private def number (x : Atom) : Value Runtime := .atom ⟨⟨()⟩, x⟩
+
+private def shiftedPayload (old middle chosen : Atom) (right : Bool) : Value Runtime :=
+  .pair (.pair (number chosen) (number (if right then old else middle))) (.pair (number middle) .unit)
+
+open LambdaSSA.Semantics.Interaction (BlockInput splitTransfer) in
+private theorem shifted_raw (old middle chosen : Atom) (right : Bool) :
+    region model.raw (inputEnv shiftedContext (shiftedInput old middle chosen right)) shiftedLiveTable.erase =
+      vis Event.choose (fun _ => pure (0, shiftedPayload old middle chosen right)) := by
+  let env := inputEnv shiftedContext (shiftedInput old middle chosen right)
+  let step (p : BlockInput Runtime 1) :=
+    region model.raw (extend env p.2) (shiftedLiveTable.block p.1).erase >>=
+      fun out => pure (splitTransfer 1 out)
+  have entry : region model.raw env shiftedLiveTable.entry.erase =
+      vis Event.choose (fun _ => pure (0, number old)) := by
+    simp only [shiftedLiveTable, LambdaSSA.Flat.erase, Morphism.CaseSSA.erase, region,
+      LambdaSSA.Semantics.Interaction.term, pure_bind]
+    let requested : ModelTree Event (Value Runtime) :=
+      vis Event.choose (fun reply => pure (if reply then .inr (number old) else .inl (number old)))
+    change ((requested >>= fun _ => pure (number old)) >>= fun v => pure (0, v)) = _
+    simp only [requested, vis_bind, pure_bind]
+  have row : step (0, number old) = pure (.inl (0, shiftedPayload old middle chosen right)) := by
+    cases right <;>
+      simp only [step, shiftedLiveTable, LambdaSSA.Flat.erase, Morphism.CaseSSA.erase, region,
+        LambdaSSA.Semantics.Interaction.term, pure_bind] <;>
+      repeat' (first | rfl | erw [pure_bind])
+  have loop : Silmaril.Elgot.iter step (0, number old) = pure (0, shiftedPayload old middle chosen right) := by
+    rw [congrFun (Silmaril.Elgot.ITree.iterate_fixpoint step) (0, number old), row, pure_bind]
+    rfl
+  change (region model.raw env shiftedLiveTable.entry.erase >>= fun out =>
+    Sum.elim pure (Silmaril.Elgot.iter step) (splitTransfer 1 out)) = _
+  rw [entry, vis_bind]
+  simp only [pure_bind]
+  exact congrArg (vis Event.choose) (funext fun _ => loop)
+
+example (old middle chosen : Atom) (right : Bool) :
+    LiveOut.observe model shiftedPorts shiftedFields shiftedCompiled.lowered.source
+      (shiftedInput old middle chosen right) =
+      vis Event.choose (fun _ => pure (0, .inl (shiftedPayload old middle chosen right))) := by
+  let x := shiftedInput old middle chosen right
+  let ambient : Env Runtime := fun _ => .unit
+  rw [← Materialize.packed_observe shiftedTyped model shiftedCompiled x ambient, ← inputEnv_packet]
+  have contextTree := Capture.packed_context_tree model.raw shiftedTyped ambient (inputEnv shiftedContext x)
+  change region model.raw (extend ambient (Capture.packEnv 3 (inputEnv shiftedContext x)))
+    (Program.ofCFGEntry shiftedTyped).code = _
+  rw [show region model.raw (extend ambient (Capture.packEnv 3 (inputEnv shiftedContext x)))
+      (Program.ofCFGEntry shiftedTyped).code =
+      (region model.raw (inputEnv shiftedContext x) shiftedLiveTable.erase >>= fun p =>
+        pure (LambdaSSA.FiniteCFG.packedTreeOutput p)) from contextTree]
+  rw [shifted_raw, vis_bind]
+  simp only [pure_bind, LambdaSSA.FiniteCFG.packedTreeOutput, Region.packedExitValue]
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Reverse.PacketLocal.Witnessed.Tests

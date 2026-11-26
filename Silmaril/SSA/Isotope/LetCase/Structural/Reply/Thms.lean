@@ -72,6 +72,20 @@ theorem traceArrow_apply {n : Nat} {β : BoundCtx (Ty α) n}
     (traceArrow d).of (PUnit.unit, ρ) = run d (boundEnv Value ρ) :=
   traceArrow_apply_proof d ρ
 
+/-- Equality of categorical trace arrows is pointwise equality of their runs. -/
+theorem traceArrow_eq_iff_run {n : Nat} {β : BoundCtx (Ty α) n}
+    {t u : Tm Empty Φ n} {A : Ty α}
+    (d : Derivation Φ Γ₀ β t A) (e : Derivation Φ Γ₀ β u A) :
+    traceArrow d = traceArrow e ↔ ∀ ρ, run d ρ = run e ρ :=
+  traceArrow_eq_iff_run_proof d e
+
+/-- The typed ordered trace model belongs to the compatible Freyd class. -/
+theorem traceArrow_of_valid {n : Nat} {β : BoundCtx (Ty α) n}
+    {t u : Tm Empty Φ n} {A : Ty α}
+    {d : Derivation Φ Γ₀ β t A} {e : Derivation Φ Γ₀ β u A}
+    (h : Valid d e) : traceArrow d = traceArrow e :=
+  traceArrow_of_valid_proof h
+
 /-- Native equations are sound in the existing compatible Freyd class. -/
 theorem valid_of_equiv {n : Nat} {β : BoundCtx (Ty α) n}
     {t u : Tm Empty Φ n} {A : Ty α}

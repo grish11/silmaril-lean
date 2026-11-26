@@ -16,6 +16,7 @@ open Isotope.LambdaSSA.Semantics.Monadic
 open Isotope.LambdaSSA.Semantics.Agreement (RegionCoherent)
 open Sequential
 open OrderedTheta (point)
+open Silmaril.Elgot (iter)
 
 universe u
 variable {τ Φ ε : Type u} [TypeFormers τ] [HasTy Φ τ] [HasEff Φ ε] [Bot ε]
@@ -30,6 +31,12 @@ theorem recoverLink_compiled [DecidableEq τ] [DecidableEq Φ] (s : Loop Φ ε A
 
 variable {σ : Type u} [Isotope.Subtyping τ] [TypeModel.{u,u} τ]
   [InstructionModel Φ τ ε (StateT σ Part.{u})]
+
+theorem Loop.fragment_denote (s : Loop Φ ε A)
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := StateT σ Part.{u})) (env : Env [A]) :
+    Region.denote (ε := ε) (m := StateT σ Part.{u}) s.fragment.typing env =
+      iter s.step env.2 >>= fun y => pure (.inl y) :=
+  Proofs.loop_fragment_denote s coherent env
 
 /-- Observe the two component tables in order and compare with the one
 relocated flat CFG. The suffix receives the returned payload and exact

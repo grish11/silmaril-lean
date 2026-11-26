@@ -27,6 +27,15 @@ theorem move₂_substVars (site : Site) (r : Region Φ) (θ : Nat → Tm Φ) :
 
 variable {τ : Type u} [TypeFormers τ] [HasTy Φ τ]
 
+/-- The existing unary address action pulls back exactly typed regions
+in the once-bound η relation, including computed branch arguments. -/
+theorem move₁_pullback (site : Site) {Γ : VCtx τ} {L : LCtx τ} {r s : Region Φ}
+    (hr : HasType Γ r L) (θ : Nat → Tm Φ)
+    (hm : site.move (r.substVars θ) = some s) :
+    ∃ q, site.move r = some q ∧ s = q.substVars θ ∧
+      HasType Γ q L ∧ Eqv Γ r q L :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.WithBoundEntryEta.Replay.move₁_pullback site hr θ hm
+
 /-- A binary entry move on a substituted region comes from the same address
 in the original region, with the original exact interface. -/
 theorem move₂_pullback (site : Site) {Γ : VCtx τ} {L : LCtx τ} {r s : Region Φ}

@@ -35,7 +35,7 @@ theorem compiles {block : LexicalBlock} {locals : Locals block} {source : Statem
       rest
   | invoke call _ _ _ rest =>
     have called := Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.resolves
-      call.calleeLegal call.calleeOwned call.operands call.keywords
+      call.calleeLegal call.calleeOwned call.operands call.keywords call.star
     exact compileBody_plainSeq _ _ _ _ _ _ _ _ (compileBody_plainAssign _ _ _ _ _ _ called) rest
 
 theorem collects {block : LexicalBlock} {locals : Locals block} {source : Statement} {seed final : Program}
@@ -102,9 +102,10 @@ theorem selects {block : LexicalBlock} {locals : Locals block} {source : Stateme
     rcases List.mem_append.mp member with current | later
     · rcases List.mem_cons.mp current with rfl | argument
       · exact ⟨.owned, .owned call.calleeOwned⟩
-      · exact (List.mem_append.mp argument).elim (argument_origins call.operands binding)
-          (Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.argument_origins
-            call.keywords.related binding)
+      · rcases List.mem_append.mp argument with explicit | spread
+        · exact (List.mem_append.mp explicit).elim (argument_origins call.operands binding)
+            (Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.argument_origins call.keywords.related binding)
+        · exact Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.spread_origins call.star binding spread
     · exact rest binding later
 
 /-- The full table minus the enclosing definition still contains this suite's emissions. -/

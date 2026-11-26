@@ -16,11 +16,15 @@ universe u
 variable {τ Φ ε : Type u} [TypeFormers τ] [HasTy Φ τ] [HasEff Φ ε] [Bot ε]
 variable {A X Z L E D : τ} {sigs : List (Ports (OrderedRuntime.Structured.Ty τ))}
 
+/-- The mixed loop has one reachable external exit at a homogeneous join. -/
+def Loop.fragment (loop : Loop Φ ε A) : Flat.Fragment Φ A A A :=
+  Flat.Fragment.bindChooseLoop loop.value loop.decide
+
 /-- Embed the recovered loop at the homogeneous join interface.
 The loop only targets the first external label. -/
 def Reverse.Fibre.fragment {g : Reverse.Graph Φ ε A} (f : Reverse.Fibre g) :
     Flat.Fragment Φ A A A :=
-  Flat.Fragment.bindChooseLoop f.loop.value f.loop.decide
+  f.loop.fragment
 
 /-- The two numbered component certificates determine one flat block table. -/
 structure Link (g : Reverse.Graph Φ ε A)

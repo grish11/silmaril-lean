@@ -86,6 +86,22 @@ def Fragment.bindChooseLoop {B C : τ} (value : TwoBlock.Instruction Φ A A)
   entry := .jump (localSite _ _ 0)
   blocks _ := .bindChoose value test (externalSite _ _ 0) (localSite _ _ 0)
 
+/-- On an already selected sum, run the left fragment or return the right
+payload immediately at the first external label. -/
+def Fragment.splitReturn (p : Fragment Φ A E D) : Fragment Φ (Silmaril.coprod A E) E D :=
+  { p with entry := .split p.entry (.jump (externalSite p.localTypes [E,D] 0)) }
+
+/-- A bridge can enter the fragment or supply a completed exit. In the
+completed case the fragment's entry and local blocks are skipped. -/
+def Fragment.gateCarrier (p : Fragment Φ M E D)
+    (gate : TwoBlock.Instruction Φ A (TwoBlock.TwoExit.Carrier M E D)) : Fragment Φ A E D where
+  extra := p.extra
+  localTypes := p.localTypes
+  entry := .choose gate
+    (.split (.jump (externalSite p.localTypes [E,D] 0)) (.jump (externalSite p.localTypes [E,D] 1)))
+    p.entry
+  blocks := p.blocks
+
 def Fragment.loop {B K : τ} (s : Loop Φ A B K E D) : Fragment Φ A E D where
   extra := bodyCount s + 1
   localTypes := Theta.localTypes s

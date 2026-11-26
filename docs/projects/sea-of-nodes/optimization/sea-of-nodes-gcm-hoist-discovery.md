@@ -198,9 +198,8 @@ For inputs `2, 10, 1`, the physical definitions evaluate in the order
 `2, 4, 5, 3` and the logical packet starts with `5, 4, 3, 2`. Two feedbacks
 carry those words in that order and the `.onFalse` exit argument is `5`.
 A cut before the remapped producer, a stale origin, and a latch read are
-refused. This API covers one follow-on placement in the pure, total
-single-latch profile. Longer mixed replay still needs a shared state that
-composes maps across every edit. [Example][follow-example] · [Regression][follow-regression]
+refused. The one-follow-on API uses the same transition as the finite replay
+below. [Example][follow-example] · [Regression][follow-regression]
 
 ```sh
 lake build --wfail +Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Earlier.Follow.Thms \
@@ -213,6 +212,61 @@ open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Earlier.Follow.E
 LEAN
 lake env lean -DwarningAsError=true /tmp/gcm-layout-followup.lean
 lake env leanchecker Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Earlier.Follow.Thms
+```
+
+## Replaying a finite list of physical placements
+
+`Replay.Step.Layout.initial?` splits the actual canonical saved prefix and
+starts with identity slot correspondence. `Follow.toLayout` also exposes the
+layout of a successful earlier emission. `Layout.State` keeps the typed
+physical prefix and entry tail, the logical append reference, and a typed
+map from logical slots to physical definitions. `Layout.emit?` checks the
+current header capture and physical cut using the existing ordinary and
+incoming Φ uses. The splice maps the new slot to the insertion and composes
+the previous map with its remapping of kept definitions. `emit?_physicalSlot`
+gives the exact update for original saved identities. [Definitions][layout-defs]
+· [Click §§2.2–2.4][paper]
+
+`emit?_placement` certifies the current captured binding and cut on the
+actual CFG. `physicalOperands_eval` identifies the values read through the
+map. `emit?_invariant` preserves that correspondence, the entry's successor
+slots and exact evaluated entry packet. The actual labeled blocks are shared
+with append, so the header's branch slots and incoming Φ operands retain
+their reference order. `run_spec` identifies the exact append result for
+any accepted finite plan and certifies the output layout. `emit?_routes`
+and `run_packets` preserve the logical packets at one step and across the
+list, using the existing certified reference packet invariant.
+[Theorems][layout-thms]
+
+`Layout.run` takes caller-nominated original identities and cuts in each
+current physical prefix. Refusal reports the first invalid nomination and
+returns no CFG. Successful execution agrees with checked append at the same
+CFG block fuel and in partial denotation. From the checked two-save native
+seed, `run_fromTwo_budget` relates fuel `b + 3` to backedge budget `b`. The
+supported profile is a pure, total single-latch loop with an existing saved
+prefix. The finite driver leaves cut selection and discovery to the caller.
+
+The fixture replays `(5, 1)`, `(6, 2)`, and `(7, 3)`. Origin 7 reads the
+results of both earlier moves at physical cuts `3, 2`, with logical append
+cuts `4, 3`. For inputs `2, 10, 1`, the final physical definitions evaluate
+in order `2, 4, 5, 9, 3`. Entry and both feedbacks carry the saved words
+`9, 5, 4, 3, 2` before the carried word, then the exact `.onFalse` exit
+argument is `9`. Replacing the last request with either a cut before the
+physical operand or a stale saved identity reports refusal at position 4.
+[Example][layout-example] · [Regression][layout-regression]
+
+```sh
+lake build --wfail +Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Layout.Thms \
+  +Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Layout.Regression
+cat >/tmp/gcm-layout-replay.lean <<'LEAN'
+import Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Layout.Example.Defs
+open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Layout.Example
+#eval observe
+#eval refusal ⟨7, 2⟩
+#eval refusal ⟨6, 3⟩
+LEAN
+lake env lean -DwarningAsError=true /tmp/gcm-layout-replay.lean
+lake env leanchecker Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.Layout.Thms
 ```
 
 [paper]: https://doi.org/10.1145/207110.207154
@@ -234,3 +288,7 @@ lake env leanchecker Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Replay.Step.
 [follow-thms]: ../../../../Silmaril/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Earlier/Follow/Thms.lean
 [follow-example]: ../../../../Silmaril/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Earlier/Follow/Example/Defs.lean
 [follow-regression]: ../../../../Silmaril/Proofs/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Earlier/Follow/Regression.lean
+[layout-defs]: ../../../../Silmaril/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Layout/Defs.lean
+[layout-thms]: ../../../../Silmaril/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Layout/Thms.lean
+[layout-example]: ../../../../Silmaril/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Layout/Example/Defs.lean
+[layout-regression]: ../../../../Silmaril/Proofs/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Layout/Regression.lean

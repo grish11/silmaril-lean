@@ -972,8 +972,8 @@ caller on failure.
 
 Callable provenance from parameters, captures, module names, heap
 reads or returned values, calls through untracked values, other
-expression positions, spreads, general dispatch, loads, text parsing
-and module publication remain outside the profile.
+expression positions, general dispatch, loads, text parsing and
+module publication remain outside the profile.
 [Provenance rules and theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Suite/Provenance/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Suite/Provenance/Checks.lean) · [Pinned Go comparison](../../scripts/starlark/forwarded-default/check.go)
 
 ### Explicit named arguments at tracked local calls
@@ -1011,8 +1011,9 @@ Pinned Go has a separate nullary diagnostic for supplied arguments.
 When a call supplies only keywords to a zero-parameter function,
 the Lean binder reports the unexpected name. Both reject before
 running the body. The Go comparison uses valid identifiers and
-stays within Go's per-kind explicit operand count limits. Spreads,
-arbitrary dispatch and module publication remain separate.
+stays within Go's per-kind explicit operand count limits. The checked
+positional spread profile is described below. Arbitrary dispatch and
+module publication remain separate.
 [Named rules and theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Named/Thms.lean) · [Pinned spec](https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#functions) · [Go validation](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/resolve/resolve.go#L737-L798) · [Go binding](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/eval.go#L1384-L1512)
 
 ### Keyword-only parameters in checked local suites
@@ -1117,9 +1118,46 @@ tuple and dictionary only after successful binding. The differential
 checks compare visible results and errors. Allocation order and the
 absence of packs in the residual Lean heap are properties of the Lean
 model. The earlier bare-star and nullary diagnostic differences still
-apply. Call-site spreads, arbitrary dispatch and module publication
-remain outside this checked suite theorem.
+apply. The positional call-site spread profile composes with this
+binder as described below. Mapping spread, arbitrary dispatch and
+module publication remain outside this checked suite theorem.
 [Binder and packing theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Named/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Suite/Provenance/KwargsChecks.lean) · [Pinned spec](https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#functions) · [Pinned Go binder](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/eval.go#L1418-L1512) · [Go controls](../../scripts/starlark/forwarded-default/check.go)
+
+### Terminal positional spread in checked local suites
+
+A tracked-local call assignment can supply a single `*` operand
+after all explicit positional and named arguments. The normalized
+shape has one optional positional spread field. It admits direct
+list and tuple displays of checked body operands, including reads of
+live references, and an integer literal as a noniterable control.
+The pinned prose and Go resolver require the same placement, reject
+a second positional spread, and reject explicit arguments after it.
+
+The independent argument rules derive the callee read, ordered
+explicit operands and reached terminal operand before binding.
+The display evaluates its elements left to right and allocates the
+ordinary list or tuple. Expansion then reads its exact element
+sequence with the original references and appends that sequence to
+the explicit positional prefix. It adds no heap cell. The existing
+binder delivers fixed positional and named arguments, saved defaults
+and `*args` from those actuals. Lean proves agreement with resolved
+execution and denotation, including the retained heap and restored
+caller in the same guarded suite.
+
+A reached operand error skips the rest of the operand phase. Once
+all operands succeed, a noniterable spread fails before binding or
+packing, even if those arguments would conflict. A binding error
+after successful expansion retains the allocated display and prior
+effects. These errors skip the destination and suite tail. Pinned
+Go controls check order, alias identity, saved defaults, positional
+and variadic delivery, and error precedence. The exact layout and
+residual private heap are Lean observations.
+
+An arbitrary spread expression yielding a list or tuple needs
+evidence of its reached carrier kind to enter this proof. Other
+iterable carriers, `**` mapping spread, general dispatch and
+module publication remain separate.
+[Call theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Named/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Defaults/Nested/Sequence/Recursive/Call/Suite/Provenance/SpreadChecks.lean) · [Pinned spec](https://github.com/bazelbuild/starlark/blob/c0af0ea03dc90d3bbc021394b693e6957cc15030/spec.md#functions) · [Go resolver](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/resolve/resolve.go#L737-L798) · [Go compiler](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/internal/compile/compile.go#L1650-L1727) · [Go call instruction](https://github.com/google/starlark-go/blob/4f4267fb140d1e8b91c9bce55cee2f809e8840dd/starlark/interp.go#L298-L380) · [Differential controls](../../scripts/starlark/forwarded-default/check.go)
 
 ## Finite-manifest loader
 

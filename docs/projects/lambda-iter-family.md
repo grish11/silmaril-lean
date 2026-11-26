@@ -1100,6 +1100,25 @@ registers. A nested operand regression has packet-only rows and is
 rejected by the narrower named emitter. The mixed-type round trip
 exercises the inferred layout through actual admission.
 
+`Materialize.graph` moves one leading jump-operand let to a flat
+let prefix where the named body can bind a register. The RHS runs once
+in the original order. Inside a named case arm, the corresponding rule
+only contracts a variable alias by scoped renaming. A computed arm
+operand would need an arm-local body or another block. The transform
+preserves exact typing, weak ITree execution, and any existing
+packet-only scope.
+
+The original inference regression's alias now lowers. Its pair of
+numbers still cannot be the attached live-out packet, whose second
+field must be a unit-ended record. The admission regression keeps
+both numbers as the old payload and adds an explicit selected live-out.
+It infers the same two older slots, checks the emitted register
+assignment for an effectful entry let, and returns both original
+payload components and the live-out after either reply. The fresh
+register comes from the supplied plan. A plan that overwrites a used
+caller input is rejected by exact readback. The flat and witnessed
+routes use the same inferred capture, readback, versioning and rank gates.
+
 On success, the original written LetCase tree agrees at every caller
 record with the actual named run and its packed LambdaSSA reversion.
 `Compiled.satisfies` validates the equation from the written term to
@@ -1119,6 +1138,7 @@ register plan fails admission.
 
 [Captured table adapter](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Tree/Thms.lean)
 · [Named and institutional round trip](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Profile/PacketLocal/LetCase/Witnessed/Thms.lean)
+· [Jump-operand materialization and admitted execution](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Materialize/Admission/Thms.lean)
 · [Exact capture inference and packet-only scope](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Capture/Carry/Infer/Thms.lean)
 · [Internal packet typing and weak-tree preservation](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Capture/Carry/Thms.lean)
 · [Visible branching, exact rejection and carried-slot admission](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Profile/PacketLocalLetCaseWitnessedRegression.lean)

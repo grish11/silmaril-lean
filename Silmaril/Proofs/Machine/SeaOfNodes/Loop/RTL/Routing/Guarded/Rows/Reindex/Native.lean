@@ -37,7 +37,7 @@ private theorem argumentPort_slot {n : Nat} (p : Port (wordPorts n) wordPort) :
     | head => rfl
     | tail p => exact congrArg Port.tail (ih p)
 
-private theorem port_symm (perm : InputPermutation arity) (p : Port (wordPorts arity) t) :
+theorem port_symm (perm : InputPermutation arity) (p : Port (wordPorts arity) t) :
     InputPermutation.port perm.symm (perm.port p) = p := by
   have sameSort := InputPermutation.slotSort p
   subst t

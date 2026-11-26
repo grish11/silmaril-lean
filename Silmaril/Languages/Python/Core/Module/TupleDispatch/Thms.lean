@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Python.Core.Module.TupleDispatch.Defs
+public import Silmaril.Languages.Python.Core.Module.ListObject.Thms
 
 public section
 
@@ -60,15 +61,25 @@ theorem direct_eq_list (heap : Heap) (receiver : Object) (argument : List Core.M
     (BoundMethod.mk .eq receiver).invoke heap (.list argument) = (.ok .notImplemented, heap) ∧
       equal receiver (.list argument) = false := ⟨rfl, rfl⟩
 
-theorem constructFromEmptyList_missing (heap : ListHeap) :
-    constructFromEmptyList heap none = (.error .missingType, heap) := rfl
+theorem constructFromListDisplay_missing (heap : ListHeap) (contents : List Value) :
+    constructFromListDisplay heap none contents = (.error .missingType, heap) := rfl
 
-theorem constructFromEmptyList_stock (heap : ListHeap) :
-    constructFromEmptyList heap (some .stockTuple) = (.ok (), (heap.allocate []).2) := rfl
+theorem constructFromListDisplay_stock (heap : ListHeap) (contents : List Value) :
+    constructFromListDisplay heap (some .stockTuple) contents = (.ok contents, (heap.allocate contents).2) := by
+  have read : (heap.allocate contents).2.lookup (heap.allocate contents).1.address = some contents :=
+    (ListHeap.allocate_lookup_new heap contents).2
+  simp [constructFromListDisplay, constructWith, Except.bind, read]
 
-theorem constructFromEmptyList_mask (heap : ListHeap) :
-    constructFromEmptyList heap (some .noneValue) = (.error .notCallable, (heap.allocate []).2) ∧
-      constructFromEmptyList heap (some .nonCallable) = (.error .notCallable, (heap.allocate []).2) :=
+theorem constructFromListDisplay_stock_lookup (heap : ListHeap) (contents : List Value) :
+    (constructFromListDisplay heap (some .stockTuple) contents).2.lookup (heap.allocate contents).1.address =
+      some contents := by
+  rw [constructFromListDisplay_stock]
+  exact (ListHeap.allocate_lookup_new heap contents).2
+
+theorem constructFromListDisplay_mask (heap : ListHeap) (contents : List Value) :
+    constructFromListDisplay heap (some .noneValue) contents = (.error .notCallable, (heap.allocate contents).2) ∧
+      constructFromListDisplay heap (some .nonCallable) contents =
+        (.error .notCallable, (heap.allocate contents).2) :=
   ⟨rfl, rfl⟩
 
 end Silmaril.Languages.Python.Core.Module.TupleDispatch

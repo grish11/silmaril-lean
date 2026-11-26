@@ -95,11 +95,18 @@ theorem argument_origins {block : LexicalBlock}
 theorem resolves {block : LexicalBlock} {name : String}
     {positional : List Lowering.Resolve.SourceExpr} {posCodes : List Lowering.Expr} {posReads : List Binding}
     (legal : name.toList.head? ≠ some '$') (owned : name ∈ block.owned)
-    (related : Positional block positional posCodes posReads) (keywords : Operands block) :
-    resolveTracked block.context (.call (.scalar (.read name)) positional keywords.source none none) =
-      .ok (expression name posCodes keywords.codes, fileSlot name :: (posReads ++ keywords.reads)) :=
+    (related : Positional block positional posCodes posReads) (keywords : Operands block)
+    (star : Option (Spread block) := none) :
+    resolveTracked block.context (.call (.scalar (.read name)) positional keywords.source (star.map Spread.source) none) =
+      .ok (expression name posCodes keywords.codes (star.map Spread.code),
+        fileSlot name :: ((posReads ++ keywords.reads) ++ spreadReads star)) :=
   Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.resolves
-    legal owned related keywords
+    legal owned related keywords star
+
+theorem spread_origins {block : LexicalBlock} (star : Option (Spread block)) :
+    ∀ binding ∈ spreadReads star, ∃ origin, Silmaril.Languages.Starlark.Modules.Resolve.Capture.ReadOrigin block binding origin :=
+  Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.spread_origins
+    star
 
 /-- The accepted operand profile emits distinct explicit keyword names. -/
 theorem distinct_names {block : LexicalBlock} (keywords : Operands block) :
@@ -129,12 +136,12 @@ theorem runs {parent block : LexicalBlock} {formals : List PlainKeywordParameter
       (.ok (.function address) state))
     (record : ClosureAt site id defining state address)
     {arguments : List Lowering.Resolve.SourceExpr} {codes : List Lowering.Expr} {reads : List Binding}
-    (related : Positional block arguments codes reads) (keywords : Operands block) :
-    ∃ out, RunsWith site bodyRuns block id name arguments codes keywords.source keywords.codes state out ∧
-      ExecExpr resolved.program available state (expression name codes keywords.codes) out ∧
-      Lowering.denoteExpr resolved.program available (expression name codes keywords.codes) state = out ∧
+    (related : Positional block arguments codes reads) (keywords : Operands block) (star : Option (Spread block) := none) :
+    ∃ out, RunsWith site bodyRuns block id name arguments codes keywords.source keywords.codes star state out ∧
+      ExecExpr resolved.program available state (expression name codes keywords.codes (star.map Spread.code)) out ∧
+      Lowering.denoteExpr resolved.program available (expression name codes keywords.codes (star.map Spread.code)) state = out ∧
       Body.Keeps state.heap.size state (finishState out) :=
   Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.runs
-    site bodyRuns checked id found available permitted enterBody callee record related keywords
+    site bodyRuns checked id found available permitted enterBody callee record related keywords star
 
 end Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named

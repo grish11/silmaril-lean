@@ -10,7 +10,10 @@ open LambdaSSA (FiniteCFG Flat)
 open LambdaSSA.Semantics (Env)
 open LambdaSSA.Semantics.Interaction (region)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
-  (Atom Denote PacketType PrimitiveSignature)
+  (Atom Denote PacketType PrimitiveSignature Program)
+open Silmaril.Elgot (iter liftPure)
+open Silmaril.Elgot.ITree (Tree ret diverge diverge_bind iterate_fixpoint iterate_forever iterate_uniformity)
+open Silmaril.Elgot.ITree.Finite (Event evaluate transition)
 
 private inductive Op where
   | first | second | third
@@ -34,7 +37,7 @@ private def outputs (i : Fin 2) : PacketType := if i.val = 0 then .unit else .pr
 
 -- The third request uses both the entry packet and the first reply.
 -- The second declared exit returns the first and third replies.
-private def requests : Flat Op 5 1 :=
+private def requests {captures : Nat} : Flat Op 5 (captures + 1) :=
   .let₁ (.op .first (.bv 0)) (.let₁ (.op .second (.bv 0))
     (.let₁ (.op .third (.pair (.bv 1) (.bv 2))) (.br 4 (.pair (.bv 2) (.bv 0)))))
 
@@ -103,14 +106,15 @@ private theorem primitiveAgreement : PrimitivesAgree sig.primitive sig.primitive
   intro op value
   rw [codec_id, show valueCodec (id : Atom → Atom) = id from funext codec_id, id_map]
 
+private theorem resultCodec_identity : resultCodec (id : Atom → Atom) = id := by
+  funext out
+  cases out
+  simp only [resultCodec, codec_id, id_eq]
+
 theorem packed_observation :
     (region sig.primitive emptyEnv original.erase >>= fun out => pure (FiniteCFG.packedTreeOutput out)) =
       built.packed.observe emptyEnv emptyEnv := by
-  have codec : resultCodec (id : Atom → Atom) = id := by
-    funext out
-    cases out
-    simp only [resultCodec, codec_id, id_eq]
-  simpa only [codec, id_map] using
+  simpa only [resultCodec_identity, id_map] using
     checked.emitted.public_run built emptyEnv emptyEnv emptyEnv id primitiveAgreement rfl
 
 theorem dispatcher_observation :
@@ -118,7 +122,109 @@ theorem dispatcher_observation :
       (dispatcher.observe 0 ⟨⟩ >>= fun out => pure (FiniteCFG.packedTreeOutput out)) :=
   packed_observation.trans (built.packed.observe_eq ⟨⟩ _ _ (fun _ => rfl))
 
--- An explicit selection must be reachable by the certified entry route.
-example : (check sig .nil packets outputs original (some 2)).isNone = true := rfl
+-- The entry's case selects the request prefix, a direct ordered return,
+-- or an unchanged self-loop. The original and public runs are checked
+-- under the same encoded choice.
+private def choiceType : PacketType := .coprod .unit (.coprod .unit .unit)
+
+private def branchPackets (i : Fin 3) : PacketType :=
+  if i.val = 0 then choiceType else packets i
+
+private def branching : FiniteCFG Op 3 2 1 where
+  entry := .br 0 (.bv 0)
+  block i :=
+    if i.val = 0 then .case (.bv 0) (.br 1 (.pair .unit .unit))
+      (.case (.bv 0) (.br 3 .unit) (.br 2 .unit))
+    else if i.val = 1 then requests
+    else .br 2 .unit
+
+private def branchingChecked : Checked sig (.snoc .nil choiceType) branchPackets outputs branching :=
+  (check sig (.snoc .nil choiceType) branchPackets outputs branching (some 1)).get (by decide)
+
+-- The same loop remains outside the selected-row grammar.
+example : (check sig (.snoc .nil choiceType) branchPackets outputs branching (some 2)).isNone = true := rfl
+
+private def branchingBuilt :=
+  (construct sig (fun i => (branchingChecked.shape.table i).1) outputs branchingChecked.emitted.code).get (by decide)
+
+private def branches := branchingBuilt.program
+
+private def encodedChoice (choice : Denote choiceType) : Env Atom := fun _ => choiceType.encode choice
+private def take : Denote choiceType := .inl ⟨⟩
+private def bypass : Denote choiceType := .inr (.inl ⟨⟩)
+private def spin : Denote choiceType := .inr (.inr ⟨⟩)
+
+private def takeState : branches.State := by
+  refine ⟨⟨.inl ⟨1, by decide⟩, ?_⟩⟩
+  exact inputPacket
+
+private def bypassState : branches.State := ⟨⟨.inr 0, ⟨⟩⟩⟩
+
+private def spinState : branches.State := by
+  refine ⟨⟨.inl ⟨2, by decide⟩, ?_⟩⟩
+  change PUnit
+  exact ⟨⟩
+
+example : branches.step (branches.start 0 take) = .inr takeState := rfl
+example : ∃ next, branches.step takeState = .inl (.request askFirst next) := ⟨_, rfl⟩
+private theorem bypass_step : branches.step (branches.start 0 bypass) = .inr bypassState := rfl
+private theorem spin_step : branches.step (branches.start 0 spin) = .inr spinState := rfl
+private theorem self_step : branches.step spinState = .inr spinState := rfl
+
+theorem branching_packed (choice : Denote choiceType) :
+    (region sig.primitive (encodedChoice choice) branching.erase >>=
+      fun out => pure (FiniteCFG.packedTreeOutput out)) =
+      branchingBuilt.packed.observe emptyEnv (encodedChoice choice) := by
+  simpa only [resultCodec_identity, id_map] using
+    branchingChecked.emitted.public_run branchingBuilt (encodedChoice choice) emptyEnv (encodedChoice choice)
+      id primitiveAgreement (codec_id _).symm
+
+theorem branching_observation (choice : Denote choiceType) :
+    (region sig.primitive (encodedChoice choice) branching.erase >>=
+      fun out => pure (FiniteCFG.packedTreeOutput out)) =
+      (branches.observe 0 choice >>= fun out => pure (FiniteCFG.packedTreeOutput out)) :=
+  (branching_packed choice).trans (branchingBuilt.packed.observe_eq choice _ _ (fun _ => rfl))
+
+private theorem ret_eq_pure {A : Type 1} (value : A) :
+    ret (E := Event sig.Request sig.Reply) value = pure value := rfl
+
+private theorem evaluate_jump {here next : branches.State} (jump : branches.step here = .inr next) :
+    evaluate branches.step here = evaluate branches.step next := by
+  unfold evaluate
+  rw [congrFun (iterate_fixpoint (transition branches.step)) here]
+  simp only [transition, jump, ret_eq_pure, pure_bind, Sum.elim_inr]
+
+private theorem bypass_returns : branches.observe 0 bypass = pure (0, .unit) := by
+  rw [branches.observe_eq 0 bypass, evaluate_jump bypass_step, evaluate,
+    congrFun (iterate_fixpoint (transition branches.step)) bypassState]
+  have terminal : branches.step bypassState = .inl (.result ⟨⟨0, ⟨⟩⟩⟩) := rfl
+  simp [transition, terminal, ret_eq_pure, Program.renderResult, outputs, PacketType.encode]
+
+theorem original_bypass :
+    (region sig.primitive (encodedChoice bypass) branching.erase >>=
+      fun out => pure (FiniteCFG.packedTreeOutput out)) =
+      pure (FiniteCFG.packedTreeOutput (0, .unit)) := by
+  rw [branching_observation, bypass_returns, pure_bind]
+
+private theorem spin_diverges : branches.observe 0 spin = diverge := by
+  rw [branches.observe_eq 0 spin, evaluate_jump spin_step]
+  let forever : PUnit.{2} → Tree (Event sig.Request sig.Reply) (Program.Result outputs ⊕ PUnit.{2}) :=
+    fun _ => pure (.inr ⟨⟩)
+  have square := iterate_uniformity forever (transition branches.step) (fun _ => spinState) (by
+    funext p
+    simp [Bind.kleisliRight, liftPure, forever, transition, self_step, ret_eq_pure])
+  have loop : evaluate branches.step spinState = iter forever PUnit.unit := by
+    simpa only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, evaluate] using
+      (congrFun square PUnit.unit).symm
+  rw [loop, show iter forever PUnit.unit = diverge from iterate_forever PUnit.unit, diverge_bind]
+
+theorem unchanged_cycle :
+    (region sig.primitive (encodedChoice spin) branching.erase >>=
+      fun out => pure (FiniteCFG.packedTreeOutput out)) = diverge ∧
+      branchingBuilt.packed.observe emptyEnv (encodedChoice spin) = diverge := by
+  have source : (region sig.primitive (encodedChoice spin) branching.erase >>=
+      fun out => pure (FiniteCFG.packedTreeOutput out)) = diverge := by
+    rw [branching_observation, spin_diverges, diverge_bind]
+  exact ⟨source, (branching_packed spin).symm.trans source⟩
 
 end Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback.RequestPrefix.Examples

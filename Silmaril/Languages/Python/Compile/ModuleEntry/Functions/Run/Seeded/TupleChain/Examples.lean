@@ -133,4 +133,26 @@ private def emptyListTupleEvidence (placement : SeedPlacement) : Bool := Id.run 
 #guard emptyListTupleEvidence .builtin
 #guard emptyListTupleEvidence .preamble
 
+private def freshListTupleEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let display : Source.Expr := .list_ [.boolean false, .none_, .integer 7]
+  let convert := Source.Expr.call (.name "tuple") [display]
+  let distinct := Source.Expr.comparison (.name "first") [(.isNot, .name "second")]
+  let source : Source.Module := ⟨[
+    .assign "first" convert, .assign "second" convert,
+    .expression (.call (.name "___assertTrue") [distinct])]⟩
+  let .ok compiled := Run.compile source | return false
+  let observed := run (legacyTupleIdentitySeed placement) compiled
+  let contents : List Core.Module.Value := [.bool false, .none, .int 7]
+  let first : Core.Module.SeededCall.Value := .tupleObject ⟨some 0, contents⟩
+  let second : Core.Module.SeededCall.Value := .tupleObject ⟨some 1, contents⟩
+  return observed.completion == .ok () && observed.lists.objects == #[contents, contents] &&
+    observed.heap.next == 2 && (observed.heap.contents 1).map seededValue == some (.returnedTuple contents) &&
+    observed.residual.lookupGlobal "first" == some first &&
+    observed.residual.lookupGlobal "second" == some second &&
+    observed.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
+      [("tuple", .ok first, none), ("tuple", .ok second, none), ("___assertTrue", .ok .none, none)]
+
+#guard freshListTupleEvidence .builtin
+#guard freshListTupleEvidence .preamble
+
 end Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded

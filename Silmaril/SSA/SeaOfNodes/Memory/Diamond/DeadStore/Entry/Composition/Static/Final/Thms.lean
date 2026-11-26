@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Static.Final.Defs
 import Silmaril.Proofs.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Static.Final.Correctness
 import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat.Thms
+public import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Entry.Composition.Retained.Load.Defs
 
 public section
 
@@ -15,6 +16,21 @@ open Memory.DeadStore.Search.Selection.Readers.Repeat (DeletesStores operations)
 open Discovery.MemRef.CF (entryDestination entryTransition lowerDiamond run)
 
 variable {args : List ValueSort} {cells : Nat}
+
+/-- Reuse the same cut with a checked disjoint suffix and arbitrary
+preceding operations in the native typed table. -/
+theorem cutWith_disjoint_preserves {past : List (List ValueSort)} {live version : Nat}
+    {body retainedEntry : Memory.Body args past live} {store : PrefixStore args}
+    (input : Tuple (Val cells) args)
+    (check : PrefixStore args → {past : List (List ValueSort)} → {live : Nat} → Memory.Body args past live → Bool)
+    (safe : ∀ {past : List (List ValueSort)} {live : Nat} (tail : Memory.Body args past live)
+      (store : PrefixStore args), check store tail = true → Retained.Load.checkTail store input tail = true)
+    (accepted : cutWith check version body = some (store, retainedEntry)) :
+    DeletesStores 1 (operations body) (operations retainedEntry) ∧
+      ∀ (locals : Locals (Val cells) past) (initial : Heap cells),
+        let retained := retainedEntry.denote input locals initial
+        body.denote input locals initial = (retained.1, (store.table.denote input retained.2).2) :=
+  Proofs.cutWith_disjoint_preserves input check safe accepted
 
 /-- The cut keeps all earlier operations and scalar wires in order. The
 source entry's buffer is the final write on the retained prefix buffer. -/

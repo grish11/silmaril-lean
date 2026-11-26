@@ -388,7 +388,8 @@ private def identityPrefix : Source.Module := ⟨pythonSource.body.take 4⟩
     | _ => false
   | _ => false)
 #guard (Compile.ModuleEntry.Functions.Run.compile ⟨pythonSource.body.take 5⟩).isOk == true
-#guard (Compile.ModuleEntry.Functions.Run.compile ⟨pythonSource.body.take 6⟩).isOk == false
+#guard (Compile.ModuleEntry.Functions.Run.compile ⟨pythonSource.body.take 6⟩).isOk == true
+#guard (Compile.ModuleEntry.Functions.Run.compile ⟨pythonSource.body.take 7⟩).isOk == true
 #guard ordinaryTuple identityPrefix == some ("NameError:___assertEqual", "absent", "absent")
 """]
     items = "[.int 0, .int 1, .int 2, .int 3]"
@@ -420,7 +421,7 @@ private def identityPrefix : Source.Module := ⟨pythonSource.body.take 4⟩
 private def emptyListPrefix : Source.Module := ⟨pythonSource.body.take 5⟩
 #guard (match (Compile.ModuleEntry.Functions.Run.compile emptyListPrefix).toOption with
   | some compiled => match compiled.instructions.getLast? with
-    | some (.callTupleFromEmptyList .discard (some ("___assertEqual", [.scalar (.tuple [])]))) => true
+    | some (.callTupleFromListDisplay .discard [] (some ("___assertEqual", [.scalar (.tuple [])]))) => true
     | _ => false
   | none => false)
 #guard ordinaryTupleLists emptyListPrefix == some (.raised (.nameError "___assertEqual"), #[[.int 31]], none)
@@ -431,6 +432,38 @@ private def emptyListPrefix : Source.Module := ⟨pythonSource.body.take 5⟩
         guards.append(outcome(stock_helper, "normal", f"({bindings} ++ {stock_helper}.moduleGlobals)",
                               f"({calls} ++ {identity_call} ++ {list_calls})", "emptyListPrefix",
                               f"[{origin}]", "[[]]"))
+    # The next exact prefix converts a nonempty list. The following text call
+    # lowers through the ordinary nested-call path and stops during dispatch.
+    statements = ast.parse(source).body
+    lines = source.splitlines(keepends=True)
+    flat_helpers = {"___assertEqual": assert_equal, **helper}
+    for index in (5, 6):
+        text = "".join(lines[:statements[index].end_lineno])
+        assert execute(text, {"tuple": tuple, **flat_helpers}, expected=bound) == "normal"
+        assert execute(text, {"tuple": tuple}, flat_helpers, {**flat_helpers, **bound}) == "normal"
+    assert len(seen) == 8 and all(value is True for value in seen)
+    guards.append("""
+private def flatListPrefix : Source.Module := ⟨pythonSource.body.take 6⟩
+private def textTuplePrefix : Source.Module := ⟨pythonSource.body.take 7⟩
+#guard (match (Compile.ModuleEntry.Functions.Run.compile flatListPrefix).toOption with
+  | some compiled => match compiled.instructions.getLast? with
+    | some (.callTupleFromListDisplay .discard [.int 0, .int 1, .int 2, .int 3]
+        (some ("___assertEqual", [.scalar (.tuple _)]))) => true
+    | _ => false
+  | none => false)
+""")
+    fresh = f".tupleObject ⟨some 2, {items}⟩"
+    flat_calls = f'[("tuple", .ok ({fresh})), ("___assertEqual", .ok .none)]'
+    text_call = '[("tuple", .error .unsupported)]'
+    for placement in ("builtin", "preamble"):
+        stock_helper = f"(legacyTupleIdentitySeed .{placement})"
+        events = f"{calls} ++ {identity_call} ++ {list_calls} ++ {flat_calls}"
+        for name, status, receipts in (
+            ("flatListPrefix", "normal", f"({events})"),
+            ("textTuplePrefix", "unsupported", f"({events} ++ {text_call})"),
+        ):
+            guards.append(outcome(stock_helper, status, f"({bindings} ++ {stock_helper}.moduleGlobals)",
+                                  receipts, name, f"[{origin}, .returnedTuple {items}]", f"[[], {items}]"))
     check(source, source_path, lean_path, *guards)
 
     alias = "saved = tuple\ntuple = 7\nanswer = saved()\nbad = tuple()\n"
@@ -441,7 +474,8 @@ private def emptyListPrefix : Source.Module := ⟨pythonSource.body.take 5⟩
         '[("saved", .ok (.returnedTuple [])), ("tuple", .error (.raised (.runtime .notCallable)))]'))
     return {"sha256": CONSTRUCTORS_SHA, "inner": "canonical empty tuple",
             "stock_seeded_prefix": "normal", "identity_prefix": "normal with saved origin",
-            "empty_list_prefix": "normal", "whole_source": "rejected at nonempty list operand on line 7"}
+            "empty_list_prefix": "normal", "flat_list_prefix": "normal",
+            "next_runtime": "tuple text on line 8", "whole_source": "rejected at text tuple elements on line 9"}
 
 
 def replay_immutable_alias(checkout, source_path, lean_path):
@@ -734,6 +768,55 @@ def tuple_empty_list_controls(source_path, lean_path):
     return {"canonical_empty": True, "reached_lists": True, "lookup_and_operand_order": True}
 
 
+def tuple_flat_list_controls(source_path, lean_path):
+    seed = "(legacyTupleIdentitySeed .builtin)"
+    python_seed = {"tuple": tuple, "___assertEqual": assert_equal, "___assertTrue": assert_true}
+    display = "[False, None, -7, 6]"
+    values = (False, None, -7, 6)
+    items = "[.bool false, .none, .int (-7), .int 6]"
+    source = (
+        f"first = tuple({display})\nsecond = tuple({display})\nsaved = first\n"
+        "___assertTrue(saved is first)\n___assertTrue(first is not second)\n"
+        "___assertEqual(first, (False, None, -7, 6))\n"
+    )
+
+    def equal_exact(left, right):
+        assert_equal(left, right)
+        assert tuple(map(type, left)) == (bool, type(None), int, int)
+
+    bindings = {"first": values, "second": values, "saved": values}
+    assert execute(source, {**python_seed, "___assertEqual": equal_exact}, expected=bindings) == "normal"
+    argument = list(values)
+    converted = tuple(argument)
+    assert converted is not argument and converted == values
+
+    first = f".tupleObject ⟨some 1, {items}⟩"
+    second = f".tupleObject ⟨some 2, {items}⟩"
+    residual = f'[("saved", {first}), ("second", {second}), ("first", {first})]'
+    calls = (f'[("tuple", .ok ({first})), ("tuple", .ok ({second})), '
+             '("___assertTrue", .ok .none), ("___assertTrue", .ok .none), ("___assertEqual", .ok .none)]')
+    check(source, source_path, lean_path, outcome(seed, "normal", residual, calls,
+          allocated=f"[.returnedTuple {items}, .returnedTuple {items}]", appended_lists=f"[{items}, {items}]"))
+
+    nested = f"___assertEqual(tuple({display}), missing)\ntail = 9\n"
+    assert execute(nested, python_seed, expected={}) == "NameError:missing"
+    check(nested, source_path, lean_path, outcome(seed, "NameError:missing", "[]", f'[("tuple", .ok ({first}))]',
+          allocated=f"[.returnedTuple {items}]", appended_lists=f"[{items}]"))
+
+    masked = f'({seed}.bindGlobal "tuple" .none)'
+    mask_receipt = '[("tuple", .error (.raised (.runtime .notCallable)))]'
+    override = {"tuple": None}
+    assert execute(nested, python_seed, override, override) == "TypeError"
+    check(nested, source_path, lean_path, outcome(
+        masked, "TypeError", f"{masked}.moduleGlobals", mask_receipt, appended_lists=f"[{items}]"))
+
+    ordinary = f"keep = 7\ntuple = None\ntuple({display})\ntail = 9\n"
+    assert execute(ordinary, {}, expected={"keep": 7, "tuple": None}) == "TypeError"
+    check(ordinary, source_path, lean_path,
+          f'#guard ordinaryTupleLists pythonSource == some (.raised .notCallable, #[[.int 31], {items}], some (.int 7))')
+    return {"ordered_scalar_tags": True, "fresh_results": True, "reached_heaps_and_receipts": True}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream", type=Path, required=True)
@@ -751,5 +834,6 @@ if __name__ == "__main__":
                     "live_comparison_pin": replay_live_tuple_comparison(args.upstream, source, lean),
                     "live_comparisons": live_comparison_controls(source, lean),
                     "tuple_identity": tuple_identity_controls(source, lean),
-                    "empty_list_tuple": tuple_empty_list_controls(source, lean)}
+                    "empty_list_tuple": tuple_empty_list_controls(source, lean),
+                    "flat_list_tuple": tuple_flat_list_controls(source, lean)}
     print(json.dumps(evidence))

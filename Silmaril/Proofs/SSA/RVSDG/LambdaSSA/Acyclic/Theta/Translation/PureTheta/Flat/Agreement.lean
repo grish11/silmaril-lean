@@ -27,12 +27,12 @@ variable {τ Φ ε σ : Type u} [TypeFormers τ] [HasTy Φ τ] [HasEff Φ ε] [B
   [Isotope.Subtyping τ] [TypeModel.{u,u} τ] [InstructionModel Φ τ ε (StateT σ Part.{u})]
 variable {A X Z L E D : τ} {sigs : List (Ports (OrderedRuntime.Structured.Ty τ))}
 
-private theorem loop_fragment_denote (s : Loop Φ ε A)
+theorem loop_fragment_denote (s : Loop Φ ε A)
     (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := StateT σ Part.{u})) (env : Env [A]) :
     Region.denote (ε := ε) (m := StateT σ Part.{u})
-        (Flat.Fragment.bindChooseLoop (D := A) s.value s.decide).typing env =
+        s.fragment.typing env =
       iter s.step env.2 >>= fun y => pure (.inl y) := by
-  rw [Flat.Fragment.bindChooseLoop_denote _ _ coherent]
+  rw [Loop.fragment, Flat.Fragment.bindChooseLoop_denote _ _ coherent]
   have step :
       (fun x => TwoBlock.call (ε := ε) (m := StateT σ Part.{u}) s.value x >>= fun y =>
         callCase (ε := ε) s.decide x >>= fun tag =>
@@ -67,7 +67,7 @@ theorem link_observe {g : Reverse.Graph Φ ε A} {layout : Layout τ A X Z L E D
     exact f.next.region_observe coherent input token
   change _ = Part.map _
     ((Region.denote (ε := ε) (m := StateT σ Part.{u})
-      (Flat.link (Flat.Fragment.bindChooseLoop f.first.loop.value f.first.loop.decide) f.next.fragment).typing env).run initial)
+      (Flat.link f.first.loop.fragment f.next.fragment).typing env).run initial)
   rw [f.first.region_observe coherent, Flat.denote_link _ _ coherent, loop_fragment_denote _ coherent]
   have first :
       Region.denote (ε := ε) (m := StateT σ Part.{u}) f.first.typing env =
