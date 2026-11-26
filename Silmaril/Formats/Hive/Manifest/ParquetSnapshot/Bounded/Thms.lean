@@ -44,4 +44,30 @@ theorem snapshotScanCost_exists (limits : Snapshot.Limits) (lookup : String → 
     ∃ actions, SnapshotScanCost limits lookup bind files actions :=
   Proofs.Formats.Hive.Manifest.ParquetSnapshot.snapshotScanCost_exists limits lookup bind files
 
+/-- An immutable snapshot scan closes exactly below the witnessed action
+cost. Its emitted aligned batches are always a prefix of the strict trace,
+including explicit batch counts at zero projected width. -/
+theorem scanSnapshotsBounded_exact_boundary (limits : Snapshot.Limits)
+    (lookup : String → Except Failure Bytes) (bind : Snapshot.Bind physical Value Failure)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    {budget actions : Nat} {files : List (File schema Value)}
+    (cost : SnapshotScanCost limits lookup bind files actions) :
+    let bounded := scanSnapshotsBounded limits lookup bind projection keep budget files
+    let strict := scan (snapshotOpener limits lookup bind) projection keep files
+    (bounded.termination = .closed ↔ budget < actions) ∧ List.IsPrefix bounded.batches strict.batches :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.scanSnapshotsBounded_exact_boundary
+    limits lookup bind projection keep cost
+
+/-- A trace stopped before manifest EOS is unchanged by appending later
+literal occurrences. This is exact equality of pure snapshot traces. -/
+theorem scanSnapshotsBounded_append_of_stopped (limits : Snapshot.Limits)
+    (lookup : String → Except Failure Bytes) (bind : Snapshot.Bind physical Value Failure)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    (budget : Nat) (files suffix : List (File schema Value))
+    (stopped : (scanSnapshotsBounded limits lookup bind projection keep budget files).termination ≠ .eos) :
+    scanSnapshotsBounded limits lookup bind projection keep budget (files ++ suffix) =
+      scanSnapshotsBounded limits lookup bind projection keep budget files :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.scanSnapshotsBounded_append_of_stopped
+    limits lookup bind projection keep budget files suffix stopped
+
 end Silmaril.Formats.Hive.Manifest

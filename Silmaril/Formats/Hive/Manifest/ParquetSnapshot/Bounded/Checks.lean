@@ -114,6 +114,12 @@ private def reordered : Scan.Projection (partitions.extend physical) :=
 #guard observesProjection reordered keepAll 2 [pathA]
   ((rows 12 7).map fun row => [some (7 : Int32), row[1]!, some 7]) .closed
 
+private abbrev BatchCells := Nat × List (List (Option Int32))
+
+private def traceBatches {output : Scan.Schema String Unit} (trace : Events.Trace output Cell Failure) :
+    List BatchCells :=
+  trace.batches.map fun batch => (batch.rowCount, batch.toRows.map fun row => List.ofFn fun i => row i)
+
 private def sameCompletedTrace (keep : Scan.Predicate partitions.toScan Cell)
     (budget : Nat) (paths : List String) (expected : Events.Termination Failure) : Bool :=
   let projection := Scan.Projection.id (partitions.extend physical)
@@ -123,9 +129,7 @@ private def sameCompletedTrace (keep : Scan.Predicate partitions.toScan Cell)
     let binder := Snapshot.FlatInt32.bind {} physical
     let bounded := scanSnapshotsBounded {} lookup binder projection keep budget files
     let strict := scan (snapshotOpener {} lookup binder) projection keep files
-    let batchRows (batch : Events.Batch projection.schema Cell) : Nat × List (List (Option Int32)) :=
-      (batch.rowCount, batch.toRows.map fun row => List.ofFn fun i => row i)
-    bounded.batches.map batchRows == strict.batches.map batchRows &&
+    traceBatches bounded == traceBatches strict &&
       decide (bounded.termination = expected ∧ strict.termination = expected)
 
 #guard sameCompletedTrace keepAll 0 [] .eos
@@ -146,9 +150,53 @@ private def shortFileError : Events.Termination Failure :=
 #guard observes keepOutsideEight 4 [pathA, shortPath, missing] (rows 24 7) .closed
 #guard sameCompletedTrace keepOutsideEight 5 [pathA, shortPath, missing] shortFileError
 
+private def hasBoundary (projection : Scan.Projection (partitions.extend physical))
+    (keep : Scan.Predicate partitions.toScan Cell) (cost : Nat) (paths : List String)
+    (expected : Events.Termination Failure) : Bool :=
+  match prepare physical partitions {} convert paths with
+  | .error _ => false
+  | .ok files =>
+    let binder := Snapshot.FlatInt32.bind {} physical
+    let strict := scan (snapshotOpener {} lookup binder) projection keep files
+    let expectedBatches := traceBatches strict
+    decide (strict.termination = expected) &&
+      (List.range (cost + 3)).all fun budget =>
+        let observed := scanSnapshotsBounded {} lookup binder projection keep budget files
+        let batches := traceBatches observed
+        if budget < cost then batches.isPrefixOf expectedBatches && decide (observed.termination = .closed)
+        else batches == expectedBatches && decide (observed.termination = strict.termination)
+
+private def sameStoppedPrefix (keep : Scan.Predicate partitions.toScan Cell) (budget : Nat)
+    (files rest : List String) : Bool :=
+  let projection := Scan.Projection.id (partitions.extend physical)
+  match observe projection keep budget files, observe projection keep budget (files ++ rest) with
+  | some first, some extended =>
+    decide (first.termination ≠ .eos ∧ first.termination = extended.termination) &&
+      traceBatches first == traceBatches extended
+  | _, _ => false
+
+#guard hasBoundary (Scan.Projection.id _) keepAll 0 [] .eos
+#guard hasBoundary (Scan.Projection.id _) keepAll 2 [emptyPath] .eos
+#guard hasBoundary (Scan.Projection.id _) keepAll 12 [pathA, pathB, pathA] .eos
+#guard hasBoundary (Scan.Projection.ofArray #[]) keepAll 10 [pathA, emptyPath, pathB] .eos
+#guard hasBoundary (Scan.Projection.id _) keepAll 7 [pathA, latePath, missing] lateError
+#guard hasBoundary (Scan.Projection.id _) keepOutsideEight 7 [pathA, latePath, missing] lateError
+#guard hasBoundary (Scan.Projection.id _) keepOutsideEight 5 [pathA, shortPath, missing] shortFileError
+
+#guard sameStoppedPrefix keepAll 0 [pathA] [missing]
+#guard sameStoppedPrefix keepAll 3 [pathA] [missing]
+#guard sameStoppedPrefix keepAll 4 [pathA, pathB] [missing]
+#guard sameStoppedPrefix keepOutsideEight 6 [pathA, latePath] [missing]
+#guard sameStoppedPrefix keepOutsideEight 7 [pathA, latePath] [missing]
+#guard sameStoppedPrefix keepOutsideEight 20 [pathA, shortPath] [pathB, pathA]
+#guard observes keepAll 5 [pathA] (rows 24 7) .eos
+#guard observes keepAll 5 [pathA, missing] (rows 24 7) missingError
+
 #print axioms scanSnapshotsBounded_eq_reference
 #print axioms Snapshot.openSource_close
 #print axioms scanSnapshotsBounded_eq_scan_of_cost
 #print axioms snapshotScanCost_exists
+#print axioms scanSnapshotsBounded_exact_boundary
+#print axioms scanSnapshotsBounded_append_of_stopped
 
 end Silmaril.Formats.Hive.Manifest

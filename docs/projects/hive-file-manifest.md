@@ -159,6 +159,30 @@ include a checked footer rejection after a successful occurrence. One
 action below the successful boundary can emit all rows and still return
 `.closed`. The law is a proof about pure snapshots and logical actions.
 
+### Exact cutoff and appended occurrences
+
+[`scanSnapshotsBounded_exact_boundary`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Bounded/Thms.lean)
+gives the other side of the budget law. For a witnessed cost, the immutable
+snapshot scan returns `.closed` exactly when its budget is smaller than
+that cost. Its emitted aligned batches are always an ordered prefix of
+the strict trace, including duplicates, nullable cells, and explicit
+batch row counts at zero output width. Combined with sufficient-budget
+agreement, the cutoff also determines the unique cost for that manifest
+and checked input. A scan can have emitted its last batch while still
+needing an action to observe EOS.
+
+[`scanSnapshotsBounded_append_of_stopped`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Bounded/Thms.lean)
+preserves the exact trace when later literal occurrences are appended
+after a scan that returned `.closed` or an error. A scan that has
+observed manifest EOS may have enough budget to reach appended entries
+and observe their outcomes. The laws concern trace observations of
+supplied immutable snapshots at a logical action budget.
+
+The bounded checks enumerate budgets below, at, and above the witnessed
+boundary for empty, repeated, zero-width, and damaged inputs. They also
+compare appended suffixes at close and failure, with an EOS control in
+which the appended entry is reached.
+
 ## Checks
 
 ```sh

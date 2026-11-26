@@ -204,4 +204,125 @@ theorem snapshotScanCost_exists (limits : Snapshot.Limits) (lookup : String → 
           exact ⟨_, .complete found opened decoded tail⟩
         · exact ⟨_, .readError found opened split decoded failed⟩
 
+private theorem denoteGroups_take_of_decoded
+    (read : Nat → Except (Snapshot.Error Failure) (Reader.RowGroup physical Value))
+    (indices : List Nat) {rows : List (Reader.RowGroup physical Value)}
+    (decoded : indices.mapM read = .ok rows) (pulls : Nat) :
+    Reader.denoteGroups read (indices.take pulls) = (rows.take pulls, .eos) := by
+  induction indices generalizing rows pulls with
+  | nil =>
+    have equal : [] = rows := Except.ok.inj decoded
+    subst rows
+    simp [Reader.denoteGroups]
+  | cons index rest ih =>
+    cases pulls with
+    | zero => rfl
+    | succ pulls =>
+      cases head : read index with
+      | error reason => simp [List.mapM_cons, head, bind, Except.bind] at decoded
+      | ok groupRows =>
+        cases tail : rest.mapM read with
+        | error reason => simp [List.mapM_cons, head, tail, bind, Except.bind] at decoded
+        | ok remaining =>
+          have equal : groupRows :: remaining = rows := by
+            simpa [List.mapM_cons, head, tail, bind, Except.bind, pure, Except.pure] using decoded
+          subst rows
+          simp [Reader.denoteGroups, head, ih tail]
+
+private theorem readFile_within_decoded
+    (source : Reader.Source Nat physical Value (Snapshot.Error Failure))
+    (close : ∀ rest, source.close rest = .ok ()) {before after : List Nat} {pulls : Nat}
+    {rows : List (Reader.RowGroup physical Value)}
+    (split : source.groups = before ++ after) (within : pulls ≤ before.length)
+    (decoded : before.mapM source.readGroup = .ok rows) :
+    ParquetScan.readFile source pulls = ⟨(rows.take pulls).map AlignedColumns.ofRows, .closed⟩ := by
+  have exhausted : pulls ≤ source.groups.length := by simpa [split] using Nat.le_add_right_of_le within
+  have denoted : Reader.denoteGroups source.readGroup (source.groups.take pulls) =
+      (rows.take pulls, .eos) := by
+    rw [split, List.take_append_of_le_length within, denoteGroups_take_of_decoded _ _ decoded]
+  simp [readFile_prefix source pulls close, denoted, exhausted]
+
+theorem scanSnapshotsBounded_exact_boundary (limits : Snapshot.Limits)
+    (lookup : String → Except Failure Bytes) (bind : Snapshot.Bind physical Value Failure)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    {budget actions : Nat} {files : List (File schema Value)}
+    (cost : SnapshotScanCost limits lookup bind files actions) :
+    let bounded := scanSnapshotsBounded limits lookup bind projection keep budget files
+    let strict := scan (snapshotOpener limits lookup bind) projection keep files
+    (bounded.termination = .closed ↔ budget < actions) ∧ List.IsPrefix bounded.batches strict.batches := by
+  induction cost generalizing budget with
+  | nil =>
+    cases budget <;> simp [scanSnapshotsBounded, scan, ParquetScan.assemble]
+  | openError failed =>
+    cases budget <;> simp [scanSnapshotsBounded, scan, ParquetScan.assemble, scanFile, failed]
+  | @complete file rest bytes source rows actions found opened decoded tail ih =>
+    cases budget with
+    | zero =>
+      simp [scanSnapshotsBounded]
+      omega
+    | succ pulls =>
+      have close := Snapshot.openSource_close limits bind bytes opened
+      have full := readFile_of_decoded source close (pulls := source.groups.length + 1) (by omega) decoded
+      by_cases within : pulls ≤ source.groups.length
+      · have short : pulls + 1 < source.groups.length + 2 + actions := by omega
+        have prefixRead := readFile_within_decoded source close (after := []) (List.append_nil _).symm within decoded
+        cases kept : (keep file.cells).getD false
+        · simp [scanSnapshotsBounded, snapshotOpener, found, opened, Except.map,
+            scanFile, ParquetScan.scanPartition, prefixRead, assemble_singleton, kept, short]
+        · simp [scanSnapshotsBounded, scan, ParquetScan.assemble, snapshotOpener, found, opened, Except.map,
+            scanFile, ParquetScan.scanPartition, ParquetScan.extendTrace, prefixRead, full, kept, short,
+            List.prefix_append_of_prefix (List.take_prefix ..)]
+      · have current := readFile_of_decoded source close (pulls := pulls) (Nat.lt_of_not_ge within) decoded
+        have later := ih (budget := pulls - (source.groups.length + 1))
+        have short : pulls - (source.groups.length + 1) < actions ↔
+            pulls + 1 < source.groups.length + 2 + actions := by omega
+        cases kept : (keep file.cells).getD false <;>
+          simpa [scanSnapshotsBounded, scan, ParquetScan.assemble, snapshotOpener, found, opened, Except.map,
+            scanFile, ParquetScan.scanPartition, current, full, kept, short] using later
+  | @readError file rest bytes source before group after rows reason found opened split decoded failed =>
+    cases budget with
+    | zero => simp [scanSnapshotsBounded]
+    | succ pulls =>
+      have close := Snapshot.openSource_close limits bind bytes opened
+      have reached : before.length < source.groups.length + 1 := by simp [split]; omega
+      have full := readFile_through_failure source close split reached decoded failed
+      by_cases within : pulls ≤ before.length
+      · have short : pulls + 1 < before.length + 2 := by omega
+        have prefixRead := readFile_within_decoded source close split within decoded
+        cases kept : (keep file.cells).getD false <;>
+          simp [scanSnapshotsBounded, scan, ParquetScan.assemble, snapshotOpener, found, opened, Except.map,
+            scanFile, ParquetScan.scanPartition, ParquetScan.extendTrace, prefixRead, full, kept, short, List.take_prefix]
+      · have short : ¬ pulls + 1 < before.length + 2 := by omega
+        have current := readFile_through_failure source close split (Nat.lt_of_not_ge within) decoded failed
+        cases kept : (keep file.cells).getD false <;>
+          simp [scanSnapshotsBounded, scan, ParquetScan.assemble, snapshotOpener, found, opened, Except.map,
+            scanFile, ParquetScan.scanPartition, current, full, kept, short]
+
+theorem scanSnapshotsBounded_append_of_stopped (limits : Snapshot.Limits)
+    (lookup : String → Except Failure Bytes) (bind : Snapshot.Bind physical Value Failure)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    (budget : Nat) (files suffix : List (File schema Value))
+    (stopped : (scanSnapshotsBounded limits lookup bind projection keep budget files).termination ≠ .eos) :
+    scanSnapshotsBounded limits lookup bind projection keep budget (files ++ suffix) =
+      scanSnapshotsBounded limits lookup bind projection keep budget files := by
+  induction files generalizing budget with
+  | nil =>
+    cases budget <;> simp [scanSnapshotsBounded] at stopped
+  | cons file rest ih =>
+    cases budget with
+    | zero => rfl
+    | succ pulls =>
+      cases opened : snapshotOpener limits lookup bind file.path.declared with
+      | error reason => simp [scanSnapshotsBounded, opened]
+      | ok source =>
+        cases outcome :
+            (scanFile (fun _ => .ok { source with fuel := pulls }) projection keep file).termination with
+        | eos =>
+          have tailStop :
+              (scanSnapshotsBounded limits lookup bind projection keep (pulls - source.fuel) rest).termination ≠ .eos := by
+            simpa [scanSnapshotsBounded, opened, outcome] using stopped
+          simp [scanSnapshotsBounded, opened, outcome, ih _ tailStop]
+        | closed | readError _ | closeError _ =>
+          simp [scanSnapshotsBounded, opened, outcome]
+
 end Silmaril.Proofs.Formats.Hive.Manifest.ParquetSnapshot
