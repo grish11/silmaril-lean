@@ -20,7 +20,8 @@ Int32/Utf8 reader and writer API. Both read paths use the same common metadata
 checks. The additive Schema reader selects a separate normalized field type.
 A DATE consumer can use the field's normalized unit code and nullability with
 the schema endianness code. DATE body decoding and complete DATE stream or
-file admission are separate layers. Future Timestamp metadata can use the same
+file admission are separate layers. The [checked DATE batch binding](arrow-date-batch.md)
+composes the Schema and body readers for one DATE column. Future Timestamp metadata can use the same
 private type-payload dispatch.
 
 ## Verification
@@ -41,7 +42,7 @@ includes the two-field Schema and the Date32 schema-to-batch fixture.
 [Fixture manifest](../../scripts/arrow-date-schema-oracle/fixtures.json)
 
 ```sh
-targets='+Silmaril.Formats.Arrow.Metadata.Thms +Silmaril.Formats.Arrow.Metadata.Tests +Silmaril.Formats.Arrow.Writer.Thms +Silmaril.Formats.Arrow.StreamWriter.Thms arrow_ipc_metadata_tests'
+targets='+Silmaril.Formats.Arrow.DateBatch.Defs +Silmaril.Formats.Arrow.Metadata.Thms +Silmaril.Formats.Arrow.Metadata.Tests +Silmaril.Formats.Arrow.Writer.Thms +Silmaril.Formats.Arrow.StreamWriter.Thms arrow_ipc_metadata_tests'
 lake build --wfail $targets
 make check CHECK_TARGETS="$targets"
 python3 -I scripts/arrow-date-schema-oracle/check.py

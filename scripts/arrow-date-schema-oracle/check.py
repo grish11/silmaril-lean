@@ -18,15 +18,17 @@ MANIFEST = Path(__file__).with_name("fixtures.json")
 LEAN_DRIVER = """\
 module
 
+meta import Silmaril.Formats.Arrow.DateBatch.Defs
 meta import Silmaril.Formats.Arrow.Metadata.Defs
 meta import Silmaril.Formats.Arrow.Metadata.Tests
 
 open Silmaril Silmaril.Formats.Arrow
 
-private meta def agrees {α : Type} [DecidableEq α] (actual expected : Except Error α) : Bool :=
+private meta def agrees {ε α : Type} [DecidableEq ε] [DecidableEq α]
+    (actual expected : Except ε α) : Bool :=
   match actual, expected with
   | .ok value, .ok wanted => decide (value = wanted)
-  | .error error, .error wanted => error == wanted
+  | .error error, .error wanted => decide (error = wanted)
   | _, _ => false
 """
 
@@ -225,6 +227,30 @@ def date_batches(pa):
         }
 
 
+def batch_controls(pa, unit, parts):
+    if unit == "day":
+        primitive, = messages(pa, pa.schema([pa.field("日", pa.int32())]))
+        spare, = messages(pa, pa.schema([pa.field("日", pa.date32())],
+                                        metadata={b"spare": b"endianness fixture slot"}))
+        required = bytearray(parts["schema"])
+        position = slot(required, field_table(required, 0), 1)
+        require(position is not None and required[position] == 1, "expected nullable field")
+        required[position] = 0
+        yield "primitive_schema", primitive, "schema", "(.fieldType .int32)"
+        yield "big_endian_schema", set_endian(spare, 1), "schema", "(.values (.ipc (.unsupported (.endianness 1))))"
+        yield "required_schema", bytes(required), "schema", "(.values (.ipc (.malformed .validityBitmap)))"
+    else:
+        changed = bytearray(parts["body"])
+        require(scalar(changed, 8, "q") == -86400000, "expected negative whole day at first slot")
+        struct.pack_into("<q", changed, 8, -1)
+        yield "invalid_millisecond_body", bytes(changed), "body", "(.values (.nonWholeDay 0))"
+
+
+def batch_check(parts, expected):
+    schema, metadata, body = (bytes_term(parts[name]) for name in ("schema", "metadata", "body"))
+    return f"#guard agrees (DateBatch.decode {{}} {schema} {metadata} {body}) ({expected})"
+
+
 def lean_dates(values):
     return "[" + ", ".join(
         "none" if value is None else f"some ⟨{value.year}, {value.month}, {value.day}⟩"
@@ -253,7 +279,8 @@ def main():
     require(pa.__version__ == producer["pyarrow"], "Use the pinned PyArrow version")
 
     commands = [LEAN_DRIVER]
-    for name, data in fixtures(pa).items():
+    schema_fixtures = fixtures(pa)
+    for name, data in schema_fixtures.items():
         digest = check_hash(data, manifest["metadata"][name], name)
         commands.extend(lean_checks(pa, name, data))
         print(f"PASS {name} {digest}", flush=True)
@@ -264,6 +291,30 @@ def main():
         commands.append(
             f"#guard SchemaReader.Tests.observesDateBatch {schema} {metadata} {body} .{unit} {lean_dates(observed)}"
         )
+        commands.append(batch_check(parts, f".ok {lean_dates(observed)}"))
+        for name, data, part, error in batch_controls(pa, unit, parts):
+            check_hash(data, manifest["batch_controls"][name], name)
+            commands.append(batch_check({**parts, part: data}, f".error {error}"))
+        if unit == "day":
+            controls = (
+                ("schema", schema_fixtures["mixed"], "(.fieldCount 4)"),
+                ("schema", schema_fixtures["invalid_unit"], "(.schemaMetadata (.malformed .flatbuffer))"),
+                ("metadata", schema_fixtures["legacy"], ".expectedRecordBatch"),
+                ("metadata", b"", "(.recordMetadata (.malformed .flatbuffer))"),
+                ("body", parts["body"][:-8], f"(.bodyLength {len(parts['body'])} {len(parts['body']) - 8})"),
+            )
+            for part, data, error in controls:
+                commands.append(batch_check({**parts, part: data}, f".error {error}"))
+            # Keep the buffer layout intact but declare an extra byte after it.
+            unaligned = bytearray(parts["metadata"])
+            length_slot = slot(unaligned, target(unaligned, 0), 3)
+            require(scalar(unaligned, length_slot, "q") == len(parts["body"]), "unexpected body length")
+            length = len(parts["body"]) + 1
+            struct.pack_into("<q", unaligned, length_slot, length)
+            commands.append(batch_check(
+                {**parts, "metadata": bytes(unaligned), "body": parts["body"] + bytes(1)},
+                f".error (.unalignedBodyLength {length})",
+            ))
         print(f"PASS {unit} schema-to-batch {manifest['batches'][unit]['ipc']['sha256']}", flush=True)
     with tempfile.TemporaryDirectory(prefix="silmaril-arrow-date-schema-") as scratch:
         driver = Path(scratch) / "Fixtures.lean"

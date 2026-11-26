@@ -92,5 +92,23 @@
         "sha256": "71956590c90897f14522bfc7f311ccd0d5d843bd4c1ef7c358794b346ca24883"
       }
     }
+  },
+  "batch_controls": {
+    "primitive_schema": {
+      "bytes": 120,
+      "sha256": "e4795f6fac325abe5a34c88a3fecd7c0ea4e4445bc2d96f7abe4a21b5b0af66a"
+    },
+    "big_endian_schema": {
+      "bytes": 192,
+      "sha256": "1e247726919e989d51ed01000b52679c7ab660316fb1982b8a6dbba73dc1774e"
+    },
+    "required_schema": {
+      "bytes": 120,
+      "sha256": "da68eacc6284743169ee0947a9d588fde949c248704e2a476021fe37c4a23c72"
+    },
+    "invalid_millisecond_body": {
+      "bytes": 40,
+      "sha256": "17927526f41a1c68cdc9233457230e8346087a1edc543cac0ab754b06db6811b"
+    }
   }
 }
