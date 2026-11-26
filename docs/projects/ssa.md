@@ -275,6 +275,15 @@ produces a packed input for the right stage. All-store satisfaction implies
 packed satisfaction. The converse fails for a one-field block that normalizes
 the tail of a raw pair, while a wire keeps it.
 
+[Boolean packet control](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Link/Fields/Boolean/Thms.lean)
+checks a block with one sum-case on a Boolean input field and a jump in the
+selected arm. The model splits its Boolean tags to left and right with unit
+payloads. The checker explores finite label/packet pairs over Boolean fields,
+using the same width profiles and named SSA observation. A repeat of the full
+state gives no terminating result. An unsupported instruction on a selected
+path gives no verdict. The per-input theorem covers supported packets and the
+whole-interface decision enumerates every Boolean packet at each input port.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

@@ -14,7 +14,7 @@ open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields
 
 variable {V F α : Type} {n a b : Nat}
 
-private theorem encode_injective (model : PairModel F Part α) :
+theorem encode_injective (model : PairModel F Part α) :
     Function.Injective (encode model.val (width := n)) := by
   induction n with
   | zero =>

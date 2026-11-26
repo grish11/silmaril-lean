@@ -13,6 +13,35 @@ open Comparison
 
 variable {V K F α : Type} [DecidableEq V] {n a b : Nat}
 
+omit [DecidableEq V] in
+theorem read?_eval {M : Type → Type} {model : Model F M α} {packet : Fin n → α}
+    {env : V → Option (Val (Fin n))} {store : V → α} (agrees : StoreAgrees model packet env store)
+    {value : Val V} {shape : Val (Fin n)} (found : read? env value = some shape) :
+    value.eval model store = shape.eval model packet :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.read_eval agrees found
+
+theorem StoreAgrees.update {M : Type → Type} {model : Model F M α} {packet : Fin n → α}
+    {env : V → Option (Val (Fin n))} {store : V → α} (agrees : StoreAgrees model packet env store)
+    (dst : V) (shape : Val (Fin n)) :
+    StoreAgrees model packet (upd env dst (some shape)) (upd store dst (shape.eval model packet)) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.agrees_upd agrees dst shape
+
+theorem termTo_evalJump {M : Type → Type} [Monad M] (model : Model F M α)
+    (packet : Fin n → α) (width : K → Nat) {env : V → Option (Val (Fin n))} {store : V → α}
+    (agrees : StoreAgrees model packet env store) (term : Term V K F)
+    {result : (target : K) × Route n (width target)} (accepted : termTo? width env term = some result) :
+    (Body.term term).evalJump model store = pure (result.1, encode model (packet ∘ result.2)) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.term_to_sound model packet width agrees term accepted
+
+theorem blockWith_evalJump {M : Type → Type} [Monad M] [LawfulMonad M] (model : PairModel F M α)
+    (packet : Fin n → α) {R : Type} (finish : (V → Option (Val (Fin n))) → Term V K F → Option R)
+    (predict : R → K × α)
+    (sound : ∀ env store term result, StoreAgrees model.val packet env store →
+      finish env term = some result → (Body.term term).evalJump model.val store = pure (predict result))
+    (block : Block V K F) (store : V → α) {result : R} (accepted : blockWith? n finish block = some result) :
+    block.body.evalJump model.val (upd store block.param (encode model.val packet)) = pure (predict result) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.block_with_sound model packet finish predict sound block store accepted
+
 /-- Primitive relabelling preserves the pure forwarding check. -/
 theorem blockTo_mapOp {F' : Type} (rename : F → F') (width : K → Nat) (block : Block V K F) :
     blockTo? n width (block.mapOp rename) = blockTo? n width block :=
@@ -49,6 +78,9 @@ suffice to distinguish any two different field maps. -/
 theorem separates_of_distinct (model : PairModel F Part α) (distinct : ∃ x y : α, x ≠ y) :
     Separates n model :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.separates model distinct
+
+theorem encode_injective (model : PairModel F Part α) : Function.Injective (encode model.val (width := n)) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.encode_injective model
 
 theorem separatesWidths_of_distinct (model : PairModel F Part α) (target : Nat) (distinct : ∃ x y : α, x ≠ y) :
     SeparatesWidths n target model :=

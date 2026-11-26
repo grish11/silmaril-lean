@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Width.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Thms
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Thms
 import Mathlib.Data.Nat.Pairing
 
@@ -62,6 +63,9 @@ example (packet : Fin 2 → Nat) :
     namedSSA_entryOutcome_sound model linked (0 : Fin 1) packet (fun _ => encode model.val packet) rfl _ found
 
 private theorem different_projection : refinement? (projection true) (projection false) = some false := by cbv
+
+example : Boolean.refinement? (projection true) (projection false) =
+    refinement? (projection true) (projection false) := by cbv
 
 example : ¬ Sat (fun _ => 2) model (project true) (project false) := by
   have exactVerdict := ((refinement?_eq_some_iff model (separates_of_distinct model ⟨0, 1, by decide⟩)
