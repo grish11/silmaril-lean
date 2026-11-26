@@ -11,7 +11,7 @@ namespace Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Seeded
 
 open Silmaril.Isotope
 open Silmaril.Isotope.Bridge.NamedFlat
-open Silmaril.Isotope.Bridge.NamedFlat.Entry.Public (Seeded packetRecord observeRaw_eq_flat)
+open Silmaril.Isotope.Bridge.NamedFlat.Entry.Public (Seeded packetRecord observeRaw_eq_flat decodeSeed?)
 open Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback
 open Silmaril.SSA.LambdaRTL (CFG upd)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic
@@ -76,14 +76,11 @@ variable {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
   {signature : PrimitiveSignature F} {source target : CFG V K F} {exits : List K} {fields : K → List V}
   {capture rightCapture : V} {inputType rightType : PacketType} {outputs : Fin exits.length → PacketType}
 
-theorem seed_eq_some (built : Seeded signature source exits fields capture inputType outputs)
-    (initial : V → Value Atom) (packet : Denote inputType) :
-    built.seed? initial = some packet ↔ built.checkSeed initial packet = true := by
-  let seed := built.evalSeed initial
-  change ((PacketType.decode inputType seed).bind fun p =>
-    if seed = PacketType.encode inputType p then some p else none) = some packet ↔
-    decide (seed = PacketType.encode inputType packet) = true
-  rw [decide_eq_true_eq]
+theorem decodeSeed_eq_some (ty : PacketType) (seed : Value Atom) (packet : Denote ty) :
+    decodeSeed? ty seed = some packet ↔ seed = PacketType.encode ty packet := by
+  change ((PacketType.decode ty seed).bind fun p =>
+    if seed = PacketType.encode ty p then some p else none) = some packet ↔
+    seed = PacketType.encode ty packet
   constructor
   · intro found
     obtain ⟨p, _, checked⟩ := Option.bind_eq_some_iff.mp found
@@ -94,6 +91,12 @@ theorem seed_eq_some (built : Seeded signature source exits fields capture input
   · intro checked
     rw [checked, PacketType.decode_encode]
     simp
+
+theorem seed_eq_some (built : Seeded signature source exits fields capture inputType outputs)
+    (initial : V → Value Atom) (packet : Denote inputType) :
+    built.seed? initial = some packet ↔ built.checkSeed initial packet = true := by
+  simp only [Seeded.seed?, Seeded.checkSeed, decodeSeed_eq_some, packetRecord]
+  exact ⟨decide_eq_true, of_decide_eq_true⟩
 
 theorem refinementBetween_namedHandledTrace [DecidableEq F]
     (left : Seeded signature source exits fields capture inputType outputs)

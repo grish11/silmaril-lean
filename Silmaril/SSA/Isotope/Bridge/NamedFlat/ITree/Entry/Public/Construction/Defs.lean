@@ -132,11 +132,13 @@ def Seeded.checkSeed (built : Seeded signature source exits fields capture input
 
 /-- Recover this entry's typed packet and check its exact encoding against
 the evaluated seed. -/
+def decodeSeed? (ty : PacketType) (seed : Value Atom) : Option (Denote ty) := do
+  let packet ← PacketType.decode ty seed
+  if seed = PacketType.encode ty packet then some packet else none
+
 def Seeded.seed? (built : Seeded signature source exits fields capture inputType outputs)
-    (initial : V → Value Atom) : Option (Denote inputType) := do
-  let seed := built.evalSeed initial
-  let packet ← PacketType.decode inputType seed
-  if seed = PacketType.encode inputType packet then some packet else none
+    (initial : V → Value Atom) : Option (Denote inputType) :=
+  decodeSeed? inputType (built.evalSeed initial)
 
 /-- Evaluate both seeds at one initial store. Failure to decode either
 packet leaves the comparison undefined. -/

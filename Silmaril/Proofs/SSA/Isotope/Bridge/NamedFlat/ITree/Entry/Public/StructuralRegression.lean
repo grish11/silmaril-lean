@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Thms
 
 namespace Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
 
@@ -64,9 +64,40 @@ example : LiveOut.observeRaw signature.primitive exits fields (graph shared left
 private def conflicting := (build shared shared .unit).get (by decide)
 example : (conflicting.jointAssignments right).isEmpty = true := by decide
 
+example : (conflicting.refinementOverCaptures right).emptyDomain = true := by decide
+example : (conflicting.refinementOverCaptures right).verdict = some true :=
+  conflicting.refinementOverCaptures_vacuous right (by decide)
+
 -- Unequal types with a common encoding still admit exactly the compatible stores.
 private def overlapping := (build shared shared (.coprod .unit .empty)).get (by decide)
 example : (overlapping.jointStores right).length = 2 := by decide
+
+example : (overlapping.refinementOverCaptures right).emptyDomain = false := by decide
+example : overlapping.refinementFromStore? right (fun _ => .unit) = none := by decide
+
+-- Both rows take the same ordered exit. The common value of the repeated
+-- capture is the left live-out, while the right live-out uses the other bit.
+private def mismatchingStore : Name → Value Atom := upd original rightRead (.inr .unit)
+private def overlapPacket : Denote (.product (.coprod .unit .empty) bit) := (.inl ⟨⟩, .inl ⟨⟩)
+private def mismatchingPacket : Denote (.product bit bit) := (.inl ⟨⟩, .inr ⟨⟩)
+
+set_option maxHeartbeats 1000000 in
+private theorem actualMismatch :
+    overlapping.program.refinementBetween? right.program 0 overlapPacket 0 mismatchingPacket = false := by cbv
+
+private theorem storeMismatch :
+    overlapping.refinementFromStore? right mismatchingStore = some false := by
+  have leftSeed : overlapping.seed? mismatchingStore = some overlapPacket := by decide
+  have rightSeed : right.seed? mismatchingStore = some mismatchingPacket := by decide
+  change ((overlapping.seed? mismatchingStore).bind fun a => (right.seed? mismatchingStore).bind fun b =>
+    some (overlapping.program.refinementBetween? right.program 0 a 0 b)) = some false
+  rw [leftSeed, rightSeed]
+  exact congrArg some actualMismatch
+
+example : (overlapping.refinementOverCaptures right).verdict = some false := by
+  have spec := (overlapping.refinementFromStore?_eq_some_iff right mismatchingStore false).mp storeMismatch
+  apply (overlapping.refinementOverCaptures_eq_some_iff right false).mpr
+  exact ⟨fun impossible => Bool.noConfusion impossible, fun all => spec.2.2.mpr (all mismatchingStore spec.1 spec.2.1)⟩
 
 -- Existing named elaboration can express an injection as an instruction,
 -- but the structural public readback takes the operand of a direct jump.

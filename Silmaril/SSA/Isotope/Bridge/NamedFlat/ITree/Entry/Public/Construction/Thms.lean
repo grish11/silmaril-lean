@@ -20,10 +20,16 @@ variable {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
   {signature : PrimitiveSignature F} {source : CFG V K F} {exits : List K} {fields : K → List V}
   {capture : V} {inputType : PacketType} {outputs : Fin exits.length → PacketType}
 
+theorem recordAgrees_packetRecord {b : Nat} {outputTypes : Fin b → PacketType}
+    {program : Program signature (fun _ : Fin 1 => inputType) outputTypes}
+    (entry : Program.PackedEntry program 0) (captures : ∀ i, entry.captures i = ⟨0⟩)
+    (packet : Denote inputType) : entry.recordAgrees packet (packetRecord packet) :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Seeded.recordAgrees_of_captures
+    entry captures packet
+
 theorem Constructed.recordAgrees (built : Constructed signature source exits fields capture inputType outputs)
     (packet : Denote inputType) : built.entry.recordAgrees packet (packetRecord packet) :=
-  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Seeded.recordAgrees_of_captures
-    built.entry built.publicCaptures packet
+  recordAgrees_packetRecord built.entry built.publicCaptures packet
 
 theorem Constructed.captureAgrees (built : Constructed signature source exits fields capture inputType outputs)
     (initial : V → Value Atom) (packet : Denote inputType)
@@ -61,8 +67,7 @@ theorem Constructed.refinementAt?_iff_namedHandledTrace [DecidableEq F] {target 
 
 theorem Seeded.recordAgrees (built : Seeded signature source exits fields capture inputType outputs)
     (packet : Denote inputType) : built.entry.recordAgrees packet (packetRecord packet) :=
-  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Seeded.recordAgrees_of_captures
-    built.entry built.publicCaptures packet
+  recordAgrees_packetRecord built.entry built.publicCaptures packet
 
 /-- A checked structural seed aligns the named jump with the actual
 public entry. Internal rows agree exactly and the result retains ordered
@@ -92,6 +97,10 @@ theorem observe_eq_of_provenance {count : Nat}
     provenance initial packet ambient namedRecord agrees checked
 
 /-- Decoding succeeds at exactly the packets that pass the seed check. -/
+theorem decodeSeed?_eq_some_iff (ty : PacketType) (seed : Value Atom) (packet : Denote ty) :
+    decodeSeed? ty seed = some packet ↔ seed = PacketType.encode ty packet :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Seeded.decodeSeed_eq_some ty seed packet
+
 theorem Seeded.seed?_eq_some_iff (built : Seeded signature source exits fields capture inputType outputs)
     (initial : V → Value Atom) (packet : Denote inputType) :
     built.seed? initial = some packet ↔ built.checkSeed initial packet = true :=
