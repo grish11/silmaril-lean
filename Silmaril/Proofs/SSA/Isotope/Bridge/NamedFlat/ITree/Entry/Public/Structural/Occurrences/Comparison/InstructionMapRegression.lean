@@ -1,8 +1,9 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Institution.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Institution.Refinement.Thms
 import Silmaril.Semantics.ITree.Signature.Execution.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Defs
+meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Institution.Refinement.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Institution.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.InstructionMap.Compilation.Defs
 
@@ -148,5 +149,55 @@ example (policy : Model.{0, 0} sig.traceSignature.toSignature) :
 
 #guard direct.comparison.fromStore? initial == some false &&
   staged.comparison.fromStore? initial == some false
+
+
+-- This silent self-loop has only the finite prefix observation. The
+-- productive loop offers a visible request before taking its backedge.
+private def quiet : CFG Name Name (Fin 3) :=
+  ⟨.term (.br ⟨1⟩ (.var capture)), [(⟨1⟩, ⟨⟨2⟩, .term (.br ⟨1⟩ (.var ⟨2⟩))⟩)]⟩
+
+private def quietEntry := (constructStructural sig quiet exits fields bit (fun _ => bit) outputs).get (by decide)
+private def strictPoint : Endpoints Name Name signature := ⟨quiet, graph 0, initial⟩
+private def strict : Admission strictPoint exits fields :=
+  ⟨bit, bit, outputs, quietEntry, entry 0, by decide, packet, packet, by decide, by decide⟩
+
+private def strictDirect := strict.map (first ≫ second)
+private def strictStaged := (strict.map first).map second
+
+#guard strictDirect.comparison.fromStore? initial == some true &&
+  strictDirect.swap.comparison.fromStore? initial == some false &&
+  strictStaged.comparison.fromStore? initial == some true &&
+  strictStaged.swap.comparison.fromStore? initial == some false
+
+example : strict.toSentence.swap.map (first ≫ second) = (strict.toSentence.map (first ≫ second)).swap :=
+  strict.toSentence.swap_map (first ≫ second)
+
+private theorem strictAccepts : strict.comparison.fromStore? initial = some true := by
+  change some (quietEntry.program.refinementBetween? (entry 0).program 0 packet 0 packet) = some true
+  cbv
+
+private theorem strictRejects : strict.swap.comparison.fromStore? initial = some false := by
+  change some ((entry 0).program.refinementBetween? quietEntry.program 0 packet 0 packet) = some false
+  cbv
+
+example :
+    TraceInstitution.Sat (TraceInstitution.allRepliesModel sig.traceSignature)
+      ((strict.toSentence.map (first ≫ second)).compile) ∧
+    ¬ TraceInstitution.Sat (TraceInstitution.allRepliesModel sig.traceSignature)
+      ((strict.swap.toSentence.map (first ≫ second)).compile) := by
+  refine ⟨(strict.refinement_iff_valid_map (first ≫ second)).mp strictAccepts _, ?_⟩
+  intro passed
+  have valid := (TraceInstitution.valid_iff_sat_allReplies _).mpr passed
+  have accepted := (strict.swap.refinement_iff_valid_map (first ≫ second)).mpr valid
+  exact Bool.noConfusion (Option.some.inj (strictRejects.symm.trans accepted))
+
+example (policy : Model.{0, 0} sig.traceSignature.toSignature) :
+    TraceInstitution.Sat policy strictStaged.observe ↔
+      TraceInstitution.Sat ((policy.reduct second.events.hom).reduct first.events.hom)
+        (strictPoint.observe exits fields) := by
+  have source := strict.toSentence.sat_map_iff (first ≫ second) policy
+  erw [strictStaged.observe_original, ← Model.reduct_comp first.events.hom second.events.hom policy]
+  exact (congrArg (fun φ : Sentence signature exits fields =>
+    TraceInstitution.Sat policy (φ.val.observe exits fields)) (strict.toSentence.map_comp first second)) ▸ source
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Public

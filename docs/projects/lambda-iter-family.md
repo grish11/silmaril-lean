@@ -851,6 +851,16 @@ independent of the admission certificate. The comorphism into the existing
 handled-trace institution uses its discrete policy models and their reduct.
 [Checked occurrence institution](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/Institution/Thms.lean)
 
+The occurrence sentence is directed. Under a reduced reply policy, every
+finite handled observation of the original left runner must occur on the
+original right runner at the same store. Reversing a sentence swaps its
+named endpoints and decoded packets, and commutes with opcode renaming.
+The existing pointwise checker decides universal policy validity of the
+translated sentence. Reflection of finite trace inclusion uses injective
+complete keys and surjective backward replies. The per-model comparison
+uses the existing trace arrows with bijective typed replies.
+[Directed occurrence refinement](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/Institution/Refinement/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment
