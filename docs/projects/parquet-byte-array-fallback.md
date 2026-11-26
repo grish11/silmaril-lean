@@ -62,3 +62,31 @@ diff -r data/parquet-byte-array-fallback "$fixture_tmp"
 lake build --wfail +Silmaril.Formats.Parquet.ByteArrayFallback.Tests
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/parquet-byte-array-fallback/Axioms.lean
 ```
+
+## Selected whole-file events
+
+`Silmaril.Formats.Parquet.ByteArrayFallback.File.Defs` exposes
+`openSource` and `readAll` for the same named optional leaf. `openSource`
+uses the checked fallback open and its file byte and total row caps,
+then supplies the common `Reader.Source` with the original footer
+ordinals and the existing opaque BYTE_ARRAY row mapping. It can also
+be consumed through `Reader.batchReader`.
+
+The trace has one batch for each completely read group. An admitted
+zero-row group contributes an empty batch in its original position.
+The first failure keeps the preceding batches and carries the
+original `ByteArrayFallback.Error` in `File.Error.readFailure`.
+`File.readAll_order`, `File.readAll_success`, `File.readAll_first_error`
+and `File.batch_slots` state these contracts.
+
+The source tests reuse the five fallback fixtures for exact `[384, 384]`
+batches and the original indexed errors after `[384]`. A total cap of
+767 on the damaged 768-row files fails at open. The existing
+[framed empty-middle fixture](parquet-int32-byte-array-file.md#producer-fixtures)
+gives `[3, 0, 2]` at EOS and `[3, 0]` when the final group's binary
+tag is changed to 3.
+
+```sh
+lake build --wfail +Silmaril.Formats.Parquet.ByteArrayFallback.File.Tests
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/parquet-byte-array-fallback-file/Axioms.lean
+```
