@@ -882,6 +882,16 @@ through that projection. A context that reads a discarded store field
 can separate two projected-equal computations.
 [Handled-trace sequencing](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Thms.lean)
 
+For native LetCase with one typed input slot and no free names, this
+comparison gives a category with poset homs at a fixed primitive
+interpretation and reply policy. Each hom consists of classes of native
+derivations under mutual finite handled-trace inclusion, tested at every
+typed input and every handler state. Composition uses a written let and
+the typed weakening of its continuation. Its denotation is ITree bind,
+which gives the category laws and joint monotonicity. The quotient is
+semantic in the chosen model.
+[Typed handled-trace category](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Category/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment
