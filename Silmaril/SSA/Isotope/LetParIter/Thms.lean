@@ -65,6 +65,45 @@ theorem embed_seqIter {ν : Type w} {Φ : Type q} {n : Nat}
     embed (t.bsubst σ) = (embed t).bsubst (fun i => embed (σ i)) :=
   Proofs.embed_bsubst σ t
 
+/-- Moving a native term under a binder commutes with embedding. -/
+@[simp] theorem embed_underBinder {ν : Type w} {Φ : Type q} {n : Nat}
+    (t : LetIter.LocallyNameless.Tm ν Φ (n + 1)) :
+    embed t.underBinder = (embed t).underBinder :=
+  embed_rename _ _
+
+/-- Opening a native binder commutes with embedding. -/
+@[simp] theorem embed_instantiate {ν : Type w} {Φ : Type q} {n : Nat}
+    (b : LetIter.LocallyNameless.Tm ν Φ (n + 1)) (a : LetIter.LocallyNameless.Tm ν Φ n) :
+    embed (b.instantiate a) = (embed b).instantiate (embed a) := by
+  rw [LetIter.LocallyNameless.Tm.instantiate, embed_bsubst, Parallel.Tm.instantiate]
+  congr 1
+  funext i
+  exact Fin.cases rfl (fun _ => rfl) i
+
+/-- The native purity guard is preserved by the embedding. -/
+theorem embed_pure {ν : Type w} {Φ : Type q} {ε : Type r} [HasEff Φ ε] {pe : ε} {n : Nat}
+    {t : LetIter.LocallyNameless.Tm ν Φ n}
+    (h : LetIter.LocallyNameless.Pure pe t) : Parallel.Pure pe (embed t) :=
+  Proofs.embed_pure h
+
+section NativeEquations
+
+variable {τ : Type u} [TypeFormers τ] [Subtyping τ]
+  {ν : Type w} [DecidableEq ν] {Φ : Type q} [HasTy Φ τ] {ε : Type r} [HasEff Φ ε]
+  {pe : ε} {Γ : Ctx ν τ} {n : Nat} {β : BoundCtx τ n} {A : τ}
+
+/-- Native proof-relevant equations at exact endpoints, including recursive
+uniformity, hold at their embedded typing derivations. -/
+theorem embed_related {a b : LetIter.LocallyNameless.Tm ν Φ n}
+    (da : LetIter.LocallyNameless.Derivation Φ Γ β a A)
+    (db : LetIter.LocallyNameless.Derivation Φ Γ β b A)
+    (eq : LetIter.ProofRelevant.LocallyNameless.TypedEquiv.Related pe Γ
+      (nativeTyping da) (nativeTyping db)) :
+    Equiv pe Γ (derivation da) (derivation db) :=
+  .native da db eq
+
+end NativeEquations
+
 section Widen
 
 open Isotope.Semantics

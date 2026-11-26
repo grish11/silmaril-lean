@@ -41,16 +41,29 @@ effect bottom for soundness. Both operands of a pure parallel term have to be
 pure. An iteration has no purity constructor.
 
 The mixed syntax also has pure let beta, let eta, feedback unfolding and the
-native feedback seed-binding equation. The `native` constructor admits the
+native feedback seed-binding equation. `Equiv.iterUniformity` takes a pure
+state map and a recursive typed equation. On one side of that equation, the
+first body transports its continue result along the map. On the other side,
+the second body runs at the mapped state. The directed use of the state map
+preserves returned values. The premise can itself use parallel equations.
+Soundness uses pure Elgot uniformity.
+
+The `native` constructor admits the
 existing `LetIter.ProofRelevant.LocallyNameless.TypedEquiv` judgments at exact
 native endpoints, including the native guarded uniformity premise and the
 other sequential, case and Elgot equations there. The rule uses a proof at
-the original typing derivations. The full native axiom schemata are not
-automatically extended to mixed terms by this import. Full interchange for
+the original typing derivations. `embed_related` exposes that edge without
+restricting the native equality derivation. For raw diagrams,
+`native_uniformity_of_aligned_square` consumes a witnessed native square
+once its two typing fibers are aligned. Compatibility of the other raw
+generators and alignment for transitivity remain separate premises. The full
+native axiom schemata are not automatically extended to mixed terms by this
+import. Full interchange for
 two effectful continuations, effectful case distribution, and commuting
 parallel with feedback have no generating equations.
 
-[Equational constructors](../../Silmaril/SSA/Isotope/LetParIter/Equations/Defs.lean)
+[Equational constructors](../../Silmaril/SSA/Isotope/LetParIter/Equations/Defs.lean) ·
+[Raw uniformity under alignment](../../Silmaril/SSA/Isotope/LetParIter/Uniformity/Thms.lean)
 
 ## Interpreting programs
 

@@ -153,4 +153,19 @@ theorem denote_bsubst (d : Derivation Φ Γ β a A) {σ : Fin n → Tm ν Φ k}
       simp only [Typing.bsubst, denote]
       exact evalIter_congr (iha s ρ ξ hs) fun x => ihb (s.up _) (ρ, x) (ξ, x) (SubstDen.up P γ hs _ x)
 
+set_option backward.isDefEq.respectTransparency false in
+/-- Instantiating the newest variable with a pure computation supplies its value
+to the body and preserves the older slots. -/
+theorem denote_instantiate {b : Tm ν Φ (n + 1)} {B : τ}
+    (db : Derivation Φ Γ (.snoc β A) b B) (da : Derivation Φ Γ β a A)
+    (ρ : BoundDen β) (x : TyDen A) (hx : denote (ε := ε) P da γ ρ = pure x) :
+    denote (ε := ε) P (Typing.instantiate db da) γ ρ = denote (ε := ε) P db γ (ρ, x) := by
+  rw [Typing.instantiate]
+  apply denote_bsubst (β := .snoc β A) (δ := β) (ξ := (ρ, x))
+  intro i
+  refine Fin.cases ?_ (fun j => ?_) i
+  · exact hx
+  · change denote (ε := ε) P (.bv (i := j)) γ ρ = pure (BoundDen.get ρ j)
+    rw [denote]
+
 end Silmaril.Isotope.LetParIter.Proofs
