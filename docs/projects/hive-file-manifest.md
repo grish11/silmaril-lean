@@ -43,19 +43,44 @@ affect this observation.
 [Theorem header](../../Silmaril/Formats/Hive/Manifest/Thms.lean)
 
 The opener and source functions are pure. Filesystem discovery, real I/O and
-byte decoding are outside this layer. A skip-open optimization would require
-evidence that every skipped declaration opens and reads to EOF under the
-reference budget and contributes no selected rows. The current scan always
-opens a reached file, including a filtered file.
+byte decoding are outside this layer.
+
+## Partition pruning
+
+`scan` is the error-preserving reference. It opens every reached declaration
+and observes the terminal outcome even for a filtered file.
+The opt-in `scanSkippingRejected` evaluates the partition predicate before
+opening a reached file. False and unknown skip the open and let traversal
+continue. Retained declarations keep their order, including duplicates, and
+use the same reader and pull budget as the reference. [Pruning API](../../Silmaril/Formats/Hive/Manifest/Pruning/Defs.lean)
+
+`RejectedFilesReachEOF` requires every rejected declaration to reach EOF in
+the reference scan under that file's supplied budget. Successful open alone
+leaves read and close outcomes unknown. A file can yield its last batch and
+still close early if the budget leaves no pull to observe EOF. Retained files
+can fail under this contract. `scanSkippingRejected_eq_scan` proves equality
+of traces under the contract, and `scanSkippingRejected_equivalent` gives
+equality of Arrow observations. [Pruning theorems](../../Silmaril/Formats/Hive/Manifest/Pruning/Thms.lean)
+
+For a rejected singleton with a non-EOF outcome,
+`scanSkippingRejected_not_equivalent_singleton` proves that the policies
+disagree. In the regression, a rejected file opens and emits a group before a
+read failure. The reference returns the earlier selected rows and the error.
+Skipping opens continues to a later selected file and reaches EOF.
 
 ## Checks
 
 ```sh
 lake build --wfail +Silmaril.Formats.Hive.Manifest.Checks
 make check CHECK_TARGETS=+Silmaril.Formats.Hive.Manifest.Checks
+lake build --wfail +Silmaril.Formats.Hive.Manifest.Pruning.Checks
+make check CHECK_TARGETS=+Silmaril.Formats.Hive.Manifest.Pruning.Checks
 ```
 
 The checks exercise original path spelling, canonical directories, repeated
 declarations, an empty manifest and source, nullable predicates, path and
 schema errors, prefix order, filtered open and read failures, early close,
-and close failure. [Checks](../../Silmaril/Formats/Hive/Manifest/Checks.lean)
+and close failure. The pruning checks cover rejected failures and early
+close, a retained failure, and ordered output with repeated paths.
+[Manifest checks](../../Silmaril/Formats/Hive/Manifest/Checks.lean) ·
+[Pruning checks](../../Silmaril/Formats/Hive/Manifest/Pruning/Checks.lean)
