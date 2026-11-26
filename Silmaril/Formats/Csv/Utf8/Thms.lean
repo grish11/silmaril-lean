@@ -25,6 +25,11 @@ theorem decode_encode {rows : Rows} {wire : Bytes} (h : encode rows = some wire)
     decode wire = some rows :=
   Proofs.Formats.Csv.Utf8.decode_encode h
 
+/-- Every successfully decoded row sequence is representable by the writer. -/
+theorem decode_rowsOK {wire : Bytes} {rows : Rows} (h : decode wire = some rows) :
+    rowsOK rows = true :=
+  Proofs.Formats.Csv.Utf8.decode_rowsOK h
+
 /-- Every field returned by the decoder is valid UTF-8. -/
 theorem decode_fields_utf8 {wire : Bytes} {rows : Rows} (h : decode wire = some rows) :
     ∀ row ∈ rows, ∀ field ∈ row, (⟨field.toArray⟩ : ByteArray).IsValidUTF8 :=

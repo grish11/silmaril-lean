@@ -260,8 +260,8 @@ theorem decode_encode {rows : Rows} {wire : Bytes} (h : encode rows = some wire)
     simp [decode, scan_render rows ok, ok]
   next => cases h
 
-theorem decode_fields_utf8 {wire : Bytes} {rows : Rows} (h : decode wire = some rows) :
-    ∀ row ∈ rows, ∀ field ∈ row, (⟨field.toArray⟩ : ByteArray).IsValidUTF8 := by
+theorem decode_rowsOK {wire : Bytes} {rows : Rows} (h : decode wire = some rows) :
+    rowsOK rows = true := by
   unfold decode at h
   cases scanned : scan wire with
   | none => simp [scanned] at h
@@ -269,12 +269,14 @@ theorem decode_fields_utf8 {wire : Bytes} {rows : Rows} (h : decode wire = some 
     rw [scanned] at h
     change (if rowsOK result then some result else none) = some rows at h
     split at h
-    next ok =>
-      cases h
-      intro row mem field inRow
-      have fieldGood := ((rowsOK_iff _).mp ok row mem).2 field inRow
-      simp only [fieldOK, Bool.and_eq_true] at fieldGood
-      exact ByteArray.validateUTF8_eq_true_iff.mp fieldGood.2
+    next ok => cases h; exact ok
     next => cases h
+
+theorem decode_fields_utf8 {wire : Bytes} {rows : Rows} (h : decode wire = some rows) :
+    ∀ row ∈ rows, ∀ field ∈ row, (⟨field.toArray⟩ : ByteArray).IsValidUTF8 := by
+  intro row mem field inRow
+  have fieldGood := ((rowsOK_iff _).mp (decode_rowsOK h) row mem).2 field inRow
+  simp only [fieldOK, Bool.and_eq_true] at fieldGood
+  exact ByteArray.validateUTF8_eq_true_iff.mp fieldGood.2
 
 end Silmaril.Proofs.Formats.Csv.Utf8
