@@ -9,9 +9,12 @@ import Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Seeded
 namespace Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
 
 open Silmaril.SSA.LambdaRTL (CFG)
+open Silmaril.SSA.LambdaRTL.CFG.Cyclic
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
+open LambdaSSA (FiniteCFG)
 open LambdaSSA.Semantics (Env)
 open Silmaril.Elgot.ITree (HandledTrace)
+open Phi.Certified.Entry.OrderedExits.Readback (Provenance packetValue)
 
 variable {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
   {signature : PrimitiveSignature F} {source : CFG V K F} {exits : List K} {fields : K → List V}
@@ -70,6 +73,23 @@ theorem Seeded.observe_eq (built : Seeded signature source exits fields capture 
     built.entry.observe ambient (packetRecord packet) =
       LiveOut.observeRaw signature.primitive exits fields source initial :=
   Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Seeded.observe_eq built initial packet ambient checked
+
+/-- Exact internal rows and a matching pure entry seed suffice for the
+original-runner equation at any finite source capture layout. -/
+theorem observe_eq_of_provenance {count : Nat}
+    {program : Program signature (fun _ : Fin 1 => inputType) outputs}
+    (entry : Program.PackedEntry program 0) (names : Fin count → V)
+    (closed : RoundTrip.PacketClosed (Silmaril.SSA.LambdaRTL.CFG.Cyclic.LiveOut.attach fields source))
+    {flat : FiniteCFG F (Silmaril.SSA.LambdaRTL.CFG.Cyclic.LiveOut.attach fields source).blocks.length exits.length count}
+    (accepted : NamedFlat.elaborate (Silmaril.SSA.LambdaRTL.CFG.Cyclic.LiveOut.attach fields source) exits names = some flat)
+    (provenance : Provenance flat entry.target)
+    (initial : V → Value Atom) (packet : Denote inputType) (ambient namedRecord : Env Atom)
+    (agrees : ∀ i, namedRecord i.val = initial (names i))
+    (checked : packetValue namedRecord provenance.seed = PacketType.encode inputType packet) :
+    entry.observe ambient (packetRecord packet) =
+      LiveOut.observeRaw signature.primitive exits fields source initial :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Seeded.observe_eq_of_provenance entry names closed accepted
+    provenance initial packet ambient namedRecord agrees checked
 
 /-- Decoding succeeds at exactly the packets that pass the seed check. -/
 theorem Seeded.seed?_eq_some_iff (built : Seeded signature source exits fields capture inputType outputs)

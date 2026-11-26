@@ -14,6 +14,7 @@ open Silmaril.Isotope.Bridge.NamedFlat
 open Silmaril.Isotope.Bridge.NamedFlat.Entry.Public (Seeded packetRecord observeRaw_eq_flat)
 open Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Readback
 open Silmaril.SSA.LambdaRTL (CFG upd)
+open Silmaril.SSA.LambdaRTL.CFG.Cyclic
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 open LambdaSSA.Semantics (Env)
 open Silmaril.Elgot.ITree (HandledTrace TraceLE)
@@ -28,23 +29,28 @@ theorem recordAgrees_of_captures {F : Type} {signature : PrimitiveSignature F} {
   intro i
   simp [captures i, packetRecord, Program.store, upd]
 
-theorem observe_eq {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
+theorem observe_eq_of_provenance {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
     {signature : PrimitiveSignature F} {source : CFG V K F} {exits : List K} {fields : K → List V}
-    {capture : V} {inputType : PacketType} {outputs : Fin exits.length → PacketType}
-    (built : Seeded signature source exits fields capture inputType outputs)
-    (initial : V → Value Atom) (packet : Denote inputType) (ambient : Env Atom)
-    (checked : built.checkSeed initial packet = true) :
-    built.entry.observe ambient (packetRecord packet) =
+    {inputType : PacketType} {outputs : Fin exits.length → PacketType}
+    {program : Program signature (fun _ : Fin 1 => inputType) outputs} {count : Nat}
+    (entry : Program.PackedEntry program 0) (names : Fin count → V)
+    (closed : RoundTrip.PacketClosed (LiveOut.attach fields source))
+    {flat : LambdaSSA.FiniteCFG F (LiveOut.attach fields source).blocks.length exits.length count}
+    (accepted : elaborate (LiveOut.attach fields source) exits names = some flat)
+    (provenance : Provenance flat entry.target)
+    (initial : V → Value Atom) (packet : Denote inputType) (ambient namedRecord : Env Atom)
+    (agrees : ∀ i, namedRecord i.val = initial (names i))
+    (checked : packetValue namedRecord provenance.seed = PacketType.encode inputType packet) :
+    entry.observe ambient (packetRecord packet) =
       Entry.LiveOut.observeRaw signature.primitive exits fields source initial := by
-  let namedRecord : Env Atom := fun _ => initial capture
   have prim : PrimitivesAgree signature.primitive signature.primitive id := by
     intro op value
     rw [valueCodec_id, show valueCodec (id : Atom → Atom) = id from funext valueCodec_id, id_map]
-  have seed : packetRecord packet built.provenance.slot.val =
-      valueCodec id (packetValue namedRecord built.provenance.seed) := by
+  have seed : packetRecord packet provenance.slot.val =
+      valueCodec id (packetValue namedRecord provenance.seed) := by
     rw [valueCodec_id]
-    exact (of_decide_eq_true checked).symm
-  have aligned := (built.provenance.alignment prim seed).packed
+    exact checked.symm
+  have aligned := (provenance.alignment prim seed).packed
   have result : resultCodec (id : Atom → Atom) = id := by
     funext out
     rcases out with ⟨tag, value⟩
@@ -52,8 +58,19 @@ theorem observe_eq {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
   rw [result, id_map] at aligned
   let _ := signature.typing
   unfold Program.PackedEntry.observe
-  rw [Capture.packed_context_tree signature.primitive built.entry.typed ambient (packetRecord packet), ← aligned,
-    observeRaw_eq_flat (fun _ : Fin 1 => capture) built.closed built.accepted initial namedRecord (fun _ => rfl)]
+  rw [Capture.packed_context_tree signature.primitive entry.typed ambient (packetRecord packet), ← aligned,
+    observeRaw_eq_flat names closed accepted initial namedRecord agrees]
+
+theorem observe_eq {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
+    {signature : PrimitiveSignature F} {source : CFG V K F} {exits : List K} {fields : K → List V}
+    {capture : V} {inputType : PacketType} {outputs : Fin exits.length → PacketType}
+    (built : Seeded signature source exits fields capture inputType outputs)
+    (initial : V → Value Atom) (packet : Denote inputType) (ambient : Env Atom)
+    (checked : built.checkSeed initial packet = true) :
+    built.entry.observe ambient (packetRecord packet) =
+      Entry.LiveOut.observeRaw signature.primitive exits fields source initial :=
+  observe_eq_of_provenance built.entry (fun _ => capture) built.closed built.accepted built.provenance
+    initial packet ambient (fun _ => initial capture) (fun _ => rfl) (of_decide_eq_true checked)
 
 variable {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
   {signature : PrimitiveSignature F} {source target : CFG V K F} {exits : List K} {fields : K → List V}
