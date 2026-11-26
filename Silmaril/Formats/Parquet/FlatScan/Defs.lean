@@ -74,7 +74,10 @@ def Batch.rows (batch : Batch) : List (List (Option Int32)) :=
     (List.replicate batch.rowCount [])
   reversed.map List.reverse
 
-private def flatSchema {ε : Type} (limits : Limits) (schema : List Footer.SchemaElement) :
+/-- Validate the footer schema for this profile and return the leaves in wire
+order. An opener can check the ordered names and layouts without reading any
+row groups. `limits.maxColumns` bounds the schema width. -/
+def flatSchema {ε : Type} (limits : Limits) (schema : List Footer.SchemaElement) :
     Except (Error ε) (List Field) := do
   let root :: children := schema | throw .schema
   if children.length > limits.maxColumns then throw .columnLimit

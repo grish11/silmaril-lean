@@ -18,6 +18,8 @@ spans. It checks a scalar page callback at the row-slot boundary.
   column chunks as the schema has leaves. Each chunk must match the
   one-component path and physical type at its position. This rejects
   duplicate, missing, extra, and reordered column metadata.
+  `flatSchema` exposes the ordered names and layouts for open-time binding,
+  including for a file with no row groups.
 - Each column must advertise the group's row count as `num_values`, use
   codec 0 (UNCOMPRESSED), and admit only PLAIN and RLE in its encoding list.
   Nonempty columns must advertise PLAIN. The scanner rejects dictionary
