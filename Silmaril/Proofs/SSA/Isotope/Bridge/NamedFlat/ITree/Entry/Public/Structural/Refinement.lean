@@ -80,6 +80,27 @@ theorem domain_has_verdict : (left.refinementOverCaptures right).verdict.isSome 
   change (combineStoreVerdicts verdicts).isSome = true
   simp [combineStoreVerdicts, typed]
 
+theorem domain_eq_false :
+    (left.refinementOverCaptures right).verdict = some false ↔
+      ∃ initial ∈ left.jointStores right, left.refinementFromStore? right initial = some false := by
+  classical
+  change combineStoreVerdicts ((left.jointStores right).map (left.refinementFromStore? right)) = some false ↔ _
+  simp only [combineStoreVerdicts_eq_some_iff, List.forall_mem_map]
+  constructor
+  · rintro ⟨typed, failure⟩
+    by_contra noFailure
+    apply Bool.noConfusion (failure.mpr ?_)
+    intro initial mem
+    obtain ⟨verdict, checked⟩ := Option.isSome_iff_exists.mp (typed initial mem)
+    cases verdict
+    · exact (noFailure ⟨initial, mem, checked⟩).elim
+    · exact checked
+  · rintro ⟨initial, mem, failed⟩
+    refine ⟨listed_verdict_typed left right, ⟨fun impossible => Bool.noConfusion impossible, fun passes => ?_⟩⟩
+    have passed := passes initial mem
+    rw [failed] at passed
+    cases passed
+
 theorem domain_eq_some (verdict : Bool) :
     (left.refinementOverCaptures right).verdict = some verdict ↔
       (verdict = true ↔

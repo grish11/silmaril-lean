@@ -1,6 +1,8 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
+meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
+meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
 namespace Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
 
@@ -94,10 +96,73 @@ private theorem storeMismatch :
   rw [leftSeed, rightSeed]
   exact congrArg some actualMismatch
 
-example : (overlapping.refinementOverCaptures right).verdict = some false := by
+private theorem overlapFails : (overlapping.refinementOverCaptures right).verdict = some false := by
   have spec := (overlapping.refinementFromStore?_eq_some_iff right mismatchingStore false).mp storeMismatch
   apply (overlapping.refinementOverCaptures_eq_some_iff right false).mpr
   exact ⟨fun impossible => Bool.noConfusion impossible, fun all => spec.2.2.mpr (all mismatchingStore spec.1 spec.2.1)⟩
+
+example : (overlapping.refinementCounterexample? right).isSome = true :=
+  (overlapping.refinementCounterexample?_isSome_iff right).mpr overlapFails
+
+private def expectedOverlapWitness : Bool :=
+  match overlapping.refinementCounterexample? right with
+  | none => false
+  | some checked =>
+    match checked.val.trace with
+    | .result packet =>
+      decide (checked.val.initial shared = Value.inl .unit ∧ checked.val.initial rightRead = Value.inr .unit ∧
+        packet = (0, Value.inr (.inl (.pair .unit (.pair (.inl .unit) .unit)))))
+    | _ => false
+
+#guard expectedOverlapWitness
+
+example : (conflicting.refinementCounterexample? right).isSome = false :=
+  Bool.eq_false_iff.mpr fun found => by
+    have rejected := (conflicting.refinementCounterexample?_isSome_iff right).mp found
+    rw [conflicting.refinementOverCaptures_vacuous right (by decide)] at rejected
+    cases rejected
+
+-- This target selects the first unpacked field. The two fields coincide
+-- on the one jointly typed capture assignment.
+private def matchingGraph : CFG Name Name Unit :=
+  {graph shared shared with
+    blocks := [(⟨12⟩, ⟨⟨7⟩, .let2 liveOut ⟨8⟩ (.val (.var ⟨7⟩)) (.term (.br ⟨11⟩ .unit))⟩)]}
+
+private def matching : StructuralEntry signature matchingGraph exits fields (.product bit bit) outputs :=
+  (constructStructural signature matchingGraph exits fields (.product bit bit) (fun _ => .product bit bit)
+    outputs).get (by decide)
+
+private def matchingAssignment : List (Name × Value Atom) := List.replicate 4 (shared, .inl .unit)
+private def matchingStore := StructuralSeed.assignmentStore matchingAssignment
+private theorem matchingAssignments : overlapping.jointAssignments matching = [matchingAssignment] := by decide
+
+set_option maxHeartbeats 1000000 in
+private theorem actualSuccess :
+    overlapping.program.refinementBetween? matching.program 0 overlapPacket 0 rightPacket = true := by cbv
+
+private theorem matchingStorePasses : overlapping.refinementFromStore? matching matchingStore = some true := by
+  have leftSeed : overlapping.seed? matchingStore = some overlapPacket := by decide
+  have rightSeed : matching.seed? matchingStore = some rightPacket := by decide
+  change ((overlapping.seed? matchingStore).bind fun a => (matching.seed? matchingStore).bind fun b =>
+    some (overlapping.program.refinementBetween? matching.program 0 a 0 b)) = some true
+  rw [leftSeed, rightSeed]
+  exact congrArg some actualSuccess
+
+private theorem matchingVerdict : (overlapping.refinementOverCaptures matching).verdict = some true := by
+  change combineStoreVerdicts ((overlapping.jointStores matching).map
+    (overlapping.refinementFromStore? matching)) = some true
+  simp only [StructuralEntry.jointStores, matchingAssignments, List.map_cons, List.map_nil]
+  change combineStoreVerdicts [overlapping.refinementFromStore? matching matchingStore] = some true
+  simp [matchingStorePasses, combineStoreVerdicts]
+
+example : (overlapping.refinementOverCaptures matching).emptyDomain = false := by decide
+example : (overlapping.refinementCounterexample? matching).isSome = false :=
+  Bool.eq_false_iff.mpr fun found => by
+    have rejected := (overlapping.refinementCounterexample?_isSome_iff matching).mp found
+    rw [matchingVerdict] at rejected
+    cases rejected
+
+#guard !(overlapping.refinementCounterexample? matching).isSome
 
 -- Existing named elaboration can express an injection as an instruction,
 -- but the structural public readback takes the operand of a direct jump.

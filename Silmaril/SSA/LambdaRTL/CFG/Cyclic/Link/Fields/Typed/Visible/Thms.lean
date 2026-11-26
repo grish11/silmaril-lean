@@ -92,8 +92,20 @@ theorem weakEq?_iff_mutual_refinement [DecidableEq F] (right : Program signature
     program.weakEq? right = true ↔ program.refinement? right = true ∧ right.refinement? program = true := by
   simp only [weakEq?_iff, refinement?_iff, eq_iff_traceLE, forall_and]
 
-/-- A rejected oriented comparison returns a trace present in the first
-run and absent in the second. -/
+/-- A rejected comparison at independent starts returns a trace present
+in the left run and absent in the right run. -/
+theorem explainRefinementBetween?_spec [DecidableEq F] {c : Nat} {rightInputs : Fin c → PacketType}
+    (right : Program signature rightInputs outputs)
+    (leftInput : Fin a) (leftPacket : Denote (inputs leftInput))
+    (rightInput : Fin c) (rightPacket : Denote (rightInputs rightInput)) :
+    (program.explainRefinementBetween? right leftInput leftPacket rightInput rightPacket = none ↔
+      program.refinementBetween? right leftInput leftPacket rightInput rightPacket = true) ∧
+    ∀ trace, program.explainRefinementBetween? right leftInput leftPacket rightInput rightPacket = some trace →
+      HasTrace (program.observe leftInput leftPacket) trace ∧ ¬ HasTrace (right.observe rightInput rightPacket) trace :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.explain_refinement_between program right
+    leftInput leftPacket rightInput rightPacket
+
+/-- Explain the directed comparison at a shared start packet. -/
 theorem explainRefinementAt?_spec [DecidableEq F] (right : Program signature inputs outputs)
     (input : Fin a) (packet : Denote (inputs input)) :
     (program.explainRefinementAt? right input packet = none ↔ program.refinementAt? right input packet = true) ∧
