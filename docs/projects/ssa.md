@@ -249,9 +249,18 @@ cycles stay private and preserve packet shape even when the payload changes.
 The verdict compares actual `Part` observations on packed inputs. Soundness
 holds in every pair-lawful model. Completeness in a given model requires that
 distinct field maps can be distinguished by some packed input. Pair-lawfulness
-and two distinct field values suffice. Width-changing projections would need
-a packet shape at each port and private label. Branches, primitive calls, and
+and two distinct field values suffice. Branches, primitive calls, and
 destructuring opaque fields are outside the checker.
+
+[Variable-width routing](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Link/Fields/Width/Thms.lean)
+assigns widths to each port and private label. It checks that each
+input agrees with its entry label, and checks each reachable jump at the
+declared target width. Routes have type `Fin target → Fin source` and compose
+at their common width. Linking requires the same width family at the left
+exits and right inputs, which the handoff blocks preserve. The `Part`
+observation theorem also applies to the compiled named SSA classes when
+the designated register holds the packed input. Zero fields encode as unit,
+and all routes to an empty packet agree without a field-separation premise.
 
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),

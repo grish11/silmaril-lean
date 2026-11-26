@@ -80,57 +80,58 @@ private theorem agrees_upd {model : Model F M α} {packet : Fin n → α}
 
 variable [Monad M] [LawfulMonad M]
 
-private theorem body_sound (model : PairModel F M α) (packet : Fin n → α) (body : Body V K F)
+private theorem body_sound (model : PairModel F M α) (packet : Fin n → α) (width : K → Nat) (body : Body V K F)
     {env : V → Option (Val (Fin n))} {store : V → α}
-    (agrees : Agrees model.val packet env store) {target : K} {fields : FieldMap n}
-    (accepted : body? env body = some (target, fields)) :
+    (agrees : Agrees model.val packet env store) {target : K} {fields : Route n (width target)}
+    (accepted : bodyTo? width env body = some ⟨target, fields⟩) :
     body.evalJump model.val store = pure (target, encode model.val (packet ∘ fields)) := by
   induction body generalizing env store with
   | let1 dst op tail ih =>
     cases op with
     | val value =>
       cases found : read? env value with
-      | none => simp [body?, found] at accepted
+      | none => simp [bodyTo?, found] at accepted
       | some shape =>
         have evaluated := read_eval agrees found
         simp only [Body.evalJump, Body.exec, Op.eval, pure_bind, evaluated]
-        exact ih (agrees_upd agrees dst shape) (by simpa [body?, found] using accepted)
-    | _ => simp [body?] at accepted
+        exact ih (agrees_upd agrees dst shape) (by simpa [bodyTo?, found] using accepted)
+    | _ => simp [bodyTo?] at accepted
   | let2 left right op tail ih =>
     cases op with
     | val value =>
       cases found : read? env value with
-      | none => simp [body?, found] at accepted
+      | none => simp [bodyTo?, found] at accepted
       | some shape =>
         cases shape with
-        | var i => simp [body?, found] at accepted
-        | unit => simp [body?, found] at accepted
+        | var i => simp [bodyTo?, found] at accepted
+        | unit => simp [bodyTo?, found] at accepted
         | pair fst snd =>
           have evaluated := read_eval agrees found
           simp only [Body.evalJump, Body.exec, Op.eval, pure_bind, evaluated, Val.eval,
             model.property.unpair_pair]
           exact ih (agrees_upd (agrees_upd agrees left fst) right snd)
-            (by simpa [body?, found] using accepted)
-    | _ => simp [body?] at accepted
+            (by simpa [bodyTo?, found] using accepted)
+    | _ => simp [bodyTo?] at accepted
   | term term =>
     cases term with
-    | case => simp [body?] at accepted
+    | case => simp [bodyTo?] at accepted
     | br label value =>
       cases found : read? env value with
-      | none => simp [body?, found] at accepted
+      | none => simp [bodyTo?, found] at accepted
       | some shape =>
-        cases decoded : fieldMap? n shape with
-        | none => simp [body?, found, decoded] at accepted
+        cases decoded : fieldMap? (width label) shape with
+        | none => simp [bodyTo?, found, decoded] at accepted
         | some route =>
-          have same : label = target ∧ route = fields := by simpa [body?, found, decoded] using accepted
-          obtain ⟨rfl, rfl⟩ := same
+          have same : (⟨label, route⟩ : (k : K) × Route n (width k)) = ⟨target, fields⟩ :=
+            Option.some.inj (by simpa [bodyTo?, found, decoded] using accepted)
+          cases same
           simp [Body.evalJump, Body.exec, Term.exec, read_eval agrees found, fields_eval model.val packet decoded]
 
-theorem block_sound (model : PairModel F M α) (packet : Fin n → α) (block : Block V K F)
-    (store : V → α) {target : K} {fields : FieldMap n} (accepted : block? n block = some (target, fields)) :
+theorem block_to_sound (model : PairModel F M α) (packet : Fin n → α) (width : K → Nat) (block : Block V K F)
+    (store : V → α) {target : K} {fields : Route n (width target)} (accepted : blockTo? n width block = some ⟨target, fields⟩) :
     block.body.evalJump model.val (upd store block.param (encode model.val packet)) =
       pure (target, encode model.val (packet ∘ fields)) := by
-  apply body_sound model packet block.body _ accepted
+  apply body_sound model packet width block.body _ accepted
   intro reg shape found
   by_cases same : reg = block.param
   · subst reg
@@ -138,5 +139,17 @@ theorem block_sound (model : PairModel F M α) (packet : Fin n → α) (block : 
     subst shape
     simp [upd, eval_packed, Val.eval]
   · simp [upd, same] at found
+
+theorem block_sound (model : PairModel F M α) (packet : Fin n → α) (block : Block V K F)
+    (store : V → α) {target : K} {fields : FieldMap n} (accepted : block? n block = some (target, fields)) :
+    block.body.evalJump model.val (upd store block.param (encode model.val packet)) =
+      pure (target, encode model.val (packet ∘ fields)) := by
+  cases checked : blockTo? n (fun _ => n) block with
+  | none => simp [block?, checked] at accepted
+  | some result =>
+    obtain ⟨label, route⟩ := result
+    have same : label = target ∧ route = fields := by simpa [block?, checked] using accepted
+    obtain ⟨rfl, rfl⟩ := same
+    exact block_to_sound model packet (fun _ => n) block store checked
 
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields
