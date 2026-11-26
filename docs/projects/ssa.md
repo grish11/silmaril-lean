@@ -212,6 +212,16 @@ absence from all input paths makes them observationally invisible. The
 [regressions](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/Link/Simulation/Regression.lean)
 exercise a linked multi-block chain and both reachable and unused cycles.
 
+`CopyChain.refinement?` decides the same comparison on the larger fragment in
+which only private blocks reachable from the inputs must be typed forwarders.
+It visits each private label at most once per input. A repeat witnesses a
+reachable typed cycle and `Part.none`, including when all private labels have
+been visited. A terminating path must match the wire's port, while any
+reachable unsupported body yields `none` for the decision. Unused blocks can
+contain cycles or unsupported bodies. The decision gives a proved semantic
+verdict. `CopyChain.certificate` is the separate total-table API for obtaining a
+label map usable with the linker.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

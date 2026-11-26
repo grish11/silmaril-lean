@@ -187,4 +187,35 @@ example (m : Model Empty Part Nat) (input : Fin 1 × Nat) :
       rfl)]
   rfl
 
+private theorem reachable_ring_outcome :
+    CopyChain.entryOutcome (ring (.inl 0)) 0 = .cycle (0 : Fin 2) := by cbv
+
+private theorem reachable_ring_verdict : CopyChain.refinement? (ring (.inl 0)) id = some true := by cbv
+
+example : CopyChain.refinement? (ring (.inr 0)) id = some true := by cbv
+
+example : CopyChain.LoopsAt (ring (.inl 0)) (0 : Fin 2) :=
+  (CopyChain.entryOutcome_cycle (graph := ring (.inl 0)) model.val (0, 0) (0 : Fin 2)
+    reachable_ring_outcome).1.2
+
+example : Refines (Quotient.mk _ (ring (.inl 0)) : Arrow Bool Empty Nat 1 1) (Quotient.mk _ wire) :=
+  ((CopyChain.refinement?_eq_some_iff model (ring (.inl 0)) id true).mp reachable_ring_verdict).2.mp rfl
+
+example : CopyChain.entryOutcome chain 0 = .returns 0 := by cbv
+
+private theorem wrong_wire_verdict : CopyChain.refinement? chain (fun _ => 1) = some false := by cbv
+
+example : ¬ Refines (Quotient.mk _ chain : Arrow Bool Empty Nat 1 2)
+    (Quotient.mk _ (Graph.wiring (fun _ => 1))) := by
+  have mismatch := ((CopyChain.refinement?_eq_some_iff model chain (fun _ => 1) false).mp wrong_wire_verdict).2
+  exact fun included => Bool.noConfusion (mismatch.mpr included)
+
+-- The altered block remains unsupported after two checked jumps.
+example : CopyChain.entryOutcome (move.link altered) 0 = .unsupported (2 : Fin 3) := by cbv
+example : CopyChain.refinement? (move.link altered) id = none := by cbv
+
+private def unusedAltered : Graph Bool Empty 1 1 := { altered with entry := fun _ => .inr 0 }
+
+example : CopyChain.refinement? unusedAltered id = some true := by cbv
+
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link

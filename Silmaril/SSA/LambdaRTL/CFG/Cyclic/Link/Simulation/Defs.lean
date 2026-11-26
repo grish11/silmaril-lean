@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Institution.Thms
+import Mathlib.Data.Finset.Card
 
 /-! A syntactic forward simulation of named packet CFGs. A private address
 may be mapped to a private address or a public port. Copying matches the
@@ -83,6 +84,62 @@ def terminalPort (total : Total graph) (index : Fin graph.locals) : Fin b :=
 def check (wire : Fin a → Fin b) : Bool :=
   (List.finRange graph.locals).all (fun index => (terminal? graph (.inl index)).isSome) &&
   (List.finRange a).all (fun input => decide (terminal? graph (graph.entry input) = some (wire input)))
+
+/-- Reachability using only typed copy-forwarding edges. -/
+inductive Reaches : Label graph.locals b → Label graph.locals b → Prop
+  | here (label : Label graph.locals b) : Reaches label label
+  | step {index : Fin graph.locals} {next finish : Label graph.locals b}
+      (forwarded : PacketCopy.Forwards {(graph.block index).param} (graph.block index).body next)
+      (tail : Reaches next finish) : Reaches (.inl index) finish
+
+/-- A private block reached from any input must be a typed forwarder.
+There is no restriction on blocks outside these paths. -/
+def EntryTyped : Prop :=
+  ∀ input index, Reaches graph (graph.entry input) (.inl index) →
+    ∃ next, PacketCopy.Forwards {(graph.block index).param} (graph.block index).body next
+
+/-- A nonempty walk of typed forwarding edges back to this block. -/
+def LoopsAt (index : Fin graph.locals) : Prop :=
+  ∃ next, PacketCopy.Forwards {(graph.block index).param} (graph.block index).body next ∧
+    Reaches graph next (.inl index)
+
+inductive Outcome (locals outputs : Nat) where
+  | returns (port : Fin outputs)
+  | cycle (repeated : Fin locals)
+  | unsupported (index : Fin locals)
+  deriving DecidableEq
+
+/-- Each recursive call consumes one unvisited private label. A private
+label outside `remaining` is a repeat when started with the full table. -/
+def inspect (remaining : Finset (Fin graph.locals)) (start : Label graph.locals b) :
+    Outcome graph.locals b :=
+  match start with
+  | .inr port => .returns port
+  | .inl index =>
+    if _fresh : index ∈ remaining then
+      match next? graph index with
+      | none => .unsupported index
+      | some next => inspect (remaining.erase index) next
+    else .cycle index
+termination_by remaining.card
+decreasing_by exact Finset.card_erase_lt_of_mem _fresh
+
+/-- Inspect only the path from the chosen input. -/
+def entryOutcome (input : Fin a) : Outcome graph.locals b :=
+  inspect graph Finset.univ (graph.entry input)
+
+/-- A cycle contributes no terminating result. Unsupported reachable
+syntax makes the comparison inconclusive. -/
+def Outcome.agrees? (expected : Fin b) : Outcome n b → Option Bool
+  | .returns port => some (decide (port = expected))
+  | .cycle _ => some true
+  | .unsupported _ => none
+
+/-- Decide terminating-result inclusion against a wire on the entry-typed
+fragment. `none` reports a reachable unsupported block at some input. -/
+def refinement? (wire : Fin a → Fin b) : Option Bool :=
+  let results := (List.finRange a).map fun input => (entryOutcome graph input).agrees? (wire input)
+  if results.all Option.isSome then some (results.all (· == some true)) else none
 
 end CopyChain
 

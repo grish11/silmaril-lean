@@ -5,6 +5,7 @@ import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.PacketCopy
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Soundness
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Composition
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.CopyChain
+import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Reachable
 
 @[expose] public section
 
@@ -159,6 +160,37 @@ theorem check_iff_refines (model : PairModel F Part α) (graph : Graph V F a b)
       Refines (Quotient.mk _ graph : Arrow V F α a b) (Quotient.mk _ (Graph.wiring wire)) :=
   ⟨fun passed => (certificate graph wire passed).refines,
     Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.check_complete model graph wire total⟩
+
+theorem entryOutcome_returns {graph : Graph V F a b} (model : Model F Part α)
+    (input : Fin a × α) (port : Fin b) (found : entryOutcome graph input.1 = .returns port) :
+    graph.denote model input = pure (port, input.2) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.entry_returns model input port found
+
+/-- A repeated label is reached through typed copies. Its already checked
+successors stay inside a closed private set, so iteration cannot return. -/
+theorem entryOutcome_cycle {graph : Graph V F a b} (model : Model F Part α)
+    (input : Fin a × α) (index : Fin graph.locals) (found : entryOutcome graph input.1 = .cycle index) :
+    (Reaches graph (graph.entry input.1) (.inl index) ∧ LoopsAt graph index) ∧
+      graph.denote model input = Part.none :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.entry_cycle model input index found
+
+theorem entryOutcome_unsupported {graph : Graph V F a b} (input : Fin a) (index : Fin graph.locals)
+    (found : entryOutcome graph input = .unsupported index) :
+    Reaches graph (graph.entry input) (.inl index) ∧
+      ¬ ∃ next, PacketCopy.Forwards {(graph.block index).param} (graph.block index).body next :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.entry_unsupported input index found
+
+theorem refinement?_eq_none_iff (graph : Graph V F a b) (wire : Fin a → Fin b) :
+    refinement? graph wire = none ↔ ¬ EntryTyped graph :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_none graph wire
+
+/-- This entry-only check gives a semantic verdict. The supplied model
+detects terminal port mismatches, and soundness is uniform in the model. -/
+theorem refinement?_eq_some_iff (model : PairModel F Part α) (graph : Graph V F a b)
+    (wire : Fin a → Fin b) (verdict : Bool) :
+    refinement? graph wire = some verdict ↔ EntryTyped graph ∧
+      (verdict = true ↔ Refines (Quotient.mk _ graph : Arrow V F α a b) (Quotient.mk _ (Graph.wiring wire))) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_some model graph wire verdict
 
 end CopyChain
 

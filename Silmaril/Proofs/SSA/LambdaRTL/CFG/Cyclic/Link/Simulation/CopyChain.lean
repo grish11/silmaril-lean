@@ -18,7 +18,7 @@ open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Comparison
 variable {V F α : Type} [DecidableEq V] {a b : Nat}
 variable {graph : Graph V F a b}
 
-private theorem next_iff {index : Fin graph.locals} {target : Label graph.locals b} :
+theorem next_iff {index : Fin graph.locals} {target : Label graph.locals b} :
     next? graph index = some target ↔
       PacketCopy.Forwards {(graph.block index).param} (graph.block index).body target :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.PacketCopy.target_iff
