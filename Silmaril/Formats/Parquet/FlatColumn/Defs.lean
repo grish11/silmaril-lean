@@ -70,9 +70,11 @@ def bindColumn (snapshot : Snapshot.Checked) (selection : Selection) : Except Bi
 inductive Versions where
   | v1AndV2
   | v2Only
+  /-- Uncompressed required V1 with tag 4 on the absent repetition section. -/
+  | legacyV1Required
   deriving DecidableEq, Repr
 
-/-- One data-page encoding, with optional V1 RLE-level admission. -/
+/-- One data-page encoding and an explicit page and level profile. -/
 structure Policy where
   encoding : Int
   versions : Versions := .v1AndV2
@@ -156,8 +158,13 @@ private def admitPage {ε : Type} (codec : CodecProfile) (limits : Limits) (poli
   match params.version with
   | .v1 definitions repetitions =>
     if policy.versions == .v2Only then throw .unsupportedVersion
-    if definitions != 3 || repetitions != 3 then throw .levels
+    if policy.versions == .legacyV1Required then
+      -- In a required flat leaf both level sections are absent.
+      if codec != .uncompressed || layout != .required ||
+          (definitions != 3 && definitions != 4) || repetitions != 4 then throw .levels
+    else if definitions != 3 || repetitions != 3 then throw .levels
   | .v2 nulls rows repetitions definitions _ =>
+    if policy.versions == .legacyV1Required then throw .unsupportedVersion
     if repetitions != 0 || header.compressedSize < definitions || header.uncompressedSize < definitions ||
         (layout == .required && definitions != 0) then throw .levels
     if rows != params.numValues || params.numValues < nulls ||
@@ -196,7 +203,8 @@ private def locateChunk (codec : CodecProfile) (limits : Limits) (policy : Polic
       metadata.numValues = group.numRows) then .error .association
   else if metadata.codec ≠ codec.id then .error (.codec metadata.codec)
   else if !metadata.encodings.contains policy.encoding ||
-      !metadata.encodings.all (fun tag => tag == policy.encoding || tag == 3) then .error .encodings
+      !metadata.encodings.all (fun tag =>
+        tag == policy.encoding || tag == 3 || (policy.versions == .legacyV1Required && tag == 4)) then .error .encodings
   else if metadata.dictionaryPageOffset.isSome || metadata.indexPageOffset.isSome then .error .unsupportedOffsets
   else if metadata.totalCompressedSize > (limits.maxChunkBytes : Int) ||
       metadata.totalUncompressedSize > (limits.maxChunkBytes : Int) then .error .chunkLimit

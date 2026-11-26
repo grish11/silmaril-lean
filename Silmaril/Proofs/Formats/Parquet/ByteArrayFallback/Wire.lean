@@ -221,10 +221,11 @@ private theorem readFrames_wire {limits : Limits} {metadata : Footer.ColumnMetad
       Decidable.not_not.mp (fun e => offsets (.inr e)),
       leading_wire opened, ordered, rfl, (pages_count ordered).trans (Decidable.not_not.mp counted)⟩
 
-theorem readGroup_wire {name : String} {checked : Checked name} {limits : Limits}
-    {index : Nat} {slots : List (Option Bytes)} (h : readGroupFor profile checked limits index = .ok slots) :
-    GroupWireFor profile checked limits index slots := by
-  unfold readGroupFor at h
+theorem readBoundGroup_wire {snapshot : Snapshot.Checked} {name : String}
+    {binding : FlatColumn.Binding snapshot ⟨name, .byteArray, .optional⟩} {limits : Limits}
+    {index : Nat} {slots : List (Option Bytes)} (h : readBoundGroupFor profile binding limits index = .ok slots) :
+    ∃ group, BoundGroupWireFor profile binding limits index group slots := by
+  unfold readBoundGroupFor at h
   split at h <;> try contradiction
   rename_i group selected
   dsimp only at h
@@ -234,7 +235,12 @@ theorem readGroup_wire {name : String} {checked : Checked name} {limits : Limits
   obtain ⟨span, located, h⟩ := bind_ok h
   obtain ⟨frames, framed, decoded⟩ := bind_ok h
   obtain ⟨⟨path, physical, count⟩, codec, bounded⟩ := locate_wire (mapError_ok located)
-  exact ⟨group, column, span, frames, checked.binding.leafAt, selected, matched, path,
+  exact ⟨group, column, span, frames, binding.leafAt, selected, matched, path,
     physical, count, codec, bounded, mapError_ok framed, readFrames_wire decoded⟩
+
+theorem readGroup_wire {name : String} {checked : Checked name} {limits : Limits}
+    {index : Nat} {slots : List (Option Bytes)} (h : readGroupFor profile checked limits index = .ok slots) :
+    GroupWireFor profile checked limits index slots :=
+  readBoundGroup_wire h
 
 end Silmaril.Proofs.Formats.Parquet.ByteArrayFallback

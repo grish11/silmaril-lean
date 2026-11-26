@@ -155,19 +155,24 @@ def readFramesFor (profile : Profile) (limits : Limits) (metadata : Footer.Colum
 
 /-- Read the selected group from the same snapshot as its binding. Dictionary
 state is local to this chunk and publication waits for all frames to succeed. -/
-def readGroupFor (profile : Profile) {name : String} (checked : Checked name) (limits : Limits) (index : Nat) :
+def readBoundGroupFor (profile : Profile) {snapshot : Snapshot.Checked} {name : String}
+    (binding : FlatColumn.Binding snapshot ⟨name, .byteArray, .optional⟩) (limits : Limits) (index : Nat) :
     Except Error (List (Option Bytes)) := do
-  let ordinal := checked.binding.columnOrdinal
+  let ordinal := binding.columnOrdinal
   let failColumn := FlatColumn.Error.column index ordinal name
-  let some group := checked.snapshot.groupAt index | throw (.groupIndex index)
+  let some group := snapshot.groupAt index | throw (.groupIndex index)
   let rows := group.numRows.toNat
   if limits.file.column.maxRows < rows then .error (failColumn (.rowLimit limits.file.column.maxRows rows))
   else do
     let some column := group.columns[ordinal]? | throw (failColumn .missing)
     let metadata := column.metadata
-    let span ← (locateFor profile limits checked.binding.leaf group metadata checked.snapshot.footer.start).mapError failColumn
-    let frames ← (Page.readChunk limits.file.column.framing checked.snapshot.bytes span).mapError (failColumn ∘ .framing)
-    readFramesFor profile limits metadata checked.snapshot.bytes index ordinal name rows frames
+    let span ← (locateFor profile limits binding.leaf group metadata snapshot.footer.start).mapError failColumn
+    let frames ← (Page.readChunk limits.file.column.framing snapshot.bytes span).mapError (failColumn ∘ .framing)
+    readFramesFor profile limits metadata snapshot.bytes index ordinal name rows frames
+
+def readGroupFor (profile : Profile) {name : String} (checked : Checked name) (limits : Limits)
+    (index : Nat) : Except Error (List (Option Bytes)) :=
+  readBoundGroupFor profile checked.binding limits index
 
 /-- Every present dictionary entry is the result of an exact bounded PLAIN
 stream from the original leading frame. -/
@@ -211,17 +216,22 @@ def FramesWireFor (profile : Profile) (limits : Limits) (source : Bytes) (metada
     LeadingWireFor profile limits source dictionary entries ∧
     List.Forall₂ (PageWireFor profile limits source entries) data pages ∧ slots = pages.flatten ∧ slots.length = rows
 
+def BoundGroupWireFor (profile : Profile) {snapshot : Snapshot.Checked} {name : String}
+    (binding : FlatColumn.Binding snapshot ⟨name, .byteArray, .optional⟩) (limits : Limits)
+    (index : Nat) (group : Footer.RowGroup) (slots : List (Option Bytes)) : Prop :=
+  ∃ column span frames,
+    snapshot.metadata.schema[binding.leafOrdinal]? = some binding.leaf ∧
+    snapshot.groupAt index = some group ∧
+    group.columns[binding.columnOrdinal]? = some column ∧
+    column.metadata.pathInSchema = [binding.leaf.name] ∧ column.metadata.physicalType = .byteArray ∧
+    column.metadata.numValues = group.numRows ∧ column.metadata.codec = 0 ∧
+    Page.columnSpan snapshot.footer.start column.metadata = some span ∧
+    Page.readChunk limits.file.column.framing snapshot.bytes span = .ok frames ∧
+    FramesWireFor profile limits snapshot.bytes column.metadata group.numRows.toNat frames slots
+
 def GroupWireFor (profile : Profile) {name : String} (checked : Checked name) (limits : Limits)
     (index : Nat) (slots : List (Option Bytes)) : Prop :=
-  ∃ group column span frames,
-    checked.snapshot.metadata.schema[checked.binding.leafOrdinal]? = some checked.binding.leaf ∧
-    checked.snapshot.groupAt index = some group ∧
-    group.columns[checked.binding.columnOrdinal]? = some column ∧
-    column.metadata.pathInSchema = [checked.binding.leaf.name] ∧ column.metadata.physicalType = .byteArray ∧
-    column.metadata.numValues = group.numRows ∧ column.metadata.codec = 0 ∧
-    Page.columnSpan checked.snapshot.footer.start column.metadata = some span ∧
-    Page.readChunk limits.file.column.framing checked.snapshot.bytes span = .ok frames ∧
-    FramesWireFor profile limits checked.snapshot.bytes column.metadata group.numRows.toNat frames slots
+  ∃ group, BoundGroupWireFor profile checked.binding limits index group slots
 
 /-- The existing tag-8/PLAIN profile keeps its public entry points. -/
 def locate := locateFor .rleDictionary

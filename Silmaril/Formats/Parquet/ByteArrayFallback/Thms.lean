@@ -55,4 +55,13 @@ theorem readLegacyGroup_wire {name : String} {checked : Checked name} {limits : 
     GroupWireFor .plainDictionaryV1 checked limits index slots :=
   Proofs.Formats.Parquet.ByteArrayFallback.readGroup_wire (profile := .plainDictionaryV1) h
 
+/-- The legacy walk can reuse a BYTE_ARRAY binding from a paired checked
+snapshot, preserving its original leaf, chunk, frames and slot count. -/
+theorem readBoundLegacyGroup_wire {snapshot : Snapshot.Checked} {name : String}
+    {binding : FlatColumn.Binding snapshot ⟨name, .byteArray, .optional⟩}
+    {limits : Limits} {index : Nat} {slots : List (Option Bytes)}
+    (read : readBoundGroupFor .plainDictionaryV1 binding limits index = .ok slots) :
+    ∃ group, BoundGroupWireFor .plainDictionaryV1 binding limits index group slots :=
+  Proofs.Formats.Parquet.ByteArrayFallback.readBoundGroup_wire read
+
 end Silmaril.Formats.Parquet.ByteArrayFallback

@@ -86,6 +86,32 @@ header, length_offset = 10089 + shift, 10116 + shift
 assert struct.unpack_from("<I", clean, length_offset)[0] == 66
 damaged = clean[:length_offset] + b"\xff" * 4 + clean[length_offset + 4:]
 
+def inspect_ordinal_pages(file, wire):
+    # Required INT32 has zero level maxima. Its producer pages carry only
+    # PLAIN words even though the absent levels can be tagged BIT_PACKED.
+    leaf = file.schema.column(0)
+    assert (leaf.physical_type, leaf.max_definition_level, leaf.max_repetition_level) == ("INT32", 0, 0)
+    for index in range(3):
+        chunk = file.metadata.row_group(index).column(0)
+        assert chunk.path_in_schema == "ordinal" and chunk.compression == "UNCOMPRESSED"
+        assert not chunk.has_dictionary_page
+        start = chunk.data_page_offset
+        stop = start + chunk.total_compressed_size
+        memory = TMemoryBuffer(wire[start:stop])
+        protocol = TCompactProtocol(memory)
+        counts = []
+        while memory.cstringio_buf.tell() < stop - start:
+            fields = thrift["read_struct"](protocol)
+            assert fields[1] == (i32, 0) and 4 not in fields
+            count, encoding, definitions, repetitions = (fields[5][1][key][1] for key in range(1, 5))
+            assert (encoding, definitions, repetitions) == (0, 3 if index == 1 else 4, 4)
+            assert fields[2] == fields[3] == (i32, 4 * count)
+            memory.readAll(4 * count)
+            counts.append(count)
+        assert memory.cstringio_buf.tell() == stop - start
+        assert (len(counts), sum(counts)) == ((1, 0) if index == 1 else (19, 384))
+
+
 with pq.ParquetFile(pa.BufferReader(original)) as file:
     reference = file.read_row_group(0).to_pydict()
 for wire in (clean, damaged):
@@ -94,6 +120,7 @@ for wire in (clean, damaged):
         assert file.read_row_group(0).to_pydict() == reference
         assert file.read_row_group(1).to_pydict() == {"ordinal": [], "payload": []}
         if wire == clean:
+            inspect_ordinal_pages(file, wire)
             assert file.read_row_group(2).to_pydict() == reference
         else:
             try:
@@ -109,3 +136,4 @@ for label, wire in (("legacy-v1-empty-middle.parquet", clean), ("legacy-v1-late-
     (out / label).write_bytes(wire)
     print(f"{sha256(wire).hexdigest()}  {label}")
 print(f"PyArrow verified [384, 0, 384] and [384, 0] before damage at group 2, column 1, frame 19, header {header}")
+print("Thrift verified PLAIN INT32 tags 0/4/4 on each producer page and 0/3/4 on the framed empty page")
