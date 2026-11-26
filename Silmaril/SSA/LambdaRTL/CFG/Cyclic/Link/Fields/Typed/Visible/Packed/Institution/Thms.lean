@@ -74,6 +74,33 @@ theorem refinement?_iff_traceSat [DecidableEq F]
   exact forall_congr' fun input => forall_congr' fun packet => refinementAt?_iff_traceSat packet
     (leftEntry input) (rightEntry input) _ _ _ _ (leftAgrees input packet) (rightAgrees input packet)
 
+/-- Decide the actual packed sentence under a shared stateless typed reply
+predicate. Packing retains the ordered exit tag and the original replay path. -/
+theorem refinementAtUnder?_iff_traceSat [DecidableEq F] (admits : ∀ key, signature.Reply key → Bool)
+    (packet : Denote (inputs input)) (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom)
+    (leftAgrees : leftEntry.recordAgrees packet leftRecord)
+    (rightAgrees : rightEntry.recordAgrees packet rightRecord) :
+    left.refinementAtUnder? admits right input packet = true ↔
+      TraceInstitution.institution.{0, 1, 0}.Sat signature.traceSignature ⟨signature.traceModelUnder admits⟩
+        (leftEntry.refinementSentence rightEntry .leftToRight leftAmbient rightAmbient leftRecord rightRecord) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.refinementAtUnder_traceSat
+    admits packet leftEntry rightEntry leftAmbient rightAmbient leftRecord rightRecord leftAgrees rightAgrees
+
+theorem refinementUnder?_iff_traceSat [DecidableEq F] (admits : ∀ key, signature.Reply key → Bool)
+    (leftEntry : ∀ input, PackedEntry left input) (rightEntry : ∀ input, PackedEntry right input)
+    (leftAmbient rightAmbient : Semantics.Env Atom)
+    (leftRecord rightRecord : ∀ input, Denote (inputs input) → Semantics.Env Atom)
+    (leftAgrees : ∀ input packet, (leftEntry input).recordAgrees packet (leftRecord input packet))
+    (rightAgrees : ∀ input packet, (rightEntry input).recordAgrees packet (rightRecord input packet)) :
+    left.refinementUnder? admits right = true ↔ ∀ input packet,
+      TraceInstitution.institution.{0, 1, 0}.Sat signature.traceSignature ⟨signature.traceModelUnder admits⟩
+        ((leftEntry input).refinementSentence (rightEntry input) .leftToRight leftAmbient rightAmbient
+          (leftRecord input packet) (rightRecord input packet)) := by
+  rw [Program.refinementUnder?, decide_eq_true_eq]
+  exact forall_congr' fun input => forall_congr' fun packet => refinementAtUnder?_iff_traceSat admits packet
+    (leftEntry input) (rightEntry input) _ _ _ _ (leftAgrees input packet) (rightAgrees input packet)
+
 /-- A mismatch refutes the directed sentence at its packet in the existing
 trace institution, with the same ordered packed exits and typed replies. -/
 theorem explainMismatch?_refutes_traceSat [DecidableEq F]

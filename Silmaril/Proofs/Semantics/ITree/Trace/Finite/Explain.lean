@@ -58,14 +58,14 @@ private theorem explainHead_none (replies : ∀ key, List (Reply key))
     (known : ∀ p, previous p = none ↔ p ∈ pairs)
     (left : Head Q R S Reply) (right : Head Q R T Reply) :
     explainHead replies previous left right = none ↔ compatible pairs left right = true := by
-  cases left <;> cases right <;> simp only [explainHead, compatible, reduceCtorEq, iff_self]
+  cases left <;> cases right <;> simp only [explainHead, compatible, compatibleUnder, reduceCtorEq, iff_self]
   · rename_i left right
     by_cases same : left = right <;> simp [same]
   · rename_i l nextL r nextR
     by_cases same : l = r
     · subst r
       simp only [dite_true, List.findSome?_eq_none_iff, Option.map_eq_none_iff, known, decide_eq_true_eq]
-      exact ⟨fun found reply => found reply (complete l reply), fun pass reply _ => pass reply⟩
+      exact ⟨fun found reply _ => found reply (complete l reply), fun pass reply _ => pass reply trivial⟩
     · simp [same]
 
 omit [DecidableEq S] [DecidableEq T] [∀ key, Fintype (Reply key)] in
@@ -136,6 +136,6 @@ theorem explain_spec (replies : ∀ key, List (Reply key))
     (statesL ×ˢ statesR) (fun _ => none)
     (fun p => iff_of_true rfl (Finset.mem_product.mpr ⟨completeL p.1, completeR p.2⟩))
     (fun _ _ h => by cases h)
-  exact ⟨(spec.1 (s, t)).trans (by simp [Finite.compare, keep]), spec.2 (s, t)⟩
+  exact ⟨(spec.1 (s, t)).trans (by simp [Finite.compare, compareUnder, keep]), spec.2 (s, t)⟩
 
 end Silmaril.Proofs.Semantics.Elgot.ITree.Finite

@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Semantics.ITree.Trace.Defs
+public import Silmaril.Semantics.ITree.Reindex.Defs
 public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Finset.Prod
 public import Mathlib.Data.Fintype.Pi
@@ -63,22 +63,37 @@ termination_by candidates.card
 decreasing_by
   exact Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨Finset.filter_subset _ _, _same⟩)
 
+/-- A stateless handler admits a completed exchange according to its
+request key and the actual typed reply. -/
+def replyHandler (admits : ∀ key, Reply key → Bool) : Handler Unit (Event Q Reply)
+  | ⟨_, .ask key⟩, _, reply, _ => admits key reply = true
+
 variable [DecidableEq T] [DecidableEq Q] [DecidableEq R] [∀ key, Fintype (Reply key)]
 
-def compatible (pairs : Finset (S × T)) : Head Q R S Reply → Head Q R T Reply → Bool
+def compatibleUnder (admits : ∀ key, Reply key → Bool) (pairs : Finset (S × T)) :
+    Head Q R S Reply → Head Q R T Reply → Bool
   | .stop, _ => true
   | .result left, .result right => decide (left = right)
   | .request left nextL, .request right nextR =>
     if same : left = right then
-      decide (∀ reply, (nextL reply, nextR (same ▸ reply)) ∈ pairs)
+      decide (∀ reply, admits left reply = true → (nextL reply, nextR (same ▸ reply)) ∈ pairs)
     else false
   | _, _ => false
+
+abbrev compatible (pairs : Finset (S × T)) : Head Q R S Reply → Head Q R T Reply → Bool :=
+  compatibleUnder (fun _ _ => true) pairs
+
+/-- Prune successor obligations for denied replies. Request keys are still
+compared even when the handler admits no reply to a request. -/
+def compareUnder (admits : ∀ key, Reply key → Bool) (statesL : Finset S) (statesR : Finset T)
+    (left : S → Step Q R S Reply) (right : T → Step Q R T Reply) (startL : S) (startR : T) : Bool :=
+  decide ((startL, startR) ∈ prune
+    (fun pairs (l, r) => compatibleUnder admits pairs (headFrom left statesL l) (headFrom right statesR r))
+    (statesL ×ˢ statesR))
 
 /-- Compute the largest finite simulation of the normalized heads. -/
 def compare (statesL : Finset S) (statesR : Finset T)
     (left : S → Step Q R S Reply) (right : T → Step Q R T Reply) (startL : S) (startR : T) : Bool :=
-  decide ((startL, startR) ∈ prune
-    (fun pairs (l, r) => compatible pairs (headFrom left statesL l) (headFrom right statesR r))
-    (statesL ×ˢ statesR))
+  compareUnder (fun _ _ => true) statesL statesR left right startL startR
 
 end Silmaril.Elgot.ITree.Finite

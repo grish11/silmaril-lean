@@ -7,7 +7,7 @@ namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 
 open Silmaril.Elgot.ITree (HasTrace TraceLE Trace hasTrace_vis_exchange_iff
   out out_injective out_vis out_ret vis ret vis_bind)
-open Silmaril.Elgot.ITree.Finite (compare evaluate headFrom out_evaluate)
+open Silmaril.Elgot.ITree.Finite (compare compareUnder evaluate headFrom out_evaluate)
 
 private inductive Opcode
   | poll
@@ -116,6 +116,26 @@ private def denyReplies : Silmaril.Logic.ITree.Model.{0, 0} sig.traceSignature.t
 example : ¬ Silmaril.Elgot.ITree.Replay denyReplies.step () trace := by
   simp [trace, Silmaril.Elgot.ITree.Replay, denyReplies]
 
+-- Keep the looping and middle poll replies and all ping replies.
+-- Only the reply that reaches the distinguishing exit is denied.
+private def admitCommon (key : sig.Request) (reply : sig.Reply key) : Bool :=
+  match key with
+  | ⟨.ping, _⟩ => true
+  | ⟨.poll, _⟩ =>
+    match reply with
+    | .inr (.inr _) => false
+    | _ => true
+
+example : ¬ Silmaril.Elgot.ITree.Replay (sig.traceModelUnder admitCommon).step () trace := by
+  simp [trace, Silmaril.Elgot.ITree.Replay, PrimitiveSignature.traceModelUnder,
+    Silmaril.Elgot.ITree.Finite.replyHandler, admitCommon, pollKey, pingKey, lastReply]
+
+private def admittedPrefix : Program.ObservationTrace sig :=
+  .exchange (.ask pollKey) loopReply (.exchange (.ask pingKey) pingReply (.request (.ask pollKey)))
+
+example : Silmaril.Elgot.ITree.Replay (sig.traceModelUnder admitCommon).step () admittedPrefix := by
+  exact ⟨(), rfl, (), rfl, trivial⟩
+
 private theorem leftTrace : HasTrace (left.observe 0 packet) trace := by
   unfold trace
   rw [Program.observe_eq, seesRequest left _ _ _ leftStart, vis_bind, hasTrace_vis_exchange_iff]
@@ -153,6 +173,10 @@ private theorem rejected : left.refinementAt? right 0 packet = false := by
 
 -- Even two requests for poll differ when their typed arguments differ.
 #guard !(compare left.states left.states left.step left.step
+  (left.start 0 packet) (left.start 0 (.inl ⟨⟩, ⟨⟩)))
+
+-- Even a handler denying every reply can observe a different pending key.
+#guard !(compareUnder (fun _ _ => false) left.states left.states left.step left.step
   (left.start 0 packet) (left.start 0 (.inl ⟨⟩, ⟨⟩)))
 
 -- Starting at ping places the distinguishing poll reply behind a matching
@@ -210,6 +234,27 @@ example : ¬ TraceLE
   have included' := congrArg₂ TraceLE l r ▸ included
   have accepted := (left.refinementAt?_iff_packedOutput right 0 packet).mpr included'
   simp [rejected] at accepted
+
+private def packedLeft : Program.PackedEntry left 0 :=
+  ⟨1, captures, captureTypes, localType, outputs, leftTarget, rfl, leftTyped⟩
+
+private def packedRight : Program.PackedEntry right 0 :=
+  ⟨1, captures, captureTypes, localType, outputs, rightTarget, rfl, rightTyped⟩
+
+private noncomputable def sentence :=
+  packedLeft.refinementSentence packedRight .leftToRight ambient ambient env env
+
+example : ¬ Silmaril.Logic.ITree.TraceInstitution.institution.{0, 1, 0}.Sat sig.traceSignature
+    ⟨sig.traceModel⟩ sentence := by
+  intro sat
+  have pass := (Program.refinementAt?_iff_traceSat packet packedLeft packedRight
+    ambient ambient env env (fun _ => rfl) (fun _ => rfl)).mpr sat
+  simp [rejected] at pass
+
+example : Silmaril.Logic.ITree.TraceInstitution.institution.{0, 1, 0}.Sat sig.traceSignature
+    ⟨sig.traceModelUnder admitCommon⟩ sentence :=
+  (Program.refinementAtUnder?_iff_traceSat admitCommon packet packedLeft packedRight
+    ambient ambient env env (fun _ => rfl) (fun _ => rfl)).mp (by cbv)
 
 end Packed
 
