@@ -81,8 +81,21 @@ other models still satisfy the conclusion. The completion flags encode a
 different question from whether witnesses for either answer exist.
 [Completion laws](../../Silmaril/Logic/Institution/Generalized/Thms.lean)
 
-Build the interface, proofs and examples with
+## SAT and PER instances
+
+| Evaluation at one model | Signature change | Where to start |
+| --- | --- | --- |
+| SAT Boolean, strong Kleene and FDE values | `totalExact`, `kleeneExact` and `evidenceExact` commute with every atom map. Their truth, support and refutation observations agree with the ordinary SAT rooms. | [SAT study](generalized-institutions-sat.md) · [SAT bridges](../../Silmaril/Logic/SAT/Institution/Generalized/Thms.lean) |
+| SAT supervaluation over total extensions of a partial assignment | `completionLax` uses the same universal flags as `Evidence.ofCompletions`. Reducts may lose coverage when atoms are identified. Injections cover every source completion. | [`completionLax_eval_eq_ofCompletions` and `completionLax_eval_map_of_coverage`](../../Silmaril/Logic/SAT/Institution/Generalized/Thms.lean) |
+| PER CNF over completions between relation bounds | `intervalLax` pulls back both bounds. The guarded `intervalLaxWith` profile requires admissibility to survive pullback. Coverage gives equality, and unrestricted intervals have coverage on injective term maps. | [PER study](per-constraints.md#intervals-and-admissible-completions) · [PER bridges](../../Silmaril/Calculi/PERConstraints/Interval/Institution/Thms.lean) |
+
+- **Local values and consequence.** Each evaluator takes one valuation or interval and one CNF. Consequence selects models by their observations of the premises and then quantifies over those models. A lattice of local values alone leaves that selection and aggregation open. A threshold gives a predicate for ordinary consequence. A value-valued alternative can take the meet of the conclusion values over a chosen premise-model class when the relevant meet exists, for example in a complete lattice.
+- **Compositional values and completions.** Strong Kleene combines local truth values. An unknown atom leaves `p ∨ ¬p` unknown compositionally, while every total completion satisfies it. FDE combines independent support and refutation. Its truth order increases support and decreases refutation. The shared information order increases both flags, which is the order used by both completion instances. [SAT identification example](../../Silmaril/Logic/SAT/Institution/Examples.lean)
+- **Coverage, empty and mixed families.** Pulling back a target family produces a subset of the source family. Both universal flags can increase when quantifying over this smaller set. Coverage identifies the two families and gives equality. A mixed family gives neither flag. An empty family gives both by vacuity, while FDE can assign both as evidence at an individual model. SAT partial valuations always have total completions. PER admissibility can give an empty family. [PER examples](../../Silmaril/Calculi/PERConstraints/Interval/Examples/Thms.lean)
+- **PER bounds and solutions.** Endpoints bound the permitted PERs. They give endpoint tests for monotone EQ-only queries when admissible, and the least or greatest admissible solution exists only under additional conditions. CNF disjunction and DISTINCT can leave incomparable minimal or maximal solutions. On a singleton unrestricted interval, `intervalLax_eval_exact` recovers ordinary satisfaction and its negation. [Interval laws](../../Silmaril/Calculi/PERConstraints/Interval/Thms.lean)
+
+Build the interface, instances and examples with
 
 ```sh
-lake build --wfail +Silmaril.Logic.Institution.Generalized.Examples
+make check CHECK_TARGETS='+Silmaril.Logic.Institution.Generalized.Examples +Silmaril.Logic.SAT.Institution.Generalized.Thms +Silmaril.Logic.SAT.Institution.Examples +Silmaril.Calculi.PERConstraints.Interval.Institution.Thms +Silmaril.Calculi.PERConstraints.Interval.Examples.Thms'
 ```

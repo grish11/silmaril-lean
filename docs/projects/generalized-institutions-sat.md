@@ -82,14 +82,12 @@ that every total valuation falsifies it. [Room consequence API](../../Silmaril/L
 
 ## Generalized-core integration
 
-Use the existing room functors' `sentenceFunctor` and `modelFunctor` with the exact
-`eval_*_rename` laws and the completion refinement law. The SAT evidence fields are Boolean.
-The core's proposition-valued fields are `e.support = true` and `e.refute = true`, which
-preserve the information order by definition. The completion set can be supplied to the
-core's universal evidence constructor. For the negative flag, Boolean evaluation being
-false is equivalent to it failing to be true. Each exact evaluator can use a single type
-code. A typed instance with all three evaluations would need a shared model functor, since
-their valuation carriers differ. Core integration is deferred.
+The three exact instances reuse the ordinary sentence and valuation functors. FDE retains
+its two Boolean fields. The lax instance uses `Evidence.ofThree` to read `superEval` into
+the core's proposition-valued evidence and proves agreement with the universal completion
+flags. Each exact evaluator can use a single type code. A typed instance with all three
+evaluations would need a shared model functor, since their valuation carriers differ.
+[Generalized instances](generalized-institutions.md#sat-and-per-instances)
 
 For terminology and background, see
 [Many-Valued Logic](https://plato.stanford.edu/entries/logic-manyvalued/),

@@ -132,9 +132,9 @@ identifies the reduct image with the source family. `Bounds.pull_surjOn_of_injec
 proves coverage for unrestricted PERs along injective term maps. For a collapsing
 map, `collapse_refutation_strict` shows that the refutation flag can increase, and
 `collapse_reduct_not_least` shows that reduct can lose leastness in a theory
-fiber. A generalized institution adapter can evaluate the same completion sets
-with its evidence type. An adapter for restricted fibers also needs to choose
-admissibility coherently across its signatures.
+fiber. `intervalLax` packages unrestricted intervals with shared completion
+evidence. `intervalLaxWith` allows an admissibility predicate that is preserved
+by reduct. [Generalized instances](generalized-institutions.md#sat-and-per-instances)
 
 ```sh
 make check CHECK_TARGETS='+Silmaril.Calculi.PERConstraints.Interval.Examples.Thms'
