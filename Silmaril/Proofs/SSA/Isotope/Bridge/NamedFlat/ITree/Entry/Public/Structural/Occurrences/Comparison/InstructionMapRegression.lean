@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Institution.Refinement.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Institution.Policy.Thms
 import Silmaril.Semantics.ITree.Signature.Execution.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Defs
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Institution.Refinement.Thms
@@ -199,5 +200,104 @@ example (policy : Model.{0, 0} sig.traceSignature.toSignature) :
   erw [strictStaged.observe_original, ← Model.reduct_comp first.events.hom second.events.hom policy]
   exact (congrArg (fun φ : Sentence signature exits fields =>
     TraceInstitution.Sat policy (φ.val.observe exits fields)) (strict.toSentence.map_comp first second)) ▸ source
+
+
+-- Both runners start with opcode 0. A reply exposes opcode 1 only on
+-- the right, even when later replies to opcode 1 are denied.
+private def delayed : CFG Name Name (Fin 3) :=
+  { graph 0 with blocks :=
+    [(⟨1⟩, ⟨⟨2⟩, .let1 ⟨3⟩ (.app 0 (.var ⟨2⟩)) (.term (.br ⟨4⟩ (.var ⟨3⟩)))⟩),
+     (⟨4⟩, ⟨⟨2⟩, .let1 ⟨3⟩ (.app 1 (.var ⟨2⟩)) (.term (.br ⟨4⟩ (.var ⟨3⟩)))⟩)] }
+
+private def delayedEntry := (constructStructural sig delayed exits fields bit (fun _ => bit) outputs).get (by decide)
+private def policyPoint : Endpoints Name Name signature := ⟨graph 0, delayed, initial⟩
+private def policyAdmission : Admission policyPoint exits fields :=
+  ⟨bit, bit, outputs, entry 0, delayedEntry, by decide, packet, packet, by decide, by decide⟩
+
+private def allInitial : Unit → Prop := fun _ => True
+private def deny (_ : sig.Request) : Bool := false
+private def allowAt (op : Fin 3) (key : sig.Request) : Bool := decide (key.1 = op)
+private def restriction : TraceInstitution.Policy sig.traceSignature.toSignature Unit :=
+  Elgot.ITree.Finite.replyHandler (fun key _ => deny key)
+private def permission (op : Fin 3) : TraceInstitution.Policy sig.traceSignature.toSignature Unit :=
+  Elgot.ITree.Finite.replyHandler (fun key _ => allowAt op key)
+
+private theorem strictPolicy : restriction < permission 0 := by
+  apply lt_of_le_not_ge
+  · intro ⟨_, ev⟩ _ _ _ impossible
+    cases ev
+    cases impossible
+  · intro wrong
+    have allowed : permission 0 ⟨_, .ask ⟨0, packet⟩⟩ () packet () := rfl
+    have impossible := wrong ⟨_, .ask ⟨0, packet⟩⟩ () packet () allowed
+    cases impossible
+
+private def ambient : LambdaSSA.Semantics.Env Atom := fun _ => .unit
+
+private theorem policyCheck (admits : ∀ key, sig.Reply key → Bool) :
+    policyAdmission.left.program.refinementAtUnder? admits policyAdmission.right.program 0 packet = true ↔
+      TraceInstitution.Sat (sig.traceModelUnder admits) (policyPoint.observe exits fields) := by
+  let a := policyAdmission
+  have checked := a.left.program.refinementAtUnder?_iff_traceSat admits packet a.left.entry a.right.entry
+    ambient ambient (packetRecord packet) (packetRecord packet)
+    (recordAgrees_packetRecord a.left.entry a.left.publicCaptures packet)
+    (recordAgrees_packetRecord a.right.entry a.right.publicCaptures packet)
+  change _ ↔ TraceInstitution.Sat (sig.traceModelUnder admits)
+    (a.left.entry.refinementSentence a.right.entry .leftToRight ambient ambient
+      (packetRecord packet) (packetRecord packet)) at checked
+  have align : a.left.entry.refinementSentence a.right.entry .leftToRight ambient ambient
+      (packetRecord packet) (packetRecord packet) = policyPoint.observe exits fields := by
+    let identity := 𝟙 sig.traceSignature
+    have packed := a.left.entry.refinementSentence_reindexed a.right.entry identity .leftToRight
+      ambient ambient (packetRecord packet) (packetRecord packet)
+    have original := a.left.refinementSentence_reindexed a.right identity ambient initial packet packet
+      ((decodeSeed?_eq_some_iff _ _ _).mp a.leftSeed) ((decodeSeed?_eq_some_iff _ _ _).mp a.rightSeed)
+    exact (TraceInstitution.Sentence.translate_id _).symm.trans
+      (packed.trans (original.symm.trans (TraceInstitution.Sentence.translate_id _)))
+  exact checked.trans (iff_of_eq (congrArg (TraceInstitution.Sat (sig.traceModelUnder admits)) align))
+
+private theorem satisfiesRestriction :
+    TraceInstitution.Sat (restriction.toModel allInitial) (policyPoint.observe exits fields) :=
+  (policyCheck (fun key _ => deny key)).mp (by cbv)
+
+private theorem failsPermission :
+    ¬ TraceInstitution.Sat ((permission 0).toModel allInitial) (policyPoint.observe exits fields) := by
+  intro satisfied
+  have accepted := (policyCheck (fun key _ => allowAt 0 key)).mpr satisfied
+  have rejected : policyAdmission.left.program.refinementAtUnder? (fun key _ => allowAt 0 key)
+      policyAdmission.right.program 0 packet = false := by cbv
+  exact Bool.noConfusion (rejected.symm.trans accepted)
+
+example : restriction < permission 0 ∧
+    TraceInstitution.Sat (restriction.toModel allInitial) (policyPoint.observe exits fields) ∧
+    ¬ TraceInstitution.Sat ((permission 0).toModel allInitial) (policyPoint.observe exits fields) :=
+  ⟨strictPolicy, satisfiesRestriction, failsPermission⟩
+
+example : (permission 2).reduct (first ≫ second).events.hom =
+    ((permission 2).reduct second.events.hom).reduct first.events.hom :=
+  TraceInstitution.Policy.reduct_comp first.events.hom second.events.hom _
+
+example : restriction.reduct (first ≫ second).events.hom <
+    ((permission 2).reduct second.events.hom).reduct first.events.hom := by
+  erw [← TraceInstitution.Policy.reduct_comp first.events.hom second.events.hom]
+  apply lt_of_le_not_ge
+  · apply TraceInstitution.Policy.reduct_mono
+    intro ⟨_, ev⟩ _ _ _ impossible
+    cases ev
+    cases impossible
+  · intro wrong
+    let key : Request sig.traceSignature.toSignature.Event := ⟨_, .ask ⟨0, packet⟩⟩
+    have allowed : (permission 2).reduct (first ≫ second).events.hom key () packet () := ⟨packet, rfl, rfl⟩
+    obtain ⟨_, _, impossible⟩ := wrong key () packet () allowed
+    cases impossible
+
+example : TraceInstitution.Sat (restriction.toModel allInitial) policyAdmission.toSentence.compile ↔
+    TraceInstitution.Sat (restriction.toModel allInitial) (policyPoint.observe exits fields) :=
+  (policyComorphism exits fields Unit allInitial).satisfaction signature restriction ⟨policyAdmission.toSentence⟩
+
+private def policyArrow := CategoryTheory.homOfLE (x := restriction) (y := permission 0) strictPolicy.le
+
+example : ((policyComorphism exits fields Unit allInitial).ρ.app signature).mod.map policyArrow = policyArrow :=
+  rfl
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
