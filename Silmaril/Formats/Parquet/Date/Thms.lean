@@ -53,6 +53,13 @@ theorem checkColumn_ok_iff (binding : Binding) (group : Footer.RowGroup) :
       ∃ chunk, group.columns = [chunk] ∧ chunk.metadata.pathInSchema = [binding.leaf.name] :=
   Proofs.Formats.Parquet.Date.checkColumn_ok_iff binding group
 
+/-- Opening retains the exact checked snapshot and the annotation from it. -/
+theorem openChecked_ok_iff (limits : Limits) (source : Bytes) (checked : Checked) :
+    openChecked limits source = .ok checked ↔
+      Snapshot.check (Failure := Unit) limits.snapshot source = .ok checked.snapshot ∧
+      bind limits.snapshot.footer checked.snapshot = .ok checked.binding :=
+  Proofs.Formats.Parquet.Date.openChecked_ok_iff limits source checked
+
 /-- The Date32 result preserves the exact scanner vector for the selected snapshot group. -/
 theorem readGroup_ok_iff (limits : Limits) (source : Bytes) (index : Nat)
     (result : RowGroup) :
@@ -88,13 +95,19 @@ theorem readGroup_scan_error {limits : Limits} {source : Bytes} {index : Nat}
     (associated : checkColumn binding group = .ok ())
     (scan : FlatScan.scanRowGroup limits.scan (FlatScan.decodeInt32Page limits.page)
       snapshot.bytes snapshot.footer.start snapshot.metadata.schema group = .error cause) :
-    readGroup limits source index = .error (.scan cause) := by
-  simp [readGroup, opened, bound, selected, associated, scan, Bind.bind, Except.bind, Except.mapError]
+    readGroup limits source index = .error (.scan cause) :=
+  Proofs.Formats.Parquet.Date.readGroup_scan_error opened bound selected associated scan
 
 /-- The outer option marks a valid index and the inner option marks a present date. -/
 theorem RowGroup.civilSlot (result : RowGroup) (index : Nat) :
     result.civilSlots[index]? =
       result.date32Slots[index]?.map (Option.map DateInterop.ParquetDate.toCivil) := by
   simp [RowGroup.civilSlots]
+
+/-- Reusing a checked snapshot gives the same success or error as the file entry point. -/
+theorem Checked.readGroup_of_opened {limits : Limits} {source : Bytes} {checked : Checked}
+    (opened : openChecked limits source = .ok checked) (index : Nat) :
+    checked.readGroup limits index = Date.readGroup limits source index := by
+  simp [Date.readGroup, opened, Bind.bind, Except.bind]
 
 end Silmaril.Formats.Parquet.Date

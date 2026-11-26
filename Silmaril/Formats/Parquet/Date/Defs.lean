@@ -142,16 +142,37 @@ def checkColumn (binding : Binding) (group : Footer.RowGroup) : Except Error Uni
   let path := chunk.metadata.pathInSchema
   if path ≠ [binding.leaf.name] then throw (.scan (.columnPath binding.leaf.name path))
 
-/-- Read one selected group of a one-column file. The existing scanner admits
-the physical page profile and its typed errors remain visible. -/
-def readGroup (limits : Limits) (source : Bytes) (index : Nat) : Except Error RowGroup := do
+end Silmaril.Formats.Parquet.Date
+end
+
+public section
+
+namespace Silmaril.Formats.Parquet.Date
+
+/-- A DATE binding and the immutable checked snapshot from which it was read. -/
+structure Checked where
+  private mk ::
+  snapshot : Snapshot.Checked
+  binding : Binding
+
+def openChecked (limits : Limits) (source : Bytes) : Except Error Checked := do
   let snapshot ← (Snapshot.check (Failure := Unit) limits.snapshot source).mapError .snapshot
   let binding ← bind limits.snapshot.footer snapshot
-  let some group := snapshot.groupAt index | throw (.groupIndex index)
-  checkColumn binding group
+  return ⟨snapshot, binding⟩
+
+/-- Read one group from the retained snapshot without reopening its footer. -/
+@[expose] def Checked.readGroup (checked : Checked) (limits : Limits) (index : Nat) : Except Error RowGroup := do
+  let some group := checked.snapshot.groupAt index | throw (.groupIndex index)
+  checkColumn checked.binding group
+  let snapshot := checked.snapshot
   let batch ← (FlatScan.scanRowGroup limits.scan (FlatScan.decodeInt32Page limits.page)
     snapshot.bytes snapshot.footer.start snapshot.metadata.schema group).mapError .scan
   let [(_, values)] := batch.columns | throw (.scan .columnArity)
-  return ⟨binding, batch.rowCount, values⟩
+  return ⟨checked.binding, batch.rowCount, values⟩
+
+/-- Open a one-column DATE file and read its selected group. -/
+@[expose] def readGroup (limits : Limits) (source : Bytes) (index : Nat) : Except Error RowGroup := do
+  let checked ← openChecked limits source
+  checked.readGroup limits index
 
 end Silmaril.Formats.Parquet.Date

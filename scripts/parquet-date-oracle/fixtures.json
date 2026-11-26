@@ -282,5 +282,13 @@
         2147483647
       ]
     }
+  },
+  "event_fixtures": {
+    "date_second_group_damaged": {
+      "provenance": "Thrift DataPageHeader encoding edit in group 1",
+      "bytes": 276,
+      "offset": 51,
+      "sha256": "61b9814b5d8b27e85ecaf0a7830aadc0f33bfd308fea52e3697ae9bb0e7fb5b0"
+    }
   }
 }

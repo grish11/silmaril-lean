@@ -252,10 +252,98 @@ def lean_case(wire, group, result, days):
     return f"#guard rejects {lean_bytes(wire)} {group} {result}"
 
 
+EVENT_HARNESS = """
+open Silmaril.Relational
+
+private meta def eventSlots
+    (stream : Arrow.Events.EventStream String Date.Events.Cell Date.Events.Error)
+    (nullable : Bool) (expected : List (List (Option Int)))
+    (termination : Arrow.Events.Termination Date.Events.Error) : Bool :=
+  match stream with
+  | .ok ⟨schema, trace⟩ =>
+    if one : schema.width = 1 then
+      let field : Fin schema.width := ⟨0, by omega⟩
+      schema.kind field == ("date", .date32 nullable) &&
+        trace.batches.map (fun batch => (batch.values field).map (Option.map Int32.toInt)) == expected &&
+        trace.collect.table.rows.map (fun row => (row field).map Int32.toInt) == expected.flatten &&
+        decide (trace.termination = termination)
+    else false
+  | .error _ => false
+
+private meta def eventOpenError (bytes : Bytes) (cause : Date.Error) : Bool :=
+  match Date.Events.readAll {} bytes with
+  | .error (.openFailure actual) => actual == cause
+  | _ => false
+"""
+
+
+def damage_second_group(wire):
+    footer = pq.ParquetFile(pa.BufferReader(wire))
+    chunk = footer.metadata.row_group(1).column(0)
+    start = chunk.data_page_offset
+    memory = TMemoryBuffer(wire[start:start + chunk.total_compressed_size])
+    protocol = TCompactProtocol(memory)
+    encoding = None
+    for kind, field in fields(protocol):
+        if field != 5:
+            protocol.skip(kind)
+            continue
+        require(kind == TType.STRUCT, "Expected DataPageHeader")
+        for nested_kind, nested_field in fields(protocol):
+            if nested_field == 2:
+                require(nested_kind == TType.I32, "Expected i32 page encoding")
+                encoding = memory.cstringio_buf.tell()
+                require(protocol.readI32() == 0 and memory.cstringio_buf.tell() == encoding + 1,
+                        "Expected one-byte PLAIN encoding")
+            else:
+                protocol.skip(nested_kind)
+    require(encoding is not None, "Missing second group's page encoding")
+    offset = start + encoding
+    # This Thrift edit changes one header byte from PLAIN to RLE_DICTIONARY.
+    # Both encodings occupy one ZigZag byte and all footer offsets stay intact.
+    damaged = wire[:offset] + bytes([16]) + wire[offset + 1:]
+    parquet = pq.ParquetFile(pa.BufferReader(damaged))
+    first = parquet.read_row_group(0, use_threads=False).column(0).combine_chunks()
+    require(first.view(pa.int32()).to_pylist() == EDGE_DAYS[:4], "Damaged the first group")
+    try:
+        parquet.read_row_group(1, use_threads=False)
+    except (pa.ArrowInvalid, pa.ArrowNotImplementedError, OSError):
+        return damaged, offset
+    raise AssertionError("PyArrow accepted the damaged later group")
+
+
+def event_checks(files, pin):
+    valid = files["date_second_group"]
+    parquet = pq.ParquetFile(pa.BufferReader(valid))
+    observed = [parquet.read_row_group(i, use_threads=False).column(0).combine_chunks()
+                for i in range(parquet.metadata.num_row_groups)]
+    groups = [array.view(pa.int32()).to_pylist() for array in observed]
+    require(all(array.type == pa.date32() for array in observed) and groups == [EDGE_DAYS[:4], EDGE_DAYS[4:]],
+            "PyArrow DATE stream groups differ")
+    damaged, offset = damage_second_group(valid)
+    details = {"provenance": "Thrift DataPageHeader encoding edit in group 1",
+               "bytes": len(damaged), "offset": offset,
+               "sha256": hashlib.sha256(damaged).hexdigest()}
+    require(details == pin, "Damaged DATE stream pin differs")
+    print(f"date_second_group_damaged: {details['sha256']}", flush=True)
+    first, second = map(lean_days, groups)
+    yield f"#guard eventSlots (Date.Events.readAll {{}} {lean_bytes(valid)}) true [{first}, {second}] .eos"
+    yield (f"#guard eventSlots (Date.Events.readAll {{}} {lean_bytes(damaged)}) true [{first}] "
+           "(.readError (.groupFailure 1 (.scan .unsupportedPageEncoding)))")
+    yield f"#guard eventSlots ((Date.Events.batchReader {{}}).read 1 {lean_bytes(damaged)}) true [{first}] .closed"
+    required = lean_days([-1, 0, 11016])
+    yield (f"#guard eventSlots (Date.Events.readAll {{}} {lean_bytes(files['date_both_required_v2'])}) "
+           f"false [{required}] .eos")
+    yield (f"#guard eventSlots (Date.Events.readAll {{}} {lean_bytes(files['date_optional_crc'])}) true [] "
+           "(.readError (.groupFailure 0 (.scan .crcUnsupported)))")
+    yield f"#guard eventOpenError {lean_bytes(files['date_malformed_modern'])} .logicalDate"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pyarrow-path", type=Path)
     parser.add_argument("--thrift-path", type=Path)
+    parser.add_argument("--events", action="store_true", help="Include the typed DATE event checks")
     args = parser.parse_args()
     for path in (args.pyarrow_path, args.thrift_path):
         if path is not None:
@@ -273,13 +361,21 @@ def main():
             "Use the pinned CPython")
     require(pa.__version__ == manifest["pyarrow"] and version("thrift") == manifest["thrift"],
             "Use the pinned PyArrow and Thrift")
-    commands = [HARNESS]
+    harness = HARNESS
+    if args.events:
+        harness = harness.replace("module\n", "module\n\nmeta import Silmaril.Formats.Parquet.Date.Events.Defs\n")
+        harness += EVENT_HARNESS
+    commands = [harness]
+    files = {}
     for name, wire, group, result, details in fixtures():
+        files[name] = wire
         require(details == manifest["fixtures"][name], f"{name}: pinned bytes or observations differ")
         commands.append(lean_case(wire, group, result, details["signed_slots"]))
         if name == "date_both_optional_v1":
             commands.append(f"#guard rejects {lean_bytes(wire)} 1 (.groupIndex 1)")
         print(f"{name}: {details['sha256']}", flush=True)
+    if args.events:
+        commands.extend(event_checks(files, manifest["event_fixtures"]["date_second_group_damaged"]))
     with tempfile.TemporaryDirectory(prefix="silmaril-parquet-date-") as scratch:
         driver = Path(scratch) / "Fixtures.lean"
         driver.write_text("\n".join(commands) + "\n", encoding="utf-8")

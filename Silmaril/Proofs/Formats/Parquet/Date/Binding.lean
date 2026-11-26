@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Parquet.Date.Defs
+import all Silmaril.Formats.Parquet.Date.Defs
 import Silmaril.Formats.DateInterop.Thms
 import Silmaril.Formats.Parquet.FlatScan.Thms
 
@@ -112,6 +113,22 @@ theorem checkColumn_ok_iff (binding : Binding) (group : Footer.RowGroup) :
       by_cases path : chunk.metadata.pathInSchema = [binding.leaf.name] <;>
         simp [checkColumn, columns, path, pure, Except.pure]
 
+theorem openChecked_ok_iff (limits : Limits) (source : Bytes) (checked : Checked) :
+    openChecked limits source = .ok checked ↔
+      Snapshot.check (Failure := Unit) limits.snapshot source = .ok checked.snapshot ∧
+      Date.bind limits.snapshot.footer checked.snapshot = .ok checked.binding := by
+  obtain ⟨snapshot, binding⟩ := checked
+  cases opened : Snapshot.check (Failure := Unit) limits.snapshot source with
+  | error => simp [openChecked, opened, Bind.bind, Except.bind, Except.mapError]
+  | ok checked =>
+    by_cases same : checked = snapshot
+    · subst snapshot
+      cases bound : Date.bind limits.snapshot.footer checked <;>
+        simp [openChecked, opened, bound, Bind.bind, Except.bind, Except.mapError, pure, Except.pure]
+    · cases bound : Date.bind limits.snapshot.footer checked <;>
+        simp [openChecked, opened, bound, same, Bind.bind, Except.bind, Except.mapError, pure,
+          Except.pure]
+
 theorem readGroup_ok_iff (limits : Limits) (source : Bytes) (index : Nat)
     (result : RowGroup) :
     readGroup limits source index = .ok result ↔
@@ -123,71 +140,71 @@ theorem readGroup_ok_iff (limits : Limits) (source : Bytes) (index : Nat)
           snapshot.bytes snapshot.footer.start snapshot.metadata.schema group =
           .ok ⟨result.rowCount, [(field, result.column)]⟩ := by
   cases opened : Snapshot.check (Failure := Unit) limits.snapshot source with
-  | error => simp [readGroup, opened, Bind.bind, Except.bind, Except.mapError]
+  | error => simp [readGroup, openChecked, opened, Bind.bind, Except.bind, Except.mapError]
   | ok snapshot =>
     obtain ⟨binding, rows, column⟩ := result
     cases bound : Date.bind limits.snapshot.footer snapshot with
-    | error => simp [readGroup, opened, bound, Bind.bind, Except.bind, Except.mapError]
+    | error => simp [readGroup, openChecked, opened, bound, Bind.bind, Except.bind, Except.mapError]
     | ok observed =>
       by_cases same : observed = binding
       · subst binding
         cases found : snapshot.groupAt index with
-        | none => simp [readGroup, opened, bound, found, Bind.bind, Except.bind, Except.mapError]
+        | none => simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, Bind.bind, Except.bind, Except.mapError, pure, Except.pure]
         | some group =>
           cases associated : checkColumn observed group with
-          | error => simp [readGroup, opened, bound, found, associated, Bind.bind, Except.bind, Except.mapError]
+          | error => simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, Bind.bind, Except.bind, Except.mapError, pure, Except.pure]
           | ok ready =>
             cases ready
             cases scanned : FlatScan.scanRowGroup limits.scan (FlatScan.decodeInt32Page limits.page)
                 snapshot.bytes snapshot.footer.start snapshot.metadata.schema group with
             | error =>
-              simp [readGroup, opened, bound, found, associated, scanned, Bind.bind, Except.bind, Except.mapError]
+              simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, scanned, Bind.bind, Except.bind, Except.mapError, pure, Except.pure]
             | ok batch =>
               obtain ⟨rowCount, columns⟩ := batch
               cases columns with
               | nil =>
-                simp [readGroup, opened, bound, found, associated, scanned, Bind.bind, Except.bind,
-                  Except.mapError]
+                simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, scanned, Bind.bind, Except.bind,
+                  Except.mapError, pure, Except.pure]
                 intro sameRows
                 subst rows
                 simp
               | cons first tail =>
                 cases tail with
                 | cons =>
-                  simp [readGroup, opened, bound, found, associated, scanned, Bind.bind, Except.bind,
-                    Except.mapError]
+                  simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, scanned, Bind.bind, Except.bind,
+                    Except.mapError, pure, Except.pure]
                   intro sameRows
                   subst rows
                   simp
                 | nil =>
                   obtain ⟨field, values⟩ := first
-                  simp [readGroup, opened, bound, found, associated, scanned, Bind.bind, Except.bind,
+                  simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, scanned, Bind.bind, Except.bind,
                     Except.mapError, pure, Except.pure]
                   intro sameRows
                   subst rows
                   simp
       · cases found : snapshot.groupAt index with
-        | none => simp [readGroup, opened, bound, found, same, Bind.bind, Except.bind, Except.mapError]
+        | none => simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, same, Bind.bind, Except.bind, Except.mapError, pure, Except.pure]
         | some group =>
           cases associated : checkColumn observed group with
           | error =>
-            simp [readGroup, opened, bound, found, associated, same, Bind.bind, Except.bind, Except.mapError]
+            simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, same, Bind.bind, Except.bind, Except.mapError, pure, Except.pure]
           | ok ready =>
             cases ready
             cases scanned : FlatScan.scanRowGroup limits.scan (FlatScan.decodeInt32Page limits.page)
                 snapshot.bytes snapshot.footer.start snapshot.metadata.schema group with
             | error =>
-              simp [readGroup, opened, bound, found, associated, scanned, same, Bind.bind, Except.bind,
-                Except.mapError]
+              simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, scanned, same, Bind.bind, Except.bind,
+                Except.mapError, pure, Except.pure]
             | ok batch =>
               obtain ⟨rows, columns⟩ := batch
               cases columns with
               | nil =>
-                simp [readGroup, opened, bound, found, associated, scanned, same, Bind.bind, Except.bind,
-                  Except.mapError]
+                simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, scanned, same, Bind.bind, Except.bind,
+                  Except.mapError, pure, Except.pure]
               | cons field tail =>
                 cases tail <;>
-                  simp [readGroup, opened, bound, found, associated, scanned, same, Bind.bind,
+                  simp [readGroup, openChecked, Checked.readGroup, opened, bound, found, associated, scanned, same, Bind.bind,
                     Except.bind, Except.mapError, pure, Except.pure]
 
 theorem readGroup_date32Count {limits : Limits} {source : Bytes} {index : Nat}
@@ -209,5 +226,17 @@ theorem RowGroup.date32_civil (group : RowGroup) :
   apply List.map_congr_left
   intro slot _
   cases slot <;> simp
+
+theorem readGroup_scan_error {limits : Limits} {source : Bytes} {index : Nat}
+    {snapshot : Snapshot.Checked} {binding : Binding} {group : Footer.RowGroup}
+    {cause : FlatScan.Error FlatScan.AdapterError}
+    (opened : Snapshot.check (Failure := Unit) limits.snapshot source = .ok snapshot)
+    (bound : bind limits.snapshot.footer snapshot = .ok binding)
+    (selected : snapshot.groupAt index = some group)
+    (associated : checkColumn binding group = .ok ())
+    (scan : FlatScan.scanRowGroup limits.scan (FlatScan.decodeInt32Page limits.page)
+      snapshot.bytes snapshot.footer.start snapshot.metadata.schema group = .error cause) :
+    readGroup limits source index = .error (.scan cause) := by
+  simp [readGroup, openChecked, Checked.readGroup, opened, bound, selected, associated, scan, Bind.bind, Except.bind, Except.mapError, pure, Except.pure]
 
 end Silmaril.Proofs.Formats.Parquet.Date
