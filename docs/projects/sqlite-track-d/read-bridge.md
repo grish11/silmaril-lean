@@ -48,12 +48,13 @@ Track A's VM reads the second field of the designated packed rowid leaf.
   bound key and requires that the catalog select the second field. A leaf
   miss requires absence in the catalog. A hit requires
   conversion of the projected field and a catalog row with that key and value.
+  Both cases use D3's `Target.Matches` lookup contract.
   Track A's cold/warm lookup and two-call adapter theorems give the two actual
   Pager returns. D3's batch has the installed cache and the same catalog and
   session in both poststates, with one completed page read after the original
-  prefix. The successful result also satisfies D3's independent catalog-only
-  statement relation after `forgetStorage` explicitly erases the backing,
-  cache and exchanges.
+  prefix. `CatalogExecutor.execute_eq` gives equality with the catalog-only
+  executor on the result and final connection after `forgetStorage` erases
+  the backing, cache and exchanges.
 
 `ReadFailure.trackA` retains the full acquisition, leaf or VM error. Absence
 and a present SQL NULL stay distinct. Integers, blob bytes and admitted
@@ -84,6 +85,6 @@ parameter, an out-of-range bind, a present NULL and NaN rejection.
 lake build --wfail +Silmaril.Machine.SQLite.Relational.Bridge.Checks \
   +Silmaril.Machine.SQLite.TrackA.Read.Adapter.Checks \
   +Silmaril.Semantics.SQLite.Relational.Executor.Catalog.Checks
-# From the D4 increment commit, whose parent is the assembled base.
-CHECK_TARGETS="$(make -s scope BASE=HEAD^)" make check
+# Set BASE to the ref or commit used as the base of the D4 diff.
+CHECK_TARGETS="$(make -s scope BASE="$BASE")" make check
 ```

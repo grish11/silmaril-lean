@@ -37,8 +37,8 @@ theorem execute_corresponds (backing : Handler Backing) (locate : Locate sem)
   Proofs.Machine.SQLite.Relational.Bridge.execute_corresponds backing locate db call plan key bound
 
 /-- The same admitted point read twice uses one VFS exchange and retains the
-installed slot in both statement poststates. The point result also satisfies
-D3's catalog-only reference after erasing the storage observations. -/
+installed slot in both statement poststates. After storage erasure,
+D3's catalog executor gives the same point result and final connection. -/
 theorem execute_cold_warm (capacity : Nat) (locate : Locate sem)
     (db : Connection (profile sem FileState)) (call : Invocation Names)
     (plan : Plan (Target sem)) (key : Int64) (table : Formats.Sqlite.Vdbe.Table)
@@ -52,8 +52,8 @@ theorem execute_cold_warm (capacity : Nat) (locate : Locate sem)
       let resident := db.cache.install request.target request.page bytes
       let after := { db with cache := resident, exchanges := db.exchanges ++ suffix }
       plan.target.Matches key cell ∧
-      (CatalogExecutor.reference sem).Executes (forgetStorage db) call (.ok result)
-        (forgetStorage after) ∧
+      CatalogExecutor.execute sem (forgetStorage db) call =
+        (.statement (.ok result), forgetStorage after) ∧
       (executor backing locate).executeBatch db [call, call] =
         (⟨[(result, after), (result, after)], none⟩, after) ∧
       Returns (pagerTwice (stagedCall request key)) (handlePager backing)

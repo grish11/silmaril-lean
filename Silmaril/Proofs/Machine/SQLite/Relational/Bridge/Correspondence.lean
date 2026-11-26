@@ -105,8 +105,8 @@ theorem execute_cold_warm (capacity : Nat) (locate : Locate sem)
       let resident := db.cache.install request.target request.page bytes
       let after := { db with cache := resident, exchanges := db.exchanges ++ suffix }
       plan.target.Matches key cell ∧
-      (CatalogExecutor.reference sem).Executes (forgetStorage db) call (.ok result)
-        (forgetStorage after) ∧
+      CatalogExecutor.execute sem (forgetStorage db) call =
+        (.statement (.ok result), forgetStorage after) ∧
       (executor backing locate).executeBatch db [call, call] =
         (⟨[(result, after), (result, after)], none⟩, after) ∧
       Returns (pagerTwice (stagedCall request key)) (handlePager backing)
@@ -141,8 +141,16 @@ theorem execute_cold_warm (capacity : Nat) (locate : Locate sem)
     rw [readEq, warmEq, coldEq] at eq
     simpa [transfer, ReadOutcome.finish, resultEq, result, after] using eq
   refine ⟨bytes, cell, matching, ?_, ?_, ?_, ?_⟩
-  · exact Reference.Executes.seek (ref := CatalogExecutor.reference sem) (plan := plan)
-      (read := CatalogExecutor.readOutcome cell) bound.resolved bound.binding ⟨cell, matching, rfl⟩
+  · change Silmaril.Relational.QueryRel.ofTotal (CatalogExecutor.execute sem)
+      (forgetStorage db) call (.statement (.ok result), forgetStorage after)
+    rw [CatalogExecutor.execute_eq]
+    change CheckedRequest.denote (CatalogExecutor.reference sem).denote (forgetStorage db)
+      (CatalogExecutor.classify db.catalog call) (.statement (.ok result), forgetStorage after)
+    rw [bound.admitted]
+    exact ⟨(.ok result, forgetStorage after),
+      Reference.Executes.seek (ref := CatalogExecutor.reference sem) (db := forgetStorage db)
+        (plan := plan) (read := CatalogExecutor.readOutcome cell)
+        bound.resolved bound.binding ⟨cell, matching, rfl⟩, rfl⟩
   · change (executor backing locate).executeBatch db [call, call] =
       (⟨[(result, after), (result, after)], none⟩, after)
     simp only [Executor.executeBatch, first, second, BatchOutcome.prepend]
