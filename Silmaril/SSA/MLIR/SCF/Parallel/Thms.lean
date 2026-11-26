@@ -65,7 +65,7 @@ theorem Reduction.eval_eq_fold (reduction : Reduction α) (space : IndexSpace)
     reduction.eval space tree = reduction.fold space order :=
   Proofs.eval_eq_fold reduction space tree order leaves assoc
 
-/-- Associativity and commutativity remove dependence on the trip order. -/
+/-- Associativity and commutativity give the reference result for every local trip enumeration. -/
 theorem Reduction.fold_eq_denote (reduction : Reduction α) (space : IndexSpace)
     (order : space.Enumeration) (assoc : Std.Associative reduction.combine)
     (comm : Std.Commutative reduction.combine) :
@@ -83,7 +83,8 @@ theorem Reduction.returns_denote (reduction : Reduction α) (space : IndexSpace)
     reduction.Returns space (reduction.denote space) :=
   Proofs.returns_denote reduction space
 
-/-- For a total associative and commutative combiner, the result relation is a singleton. -/
+/-- For a total associative and commutative combiner, the local `Reduction.Returns`
+relation is a singleton. -/
 theorem Reduction.returns_iff_eq_denote (reduction : Reduction α) (space : IndexSpace)
     (result : α) (assoc : Std.Associative reduction.combine)
     (comm : Std.Commutative reduction.combine) :
@@ -109,8 +110,8 @@ theorem GroupedReduction.eval_eq_denote {n : Nat} {Carrier : Fin n → Type u}
     group.toReduction.eval space tree = group.toReduction.denote space :=
   Proofs.grouped_eval_eq_denote group space tree valid assoc comm
 
-/-- On indices `1, 4`, the associative right projection returns either index,
-depending on the trip order. -/
+/-- On indices `1, 4`, the local result relation for the associative right projection
+contains both indices. -/
 theorem order_sensitive :
     let space : IndexSpace := ⟨1, 5, 3, by decide⟩
     let reduction : Reduction Nat := ⟨99, id, fun _ next => next⟩

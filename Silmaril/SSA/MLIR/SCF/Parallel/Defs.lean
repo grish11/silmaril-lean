@@ -68,7 +68,8 @@ def Tree.appendLeaves {α : Type u} (tree : Tree α) (inputs : List α) : Tree �
 def IndexSpace.leftTree (space : IndexSpace) (order : List space.Trip) : Tree (Input space) :=
   (Tree.leaf Input.initial).appendLeaves (order.map Input.trip)
 
-/-- The initial value is the first leaf and each trip occurs once. The binary shape is free. -/
+/-- In this pure refinement, the initial value is the first leaf and each trip occurs once.
+The binary shape is free. -/
 def IndexSpace.Admissible (space : IndexSpace) (tree : Tree (Input space)) : Prop :=
   ∃ order : space.Enumeration, tree.leaves = Input.initial :: order.val.map Input.trip
 
@@ -89,7 +90,7 @@ def Reduction.eval {α : Type u} (reduction : Reduction α) (space : IndexSpace)
     (tree : Tree (Input space)) : α :=
   tree.eval (reduction.value space) reduction.combine
 
-/-- The possible result values of all admissible enumerations and trees. -/
+/-- The possible result values over the trees admitted by `IndexSpace.Admissible`. -/
 def Reduction.Returns {α : Type u} (reduction : Reduction α) (space : IndexSpace)
     (result : α) : Prop :=
   ∃ tree, space.Admissible tree ∧ reduction.eval space tree = result
@@ -105,7 +106,7 @@ def Reduction.denote {α : Type u} (reduction : Reduction α) (space : IndexSpac
   reduction.fold space space.trips
 
 /-- Finitely many reduction slots, each with its own carrier and typed combiner.
-The grouped interpretation shares one trip enumeration and one tree between the slots. -/
+This pure refinement uses one trip enumeration and one tree for the whole group. -/
 structure GroupedReduction {n : Nat} (Carrier : Fin n → Type u) where
   initial : (slot : Fin n) → Carrier slot
   contribution : Nat → (slot : Fin n) → Carrier slot
