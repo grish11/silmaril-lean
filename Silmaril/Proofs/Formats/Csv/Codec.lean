@@ -52,7 +52,7 @@ private theorem readQuoted_sound {input : Bytes} {p : ParsedField input}
             exact ⟨by simp [fieldData, ok, fieldOk], by simpa [escape, hb] using congrArg (b :: ·) shaped⟩
         · simp [hb, ok] at h
 
-private theorem readField_sound {input : Bytes} {p : ParsedField input}
+theorem readField_sound {input : Bytes} {p : ParsedField input}
     (h : readField input = some p) :
     ∃ wire, FieldWire wire p.field ∧ input = wire ++ p.rest := by
   cases input with
@@ -101,9 +101,10 @@ private theorem Boundary.take_bare {tail : Bytes} (h : Boundary tail) :
   · rw [List.takeWhile_cons_of_neg (by decide)]
   · rw [List.takeWhile_cons_of_neg (by decide)]
 
-private theorem readQuoted_complete (field tail : Bytes) (ok : field.all fieldData = true)
+theorem readQuoted_complete (alphabet : Alphabet) (field tail : Bytes)
+    (ok : field.all (fieldDataFor alphabet) = true)
     (boundary : tail.head? ≠ some quote) :
-    ∃ p, readQuoted (escape field ++ quote :: tail) = some p ∧ p.field = field ∧ p.rest = tail := by
+    ∃ p, readQuoted (escape field ++ quote :: tail) alphabet = some p ∧ p.field = field ∧ p.rest = tail := by
   induction field with
   | nil =>
     cases tail with
@@ -115,17 +116,17 @@ private theorem readQuoted_complete (field tail : Bytes) (ok : field.all fieldDa
       refine ⟨⟨[], b :: bs, by simp [escape]⟩, ?_, rfl, rfl⟩
       simp [escape, readQuoted, hb]
   | cons b bs ih =>
-    have parts : fieldData b = true ∧ bs.all fieldData = true := by simpa only [List.all_cons, Bool.and_eq_true] using ok
+    have parts : fieldDataFor alphabet b = true ∧ bs.all (fieldDataFor alphabet) = true := by simpa only [List.all_cons, Bool.and_eq_true] using ok
     obtain ⟨p, hp, hpfield, hprest⟩ := ih parts.2
     by_cases hb : b = quote
     · subst b
-      change ∃ q, readQuoted (quote :: quote :: (escape bs ++ quote :: tail)) = some q ∧
+      change ∃ q, readQuoted (quote :: quote :: (escape bs ++ quote :: tail)) alphabet = some q ∧
         q.field = quote :: bs ∧ q.rest = tail
       refine ⟨⟨quote :: p.field, p.rest, by have := p.rest_le; simp at *; omega⟩, ?_, ?_, hprest⟩
       · rw [readQuoted.eq_def]
         simp [hp]
       · exact congrArg (quote :: ·) hpfield
-    · have hdata : quotedData b = true := by simpa [fieldData, hb] using parts.1
+    · have hdata : quotedDataFor alphabet b = true := by simpa [fieldDataFor, hb] using parts.1
       have shaped : escape (b :: bs) ++ quote :: tail = b :: (escape bs ++ quote :: tail) := by
         rw [escape, ite_eq_right hb]; rfl
       rw [shaped]
@@ -159,9 +160,9 @@ private theorem readField_complete {wire field : Bytes} (h : FieldWire wire fiel
       have hb : b ≠ quote := by simpa using head
       refine ⟨⟨(b :: bs).takeWhile textData, (b :: bs).dropWhile textData,
         (List.dropWhile_sublist textData).length_le⟩, ?_, take, drop⟩
-      simp only [readField.eq_def, ite_eq_right hb]
+      simp only [readField.eq_def, ite_eq_right hb, bareData_ascii]
   | quoted ok =>
-    obtain ⟨p, hp, hpfield, hprest⟩ := readQuoted_complete field tail ok boundary.not_quote
+    obtain ⟨p, hp, hpfield, hprest⟩ := readQuoted_complete .ascii field tail ok boundary.not_quote
     have shaped : quoteField field ++ tail = quote :: (escape field ++ quote :: tail) := by
       simp [quoteField, List.append_assoc]
     rw [shaped]
@@ -345,7 +346,7 @@ private theorem renderRow_records {row : Row} {tail : Bytes} {rows : Rows}
         ⟨by simp, fun field mem => ok.2 field (List.mem_cons_of_mem _ mem)⟩
       simpa [renderRow] using Records.moreFields (.quoted fieldOk) (ih restOk)
 
-private theorem renderRow_ne_nil {row : Row} (h : row ≠ []) : renderRow row ≠ [] := by
+theorem renderRow_ne_nil {row : Row} (h : row ≠ []) : renderRow row ≠ [] := by
   cases row with
   | nil => exact (h rfl).elim
   | cons field fields => cases fields <;> simp [renderRow, quoteField]

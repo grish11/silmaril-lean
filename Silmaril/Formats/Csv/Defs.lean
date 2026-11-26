@@ -36,6 +36,25 @@ def quotedData (b : UInt8) : Bool := textData b || b == comma || b == cr || b ==
 
 def fieldData (b : UInt8) : Bool := b == quote || quotedData b
 
+/-- The byte alphabet for the shared delimiter scanner. The UTF-8 caller
+    checks the actual encoding of each unescaped field. -/
+inductive Alphabet where
+  | ascii
+  | utf8Bytes
+
+def bareData : Alphabet → UInt8 → Bool
+  | .ascii => textData
+  | .utf8Bytes => fun b => textData b || decide (0x80 ≤ b)
+
+def quotedDataFor (alphabet : Alphabet) (b : UInt8) : Bool :=
+  bareData alphabet b || b == comma || b == cr || b == lf
+
+def fieldDataFor (alphabet : Alphabet) (b : UInt8) : Bool := b == quote || quotedDataFor alphabet b
+
+@[simp] theorem bareData_ascii : bareData .ascii = textData := rfl
+@[simp] theorem quotedDataFor_ascii : quotedDataFor .ascii = quotedData := rfl
+@[simp] theorem fieldDataFor_ascii : fieldDataFor .ascii = fieldData := rfl
+
 /-- Double every quote in a field. -/
 def escape : Field → Bytes
   | [] => []
@@ -88,41 +107,41 @@ structure ParsedField (input : Bytes) where
   rest_le : rest.length ≤ input.length
 
 /-- Read the contents and closing quote after the opening quote. -/
-def readQuoted : (input : Bytes) → Option (ParsedField input)
-  | [] => none
-  | b :: bs =>
+def readQuoted : (input : Bytes) → (alphabet : Alphabet := .ascii) → Option (ParsedField input)
+  | [], _ => none
+  | b :: bs, alphabet =>
     if b = quote then
       match bs with
       | [] => some ⟨[], [], by simp⟩
       | c :: cs =>
-        if c = quote then (readQuoted cs).map fun p => ⟨quote :: p.field, p.rest, by
+        if c = quote then (readQuoted cs alphabet).map fun p => ⟨quote :: p.field, p.rest, by
           have := p.rest_le
           simp only [List.length_cons]; omega⟩
         else some ⟨[], c :: cs, by simp⟩
-    else if quotedData b then (readQuoted bs).map fun p => ⟨b :: p.field, p.rest, by
+    else if quotedDataFor alphabet b then (readQuoted bs alphabet).map fun p => ⟨b :: p.field, p.rest, by
       have := p.rest_le
       simp only [List.length_cons]; omega⟩
     else none
 
 /-- Read a field candidate and leave its suffix for delimiter validation. -/
-def readField (input : Bytes) : Option (ParsedField input) :=
+def readField (input : Bytes) (alphabet : Alphabet := .ascii) : Option (ParsedField input) :=
   match input with
   | [] => some ⟨[], [], Nat.le_refl _⟩
   | b :: bs =>
-    if b = quote then (readQuoted bs).map fun p => ⟨p.field, p.rest, by
+    if b = quote then (readQuoted bs alphabet).map fun p => ⟨p.field, p.rest, by
       exact Nat.le_trans p.rest_le (Nat.le_succ _)⟩
-    else some ⟨(b :: bs).takeWhile textData, (b :: bs).dropWhile textData,
-      (List.dropWhile_sublist textData).length_le⟩
+    else some ⟨(b :: bs).takeWhile (bareData alphabet), (b :: bs).dropWhile (bareData alphabet),
+      (List.dropWhile_sublist (bareData alphabet)).length_le⟩
 
 /-- Finish a row and the following rows. An empty input here is an empty field. -/
-def readRecords (input : Bytes) : Option (Row × Rows) := do
-  let p ← readField input
+def readRecords (input : Bytes) (alphabet : Alphabet := .ascii) : Option (Row × Rows) := do
+  let p ← readField input alphabet
   have _bound := p.rest_le
   match _h : p.rest with
   | [] => pure ([p.field], [])
   | b :: bs =>
     if b = comma then
-      let (row, rows) ← readRecords bs
+      let (row, rows) ← readRecords bs alphabet
       pure (p.field :: row, rows)
     else if b = cr then
       match _hbs : bs with
@@ -131,7 +150,7 @@ def readRecords (input : Bytes) : Option (Row × Rows) := do
           match _hr : rest with
           | [] => pure ([p.field], [])
           | d :: ds =>
-            let (row, rows) ← readRecords (d :: ds)
+            let (row, rows) ← readRecords (d :: ds) alphabet
             pure ([p.field], row :: rows)
         else none
       | [] => none
