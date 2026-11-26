@@ -160,3 +160,45 @@ make check CHECK_TARGETS="$targets"
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/date32-ipc-csv/Axioms.lean
 python3 -I scripts/date32-ipc-csv-oracle/check.py
 ```
+
+## Row-observational IPC export
+
+`Arrow.DateStream.ToCsv.RowObservational.exportRows` uses the same explicit
+field name, nullability, DAY unit, and typed calendar CSV grammar. It reads
+through EOS under the existing IPC limits and observes the concatenated
+nullable signed days in wire order. The CSV row cap applies to the total
+across the stream. The CSV byte cap applies to the canonical quote-all
+output, including its header and CRLF. The bridge materializes the
+checked input and canonical output.
+
+`readRows_eq_ok_iff` identifies the flattened checked observation.
+`exportRows_eq_ok_iff` specifies the canonical encoder and both CSV caps.
+`exportRows_eq_iff` says two successful exports under one declaration and
+the same limits give equal bytes exactly when the flattened ordered signed
+slots, including null positions, are equal. Batch cuts do not participate
+in this equality. `reimport_readback` gives the exact DAY descriptor and
+one explicit batch on successful reimport, under the writer's own limits.
+Schema-only input and a run of empty batches both export to header-only CSV
+and reimport as one zero-row batch. Use the single-batch `ToCsv.convert`
+contract above when the source batch shape is part of admission.
+[Executable API](../../Silmaril/Formats/Arrow/DateStream/ToCsv/RowObservational/Defs.lean)
+· [Theorem header](../../Silmaril/Formats/Arrow/DateStream/ToCsv/RowObservational/Thms.lean)
+
+Six pinned PyArrow streams cover alternate cuts over the same rows,
+independent changes to null position and date order, schema-only input
+and consecutive empty batches. Both date endpoints are included.
+CPython checks exact canonical CSV and PyArrow checks the reimported
+one-batch IPC. The controls distinguish the per-batch IPC row limit, the
+total CSV row cap and the canonical CSV byte cap. They also cover
+truncated EOS after complete batches and an out-of-profile day in a
+later batch.
+[Fixture hashes](../../scripts/date32-row-observational-csv-oracle/fixtures.json)
+· [Oracle](../../scripts/date32-row-observational-csv-oracle/check.py)
+
+```sh
+targets='+Silmaril.Formats.Arrow.DateStream.ToCsv.RowObservational.Thms +Silmaril.Formats.Arrow.DateStream.ToCsv.RowObservational.Tests'
+lake build --wfail $targets
+make check CHECK_TARGETS="$targets"
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/date32-row-observational-csv/Axioms.lean
+python3 -I scripts/date32-row-observational-csv-oracle/check.py
+```

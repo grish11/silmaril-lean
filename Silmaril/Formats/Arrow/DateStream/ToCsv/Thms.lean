@@ -7,6 +7,22 @@ public section
 
 namespace Silmaril.Formats.Arrow.DateStream.ToCsv
 
+namespace Internal
+
+theorem recover_eq_some_iff (dates : DateValues.Column) (slots : Writer.Column) :
+    recover dates = some slots ↔ slots.map (Option.map DateInterop.Date32.toCivil) = dates :=
+  Proofs.Formats.Arrow.DateStream.ToCsv.recover_eq_some_iff dates slots
+
+theorem encodeColumn_eq_ok_iff {csv : FromCsv.CsvLimits} {name : String} {nullable : Bool}
+    {slots : Writer.Column} {output : Csv.Bytes} :
+    encodeColumn csv name nullable slots = .ok output ↔
+      output.length ≤ csv.maxBytes ∧ slots.length ≤ csv.maxRows ∧
+      Csv.Typed.Codecs.Date32.encode (FromCsv.schema name nullable) id
+        (rows name nullable slots) = .ok output :=
+  Proofs.Formats.Arrow.DateStream.ToCsv.encodeColumn_eq_ok_iff
+
+end Internal
+
 /-- Readback requires the exact name, nullability and DAY unit, and one
 explicit batch with the original ordered signed nullable slots. -/
 theorem readColumn_eq_ok_iff {ipc : Limits} {name : String} {nullable : Bool}

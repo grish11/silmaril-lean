@@ -24,9 +24,9 @@ private theorem cons_some_iff {α : Type*} (head : Option α) (tail : Option (Li
       ∃ a as, head = some a ∧ tail = some as ∧ a :: as = output := by
   cases head <;> cases tail <;> simp
 
-private theorem recoverColumn (dates : DateValues.Column) (slots : DateStream.Writer.Column) :
-    dates.mapM (fun d => d.mapM Date32.ofCivil?) = some slots ↔
-      slots.map (Option.map Date32.toCivil) = dates := by
+theorem recover_eq_some_iff (dates : DateValues.Column) (slots : DateStream.Writer.Column) :
+    Internal.recover dates = some slots ↔ slots.map (Option.map Date32.toCivil) = dates := by
+  unfold Internal.recover
   induction dates generalizing slots with
   | nil => cases slots <;> simp
   | cons date tail ih =>
@@ -71,8 +71,8 @@ theorem readColumn_eq_ok_iff {ipc : Limits} {name : String} {nullable : Bool}
           simp only [readColumn, sourceRead, Except.mapError, Bind.bind, Except.bind,
             ne_eq, not_true_eq_false, ite_false, DateStream.Writer.observation, List.map_cons,
             List.map_nil, Except.ok.injEq, DateStream.Stream.mk.injEq, true_and, List.cons.injEq]
-          have exactSlots := recoverColumn dates slots
-          cases recovered : dates.mapM (fun d => d.mapM Date32.ofCivil?) <;>
+          have exactSlots := recover_eq_some_iff dates slots
+          cases recovered : Internal.recover dates <;>
             rw [recovered] at exactSlots <;>
             simpa [Pure.pure, Except.pure, eq_comm] using exactSlots
         | cons next more =>
@@ -80,6 +80,29 @@ theorem readColumn_eq_ok_iff {ipc : Limits} {name : String} {nullable : Bool}
             DateStream.Writer.observation]
     · simp [readColumn, sourceRead, Except.mapError, Bind.bind, Except.bind, descriptor,
         DateStream.Writer.observation, MonadExcept.throw]
+
+theorem encodeColumn_eq_ok_iff {csv : DateStream.FromCsv.CsvLimits} {name : String}
+    {nullable : Bool} {slots : DateStream.Writer.Column} {output : Csv.Bytes} :
+    Internal.encodeColumn csv name nullable slots = .ok output ↔
+      output.length ≤ csv.maxBytes ∧ slots.length ≤ csv.maxRows ∧
+      Csv.Typed.Codecs.Date32.encode (DateStream.FromCsv.schema name nullable) id
+        (rows name nullable slots) = .ok output := by
+  unfold Internal.encodeColumn
+  by_cases count : slots.length ≤ csv.maxRows
+  · simp only [count, not_lt.mpr count, ite_false, true_and]
+    cases Csv.Typed.Codecs.Date32.encode (DateStream.FromCsv.schema name nullable) id
+        (rows name nullable slots) with
+    | error cause => simp [Except.mapError, Bind.bind, Except.bind]
+    | ok encoded =>
+      by_cases same : encoded = output
+      · subst output
+        by_cases size : encoded.length ≤ csv.maxBytes
+        · simp [Except.mapError, Bind.bind, Except.bind, not_lt.mpr size, size, Pure.pure, Except.pure]
+        · simp [Except.mapError, Bind.bind, Except.bind, Nat.lt_of_not_ge size, size, MonadExcept.throw]
+      · by_cases size : encoded.length ≤ csv.maxBytes
+        · simp [Except.mapError, Bind.bind, Except.bind, not_lt.mpr size, same, Pure.pure, Except.pure]
+        · simp [Except.mapError, Bind.bind, Except.bind, Nat.lt_of_not_ge size, same, MonadExcept.throw]
+  · simp [Bind.bind, Except.bind, Nat.lt_of_not_ge count, count, MonadExcept.throw]
 
 theorem convert_eq_ok_iff {ipc : Limits} {csv : DateStream.FromCsv.CsvLimits} {name : String}
     {nullable : Bool} {input : KBytes} {output : Csv.Bytes} :
@@ -91,25 +114,7 @@ theorem convert_eq_ok_iff {ipc : Limits} {csv : DateStream.FromCsv.CsvLimits} {n
           (rows name nullable slots) = .ok output := by
   simp only [← readColumn_eq_ok_iff]
   unfold convert
-  cases readColumn ipc name nullable input with
-  | error cause => simp [Bind.bind, Except.bind]
-  | ok slots =>
-    by_cases count : slots.length ≤ csv.maxRows
-    · simp only [count, not_lt.mpr count, ite_false, Bind.bind, Except.bind, Except.ok.injEq,
-        exists_eq_left', true_and]
-      cases Csv.Typed.Codecs.Date32.encode (DateStream.FromCsv.schema name nullable) id
-          (rows name nullable slots) with
-      | error cause => simp [Except.mapError]
-      | ok encoded =>
-        by_cases same : encoded = output
-        · subst output
-          by_cases size : encoded.length ≤ csv.maxBytes
-          · simp [Except.mapError, not_lt.mpr size, size, Pure.pure, Except.pure]
-          · simp [Except.mapError, Nat.lt_of_not_ge size, size, MonadExcept.throw]
-        · by_cases size : encoded.length ≤ csv.maxBytes
-          · simp [Except.mapError, not_lt.mpr size, same, Pure.pure, Except.pure]
-          · simp [Except.mapError, Nat.lt_of_not_ge size, same, MonadExcept.throw]
-    · simp [Bind.bind, Except.bind, Nat.lt_of_not_ge count, count, MonadExcept.throw]
+  cases readColumn ipc name nullable input <;> simp [Bind.bind, Except.bind, encodeColumn_eq_ok_iff]
 
 theorem csv_roundtrip {ipc : ObservationLimits} {csv : DateStream.FromCsv.CsvLimits} {name : String}
     {nullable : Bool} {input : Csv.Bytes} {wire : KBytes}
