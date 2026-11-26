@@ -821,6 +821,16 @@ Register renaming preserves compatibility and the sentence at the
 transported seeds.
 [Checked structural comparison](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/Thms.lean)
 
+For opcode changes, the occurrence comparison uses the existing trace
+signature arrows, with injective complete request keys and bijective typed
+replies. Exact opcode-mapped positional readbacks, matching occurrence
+stores, and compatible primitive interpretations give equality with the
+translated sentence. Satisfaction in a target reply policy then agrees
+with satisfaction in its reduct. At successfully decoded seeds the same
+square applies to the original named RTL sentences, including ordered
+exits and selected live-outs.
+[Opcode mapping and handler reduct](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/InstructionMap/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment
