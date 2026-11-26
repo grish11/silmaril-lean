@@ -109,6 +109,7 @@ def audit(books, acl2, root, scratch, out, env):
     support = Path(__file__).resolve().with_name("certificate.lisp")
     # Use a fresh image for each root so that its include-book world is isolated.
     commands = (
+        "(set-ld-error-action '(:exit 1) state)\n"
         f'(include-book {lisp_string(root)} :ttags :all :uncertified-okp nil)\n'
         f':q\n(handler-case (progn (load {lisp_string(support)})\n'
         f'  (c1-audit {lisp_string(book)} {lisp_string(records)} '
@@ -117,8 +118,10 @@ def audit(books, acl2, root, scratch, out, env):
     )
     log = out / f"{name}.audit.log"
     with log.open("w") as output:
-        subprocess.run([acl2], input=commands, text=True, cwd=project, env=env, check=True,
-                       stdout=output, stderr=subprocess.STDOUT)
+        result = subprocess.run([acl2], input=commands, text=True, cwd=project, env=env,
+                                stdout=output, stderr=subprocess.STDOUT)
+    if result.returncode or not (records.is_file() and sample.is_file()):
+        raise SystemExit(f"ACL2 audit did not complete for {root}. See {log}")
     phases = {phase: [] for phase in ("pre", "post", "live")}
     for row in records.read_text().splitlines():
         phase, visibility, path, skipped, axioms, tags = row.split("\t")

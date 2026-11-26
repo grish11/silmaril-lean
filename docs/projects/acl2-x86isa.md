@@ -30,7 +30,8 @@ catalogue listing alone does not establish that an instruction is implemented.
 [instruction root](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/machine/instructions/top.lisp),
 [modes](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/machine/modes.lisp),
 [execution tools](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/tools/execution/top.lisp),
-[project bundle](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/doc.lisp).
+[project root](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/top.lisp),
+[bundle contents](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/doc.lisp).
 
 ## Dependency inventory
 
@@ -68,6 +69,8 @@ GNU Make 4.4.1 and Perl 5.40.1.
   `syscalls.lisp`. The `depends-on` comment for the raw syscall Lisp appears
   even in the `nil` scan. Upstream documents full syscall execution with
   Clozure CL's FFI. The `t` inventory covers Linux Make inputs only.
+  The execution-tools book separately includes raw random and undefined-value
+  overrides with `:other-non-det` and `:undef-flg`.
   [Makefile](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/Makefile),
   [conditional syscall events](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/machine/syscalls.lisp#L1118).
 - **Certificate and live world.** The `--certified` mode reads ACL2's
@@ -81,6 +84,29 @@ GNU Make 4.4.1 and Perl 5.40.1.
   also includes macros, documentation and proof libraries. The logical
   function and constraint closure has to be derived from the translated events.
   [ACL2 certificate format](https://github.com/acl2/acl2/blob/8.7/other-events.lisp#L12965).
+
+In the certified SBCL `nil` profile, pre/post and live counts below are
+deduplicated by source path. The visible certificate names matched each live
+world. All recorded pre/post names were present in the corresponding Make
+target list.
+
+| Root | Pre/post books | Live books | Pre/post outside live | Make targets outside root records | Root expansion entries |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `machine/x86` | 1,027 | 293 | 734 | 3 | 11 |
+| `tools/execution/top` | 1,073 | 321 | 752 | 8 | 4 |
+| `top` | 1,123 | 375 | 748 | 8 | 0 |
+
+The model's three Make-only targets illustrate the limits of a root
+certificate. `tools/flag`'s certification log shows a local
+`system/termp` inclusion, and `system/termp` in turn depends on
+`system/legal-variablep`. XDOC's separate expansion pass uses `strsubst`
+before `acl2x-replace` substitutes an invisible event for certification.
+All three roots' pre/post records have `NIL` for skip-proof and axiom
+annotations. The model records no trust tags. The execution root records
+`INSTRUMENT`, `OTHER-NON-DET` and `UNDEF-FLG`. The project bundle additionally
+records `BIGNUM-EXTRACT` and `VIRTUALIZATION`.
+[Flag local include](https://github.com/acl2/acl2/blob/8.7/books/tools/flag.lisp#L59),
+[XDOC expansion](https://github.com/acl2/acl2/blob/8.7/books/xdoc/str.lisp#L77).
 
 ## Features the importer must account for
 
@@ -97,6 +123,14 @@ GNU Make 4.4.1 and Perl 5.40.1.
 [dispatch generation](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/machine/x86.lisp#L76),
 [logical environment](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/machine/environment.lisp),
 [ACL2+Books manual](https://www.cs.utexas.edu/users/moore/acl2/v8-7/combined-manual/).
+
+For example, `CREATE-UNDEF` is introduced by `encapsulate` with a local `nfix`
+witness and an exported natural-number constraint. An importer can quantify
+over an implementation satisfying that constraint and use `nfix` to show that
+it is satisfiable. Pinning the logical machine to the witness would specialize
+the spec, and assuming that different seeds yield distinct results would add
+a property the book does not export.
+[Undefined values](https://github.com/acl2/acl2/blob/8.7/books/projects/x86isa/machine/register-readers-and-writers.lisp#L1494).
 
 ## Checkable target and upstream evidence
 
@@ -119,11 +153,13 @@ GNU Make 4.4.1 and Perl 5.40.1.
    differential run can help locate a discrepancy; neither discharges a Lean
    obligation. An arbitrary ACL2 proof script has no assumed Lean translation.
 
-The audit emits a small world export (`formals`, `unnormalized-body`, `guard`,
-stobj signatures and theorem formula) for the actual step, run, generated
-one-byte dispatcher and `X86-RUN-HALTED`. This is an extraction probe. ACL2's
-certificate expansion alist and optional `.acl2x` files cache `make-event`
-results. `.acl2x` can be generated in a separate pass, including with proofs
+The audit emits a small world export with the actual step, run, generated
+one-byte dispatcher, `CREATE-UNDEF` constraint and `X86-RUN-HALTED` theorem.
+It includes translated bodies, guard and stobj signatures, and admission
+metadata where present. The original translated body avoids ACL2's later
+`:definition` rule overrides. ACL2's certificate expansion alist and optional
+`.acl2x` files cache `make-event` results. `.acl2x` can be generated in a
+separate pass, including with proofs
 skipped, and replayed at certification. Ordinary event or term macro expansion
 and dependency/provenance capture still matter. A `.cert` records ACL2's
 certification and book metadata; inclusion normally skips proof replay.
@@ -134,7 +170,8 @@ The pinned `machine/.sys/x86@useless-runes.lsp` is useful for finding proof
 dependencies, with SHA-256
 `9e083c28699c0c171525ac17dfd4382cb875145a5f9dd99d490f4cf399d0272e`.
 Useless-runes counts, proof-tree and rewrite diagnostics do not encode all
-inferences. ACL2 proof-builder scripts drive ACL2's prover, so replay still
+inferences. Kestrel's `acl2data` is a source of prover observations for ML.
+ACL2 proof-builder scripts drive ACL2's prover, so replay still
 needs justified implementations of the commands and inference rules. Milawa
 has explicit proofs and a separate checker for its own logic and corpus.
 Neither its scope nor a certificate establishes a checker path for these books.
@@ -142,6 +179,7 @@ An independently checkable proof format may help for supported fragments if
 its checker and the link to the ACL2 statement are proved in Lean.
 [Useless-runes](https://www.cs.utexas.edu/users/moore/acl2/v8-7/combined-manual/index.html?topic=ACL2____USELESS-RUNES),
 [proof-builder](https://www.cs.utexas.edu/users/moore/acl2/v8-7/combined-manual/index.html?topic=ACL2____PROOF-BUILDER),
+[Kestrel acl2data](https://github.com/acl2/acl2/tree/8.7/books/kestrel/acl2data),
 [Milawa README](https://github.com/acl2/acl2/blob/8.7/books/projects/milawa/README).
 
 ## Reproduce
@@ -159,9 +197,13 @@ python3 -B "$tool" "$work/acl2" "$work/logic-scan"
 
 (
   cd "$work/acl2/books/projects/x86isa"
-  ACL2_CUSTOMIZATION=NONE X86ISA_EXEC=nil ../../build/cert.pl \
+  export ACL2_CUSTOMIZATION=NONE CERT_PL_NO_COLOR=1 X86ISA_EXEC=nil
+  ../../build/cert.pl \
     --acl2 "$work/acl2/saved_acl2" --acl2-books "$work/acl2/books" \
-    -o "$work/certify.mk" -j 14 machine/x86 tools/execution/top top
+    -o "$work/certify.mk" -j 14 machine/x86 tools/execution/top
+  ../../build/cert.pl \
+    --acl2 "$work/acl2/saved_acl2" --acl2-books "$work/acl2/books" \
+    -o "$work/certify-top.mk" -j 14 top
 )
 python3 -B "$tool" "$work/acl2" "$work/certified" --certified
 
@@ -177,6 +219,7 @@ Reference manifest SHA-256 values:
 
 ```text
 1078ab76d8710aa69d9b672c01575ff393a6f78e63c88eb05eb5d88e026498ec  logic-scan
+4053bf6625e6397fce7fd994fd50535ddd8e4b8f377f86019e3d1a7667ccdd27  certified
 8d55da7060618bd9a57eca9a79dfaa1c00b3fc1ff91c137f57ef3ea0cbde3864  native-scan
 ```
 
