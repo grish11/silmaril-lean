@@ -244,4 +244,39 @@ theorem compiled_script {stmts : List Stmt} {codes : List RawProgram}
   rw [heq] at allowed frame
   exact ⟨heq, allowed, fun table ht => frame table fun hw => ht (scriptFootprint_writes.mp hw)⟩
 
+theorem provenance_targetRestricted {G : Footprint} {code : RawProgram}
+    (h : CompilationProvenance G cat code) : TargetRestricted G cat code :=
+  let ⟨_, hG, hc⟩ := h
+  targetRestricted_of_within (compiles_within_of hc hG)
+
+theorem callback_trace_safe {F : Footprint} {callbacks : Fallback}
+    (h : CallbackProvenance F callbacks) {code : RawProgram} {store : Store} {c' : Config}
+    {events : List Event} (htrace : Trace F cat callbacks code (Config.initial store) events c') :
+    (∀ event ∈ events, event.Allowed F) ∧ Frame F.Writes store c'.committed :=
+  ⟨(trace_safe h htrace).2.1, (trace_frame h htrace).2⟩
+
+theorem transitive_script {causes : Stmt → List Stmt} {stmt : Stmt} {subs : List Stmt}
+    {codes : List RawProgram} (htouch : TransitiveTouch causes stmt)
+    (hreach : ∀ sub ∈ subs, Reaches causes stmt sub) (hcomp : CompilesScript cat (stmt :: subs) codes)
+    (fuel : Nat) (store : Store) :
+    runScript (Footprint.ofList stmt.footprint) cat fuel codes store =
+        runScript Footprint.top cat fuel codes store ∧
+      Frame (fun table => stmt.target? = some table) store
+        (runScript Footprint.top cat fuel codes store).2 := by
+  have hwithin : ∀ code ∈ codes, within (Footprint.ofList stmt.footprint) cat code = true := by
+    intro code hmem
+    obtain ⟨s, hs, hc⟩ := forall₂_mem hcomp code hmem
+    refine compiles_within_of hc fun touch ht => ?_
+    simp only [Footprint.ofList, List.contains_iff_mem]
+    rcases List.mem_cons.mp hs with rfl | hsub
+    · exact ht
+    · exact htouch s (hreach s hsub) touch ht
+  have heq := runScript_eq_top (fuel := fuel) hwithin store
+  have frame := runScript_frame (Footprint.ofList stmt.footprint) cat fuel codes store
+  rw [heq] at frame
+  refine ⟨heq, fun table ht => frame table fun hw => ht ?_⟩
+  have : Touch.table table .write ∈ stmt.footprint := by
+    simpa [Footprint.Writes, Footprint.ofList] using hw
+  exact (target_iff stmt table).mp this
+
 end Silmaril.Proofs.Machine.SQLite.VirtualMachine.Writable.Compile

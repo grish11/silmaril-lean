@@ -12,7 +12,8 @@ syntactic restriction `within` and the semantic `TargetRestricted`. The
 inclusion is one-way and strict (`image_strict`). Scripts compose: the
 footprint of a compiled script is the union of its statements' source
 footprints, the guard is transparent for it, and tables no statement writes
-are unchanged. -/
+are unchanged. The bridge obligations (compilation provenance, callback
+provenance, transitive table touch) appear only as hypotheses. -/
 
 public section
 
@@ -73,5 +74,35 @@ theorem compiled_script {stmts : List Stmt} {codes : List RawProgram}
       Frame (fun table => ∃ stmt ∈ stmts, stmt.target? = some table)
         store (runScript Footprint.top cat fuel codes store).2 :=
   Proofs.Machine.SQLite.VirtualMachine.Writable.Compile.compiled_script h fuel store
+
+/-! ### What the bridge obligations yield, when assumed -/
+
+theorem provenance_targetRestricted {G : Footprint} {code : RawProgram}
+    (h : CompilationProvenance G cat code) : TargetRestricted G cat code :=
+  Proofs.Machine.SQLite.VirtualMachine.Writable.Compile.provenance_targetRestricted h
+
+/-- Callback provenance is exactly what the guarded prefix theorems need from
+unmodeled instructions. -/
+theorem callback_trace_safe {F : Footprint} {callbacks : Fallback}
+    (h : CallbackProvenance F callbacks) {code : RawProgram} {store : Store} {c' : Config}
+    {events : List Event} (htrace : Trace F cat callbacks code (Config.initial store) events c') :
+    (∀ event ∈ events, event.Allowed F) ∧ Frame F.Writes store c'.committed :=
+  Proofs.Machine.SQLite.VirtualMachine.Writable.Compile.callback_trace_safe h htrace
+
+/-- Under transitive table touch, the root statement's footprint suffices for
+compiled statements it reaches, and only its target table changes. Caused
+statements run here as later autocommit entries. SQLite runs trigger programs
+inside the statement through `OP_Program`, which this model does not cover, so
+this is not a claim about that execution. -/
+theorem transitive_script {causes : Stmt → List Stmt} {stmt : Stmt} {subs : List Stmt}
+    {codes : List RawProgram} (htouch : TransitiveTouch causes stmt)
+    (hreach : ∀ sub ∈ subs, Reaches causes stmt sub) (hcomp : CompilesScript cat (stmt :: subs) codes)
+    (fuel : Nat) (store : Store) :
+    runScript (Footprint.ofList stmt.footprint) cat fuel codes store =
+        runScript Footprint.top cat fuel codes store ∧
+      Frame (fun table => stmt.target? = some table) store
+        (runScript Footprint.top cat fuel codes store).2 :=
+  Proofs.Machine.SQLite.VirtualMachine.Writable.Compile.transitive_script htouch hreach hcomp
+    fuel store
 
 end Silmaril.Machine.SQLite.VirtualMachine.Writable.Compile

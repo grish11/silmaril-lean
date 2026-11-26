@@ -101,6 +101,53 @@ example : TargetRestricted (Footprint.ofList (Stmt.copy users audit 1).footprint
 
 example : ∀ stmt, ¬ Compiles cat stmt #[Code.halt] := (image_strict (cat := cat) Footprint.top).2
 
+/-! Transitive table touch, as an obligation. A trigger-like cause that
+deletes from `users` is not covered by an `INSERT INTO audit` footprint; an
+audit insert caused by the copy is covered by the copy's footprint. -/
+
+private def logInsert : Stmt := .insert audit [.integer 1]
+private def copyUsers : Stmt := .copy users audit 1
+
+private def causes (root sub : Stmt) : Stmt → List Stmt :=
+  fun stmt => if stmt = root then [sub] else []
+
+example : ¬ TransitiveTouch (causes logInsert (.deleteRowid users 1)) logInsert := by
+  intro h
+  have := h (.deleteRowid users 1) (.direct (by simp [causes])) (.table users .write)
+    (by simp [Stmt.footprint, writeTouches])
+  revert this
+  decide
+
+private theorem copy_covers : TransitiveTouch (causes copyUsers logInsert) copyUsers := by
+  have only : ∀ sub, Reaches (causes copyUsers logInsert) copyUsers sub → sub = logInsert := by
+    intro sub h
+    induction h with
+    | direct hmem => simpa [causes] using hmem
+    | step _ hmem ih => subst ih; simp [causes, logInsert, copyUsers] at hmem
+  intro sub h touch htouch
+  rw [only sub h] at htouch
+  simp only [logInsert, copyUsers, Stmt.footprint, readTouches, writeTouches, List.mem_cons,
+    List.not_mem_nil, or_false] at htouch ⊢
+  rcases htouch with rfl | rfl <;> simp
+
+private theorem copy_then_log : CompilesScript cat [copyUsers, logInsert]
+    [Code.copy usersAt auditAt 1, Code.insertValues auditAt [.integer 1]] :=
+  .cons (.copy (by decide) (by decide)) (.cons (.insert (by decide) (by simp)) .nil)
+
+/-- With the obligation assumed, the copy's footprint covers the caused insert,
+and `users` (the copy's source, nobody's target) is unchanged for every store. -/
+example (fuel : Nat) (initial : Store) :
+    (runScript Footprint.top cat fuel
+      [Code.copy usersAt auditAt 1, Code.insertValues auditAt [.integer 1]] initial).2 users =
+      initial users := by
+  have := (transitive_script (subs := [logInsert]) copy_covers
+    (fun sub hs => by
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hs
+      subst hs
+      exact .direct (by simp [causes]))
+    copy_then_log fuel initial).2
+  exact this users (by simp [copyUsers, Stmt.target?, users, audit])
+
 /--
 info: 'Silmaril.Machine.SQLite.VirtualMachine.Writable.Compile.image_targetRestricted' depends on axioms: [propext,
  Classical.choice,
@@ -124,5 +171,13 @@ info: 'Silmaril.Machine.SQLite.VirtualMachine.Writable.Compile.image_strict' dep
 -/
 #guard_msgs in
 #print axioms Silmaril.Machine.SQLite.VirtualMachine.Writable.Compile.image_strict
+
+/--
+info: 'Silmaril.Machine.SQLite.VirtualMachine.Writable.Compile.transitive_script' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Silmaril.Machine.SQLite.VirtualMachine.Writable.Compile.transitive_script
 
 end Silmaril.Machine.SQLite.VirtualMachine.Writable.Compile.Checks

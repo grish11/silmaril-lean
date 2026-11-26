@@ -35,9 +35,15 @@ Model.
   `Halt 0` publishes the working store as the committed store and emits
   `commit`. A fault, a nonzero halt or exhausted fuel publishes nothing. There
   is no claim about SQLite's journals, savepoints, rollback or durability.
-* Events. `touch` (a granted open), `write t` (an attempted change of the
-  working copy of `t`), `commit`, and result rows. The theorems tie `write`
-  events to the actual store transition, so they are not decorative.
+* Events. `touch` (a granted open), `write t` (a write attempt that changed
+  the working copy of `t`), `commit`, and result rows. The theorems tie `write`
+  events to the actual store transition, so they are not decorative. This
+  follows the split in `Silmaril.Machine.SqliteVfs.TrackA.Write`, where write
+  attempts precede a separate commit point that its rollback-journal profile
+  realizes as phase-two journal deletion. Here the commit point is abstract:
+  there is no journal, and relating `commit` to that deletion is a separate
+  obligation. A write that faults leaves no event and no state change; a
+  refused touch is visible only as the `denied` fault.
 * Fallback. Raw instructions that do not decode are unmodeled. The executable
   `run` faults on them. The relation `Trace` accepts any `Fallback` transition;
   the theorems require only `FallbackSafe`.
@@ -47,10 +53,20 @@ Explicitly out of scope: schema changes (DDL, `ParseSchema`, `CreateBtree`,
 their consistency (index opcodes are unmodeled, and an index root may only be
 catalogued as an ordinary table key); triggers, foreign-key actions and other
 subprograms (`Program`, `FkCounter`); views, which SQLite expands at prepare
-time; `ATTACH`/`DETACH` (SQL functions, so unmodeled `Function` opcodes); the
-temp database is an ordinary `DbId` with no special treatment; affinities,
+time; `ATTACH`, `DETACH` and `load_extension`; the temp database is an ordinary `DbId` with no special treatment; affinities,
 record serialization, schema-cookie checks, change counters and hooks;
-concurrency, locking and busy handling; and native code. -/
+concurrency, locking and busy handling; and native code.
+
+Opcodes versus callbacks. Opcode coverage here means the twenty constructors
+of `Instr`, reached by `decode?`. `ATTACH`, `DETACH` and `load_extension` are
+not opcodes: in the pinned source (`src/attach.c`, `src/func.c` at
+57520227c95396ce39ba6ecaac8d475b78dd3964) `codeAttach` emits an `OP_Function`
+call through `sqlite3VdbeAddFunctionCall`, whose callback is `attachFunc` or
+`detachFunc`, and `load_extension()` is the SQL function `loadExt`. Such
+`Function`/`PureFunc` instructions, like trigger `Program`s, are unmodeled here.
+Their callback effects are constrained only by `FallbackSafe`, which cannot
+change the catalog. This module has no abstract attach or extension action;
+any added later is an abstraction of a callback effect, not opcode coverage. -/
 
 @[expose] public section
 

@@ -42,6 +42,7 @@ inductive Stmt where
   | deleteRowid (table : TableId) (key : Int64)
   /-- `INSERT INTO target SELECT c0, …, c(width-1) FROM source` -/
   | copy (source target : TableId) (width : Nat)
+  deriving DecidableEq
 
 def readTouches (table : TableId) : List Touch := [.db table.db .read, .table table .read]
 def writeTouches (table : TableId) : List Touch := [.db table.db .write, .table table .write]
@@ -160,5 +161,38 @@ inductive CompilesScript (cat : Catalog) : List Stmt → List RawProgram → Pro
 /-- Footprint of a script: the union of its statements' source footprints. -/
 def scriptFootprint (stmts : List Stmt) : Footprint :=
   Footprint.ofList (stmts.flatMap Stmt.footprint)
+
+/-! ### Bridge obligations
+
+These are stated, not discharged. Nothing in this repository proves them for
+SQLite, and none of them is a refinement claim. `Thms` shows what each one
+yields when assumed. -/
+
+/-- Compilation provenance: the program given to the VM is the `Compiles`
+image of a statement whose source footprint lies in `footprint`. For SQLite,
+this is a claim about `sqlite3_prepare` and its code generator. -/
+def CompilationProvenance (footprint : Footprint) (cat : Catalog) (code : RawProgram) : Prop :=
+  ∃ stmt, (∀ touch ∈ stmt.footprint, footprint.allows touch = true) ∧ Compiles cat stmt code
+
+/-- Callback provenance: every transition of an instruction the model does not
+decode meets the fallback contract under `footprint`. That includes the
+callbacks of `Function`/`PureFunc` (where `ATTACH`, `DETACH` and
+`load_extension` take effect), virtual-table and subprogram opcodes. The
+catalog is a run parameter, so for SQLite this also requires those callbacks
+to leave slot and root resolution unchanged for the run. -/
+def CallbackProvenance (footprint : Footprint) (callbacks : Fallback) : Prop :=
+  FallbackSafe footprint callbacks
+
+/-- Statements reached from `stmt` through `causes` (trigger bodies,
+foreign-key actions, view expansions) and, transitively, what they cause. -/
+inductive Reaches (causes : Stmt → List Stmt) (stmt : Stmt) : Stmt → Prop where
+  | direct {sub} : sub ∈ causes stmt → Reaches causes stmt sub
+  | step {mid sub} : Reaches causes stmt mid → sub ∈ causes mid → Reaches causes stmt sub
+
+/-- Transitive table touch: the source footprint of `stmt` already covers
+every statement it reaches. Choosing `causes` for SQLite (which triggers fire,
+which cascades apply) is part of the obligation. -/
+def TransitiveTouch (causes : Stmt → List Stmt) (stmt : Stmt) : Prop :=
+  ∀ sub, Reaches causes stmt sub → ∀ touch ∈ sub.footprint, touch ∈ stmt.footprint
 
 end Silmaril.Machine.SQLite.VirtualMachine.Writable.Compile

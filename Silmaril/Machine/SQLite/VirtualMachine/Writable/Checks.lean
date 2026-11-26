@@ -125,8 +125,9 @@ example : (run policy cat
     #[op "Transaction" 0 0, op "OpenWrite" 0 3 0, op "Halt"] 10 (Config.initial store)).result =
       .fault (.noTransaction mainDb .write) := by decide
 
-/-- Unmodeled opcodes stop the runner: `ATTACH` compiles to a `Function` call,
-triggers to `Program`, index maintenance to `IdxInsert`. -/
+/-- Unmodeled opcodes stop the runner. `Function` is the opcode through which
+`ATTACH`'s callback runs (it is not an attach opcode; the callback is not
+modeled), triggers run through `Program`, index maintenance uses `IdxInsert`. -/
 example : (run policy cat #[op "Function" 0 1 2] 4 (Config.initial store)).result =
     .fault (.unmodeled (op "Function" 0 1 2)) := by decide
 example : (run policy cat #[op "Program" 0 1 2] 4 (Config.initial store)).result =
