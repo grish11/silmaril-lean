@@ -487,6 +487,11 @@ globs = ["tests.ssa.PeggyDialect"]
 name = "PeggyEggTests"
 globs = ["tests.ssa.PeggyEgg"]
 
+# Check guarded Figure 11 rewrites, including cyclic feedback and negative cases.
+[[lean_lib]]
+name = "PEGRulesTests"
+globs = ["tests.ssa.PEGRules"]
+
 # The component and generator tools of the Wasm release (docs/projects/wasm-components.md).
 [[lean_exe]]
 name = "wasm-tools-gen"
