@@ -50,11 +50,26 @@ theorem selectChunk_sound {limits : Limits} {bound : Bound} {index : Nat} {chunk
       chunk.column.metadata.pathInSchema = [bound.binding.leaf.name] ∧
       chunk.column.metadata.physicalType = .int64 ∧
       chunk.column.metadata.numValues = chunk.group.numRows ∧
-      chunk.column.metadata.codec = 0 ∧
+      limits.admitsCodec chunk.column.metadata.codec = true ∧
       chunk.group.numRows.toNat ≤ limits.maxRows ∧
       Parquet.Page.columnSpan bound.snapshot.footer.start chunk.column.metadata = some chunk.span ∧
       Internal.disjoint bound.snapshot index (bound.ordinal - 1) chunk.span = true :=
   Proofs.Formats.Parquet.Timestamp.Leaf.selectChunk_sound selected
+
+/-- The original frame supplies the exact header and body. Preparation
+accounts for the full V1 body or the V2 level prefix and exact value suffix.
+The physical slots expose that same mask and ordered signed PLAIN words. -/
+theorem PhysicalFrame.preparedWire {limits : ScalarPage.Limits} {bound : Bound}
+    {codec : Int} {frame : Parquet.Page.Frame} {slots : List (Option Int64)}
+    (physical : PhysicalFrame limits bound codec frame slots) :
+    let body := Internal.body bound frame
+    ∃ params layout prepared words,
+      Timestamp.Page.parameters bound.binding.leaf bound.levels codec frame.value = .ok params ∧
+      ScalarPage.validate params limits body = .ok layout ∧
+      ScalarPage.PreparedWire params limits layout body prepared ∧
+      Plain.decodeInt64 (prepared.mask.count true) prepared.scalars = .ok words ∧
+      slots.map Option.isSome = prepared.mask ∧ slots.filterMap id = words :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.physicalFrame_preparedWire physical
 
 /-- The returned slots are the descriptor's exact pointwise interpretation
 of the original nullable INT64 slots, in framed chunk order. -/

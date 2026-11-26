@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.Parquet.Timestamp.Leaf.Defs
 import Silmaril.Formats.Parquet.Page.Thms
 import Silmaril.Formats.Parquet.Timestamp.Page.Thms
+import Silmaril.Formats.Parquet.ScalarPage.Thms
 import Silmaril.Formats.Parquet.Timestamp.Thms
 
 public section
@@ -74,7 +75,7 @@ theorem selectChunk_sound {limits : Limits} {bound : Bound} {index : Nat} {chunk
       chunk.column.metadata.pathInSchema = [bound.binding.leaf.name] ∧
       chunk.column.metadata.physicalType = .int64 ∧
       chunk.column.metadata.numValues = chunk.group.numRows ∧
-      chunk.column.metadata.codec = 0 ∧
+      limits.admitsCodec chunk.column.metadata.codec = true ∧
       chunk.group.numRows.toNat ≤ limits.maxRows ∧
       Parquet.Page.columnSpan bound.snapshot.footer.start chunk.column.metadata = some chunk.span ∧
       Internal.disjoint bound.snapshot index (bound.ordinal - 1) chunk.span = true := by
@@ -97,7 +98,22 @@ theorem selectChunk_sound {limits : Limits} {bound : Bound} {index : Nat} {chunk
         have result := Except.ok.inj selected
         subst chunk
         have withinRows : group.numRows.toNat ≤ limits.maxRows := by omega
-        exact ⟨rfl, columnRead, selectedPath, selectedType, counted, codec, withinRows, spanRead, separate⟩
+        exact ⟨rfl, columnRead, selectedPath, selectedType, counted, by simpa using codec, withinRows, spanRead, separate⟩
+
+theorem physicalFrame_preparedWire {limits : ScalarPage.Limits} {bound : Bound}
+    {codec : Int} {frame : Parquet.Page.Frame} {slots : List (Option Int64)}
+    (physical : PhysicalFrame limits bound codec frame slots) :
+    let body := Internal.body bound frame
+    ∃ params layout prepared words,
+      Timestamp.Page.parameters bound.binding.leaf bound.levels codec frame.value = .ok params ∧
+      ScalarPage.validate params limits body = .ok layout ∧
+      ScalarPage.PreparedWire params limits layout body prepared ∧
+      Plain.decodeInt64 (prepared.mask.count true) prepared.scalars = .ok words ∧
+      slots.map Option.isSome = prepared.mask ∧ slots.filterMap id = words := by
+  obtain ⟨_, params, parameters, decoded⟩ := physical
+  obtain ⟨prepared, words, parsed, plain, mask, values, _, _⟩ := ScalarPage.decode_sound decoded
+  obtain ⟨layout, validated, wire⟩ := ScalarPage.prepare_sound parsed
+  exact ⟨params, layout, prepared, words, parameters, validated, wire, plain, mask, values⟩
 
 private theorem decodeFrame_sound {limits : ScalarPage.Limits} {bound : Bound} {codec : Int}
     {frame : Parquet.Page.Frame} {index : Nat} {slots : Slots bound}

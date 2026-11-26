@@ -58,3 +58,8 @@ private def noColumns : Scan.Schema String Kind := ⟨0, Fin.elim0⟩
 #guard Parquet.Timestamp.Internal.convertedTimestamp 11 matches .error (.convertedType 11)
 #guard (convertWith .allowConvertedOnly { maxFileBytes := 1 } {} (.ofList [0, 1]) 0)
   matches .error (.fileByteLimit 1 2)
+
+#guard ({} : Parquet.Timestamp.Leaf.Limits).admitsCodec 0
+#guard !(({} : Parquet.Timestamp.Leaf.Limits).admitsCodec 1)
+#guard ({ allowSnappy := true } : Parquet.Timestamp.Leaf.Limits).admitsCodec 1
+#guard !(({ allowSnappy := true } : Parquet.Timestamp.Leaf.Limits).admitsCodec 2)

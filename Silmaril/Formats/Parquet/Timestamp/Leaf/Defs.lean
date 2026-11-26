@@ -15,6 +15,11 @@ structure Limits where
   page : ScalarPage.Limits :=
     ⟨16 * 1024 * 1024, 16 * 1024 * 1024, ⟨1024 * 1024, 16 * 1024 * 1024⟩, 0⟩
   maxRows : Nat := 1024 * 1024
+  allowSnappy : Bool := false
+
+/-- Admit uncompressed chunks and, if requested, raw Snappy blocks. -/
+def Limits.admitsCodec (limits : Limits) (code : Int) : Bool :=
+  code == 0 || (limits.allowSnappy && code == 1)
 
 inductive Error where
   | snapshot (cause : Snapshot.Error Unit)
@@ -152,7 +157,7 @@ theorem bind_observation (limits : Footer.Limits) (snapshot : Snapshot.Checked) 
   openLeafWith .modernOnly limits source ordinal
 
 /-- Associate the group's actual chunk ordinal and path with the annotated leaf.
-Only uncompressed PLAIN, with optional RLE levels, is admitted. -/
+Admit PLAIN with optional RLE levels and the selected codec policy. -/
 @[expose] def selectChunk (limits : Limits) (bound : Bound) (index : Nat) : Except Error Chunk := do
   let some group := bound.snapshot.groupAt index | Except.error (.groupIndex index)
   let columnIndex := bound.ordinal - 1
@@ -163,7 +168,7 @@ Only uncompressed PLAIN, with optional RLE levels, is admitted. -/
   if metadata.physicalType ≠ .int64 then Except.error .chunkType
   if group.numRows.toNat > limits.maxRows then Except.error .rowLimit
   if metadata.numValues ≠ group.numRows then Except.error (.chunkCount group.numRows metadata.numValues)
-  if metadata.codec ≠ 0 then Except.error (.chunkCodec metadata.codec)
+  if !limits.admitsCodec metadata.codec then Except.error (.chunkCodec metadata.codec)
   if !metadata.encodings.all (fun id => id == 0 || id == 3) ||
       (group.numRows != 0 && !metadata.encodings.contains 0) ||
       metadata.dictionaryPageOffset.isSome || metadata.indexPageOffset.isSome then
