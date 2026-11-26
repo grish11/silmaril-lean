@@ -47,10 +47,10 @@ theorem scanFileRowGroup_single {ε : Type} {limits : Limits} {decoder : DecodeP
       batch.columns.map (fun (field, column) => (field, column.cells.toList)) = expected :=
   Proofs.Formats.Parquet.FlatScan.scanFileRowGroup_single read schemaOk rowBound cellBound arity ready
 
-theorem Batch_rows_eq (batch : Batch) :
+theorem rows_eq_fold (batch : Batch) :
     batch.rows = ((batch.columns.map fun (_, column) => column.cells.toList).foldl
       (List.zipWith fun row cell => cell :: row) (List.replicate batch.rowCount [])).map List.reverse :=
-  Proofs.Formats.Parquet.FlatScan.Batch_rows_eq batch
+  Proofs.Formats.Parquet.FlatScan.rows_eq_fold batch
 
 /-- The checked schema recovers the ordered required and optional fields of a
 flat INT32 footer whose leaf names are unique. -/

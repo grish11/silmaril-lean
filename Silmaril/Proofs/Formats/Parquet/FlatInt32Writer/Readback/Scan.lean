@@ -125,7 +125,7 @@ theorem emit_scanFileRowGroup {limits : Limits} {input : Input} {output : Encode
   have cellLists : (batch.columns.map fun (_, cells) => cells.cells.toList) =
       input.columns.map (·.values.slots) := by
     rw [← values]
-  rw [FlatScan.Batch_rows_eq, cellLists, rows]
+  rw [FlatScan.rows_eq_fold, cellLists, rows]
   rfl
 
 end Silmaril.Proofs.Formats.Parquet.FlatInt32Writer.Readback

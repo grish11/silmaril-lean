@@ -80,7 +80,7 @@ theorem scanFileRowGroup_single {ε : Type} {limits : Limits} {decoder : DecodeP
   simp [scanFileRowGroup, read, scanRowGroup, schemaOk, Nat.not_lt.mpr rowBound, nonnegative, Nat.not_lt.mpr capacity,
     arity, runs, Except.mapError, Bind.bind, Except.bind, Pure.pure, Except.pure]
 
-theorem Batch_rows_eq (batch : Batch) :
+theorem rows_eq_fold (batch : Batch) :
     batch.rows = ((batch.columns.map fun (_, column) => column.cells.toList).foldl
       (List.zipWith fun row cell => cell :: row) (List.replicate batch.rowCount [])).map List.reverse := by
   simp [Batch.rows, List.foldl_map]

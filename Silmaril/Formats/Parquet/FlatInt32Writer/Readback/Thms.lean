@@ -32,4 +32,3 @@ theorem emit_scanFileRowGroup {limits : Limits} {input : Input} {output : Encode
   Proofs.Formats.Parquet.FlatInt32Writer.Readback.emit_scanFileRowGroup written
 
 end Silmaril.Formats.Parquet.FlatInt32Writer
-
