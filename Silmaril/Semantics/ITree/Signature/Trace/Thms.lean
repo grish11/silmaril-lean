@@ -3,6 +3,7 @@ module
 public import Silmaril.Semantics.ITree.Signature.Trace.Defs
 import Silmaril.Proofs.Semantics.ITree.Signature.Trace.Transport
 import Silmaril.Proofs.Semantics.ITree.Signature.Trace.Order
+import Silmaril.Proofs.Semantics.ITree.Signature.Trace.Lift
 
 public section
 
@@ -32,6 +33,10 @@ theorem trace_ofEquiv (e : SignatureEquiv S.toSignature.Event T.toSignature.Even
 theorem Hom.trace_injective (f : S ⟶ T) : Function.Injective (f.trace (A := A)) :=
   Proofs.trace_injective f
 
+theorem Hom.traceLift_iff (f : S ⟶ T) (p : Trace S.toSignature.Event A) (q : Trace T.toSignature.Event A) :
+    f.hom.TraceLift p q ↔ f.trace p = q :=
+  Proofs.traceLift_iff f p q
+
 /-- The target's finite observations from `x` are exactly the images of the
 source observations from `x` under the reduct handler. This includes pending
 requests and prefixes, and holds for every target observation. -/
@@ -58,9 +63,26 @@ namespace Silmaril.Elgot.ITree.Signature
 
 open CategoryTheory
 
-universe u v
+universe u v w
 
-variable {S T : Signature.{u}} {A : Type v}
+variable {S T : Signature.{u}} {A : Type v} {X : Type w}
+
+/-- Injective request keys determine the source trace of each lift. -/
+theorem Hom.traceLift_unique (f : S ⟶ T) (keys : Function.Injective f.request)
+    {p q : Trace S.Event A} {r : Trace T.Event A} (left : f.TraceLift p r) (right : f.TraceLift q r) : p = q :=
+  Proofs.traceLift_unique f keys left right rfl
+
+theorem Hom.handledTrace_lift (f : S ⟶ T) (step : Handler X T.Event)
+    (x : X) (t : Tree S.Event A) (p : Trace S.Event A)
+    (handled : HandledTrace (f.restrict step) x t p) :
+    ∃ q, f.TraceLift p q ∧ HandledTrace step x (f.tree id t) q :=
+  Proofs.handledTrace_lift f step x t p handled
+
+theorem Hom.handledTrace_project (f : S ⟶ T) (step : Handler X T.Event)
+    (x : X) (t : Tree S.Event A) (p : Trace T.Event A)
+    (handled : HandledTrace step x (f.tree id t) p) :
+    ∃ q, f.TraceLift q p ∧ HandledTrace (f.restrict step) x t q :=
+  Proofs.handledTrace_project f step x t p handled
 
 /-- Reindexing preserves directed trace inclusion for any signature morphism. -/
 theorem Hom.traceLE_map (f : S ⟶ T) {l r : Tree S.Event A} (included : TraceLE l r) :

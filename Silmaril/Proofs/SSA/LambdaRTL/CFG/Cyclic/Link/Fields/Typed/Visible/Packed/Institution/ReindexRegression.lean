@@ -178,4 +178,98 @@ example (policy : Silmaril.Logic.ITree.Model.{0, 0} firstReplyOnly) :
   erw [restrictReply.tree_vis, restrictReply.tree_vis]
   rfl
 
+section ReplyAliases
+
+-- The key remains visible and each source reply has two target names.
+private abbrev AliasedReply (k : signature.Request) := Bool × signature.Reply k
+private def aliased : Silmaril.Elgot.ITree.Signature := ⟨Event signature.Request AliasedReply⟩
+
+private def aliases : signature.traceSignature.toSignature ⟶ aliased where
+  request
+    | ⟨_, .ask k⟩ => ⟨AliasedReply k, .ask k⟩
+  reply
+    | ⟨_, .ask _⟩ => Prod.snd
+
+private theorem aliases_keys : Function.Injective aliases.request := by
+  rintro ⟨_, left⟩ ⟨_, right⟩ same
+  cases left with | ask left =>
+  cases right with | ask right =>
+  let keyOf : Request aliased.Event → signature.Request := fun
+    | ⟨_, .ask k⟩ => k
+  have keys : left = right := congrArg keyOf same
+  cases keys
+  rfl
+
+example (q : Request signature.traceSignature.toSignature.Event) :
+    Function.Surjective (aliases.reply q) := by
+  rcases q with ⟨_, event⟩
+  cases event
+  exact fun reply => ⟨(false, reply), rfl⟩
+
+example : ¬ Function.Injective (aliases.reply ⟨_, .ask (key false)⟩) := by
+  intro injective
+  have same : ((false, .inl ⟨⟩) : AliasedReply (key false)) = (true, .inl ⟨⟩) := injective rfl
+  cases congrArg Prod.fst same
+
+-- From the initial state the handler admits the true alias and moves to the
+-- closed state. It denies the false alias of the same source reply.
+private def aliasPolicy : Silmaril.Logic.ITree.Model.{0, 0} aliased where
+  State := Bool
+  initial state := state = false
+  step
+    | ⟨_, .ask _⟩, state, reply, next => state = false ∧ reply.1 = true ∧ next = true
+
+private noncomputable def aliasSource : TraceInstitution.Sentence.{0, 1} signature.traceSignature :=
+  (packed false 1).refinementSentence (packed false 1) .leftToRight env env env env
+
+private theorem aliasSource_sat : TraceInstitution.Sat (aliasPolicy.reduct aliases) aliasSource :=
+  valid_of_equal (l := (packed false 1).observe env env) rfl (aliasPolicy.reduct aliases)
+
+example : (aliasSource.translateLift aliases).program = (packed false 1).observeMapped aliases env env :=
+  ((packed false 1).observe_mapped aliases env env).symm
+
+example : TraceInstitution.Sat aliasPolicy (aliasSource.translateLift aliases) :=
+  (TraceInstitution.satisfaction_lift aliases aliases_keys aliasPolicy aliasSource).mpr aliasSource_sat
+
+-- Extending the old single-trace image by choosing a section of the reply
+-- projection would only translate exchanges to the false alias.
+private def chooseFalse {A : Type 1} :
+    Trace signature.traceSignature.toSignature.Event A → Trace aliased.Event A
+  | .prefix => .prefix
+  | .result a => .result a
+  | .request (.ask k) => .request (.ask k)
+  | .exchange (.ask k) reply tail => .exchange (.ask k) (false, reply) (chooseFalse tail)
+
+private noncomputable def chosenSentence : TraceInstitution.Sentence.{0, 1} ⟨aliased⟩ :=
+  ⟨aliasSource.Result, (packed false 1).observeMapped aliases env env,
+    fun q => ∃ p, aliasSource.accepts p ∧ chooseFalse p = q⟩
+
+private def trueTrace : Trace aliased.Event (Nat × Value Atom) :=
+  .exchange (.ask (key false)) (true, .inl ⟨⟩) (.result (FiniteCFG.packedTreeOutput (0, .unit)))
+
+private theorem trueTrace_handled :
+    HandledTrace aliasPolicy.step false ((packed false 1).observeMapped aliases env env) trueTrace := by
+  refine ⟨?_, ⟨true, ⟨rfl, rfl, rfl⟩, trivial⟩⟩
+  rw [Program.PackedEntry.observe_mapped, packed_shape]
+  erw [aliases.tree_vis]
+  unfold trueTrace
+  erw [hasTrace_vis_exchange_iff]
+  erw [aliases.tree_ret]
+  exact out_ret _
+
+private def firstAlias {A : Type 1} : Trace aliased.Event A → Option Bool
+  | .exchange (.ask _) reply _ => some reply.1
+  | _ => none
+
+example : ¬ TraceInstitution.Sat aliasPolicy chosenSentence := by
+  intro sat
+  obtain ⟨p, _, equal⟩ := sat false rfl trueTrace trueTrace_handled
+  have aliasesEqual := congrArg firstAlias equal
+  cases p with
+  | «prefix» | result => cases aliasesEqual
+  | request event => cases event; cases aliasesEqual
+  | exchange event => cases event; cases aliasesEqual
+
+end ReplyAliases
+
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible

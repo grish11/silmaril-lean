@@ -35,16 +35,26 @@ theorem translate_comp (f : S ⟶ T) (g : T ⟶ U) (φ : Sentence.{u,v} S) :
   have hp := funext fun p => propext (accepts_translate_comp f g φ p)
   exact congrArg₂ (Sentence.mk φ.Result) ht hp
 
+theorem translateLift_eq (f : S ⟶ T) (φ : Sentence.{u,v} S) : φ.translateLift f.hom = φ.translate f := by
+  unfold Sentence.translateLift Sentence.translate
+  simp only [f.traceLift_iff]
+
+theorem satisfaction_lift_at (f : S.toSignature ⟶ T.toSignature) (keys : Function.Injective f.request)
+    (M : Model.{u,w} T.toSignature) (φ : Sentence.{u,v} S) (x : M.State) :
+    SatAt M (φ.translateLift f) x ↔ SatAt (M.reduct f) φ x := by
+  constructor
+  · intro satisfied p handled
+    obtain ⟨q, lift, seen⟩ := f.handledTrace_lift M.step x φ.program p handled
+    obtain ⟨p', accepted, other⟩ := satisfied q seen
+    exact f.traceLift_unique keys other lift ▸ accepted
+  · intro satisfied q handled
+    obtain ⟨p, lift, seen⟩ := f.handledTrace_project M.step x φ.program q handled
+    exact ⟨p, satisfied p seen, lift⟩
+
 theorem satisfaction_at (f : S ⟶ T) (M : Model.{u,w} T.toSignature) (φ : Sentence.{u,v} S)
     (x : M.State) : SatAt M (φ.translate f) x ↔ SatAt (M.reduct f.hom) φ x := by
-  constructor
-  · intro h p hp
-    have ht := (f.handledTrace_image M.step x φ.program (f.trace p)).mpr ⟨p, hp, rfl⟩
-    obtain ⟨q, hq, eq⟩ := h (f.trace p) ht
-    exact f.trace_injective eq ▸ hq
-  · intro h p hp
-    obtain ⟨q, hq, eq⟩ := (f.handledTrace_image M.step x φ.program p).mp hp
-    exact ⟨q, h q hq, eq⟩
+  rw [← translateLift_eq f φ]
+  exact satisfaction_lift_at f.hom f.request_injective M φ x
 
 private theorem replay_renameState (M : Model.{u,w} S.toSignature) {Y : Type w} (e : M.State ≃ Y)
     (x : Y) {A : Type v} (p : Trace S.toSignature.Event A) :

@@ -27,6 +27,11 @@ outside the trace map's image are rejected. -/
 noncomputable def Sentence.translate (f : S ⟶ T) (φ : Sentence.{u,v} S) : Sentence.{u,v} T :=
   ⟨φ.Result, f.hom.tree id φ.program, fun p' => ∃ p, φ.accepts p ∧ f.trace p = p'⟩
 
+/-- Translate the predicate along every reply lift. A target trace is
+accepted when it projects to an accepted source trace. -/
+def Sentence.translateLift (f : S.toSignature ⟶ T.toSignature) (φ : Sentence.{u,v} S) : Sentence.{u,v} T :=
+  ⟨φ.Result, f.tree id φ.program, fun q => ∃ p, φ.accepts p ∧ f.TraceLift p q⟩
+
 /-- Every finite observation admitted by the handler from this state is accepted. -/
 def SatAt (M : Model.{u,w} S.toSignature) (φ : Sentence.{u,v} S) (x : M.State) : Prop :=
   ∀ p, HandledTrace M.step x φ.program p → φ.accepts p

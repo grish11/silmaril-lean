@@ -13,6 +13,24 @@ open CategoryTheory
 
 universe u v
 
+namespace Signature
+
+variable {S T : Signature.{u}} {A : Type v}
+
+/-- A target trace lifts a source trace when each target reply projects to
+the recorded source reply. Several target traces can lift the same trace. -/
+inductive Hom.TraceLift (f : S ⟶ T) : Trace S.Event A → Trace T.Event A → Prop
+  | prefix : TraceLift f .prefix .prefix
+  | result (a : A) : TraceLift f (.result a) (.result a)
+  | request {R : Type u} (e : S.Event R) :
+      TraceLift f (.request e) (.request (f.request ⟨R, e⟩).2)
+  | exchange {R : Type u} (e : S.Event R) (reply : (f.request ⟨R, e⟩).1)
+      {source : Trace S.Event A} {target : Trace T.Event A} (tail : TraceLift f source target) :
+      TraceLift f (.exchange e (f.reply ⟨R, e⟩ reply) source)
+        (.exchange (f.request ⟨R, e⟩).2 reply target)
+
+end Signature
+
 /-- The same objects as `Signature`, with arrows that embed packed requests and
 preserve all reply information at each request. -/
 structure TraceSignature where

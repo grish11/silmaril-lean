@@ -34,6 +34,23 @@ theorem satisfaction (f : S ⟶ T) (M : Model.{u,w} T.toSignature) (φ : Sentenc
     Sat M (φ.translate f) ↔ Sat (M.reduct f.hom) φ :=
   forall_congr' fun x => imp_congr_right fun _ => satisfaction_at f M φ x
 
+theorem Sentence.translateLift_eq (f : S ⟶ T) (φ : Sentence.{u,v} S) : φ.translateLift f.hom = φ.translate f :=
+  Proofs.translateLift_eq f φ
+
+/-- Lifted translation uses the same initial state and admits each alias
+along its own handler transitions. Injective complete keys suffice. -/
+theorem satisfaction_lift_at (f : S.toSignature ⟶ T.toSignature) (keys : Function.Injective f.request)
+    (M : Model.{u,w} T.toSignature) (φ : Sentence.{u,v} S) (x : M.State) :
+    SatAt M (φ.translateLift f) x ↔ SatAt (M.reduct f) φ x :=
+  Proofs.satisfaction_lift_at f keys M φ x
+
+/-- The existing reduct satisfies the per-model condition with the
+all-lifts predicate translation, even for non-injective reply maps. -/
+theorem satisfaction_lift (f : S.toSignature ⟶ T.toSignature) (keys : Function.Injective f.request)
+    (M : Model.{u,w} T.toSignature) (φ : Sentence.{u,v} S) :
+    Sat M (φ.translateLift f) ↔ Sat (M.reduct f) φ :=
+  forall_congr' fun x => imp_congr_right fun _ => satisfaction_lift_at f keys M φ x
+
 theorem sat_renameState (M : Model.{u,w} S.toSignature) {Y : Type w} (e : M.State ≃ Y)
     (φ : Sentence.{u,v} S) : Sat (M.renameState e) φ ↔ Sat M φ :=
   Proofs.sat_renameState M e φ
