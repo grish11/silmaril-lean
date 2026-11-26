@@ -19,6 +19,17 @@ variable {Name Id Kind Error Group : Type*} {Value : Kind → Type*}
     (expected actual : Scan.Schema Id Kind) : schemaMatches expected actual = true ↔ expected = actual :=
   Proofs.Formats.Relational.NamedTable.schemaMatches_eq_true_iff expected actual
 
+/-- A collected EOS observation inserts exactly at the vacant name and
+only under the exact expected ordered schema. -/
+theorem importCollected_ok_iff [DecidableEq Name] [DecidableEq Id] [DecidableEq Kind]
+    (db next : Packed Name Id Value) (name : Name) (expected : Scan.Schema Id Kind)
+    (collected : Except Error (Events.Observation Id Value Error)) :
+    importCollected db name expected collected = .ok next ↔
+      db name = none ∧ ∃ rows : Scan.Table expected Value,
+        collected = .ok ⟨⟨expected, rows⟩, .eos⟩ ∧
+        next = Function.update db name (some ⟨expected, rows⟩) :=
+  Proofs.Formats.Relational.NamedTable.importCollected_ok_iff db next name expected collected
+
 /-- Successful import requires a vacant name and exact schema at EOS, and
 returns the database with only that name updated. -/
 theorem importArrow_ok_iff [DecidableEq Name] [DecidableEq Id] [DecidableEq Kind]
@@ -28,7 +39,7 @@ theorem importArrow_ok_iff [DecidableEq Name] [DecidableEq Id] [DecidableEq Kind
       db name = none ∧ ∃ rows : Scan.Table expected Value,
         stream.collect = .ok ⟨⟨expected, rows⟩, .eos⟩ ∧
         next = Function.update db name (some ⟨expected, rows⟩) :=
-  Proofs.Formats.Relational.NamedTable.importCollected_ok_iff db next name expected stream.collect
+  importCollected_ok_iff db next name expected stream.collect
 
 theorem importArrow_observe [DecidableEq Name] [DecidableEq Id] [DecidableEq Kind]
     {db next : Packed Name Id Value} {name : Name} {expected : Scan.Schema Id Kind}
