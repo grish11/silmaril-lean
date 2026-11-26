@@ -142,7 +142,7 @@ The stream parser reads each view RecordBatch metadata once to obtain its
 body length, then reuses the standalone binder over the checked body
 slice. The IPC batch limit applies to the entire stream, and the view row
 and value budgets apply to each batch. This profile reads flat one-field
-streams. File framing and emission are separate.
+streams. File framing is separate.
 [Reader](../../Silmaril/Formats/Arrow/BinaryView/Stream/Defs.lean)
 
 `Stream.read_iff` and `Stream.readBatches_iff` characterize the schema and
@@ -209,8 +209,7 @@ buffer index, and the exact prefix read at that offset.
 `emitBinary_roundtrip` recovers the same ordered nullable octets even
 when the input and returned byte trees have different shapes.
 `utf8Bytes_valid` and `emitUtf8_roundtrip` give valid UTF-8 and exact
-string readback. The column contract can feed a later RecordBatch
-metadata and stream emitter.
+string readback. The IPC stream writer below uses this physical column contract.
 [Writer theorems](../../Silmaril/Formats/Arrow/BinaryView/Column/Writer/Thms.lean) ·
 [Axiom audit](../../Silmaril/Formats/Arrow/BinaryView/Column/Writer/Axioms.lean)
 
@@ -232,4 +231,54 @@ columns, while the pinned PyArrow builder can supply an empty buffer.
 ```sh
 make check CHECK_TARGETS='+Silmaril.Formats.Arrow.BinaryView.Column.Writer.Examples +Silmaril.Formats.Arrow.BinaryView.Column.Writer.Axioms'
 python3 -I scripts/arrow-binary-view/writer_fixtures.py --out /tmp/arrow-view-column-writer
+```
+
+## Checked one-field IPC stream writer
+
+`BinaryView.StreamWriter.emit` takes the IPC and column limits, one
+`Schema.Field`, and a list of batches typed by the field kind. BinaryView
+takes `List (List (Option KBytes))`, and Utf8View takes
+`List (List (Option String))`. The schema preserves the name, nullability
+and kind, including in a schema-only stream. Required fields accept
+present slots. Nullable fields distinguish a null from an empty value.
+
+The writer uses the physical column writer, the shared eight-byte body
+packer and the shared continuation and EOS encoders. The little-endian
+V5 RecordBatch metadata describes one node and an ordered descriptor for
+each physical buffer. It records a singleton signed 64-bit variadic
+count of zero or one, even when the row count is zero. Each input batch
+writes one RecordBatch. An empty batch list writes just Schema and EOS.
+[Writer](../../Silmaril/Formats/Arrow/BinaryView/StreamWriter/Defs.lean) ·
+[Pinned Message IDL](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/Message.fbs)
+
+IPC field and batch limits apply to the stream. The IPC row and padded
+body limits and the physical writer's column limits apply per batch.
+The metadata limit applies to each frame. The emitter builds a complete
+carrier, then runs the checked stream reader and compares its observation
+before returning the bytes. This entails a full decoding pass and
+payload comparison. The API has per-batch byte budgets and a stream
+batch-count budget.
+
+`Wire.schema_extent` and `Wire.recordBatch_extent` give the exact
+serialized metadata lengths. `emit_readback` recovers the exact field
+and ordered batches through the existing reader. The specialized
+`emit_binary_readback` compares nullable octets in each batch,
+independent of byte-tree segmentation. `emit_utf8_readback` returns the
+exact nullable strings. These laws characterize successful emission.
+[Laws](../../Silmaril/Formats/Arrow/BinaryView/StreamWriter/Thms.lean)
+
+Pinned PyArrow 26.0.1 opens five Lean-emitted streams and checks their
+descriptors, aligned framing, exact EOS, nullable values and variadic
+buffer counts. They include required and nullable BinaryView, nullable
+Utf8View, 12- and 13-byte values, a middle empty batch, one empty batch
+on its own and a schema-only stream. Lean guards also exercise indexed
+null and limit failures. The existing PyArrow-produced reader fixtures
+remain the independent inbound control.
+[PyArrow oracle](../../scripts/arrow-binary-view/stream_writer_fixtures.py) ·
+[Lean guards](../../Silmaril/Formats/Arrow/BinaryView/StreamWriter/Examples.lean) ·
+[Pinned wheel hashes](../../tests/formats/arrow-ipc/requirements.txt)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.BinaryView.StreamWriter.Examples +Silmaril.Formats.Arrow.BinaryView.StreamWriter.Axioms'
+python3 -I scripts/arrow-binary-view/stream_writer_fixtures.py --out /tmp/arrow-view-stream-writer
 ```
