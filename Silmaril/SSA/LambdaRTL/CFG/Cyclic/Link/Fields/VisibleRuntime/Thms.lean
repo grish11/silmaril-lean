@@ -31,7 +31,7 @@ theorem lookup_external {I : Type} {K D : Type 1} [DecidableEq K]
     (keys.map fun i => (key i, body i)).lookup port = none :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime.lookup_external key body keys port outside
 
-theorem ret_eq_pure {Q Reply : Type} {X : Type 1} (x : X) : (ret x : Tree (Event Q Reply) X) = pure x := rfl
+theorem ret_eq_pure {Q : Type} {Reply : Q → Type} {X : Type 1} (x : X) : (ret x : Tree (Event Q Reply) X) = pure x := rfl
 
 universe u v
 

@@ -11,6 +11,7 @@ open Silmaril.SSA.LambdaRTL Silmaril.SSA.LambdaRTL.CFG
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.PacketType (encode decode)
 open Silmaril.Elgot.ITree (Tree vis vis_bind)
+open Silmaril.Elgot.ITree.Finite (Event)
 open Silmaril.Isotope (Value)
 open Silmaril.Isotope.Bridge.NamedFlat (treeModel)
 
@@ -114,7 +115,7 @@ theorem code_sound (code : Code signature types Γ) (env : Env Γ) (store : Regi
     code.compile.evalJump (model signature) store =
       match code.action env with
       | .inr next => pure (encodeTransfer next)
-      | .inl (key, next) => vis (.ask key) fun reply => pure (encodeTransfer (next reply)) := by
+      | .inl ⟨key, next⟩ => vis (.ask key) fun reply => pure (encodeTransfer (next reply)) := by
   induction code generalizing store with
   | term branch => exact branch_sound signature branch env store agrees
   | unpack value tail ih =>
@@ -127,7 +128,7 @@ theorem code_sound (code : Code signature types Γ) (env : Env Γ) (store : Regi
     simp only [Code.compile, Code.action, Body.evalJump, Body.exec, Term.exec, Op.eval,
       expr_sound signature arg env store agrees]
     have event : (model signature).app op (encode (signature.argument op) (arg.eval env)) =
-        vis (.ask ⟨op, arg.eval env⟩) (fun reply => pure (encode signature.reply reply)) := by
+        vis (Event.ask (Reply := signature.Reply) ⟨op, arg.eval env⟩) (fun reply => pure (encode (signature.reply op) reply)) := by
       change signature.primitive op _ = _
       simp [PrimitiveSignature.primitive, decode_encode]
     rw [event, vis_bind]

@@ -9,7 +9,7 @@ namespace Silmaril.Proofs.Semantics.Elgot.ITree.Finite
 open Silmaril.Elgot.ITree.Finite
 
 universe u
-variable {Q Reply : Type} {R S : Type u} [DecidableEq S]
+variable {Q : Type} {Reply : Q → Type} {R S : Type u} [DecidableEq S]
 
 theorem prune_spec (keep : Finset S → S → Bool)
     (candidates : Finset S) :

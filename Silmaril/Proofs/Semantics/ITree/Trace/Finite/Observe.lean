@@ -11,7 +11,7 @@ namespace Silmaril.Proofs.Semantics.Elgot.ITree.Finite
 open Silmaril.Elgot Silmaril.Elgot.ITree Silmaril.Elgot.ITree.Finite
 
 universe u
-variable {Q Reply : Type} {R S : Type u} (step : S → Step Q R S Reply)
+variable {Q : Type} {Reply : Q → Type} {R S : Type u} (step : S → Step Q R S Reply)
 
 private theorem normalize_transition (s : S) :
     normalizeStep (transition step) (transition step s) =

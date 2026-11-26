@@ -79,24 +79,24 @@ def decode : (ty : PacketType) → Value Atom → Option (Denote ty)
 end PacketType
 
 open PacketType (encode decode)
-/-- The opcode determines the exact argument type. This fragment uses one
-common finite reply type for all opcodes. -/
+
+/-- Each opcode determines its exact finite argument and reply types. -/
 structure PrimitiveSignature (F : Type) where
   argument : F → PacketType
-  reply : PacketType
+  reply : F → PacketType
 
 namespace PrimitiveSignature
 
 variable {F : Type} (signature : PrimitiveSignature F)
 
 abbrev Request := (op : F) × Denote (signature.argument op)
-abbrev Reply := Denote signature.reply
+abbrev Reply (key : signature.Request) := Denote (signature.reply key.1)
 
-@[instance_reducible] def typing : HasTy F PacketType := ⟨signature.argument, fun _ => signature.reply⟩
+@[instance_reducible] def typing : HasTy F PacketType := ⟨signature.argument, signature.reply⟩
 
 def primitive : Primitive (Event signature.Request signature.Reply) F Atom := fun op raw =>
   match decode (signature.argument op) raw with
-  | some arg => vis (.ask ⟨op, arg⟩) fun reply => pure (encode signature.reply reply)
+  | some arg => vis (.ask ⟨op, arg⟩) fun reply => pure (encode (signature.reply op) reply)
   | none => diverge
 
 end PrimitiveSignature
@@ -166,12 +166,12 @@ inductive Code {F L : Type} (signature : PrimitiveSignature F) (types : L → Pa
   | term {Γ : List PacketType} : Branch types Γ → Code signature types Γ
   | unpack {Γ : List PacketType} {x y : PacketType} : Expr Γ (.product x y) → Code signature types (y :: x :: Γ) → Code signature types Γ
   | apply {Γ : List PacketType} (op : F) (arg : Expr Γ (signature.argument op)) (target : L)
-      (next : Expr (signature.reply :: Γ) (types target)) : Code signature types Γ
+      (next : Expr (signature.reply op :: Γ) (types target)) : Code signature types Γ
 
 variable {F L : Type} {signature : PrimitiveSignature F} {types : L → PacketType}
 
 abbrev Action (signature : PrimitiveSignature F) (types : L → PacketType) :=
-  (signature.Request × (signature.Reply → PacketAt types)) ⊕ PacketAt types
+  ((key : signature.Request) × (signature.Reply key → PacketAt types)) ⊕ PacketAt types
 
 def Code.action : {Γ : List PacketType} → Env Γ → Code signature types Γ → Action signature types
   | _, env, .term branch => .inr (branch.transfer env)

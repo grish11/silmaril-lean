@@ -12,28 +12,70 @@ namespace Silmaril.Proofs.Semantics.Elgot.ITree.Finite
 open Silmaril.Elgot.ITree Silmaril.Elgot.ITree.Finite
 
 universe u
-variable {Q Reply : Type} {R S T : Type u}
+variable {Q : Type} {Reply : Q → Type} {R S T : Type u}
 
 private theorem result_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
     {head : Head Q R S Reply} (observed : out tree = head.render run) (value : R) :
     HasTrace tree (.result value) ↔ head = .result value := by
   cases head <;> simp [HasTrace, observed, Head.render]
 
+private def visibleKey : Visible (Event Q Reply) R (Tree (Event Q Reply) R) → Option Q
+  | .ret _ => none
+  | .vis (.ask key) _ => some key
+
 private theorem request_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
     {head : Head Q R S Reply} (observed : out tree = head.render run) (key : Q) :
     HasTrace tree (.request (.ask key)) ↔ ∃ next, head = .request key next := by
-  cases head <;> simp [HasTrace, observed, Head.render, Visible.vis.injEq, Event.ask.injEq]
+  cases head with
+  | stop | result _ => simp [HasTrace, observed, Head.render]
+  | request actual next =>
+    constructor
+    · rintro ⟨_, root⟩
+      rw [observed, Head.render] at root
+      have same : actual = key :=
+        Option.some.inj (congrArg (visibleKey (R := R) (Reply := Reply)) (Part.some_injective root))
+      subst actual
+      exact ⟨next, rfl⟩
+    · rintro ⟨next', found⟩
+      exact ⟨run ∘ next', by rw [observed, found, Head.render]⟩
 
 private theorem exchange_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
     {head : Head Q R S Reply} (observed : out tree = head.render run)
-    (key : Q) (reply : Reply) (tail : Trace (Event Q Reply) R) :
+    (key : Q) (reply : Reply key) (tail : Trace (Event Q Reply) R) :
     HasTrace tree (.exchange (.ask key) reply tail) ↔
       ∃ next, head = .request key next ∧ HasTrace (run (next reply)) tail := by
-  cases head <;> simp [HasTrace, observed, Head.render, Visible.vis.injEq, Event.ask.injEq, Function.comp_def]
+  have follow (next : Reply key → S) (found : head = .request key next) :
+      HasTrace tree (.exchange (.ask key) reply tail) ↔ HasTrace (run (next reply)) tail := by
+    have root : tree = vis (.ask key) (run ∘ next) := by
+      apply out_injective
+      rw [observed, found, Head.render, out_vis]
+    rw [root, hasTrace_vis_exchange_iff]
+    rfl
+  constructor
+  · intro seen
+    have pending : HasTrace tree (.request (.ask key)) := by
+      obtain ⟨k, root, _⟩ := seen
+      exact ⟨k, root⟩
+    obtain ⟨next, found⟩ := (request_trace observed key).mp pending
+    exact ⟨next, found, (follow next found).mp seen⟩
+  · rintro ⟨next, found, suffix⟩
+    exact (follow next found).mpr suffix
 
-variable [DecidableEq S] [DecidableEq T] [DecidableEq Q] [DecidableEq R] [Fintype Reply]
+variable [DecidableEq S] [DecidableEq T] [DecidableEq Q] [DecidableEq R]
+  [∀ key, Fintype (Reply key)]
   {runL : S → Tree (Event Q Reply) R} {runR : T → Tree (Event Q Reply) R}
   {headL : S → Head Q R S Reply} {headR : T → Head Q R T Reply}
+
+private theorem request_compatible (pairs : Finset (S × T)) (key : Q) (nextL : Reply key → S)
+    (right : Head Q R T Reply) (allowed : compatible pairs (.request key nextL) right = true) :
+    ∃ nextR, right = .request key nextR ∧ ∀ reply, (nextL reply, nextR reply) ∈ pairs := by
+  cases right with
+  | stop | result _ => simp [compatible] at allowed
+  | request actual nextR =>
+    by_cases same : key = actual
+    · subst actual
+      exact ⟨nextR, rfl, by simpa [compatible] using allowed⟩
+    · simp [compatible, same] at allowed
 
 private theorem refine_of_simulation (pairs : Finset (S × T))
     (observedL : ∀ s, out (runL s) = (headL s).render runL)
@@ -58,8 +100,8 @@ private theorem refine_of_simulation (pairs : Finset (S × T))
       obtain ⟨nextL, hl⟩ := (request_trace (observedL s) key).mp seen
       have allowed := closed s t related
       rw [hl] at allowed
-      apply (request_trace (observedR t) key).mpr
-      cases hr : headR t <;> simp_all [compatible]
+      obtain ⟨nextR, hr, _⟩ := request_compatible pairs key nextL (headR t) allowed
+      exact (request_trace (observedR t) key).mpr ⟨nextR, hr⟩
   | exchange event reply tail ih =>
     cases event with
     | ask key =>
@@ -67,13 +109,8 @@ private theorem refine_of_simulation (pairs : Finset (S × T))
       obtain ⟨nextL, hl, suffix⟩ := (exchange_trace (observedL s) key reply tail).mp seen
       have allowed := closed s t related
       rw [hl] at allowed
-      apply (exchange_trace (observedR t) key reply tail).mpr
-      cases hr : headR t with
-      | stop | result _ => simp [compatible, hr] at allowed
-      | request k nextR =>
-        have checks : key = k ∧ ∀ reply, (nextL reply, nextR reply) ∈ pairs := by
-          simpa [compatible, hr] using allowed
-        exact ⟨nextR, checks.1 ▸ rfl, ih (checks.2 reply) suffix⟩
+      obtain ⟨nextR, hr, checks⟩ := request_compatible pairs key nextL (headR t) allowed
+      exact (exchange_trace (observedR t) key reply tail).mpr ⟨nextR, hr, ih (checks reply) suffix⟩
 
 private theorem simulation_of_refine (pairs : Finset (S × T))
     (observedL : ∀ s, out (runL s) = (headL s).render runL)
@@ -90,13 +127,13 @@ private theorem simulation_of_refine (pairs : Finset (S × T))
   | request key nextL =>
     have seen := related _ ((request_trace (observedL s) key).mpr ⟨nextL, hl⟩)
     obtain ⟨nextR, hr⟩ := (request_trace (observedR t) key).mp seen
-    have replies (reply : Reply) : (nextL reply, nextR reply) ∈ pairs := by
+    have replies (reply : Reply key) : (nextL reply, nextR reply) ∈ pairs := by
       apply included
       intro tail present
       have seen := related _ ((exchange_trace (observedL s) key reply tail).mpr ⟨nextL, hl, present⟩)
       obtain ⟨next, same, has⟩ := (exchange_trace (observedR t) key reply tail).mp seen
       rw [hr, Head.request.injEq] at same
-      exact same.2 ▸ has
+      exact (eq_of_heq same.2) ▸ has
     simp [compatible, hr, replies]
 
 theorem compare_exact (statesL : Finset S) (statesR : Finset T)

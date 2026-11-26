@@ -10,7 +10,7 @@ import Silmaril.Proofs.Semantics.ITree.Trace.Finite.Observe
 namespace Silmaril.Elgot.ITree.Finite
 
 universe u
-variable {Q Reply : Type} {R S T : Type u} [DecidableEq S]
+variable {Q : Type} {Reply : Q → Type} {R S T : Type u} [DecidableEq S]
 
 /-- A full-state revisit during silent normalization has no visible root. -/
 theorem out_evaluate (step : S → Step Q R S Reply) (states : Finset S)
@@ -20,7 +20,7 @@ theorem out_evaluate (step : S → Step Q R S Reply) (states : Finset S)
 
 /-- Product-state simulation decides the finite weak trace order, including
 pending requests, all typed replies, and terminating results. -/
-theorem compare_iff [DecidableEq T] [DecidableEq Q] [DecidableEq R] [Fintype Reply]
+theorem compare_iff [DecidableEq T] [DecidableEq Q] [DecidableEq R] [∀ key, Fintype (Reply key)]
     (statesL : Finset S) (statesR : Finset T) (completeL : ∀ s, s ∈ statesL)
     (completeR : ∀ t, t ∈ statesR) (left : S → Step Q R S Reply) (right : T → Step Q R T Reply)
     (s : S) (t : T) :
