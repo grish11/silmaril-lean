@@ -43,6 +43,8 @@ inductive Error where
   | nullMarkerCollision (key : String)
   | directoryByteLimit (maximum actual : Nat)
   | segmentArity (expected actual : Nat)
+  | filenameByteLimit (maximum actual : Nat)
+  | missingFilenameSuffix
   deriving BEq, Repr
 
 /-- The outer option distinguishes a missing key from a present null value. -/

@@ -13,11 +13,11 @@ open Silmaril.Formats.Hive.TypedPartitions (PartitionSchema Convert)
 variable {Kind : Type*} {Value : Kind → Type*}
 variable {physical : Scan.Schema String Kind} {schema : PartitionSchema Kind}
 
-theorem prepareFileWith_declared {Failure : Type*} (parse : DirectoryParser) (options : Silmaril.Formats.Hive.PartitionPath.Options)
+theorem prepareFileWithFileParser_declared {Failure : Type*} (parse : FileParser) (options : Silmaril.Formats.Hive.PartitionPath.Options)
     (convert : Convert Value Failure) {declared : String} {file : File schema Value}
-    (prepared : prepareFileWith schema parse options convert declared = .ok file) :
+    (prepared : prepareFileWithFileParser schema parse options convert declared = .ok file) :
     file.path.declared = declared := by
-  simp only [prepareFileWith, Except.bind, Except.map] at prepared
+  simp only [prepareFileWithFileParser, Except.bind, Except.map] at prepared
   split at prepared
   · cases prepared
   · split at prepared
@@ -51,7 +51,7 @@ theorem prepare_preserves_paths {Failure : Type*} (options : Silmaril.Formats.Hi
         · cases prepared
         · rename_i tail more
           cases prepared
-          simp [prepareFileWith_declared _ options convert parsed, ih more]
+          simp [prepareFileWithFileParser_declared (DirectoryParser.asFileParser Silmaril.Formats.Hive.PartitionPath.parse) options convert parsed, ih more]
 
 theorem scan_first_terminal {Group Error : Type*} (opener : Opener Group physical Value Error)
     (projection : Scan.Projection (schema.extend physical)) (predicate : Scan.Predicate schema.toScan Value)

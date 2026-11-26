@@ -34,12 +34,19 @@ theorem orderFiles_paths_eq_of_perm {left right : List (File schema Value)}
 
 end Inventory
 
+theorem prepareOrderedInventoryWithFileParser_eq_reference (physical : Scan.Schema String Kind)
+    (schema : PartitionSchema Kind) (limits : Inventory.Limits) (parse : FileParser)
+    (options : PartitionPath.Options) (convert : Convert Value Failure) (listing : List String) :
+    prepareOrderedInventoryWithFileParser physical schema limits parse options convert listing =
+      (prepareInventoryReferenceWithFileParser physical schema limits parse options convert listing).map Inventory.orderFiles := by
+  rw [prepareOrderedInventoryWithFileParser, prepareInventoryWithFileParser_eq_reference]
+
 theorem prepareOrderedInventoryWith_eq_reference (physical : Scan.Schema String Kind)
     (schema : PartitionSchema Kind) (limits : Inventory.Limits) (parse : DirectoryParser)
     (options : PartitionPath.Options) (convert : Convert Value Failure) (listing : List String) :
     prepareOrderedInventoryWith physical schema limits parse options convert listing =
       (prepareInventoryReferenceWith physical schema limits parse options convert listing).map Inventory.orderFiles := by
-  rw [prepareOrderedInventoryWith, prepareInventoryWith_eq_reference]
+  exact prepareOrderedInventoryWithFileParser_eq_reference physical schema limits parse.asFileParser options convert listing
 
 /-- Keep the indexed admission reference's outcome and order only its successful file list. -/
 theorem prepareOrderedInventory_eq_reference (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)

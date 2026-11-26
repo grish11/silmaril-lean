@@ -25,19 +25,21 @@ def decodeSegment (encoding : Encoding) (segment : String) : Except Error String
     | .uri => Percent.decode segment
     | .literal => .ok segment
 
-/-- Pair the given keys with the directory values in order. Position counts
-are checked before decoding. Every admitted value is present, even sentinel
-text. The inherited options supply required keys. -/
+/-- Validate exact arity, decode the tokens and bind them to the ordered keys. -/
+def parseSegments (keys : List String) (encoding : Encoding) (options : Options)
+    (raw : List String) : Except Error Partition :=
+  if raw.length != keys.length then .error (.segmentArity keys.length raw.length)
+  else
+    (raw.mapM (decodeSegment encoding)).bind fun values =>
+      let entries := keys.zip (values.map some)
+      (validate options entries).map fun _ => entries
+
+/-- Pair the given keys with the directory values in order. Every admitted
+value is present, even sentinel text. -/
 def parse (maxDirectoryBytes : Nat) (keys : List String) (encoding : Encoding)
     (options : Options) (directory : String) : Except Error Partition :=
   if directory.utf8ByteSize > maxDirectoryBytes then
     .error (.directoryByteLimit maxDirectoryBytes directory.utf8ByteSize)
-  else
-    let raw := segments directory
-    if raw.length != keys.length then .error (.segmentArity keys.length raw.length)
-    else
-      (raw.mapM (decodeSegment encoding)).bind fun values =>
-        let entries := keys.zip (values.map some)
-        (validate options entries).map fun _ => entries
+  else parseSegments keys encoding options (segments directory)
 
 end Silmaril.Formats.Hive.PartitionPath.Positional

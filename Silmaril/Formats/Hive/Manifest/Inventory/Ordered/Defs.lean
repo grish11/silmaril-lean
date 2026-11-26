@@ -24,11 +24,18 @@ def orderFiles (files : List (File schema Value)) : List (File schema Value) :=
 end Inventory
 
 /-- Admit with the chosen directory profile and order successful data files. -/
+def prepareOrderedInventoryWithFileParser (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
+    (limits : Inventory.Limits) (parse : FileParser) (options : PartitionPath.Options)
+    (convert : Convert Value Failure) (listing : List String) :
+    Except (Inventory.Error Failure) (List (File schema Value)) :=
+  (prepareInventoryWithFileParser physical schema limits parse options convert listing).map Inventory.orderFiles
+
+/-- Admit with the chosen directory profile and order successful data files. -/
 def prepareOrderedInventoryWith (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
     (limits : Inventory.Limits) (parse : DirectoryParser) (options : PartitionPath.Options)
     (convert : Convert Value Failure) (listing : List String) :
     Except (Inventory.Error Failure) (List (File schema Value)) :=
-  (prepareInventoryWith physical schema limits parse options convert listing).map Inventory.orderFiles
+  prepareOrderedInventoryWithFileParser physical schema limits parse.asFileParser options convert listing
 
 /-- Admit a supplied listing using its original order and limits, then order
 the admitted data files by their literal lookup keys. -/

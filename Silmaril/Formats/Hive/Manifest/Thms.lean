@@ -13,12 +13,19 @@ open Silmaril.Formats.Hive.TypedPartitions (PartitionSchema Convert)
 variable {Kind : Type*} {Value : Kind → Type*}
 variable {physical : Scan.Schema String Kind} {schema : PartitionSchema Kind}
 
+theorem prepareFileWithFileParser_declared {Failure : Type*} (parse : FileParser)
+    (options : PartitionPath.Options) (convert : Convert Value Failure)
+    {declared : String} {file : File schema Value}
+    (prepared : prepareFileWithFileParser schema parse options convert declared = .ok file) :
+    file.path.declared = declared :=
+  Proofs.Formats.Hive.Manifest.prepareFileWithFileParser_declared parse options convert prepared
+
 theorem prepareFileWith_declared {Failure : Type*} (parse : DirectoryParser)
     (options : PartitionPath.Options) (convert : Convert Value Failure)
     {declared : String} {file : File schema Value}
     (prepared : prepareFileWith schema parse options convert declared = .ok file) :
     file.path.declared = declared :=
-  Proofs.Formats.Hive.Manifest.prepareFileWith_declared parse options convert prepared
+  prepareFileWithFileParser_declared parse.asFileParser options convert prepared
 
 /-- Successful preparation preserves the original ordered opener inputs, including repeats. -/
 theorem prepare_preserves_paths {Failure : Type*} (options : PartitionPath.Options)

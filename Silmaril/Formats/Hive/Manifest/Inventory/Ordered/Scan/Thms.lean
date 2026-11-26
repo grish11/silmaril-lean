@@ -21,6 +21,26 @@ variable {partitions : PartitionSchema Kind}
 existing bounded scan visits the stable sorted sequence of retained records.
 The equality includes aligned batches, budget cutoff, and the first reached
 terminal failure and original literal path. -/
+theorem prepareOrderedInventoryWithFileParser_scanSkippingRejected_eq_reference
+    (admission : Inventory.Limits) (parse : FileParser) (options : PartitionPath.Options)
+    (convert : Convert Value AdmissionError) (listing : List String)
+    (limits : Int32ByteArrayGroup.File.Limits) (lookup : String → Except Failure Bytes)
+    (projection : Scan.Projection (partitions.extend (Int32ByteArrayGroup.File.schema int32 byteArray)))
+    (keep : Scan.Predicate partitions.toScan Value) (budget : Nat) :
+    (prepareOrderedInventoryWithFileParser (Int32ByteArrayGroup.File.schema int32 byteArray) partitions
+      admission parse options convert listing).map
+        (scanInt32ByteArraySnapshotsBoundedSkippingRejected limits lookup projection keep budget) =
+      (prepareInventoryReferenceWithFileParser (Int32ByteArrayGroup.File.schema int32 byteArray) partitions
+        admission parse options convert listing).map (fun files =>
+          scanInt32ByteArraySnapshotsBounded limits lookup projection keep budget
+            ((Inventory.orderFiles files).filter fun file => (keep file.cells).getD false)) := by
+  rw [prepareOrderedInventoryWithFileParser_eq_reference]
+  cases prepareInventoryReferenceWithFileParser _ _ admission parse options convert listing <;> rfl
+
+/-- Admission keeps the original listing's typed errors. On success, the
+existing bounded scan visits the stable sorted sequence of retained records.
+The equality includes aligned batches, budget cutoff, and the first reached
+terminal failure and original literal path. -/
 theorem prepareOrderedInventoryWith_scanSkippingRejected_eq_reference
     (admission : Inventory.Limits) (parse : DirectoryParser) (options : PartitionPath.Options)
     (convert : Convert Value AdmissionError) (listing : List String)
@@ -34,8 +54,8 @@ theorem prepareOrderedInventoryWith_scanSkippingRejected_eq_reference
         admission parse options convert listing).map (fun files =>
           scanInt32ByteArraySnapshotsBounded limits lookup projection keep budget
             ((Inventory.orderFiles files).filter fun file => (keep file.cells).getD false)) := by
-  rw [prepareOrderedInventoryWith_eq_reference]
-  cases prepareInventoryReferenceWith _ _ admission parse options convert listing <;> rfl
+  exact prepareOrderedInventoryWithFileParser_scanSkippingRejected_eq_reference
+    admission parse.asFileParser options convert listing limits lookup projection keep budget
 
 /-- Admission keeps the original listing's typed errors. On success, the
 existing bounded scan visits the stable sorted sequence of retained records.

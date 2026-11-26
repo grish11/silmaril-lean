@@ -62,17 +62,29 @@ inductive PrepareError (Failure : Type*) where
 abbrev DirectoryParser :=
   PartitionPath.Options → String → Except PartitionPath.Error PartitionPath.Partition
 
+abbrev FileParser :=
+  PartitionPath.Options → String → String → Except PartitionPath.Error PartitionPath.Partition
+
+/-- Directory profiles ignore the leaf after the shared lexical split. -/
+def DirectoryParser.asFileParser (parse : DirectoryParser) : FileParser :=
+  fun options directory _ => parse options directory
+
 /-- Split the literal path and bind the selected directory profile with the
 shared typed schema. The canonical directory always uses URI rendering. -/
-def prepareFileWith {Failure : Type*} (schema : PartitionSchema Kind)
-    (parse : DirectoryParser) (options : PartitionPath.Options) (convert : Convert Value Failure)
+def prepareFileWithFileParser {Failure : Type*} (schema : PartitionSchema Kind)
+    (parse : FileParser) (options : PartitionPath.Options) (convert : Convert Value Failure)
     (declared : String) : Except (PrepareError Failure) (File schema Value) :=
   ((splitFile declared).mapError (PrepareError.relativePath declared)).bind fun (directory, filename) =>
-    ((parse options directory).mapError (PrepareError.partitionPath declared)).bind fun entries =>
+    ((parse options directory filename).mapError (PrepareError.partitionPath declared)).bind fun entries =>
       ((PartitionPath.render options entries).mapError (PrepareError.partitionPath declared)).bind
         fun canonicalDirectory =>
           ((TypedPartitions.decode schema convert entries).mapError (PrepareError.binding declared)).map
             fun cells => ⟨⟨declared, canonicalDirectory, filename⟩, cells⟩
+
+def prepareFileWith {Failure : Type*} (schema : PartitionSchema Kind)
+    (parse : DirectoryParser) (options : PartitionPath.Options) (convert : Convert Value Failure)
+    (declared : String) : Except (PrepareError Failure) (File schema Value) :=
+  prepareFileWithFileParser schema parse.asFileParser options convert declared
 
 /-- Prepare one file using the default checked URI directory profile. -/
 def prepareFile {Failure : Type*} (schema : PartitionSchema Kind)

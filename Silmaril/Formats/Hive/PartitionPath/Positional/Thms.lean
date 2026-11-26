@@ -7,6 +7,12 @@ public section
 
 namespace Silmaril.Formats.Hive.PartitionPath.Positional
 
+theorem parseSegments_keys_present {keys : List String} {encoding : Encoding}
+    {options : Options} {raw : List String} {entries : Partition}
+    (parsed : parseSegments keys encoding options raw = .ok entries) :
+    entries.map Prod.fst = keys ∧ ∀ entry ∈ entries, entry.2.isSome = true :=
+  Proofs.Formats.Hive.PartitionPath.Positional.parseSegments_keys_present parsed
+
 /-- Successful parsing uses exactly the declared arity, binds decoded
 values left to right, and admits the resulting partition keys. -/
 theorem parse_ok_iff (maxDirectoryBytes : Nat) (keys : List String) (encoding : Encoding)
