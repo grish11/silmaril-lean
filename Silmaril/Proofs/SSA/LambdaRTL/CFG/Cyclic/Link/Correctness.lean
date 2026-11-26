@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Defs
-import Silmaril.SSA.LambdaRTL.CFG.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Lexical.Thms
 
 @[expose] public section
 
@@ -57,12 +57,6 @@ private theorem phased_run {X Y B C : Type} (left : X → _root_.Part (B ⊕ X))
 
 variable {V F α : Type} [DecidableEq V] {a b c : Nat}
 
-private theorem evalJump_relabel {K K' : Type} [DecidableEq K]
-    (model : Model F Part α) (rename : K → K') (body : Body V K F) (store : V → α) :
-    (body.relabel rename).evalJump model store = Prod.map rename id <$> body.evalJump model store := by
-  rw [Body.evalJump, Body.exec_relabel, Body.evalJump]
-  simp only [Body.exec_eq_evalRTL, map_bind, map_pure, Prod.map_apply, id_eq]
-
 private theorem lookup_relabel {K K' D E : Type} [DecidableEq K] [DecidableEq K']
     (rename : K → K') (injective : Function.Injective rename) (mapBlock : D → E)
     (table : List (K × D)) (label : K) :
@@ -90,10 +84,10 @@ theorem runSSA_relabel {K K' : Type} [DecidableEq K] [DecidableEq K']
     rcases transfer with ⟨label, packet⟩
     simp only [Cyclic.stepSSA, CFG.relabel, encode, Prod.map_apply, id_eq]
     rw [lookup_relabel rename injective]
-    cases graph.blocks.lookup label <;> simp [Block.relabel, evalJump_relabel, Part.map_map, Function.comp_def]
+    cases graph.blocks.lookup label <;> simp [Block.relabel, Body.evalJump_relabel, Part.map_map, Function.comp_def]
   have run := iter_simulation (Cyclic.stepSSA model graph.blocks store)
     (Cyclic.stepSSA model (graph.relabel rename).blocks store) encode encode square
-  simp only [Cyclic.runSSA, CFG.relabel, evalJump_relabel, map_bind, bind_map_left]
+  simp only [Cyclic.runSSA, CFG.relabel, Body.evalJump_relabel, map_bind, bind_map_left]
   exact bind_congr run
 
 private theorem lookup_private {p q : Nat} {D : Type} (value : Fin p → D)
@@ -166,7 +160,7 @@ theorem denote_link (model : Model F Part α) (left : Graph V F a b) (right : Gr
       Sum.map id encode <$> flattenBody phase state = (left.link right).step model (encode state) := by
     rcases state with ⟨index | port, packet⟩ | ⟨index | port, packet⟩
     · simp [phase, phased, Graph.step, Graph.link, Graph.linkedBlock, Graph.leftLabel, encode,
-        Block.relabel, evalJump_relabel, flattenBody, Elgot.flatten, Bind.kleisliRight, liftPure,
+        Block.relabel, Body.evalJump_relabel, flattenBody, Elgot.flatten, Bind.kleisliRight, liftPure,
         Function.comp_def]
       rw [Part.map_map, ← Part.bind_eq_bind, ← Part.map_eq_map]
       exact bind_pure_comp (m := Part) _ _
@@ -174,7 +168,7 @@ theorem denote_link (model : Model F Part α) (left : Graph V F a b) (right : Gr
         Graph.handoff, Body.evalJump, Body.exec, Term.exec, Val.eval, upd, flattenBody, Elgot.flatten,
         Bind.kleisliRight, liftPure, startRight]
     · simp [phase, phased, Graph.step, Graph.link, Graph.linkedBlock, Graph.rightLabel, encode,
-        Block.relabel, evalJump_relabel, flattenBody, Elgot.flatten, Bind.kleisliRight, liftPure,
+        Block.relabel, Body.evalJump_relabel, flattenBody, Elgot.flatten, Bind.kleisliRight, liftPure,
         Function.comp_def]
       rw [Part.map_map, ← Part.bind_eq_bind, ← Part.map_eq_map]
       exact bind_pure_comp (m := Part) _ _

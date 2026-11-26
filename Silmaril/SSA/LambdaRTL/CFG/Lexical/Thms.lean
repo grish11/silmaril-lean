@@ -19,6 +19,13 @@ theorem Body.evalJump_eq_evalSSA (model : Model F M α) (body : Body V K F) (inp
     body.evalJump model input = body.toRegion.evalSSA model input :=
   Proofs.SSA.LambdaRTL.CFG.body_evalJump model body input
 
+/-- Label renaming changes the outgoing label and leaves the packet intact. -/
+theorem Body.evalJump_relabel {K' : Type w} (model : Model F M α) (rename : K → K')
+    (body : Body V K F) (store : V → α) :
+    (body.relabel rename).evalJump model store = Prod.map rename id <$> body.evalJump model store := by
+  rw [Body.evalJump, Body.exec_relabel, Body.evalJump]
+  simp only [Body.exec_eq_evalRTL, map_bind, map_pure, Prod.map_apply, id_eq]
+
 /-- Reading a forward graph back into lexical regions commutes with direct
 execution on the flat block list. -/
 theorem runSSA_eq_evalSSA (graph : CFG V K F) (model : Model F M α) (input : V → α) :

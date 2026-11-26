@@ -185,6 +185,17 @@ compare the images on classes. The ordinary versioner wraps internal
 transfers in a carry tuple, including version-zero live-in slots at entry,
 so the resulting syntax can have a wider entry interface than a single wire.
 
+[Syntactic packet CFG simulation](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Link/Simulation/Thms.lean)
+checks a finite map on private labels and preserves public exits. A source
+block either matches a target block after relabelling or forwards its packet
+unchanged to the same mapped address. These rules preserve every terminating
+result, and the executable linker combines the certificates, including at
+handoff blocks. Direct wiring is complete when a common model exists.
+A [one-block register copy](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/Link/Simulation/Regression.lean)
+has the same observation as a wire but falls outside the certificate rules.
+The same regression checks strict refinement from a cyclic forwarding loop
+to a returning wire.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`
