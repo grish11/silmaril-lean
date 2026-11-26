@@ -89,6 +89,14 @@ def letIter (Γ : Ctx ν τ) :
     { app := fun _ => ⟨ofLetIter, 𝟭 _, ofLetIter_sat⟩
       naturality := fun _ _ f => Room.hom_ext (funext fun φ => (ofLetIter_map f φ).symm) rfl }
 
+/-- All visible valuations lift exactly when existence of a visible valuation
+implies existence of a full upper environment. A full environment supplies
+values for hidden slots, and the visible valuation supplies the rest. -/
+theorem visibleEnv_surjective_iff :
+    Function.Surjective (visibleEnv.{u, v} (Γ := Γ)) ↔
+      (Nonempty (FreeEnv (TyDen (τ := τ)) Γ) → Nonempty (CtxDen Γ)) :=
+  Proofs.visibleEnv_surjective_iff
+
 /-- There are no hidden slots in the empty free context. -/
 theorem visibleEnv_nil_surjective :
     Function.Surjective (visibleEnv.{u, v} (Γ := (.nil : Ctx ν τ))) :=

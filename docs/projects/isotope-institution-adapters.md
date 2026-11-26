@@ -56,9 +56,7 @@ comorphisms into the native LetParIter institution.
   instruction computations and the supplied pairing. Model arrows keep their
   strict computation maps, which preserve the retained operations. The
   comparison fixes the four value equivalences to those of the upper
-  `TypeModel`. It requires the map from native free environments to visible
-  free valuations to be surjective. This holds in the empty context. Native
-  bound environments represent every bound valuation.
+  `TypeModel` and requires coverage of visible free valuations.
 - `Iteration.letIter` includes exact LetIter witnesses from the monadic
   companion. The companion uses the native sequential evaluator and the same
   strict model category as LetParIter. Upper models supply a lawful monad,
@@ -67,6 +65,20 @@ comorphisms into the native LetParIter institution.
   The companion's satisfaction is equality of native computations. Its
   sentence and signature reduct laws use the same fixed witnesses and the
   upper institution's change-of-signature law.
+
+Upper free environments store every context slot, including anonymous and
+shadowed slots. Lower free environments assign values to visible bindings.
+`Iteration.visibleEnv_surjective_iff` states that every visible valuation lifts
+exactly when existence of a visible valuation implies existence of a full
+upper environment. A full environment supplies values for hidden slots while
+the visible valuation supplies the visible values. This condition holds for
+the empty context. `Iteration.nativeBound_get` gives a lift of every bound
+valuation.
+
+The anonymous-empty-slot regression gives an exact case equation with a
+visible valuation and unequal computations. The case reduct refutes the
+equation, and native upper satisfaction is vacuous because the full context
+has an empty slot.
 
 For the fixed native powerset model, `Iteration.set_satisfaction` also compares
 the image of a LetIter equation directly with its relational satisfaction.

@@ -289,6 +289,45 @@ theorem visibleEnv_nil_surjective :
   funext x A h
   simp [Ctx.lookup] at h
 
+private theorem visibleEnv_surjective_of_native (seed : CtxDen Γ) :
+    Function.Surjective (visibleEnv.{u, v} (Γ := Γ)) := by
+  induction Γ with
+  | nil => exact visibleEnv_nil_surjective
+  | snoc Γ name A ih =>
+      change CtxDen Γ × TyDen A at seed
+      intro values
+      cases name with
+      | none =>
+          obtain ⟨native, h⟩ := ih seed.1 values
+          exact ⟨(native, seed.2), h⟩
+      | some y =>
+          let earlier : FreeEnv (TyDen (τ := τ)) Γ := fun x B hx =>
+            if same : x = y then CtxDen.lookup seed.1 x hx
+            else values x B (by simpa [Ctx.lookup, same] using hx)
+          obtain ⟨native, hn⟩ := ih seed.1 earlier
+          let newest := values y A (by simp [Ctx.lookup])
+          refine ⟨(native, newest), ?_⟩
+          funext x B hx
+          by_cases same : x = y
+          · subst x
+            have hAB : A = B := by simpa [Ctx.lookup] using hx
+            subst B
+            simp [visibleEnv, CtxDen.lookup, newest]
+          · have old : Γ.lookup x = some B := by simpa [Ctx.lookup, same] using hx
+            simpa [visibleEnv, CtxDen.lookup, earlier, same] using
+              congrFun (congrFun (congrFun hn x) B) old
+
+theorem visibleEnv_surjective_iff :
+    Function.Surjective (visibleEnv.{u, v} (Γ := Γ)) ↔
+      (Nonempty (FreeEnv (TyDen (τ := τ)) Γ) → Nonempty (CtxDen Γ)) := by
+  constructor
+  · rintro lift ⟨values⟩
+    obtain ⟨native, _⟩ := lift values
+    exact ⟨native⟩
+  · intro inhabited values
+    obtain ⟨seed⟩ := inhabited ⟨values⟩
+    exact visibleEnv_surjective_of_native seed values
+
 /-- The two native sequential interpreters agree on the same coercion-free witness. -/
 theorem evalLetIter_eq (M : LetParIter.Institution.Model.{u, v} S)
     {t : LetIter.LocallyNameless.Tm ν S.Instr n}

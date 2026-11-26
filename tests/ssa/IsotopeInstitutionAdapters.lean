@@ -84,7 +84,7 @@ theorem native_relabelled_choose_fails :
 
 section Iteration
 
-open LetIter.ProofRelevant.Semantics (TypeModel)
+open LetIter.ProofRelevant.Semantics (TypeModel TyDen CtxDen)
 
 private def coerceValue : {A B : Sorts} → Ty.Subty A B → Val A → Val B
   | _, _, .refl _, x => x
@@ -161,6 +161,46 @@ theorem upper_loop_fails (pair : Elgot.ParallelPairing (SetM : Type → Type)) :
     ¬ (UpperPowerset.room pair loopSignature Empty).Sat (loopModel false) (Iteration.ofLetIter loopEquation) :=
   fun h => no_successful_step (((UpperPowerset.letIter (ε := Bool) Iteration.visibleEnv_nil_surjective pair).satisfaction
     loopSignature (loopModel false) loopEquation).mp h)
+
+private def anonymousEmpty : Ctx Empty Sorts := context.snoc none empty
+
+private theorem anonymousEmpty_elim (γ : CtxDen anonymousEmpty) : False := by
+  change PUnit × PEmpty at γ
+  exact γ.2.elim
+
+theorem anonymousEmpty_loses_visible_coverage :
+    ¬ Function.Surjective (Iteration.visibleEnv (Γ := anonymousEmpty)) := by
+  intro lift
+  obtain ⟨γ, _⟩ := lift (fun x => nomatch x)
+  exact anonymousEmpty_elim γ
+
+private def anonymousEquation :
+    Parallel.Institution.Equation loopSignature .case anonymousEmpty :=
+  ⟨1, loopBound, coprod unit Bit, .op () (.bv 0), .inl LetParCase.hasCase .unit,
+    .op .bv, .inl .unit⟩
+
+attribute [local instance] Iteration.nativeEmptyModel
+
+/-- An anonymous empty slot makes upper truth vacuous while the case reduct
+still observes the unequal results at a visible valuation. -/
+theorem anonymousEmpty_separates_case_satisfaction (pair : Elgot.ParallelPairing (SetM : Type → Type)) :
+    let M := (loopModel true).toNative pair
+    LetParIter.Institution.Sat M (Iteration.ofLetParCase anonymousEquation) ∧
+      ¬ ((LetParCase.observation anonymousEmpty (TyDen (τ := Sorts))).obj loopSignature).Sat
+        (Iteration.caseModel M) anonymousEquation := by
+  dsimp only
+  constructor
+  · intro γ
+    exact (anonymousEmpty_elim γ).elim
+  · intro h
+    let ρ : BoundEnv Val loopBound := BoundEnv.snoc (fun i => Fin.elim0 i) false
+    have atFalse := h (fun x => nomatch x) ρ
+    change ((pure false : SetM Bool) >>= fun state => pure (feedback true state)) =
+      ((pure (PUnit.unit : PUnit) : SetM PUnit) >>= fun x => pure (Sum.inl x)) at atFalse
+    simp only [pure_bind] at atFalse
+    have member : Sum.inr true ∈ (pure (Sum.inl PUnit.unit) : SetM (PUnit ⊕ Bool)).run :=
+      atFalse ▸ Relation.setM_pure_iff.mpr rfl
+    cases Relation.setM_pure_iff.mp member
 
 end Iteration
 end Silmaril.Isotope.Institution.Adapters.Tests
