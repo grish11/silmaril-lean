@@ -38,7 +38,7 @@ order governs both runners, including when a label is repeated.
 
 ```mermaid
 flowchart LR
-  A["Forward RTL CFG"] -->|"versioned readback witness"| B["Forward SSA CFG"]
+  A["Forward RTL CFG"] -->|"CFG.versioned"| B["Forward SSA CFG"]
   A -->|"CFG.toRegion"| C["Acyclic λRTL region"]
   B -->|"CFG.toRegion"| D["Acyclic λSSA region"]
   C -->|"Version.versionTop"| D
@@ -47,24 +47,38 @@ flowchart LR
 The vertical paths preserve the mutable result and the lexical result,
 respectively, by `CFG.run_eq_toRegion` and `CFG.runSSA_eq_evalSSA`. The names and
 labels have decidable equality, and both comparisons use a lawful monad.
-`CFG.runSSA_eq_obs_of_versioned` then gives the same exit label and payload
-from either path, assuming a lawful monad, the pair law and source inputs at
-version zero. Its witness is equality of the two readbacks on the right of the
-diagram. A producer of these flat targets for arbitrary source graphs is a
-remaining step. For running the **same** CFG in both modes,
+`CFG.versioned_toRegion` states the exact equality
+`g.versioned.toRegion = Version.versionTop g.toRegion`.
+`CFG.versioned_runSSA` uses it to give the same exit label and payload from
+either path, assuming the pair law and source inputs at version zero.
+`CFG.versioned_isSSA` gives dominance-scoped SSA, and
+`CFG.versioned_blockLabels` preserves the ordered block-label list including
+repetitions.
+[Flat versioning header](../../Silmaril/SSA/LambdaRTL/CFG/Version/Flat/Thms.lean)
+
+`CFG.ofRegion?` recognizes precisely the image of `CFG.toRegion`. It peels
+outer joins to recover the block list and keeps conditional terminators inline.
+The existence proof shows that structured versioning preserves this image.
+At runtime the total `CFG.versioned` runs the structured versioner and the
+reifier, using an erased proof that the reifier succeeds. This preserves
+the original labels and the forward suffix lookup convention, including
+targets absent from the current suffix.
+[Reifier definitions](../../Silmaril/SSA/LambdaRTL/CFG/Version/Flat/Defs.lean)
+
+For running the **same** CFG in both modes,
 `CFG.runSSA_eq_obs_of_isSSA` uses the readback's `IsSSA` judgment with the same lawful monad.
 [Forward CFG theorem header](../../Silmaril/SSA/LambdaRTL/CFG/Lexical/Thms.lean)
 
 The diamond regression has two named branch blocks and a shared join. The
 unversioned mutable graph returns 12 or 21 after overwriting a live-in, whereas
 reading the same graph lexically leaves the original value 7 at the join. The
-explicit versioned flat graph passes the new value in its jump argument and gives
-the two mutable results. Its readback is definitionally the actual versioner
-output on this input graph.
+generated flat graph passes the new value in its jump argument and gives
+the two mutable results. The regression checks that the generator returns
+the expected block list and both runs compute directly on that output.
 [Checked regression](../../Silmaril/SSA/LambdaRTL/CFG/Lexical/Examples/Thms.lean)
 
 ```sh
-lake build --wfail Silmaril.SSA.LambdaRTL.CFG.Lexical.Thms \
+lake build --wfail Silmaril.SSA.LambdaRTL.CFG.Version.Flat.Thms \
   Silmaril.SSA.LambdaRTL.CFG.Lexical.Examples.Thms \
   Silmaril.SSA.LambdaRTL.CFG.Version.Examples.Thms
 ```
