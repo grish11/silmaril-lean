@@ -1,0 +1,286 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "fixture_license": "MIT",
+  "fixtures": {
+    "date_both_optional_v1": {
+      "provenance": "PyArrow",
+      "bytes": 195,
+      "sha256": "933fbc19ae6c5f857687ae39da85b99d729bbe7a00783c97468dfb515b7d5251",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": "date32[day]",
+      "signed_slots": [
+        -2147483648,
+        -719528,
+        -1,
+        null,
+        0,
+        11016,
+        2147483647
+      ]
+    },
+    "date_both_required_v2": {
+      "provenance": "PyArrow",
+      "bytes": 174,
+      "sha256": "93b8d41af625f1e6f4ec2bb311575ebfb0bed4c7d4467312d77ce74efe3a21e4",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 0,
+        "4": "date",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": "date32[day]",
+      "signed_slots": [
+        -1,
+        0,
+        11016
+      ]
+    },
+    "date_second_group": {
+      "provenance": "PyArrow",
+      "bytes": 276,
+      "sha256": "8e1c92b870297e6eea1f94e736b3926daa056691805dd05acd34b4a024cd4c4d",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": "date32[day]",
+      "signed_slots": [
+        0,
+        11016,
+        2147483647
+      ]
+    },
+    "date_modern_only": {
+      "provenance": "Thrift footer edit",
+      "bytes": 193,
+      "sha256": "2de2f8c4c9c6fcc7472c867b365a73b30dd9b04c3dc6ddb780f52b812df07c4a",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date",
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": "date32[day]",
+      "signed_slots": [
+        -2147483648,
+        -719528,
+        -1,
+        null,
+        0,
+        11016,
+        2147483647
+      ]
+    },
+    "date_converted_only": {
+      "provenance": "Thrift footer edit",
+      "bytes": 191,
+      "sha256": "e72eb39995c68e692f5a9cd92b4d6c63fbc2145cc2e1352ee83fa32bd7492010",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date",
+        "6": 6
+      },
+      "host_arrow_type": "date32[day]",
+      "signed_slots": [
+        -2147483648,
+        -719528,
+        -1,
+        null,
+        0,
+        11016,
+        2147483647
+      ]
+    },
+    "date_conflicting_converted": {
+      "provenance": "Thrift footer edit",
+      "bytes": 195,
+      "sha256": "8f241989831ecc7ce23768dbc920de9f4ce9bb119521098b187ec21adb15517f",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date",
+        "6": 17,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": "date32[day]",
+      "signed_slots": [
+        -2147483648,
+        -719528,
+        -1,
+        null,
+        0,
+        11016,
+        2147483647
+      ]
+    },
+    "date_malformed_modern": {
+      "provenance": "Thrift footer edit",
+      "bytes": 198,
+      "sha256": "7926342edb3ef89d525a5da4c3b623cd5cbc79eca90594075f96dacffc45b594",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ],
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": null,
+      "signed_slots": null
+    },
+    "date_nonempty_type": {
+      "provenance": "Thrift footer edit",
+      "bytes": 197,
+      "sha256": "6d48a074a7af96ccbf41c04e53a2ca0d6752569c8889cad225aa8e19d1a13a0f",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date",
+        "6": 6,
+        "10": [
+          [
+            6,
+            [
+              1
+            ]
+          ]
+        ]
+      },
+      "host_arrow_type": null,
+      "signed_slots": null
+    },
+    "date_wrong_column_path": {
+      "provenance": "Thrift footer edit",
+      "bytes": 196,
+      "sha256": "cd9aa516491ab556317bd587b0f6d798de3c45bc2f7b50c4737ecf31d83d2672",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "other",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": null,
+      "signed_slots": null
+    },
+    "date_wrong_physical": {
+      "provenance": "Thrift footer edit",
+      "bytes": 187,
+      "sha256": "8da7259b8a86018d58b5abc34b96237f1902cfd14fdaa472f2696285d6a93998",
+      "raw_schema_fields": {
+        "1": 2,
+        "3": 1,
+        "4": "date",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": null,
+      "signed_slots": null
+    },
+    "plain_optional_int32": {
+      "provenance": "PyArrow",
+      "bytes": 189,
+      "sha256": "35c6a81a012befd084c5676adbbe7e2c94318921a5bc6d89a1a80c8846254a7f",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date"
+      },
+      "host_arrow_type": "int32",
+      "signed_slots": [
+        -2147483648,
+        -719528,
+        -1,
+        null,
+        0,
+        11016,
+        2147483647
+      ]
+    },
+    "date_optional_crc": {
+      "provenance": "PyArrow",
+      "bytes": 201,
+      "sha256": "84ddaae9cb8223694176fef51945b22d845a169b4ec5041743419cfc1c847d15",
+      "raw_schema_fields": {
+        "1": 1,
+        "3": 1,
+        "4": "date",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "host_arrow_type": "date32[day]",
+      "signed_slots": [
+        -2147483648,
+        -719528,
+        -1,
+        null,
+        0,
+        11016,
+        2147483647
+      ]
+    }
+  }
+}
