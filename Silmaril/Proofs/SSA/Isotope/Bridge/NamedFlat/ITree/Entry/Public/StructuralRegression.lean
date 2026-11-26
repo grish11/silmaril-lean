@@ -1,7 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Thms
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Refinement.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.RegisterRename.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Defs
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
@@ -320,7 +319,7 @@ private theorem effectOccurrenceEq :
         LiveOut.observeRaw effectSignature.primitive exits fields (effectGraph shared rightRead) original from rfl).trans
       (effectRight.observeRaw_eq_occurrences original rightPacket effectRightSeed))
 
-example : effectLeft.refinementFromStore? effectRight original = some true := by
+private theorem effectAccepts : effectLeft.refinementFromStore? effectRight original = some true := by
   apply (leftOccurrences.refinementFromStore?_eq_some_iff rightOccurrences original true).mpr
   refine ⟨overlapPacket, rightPacket, effectLeftSeed, effectRightSeed, ?_⟩
   refine ⟨fun _ policy x hx trace seen => ?_, fun _ => rfl⟩
@@ -368,12 +367,53 @@ private def registerNames : Name ≃ Name :=
 private def renamedLeft := effectLeft.rename registerNames.toEmbedding
 private def renamedRight := effectRight.rename registerNames.toEmbedding
 
+-- Run the exact occurrence checker again after permuting the source capture
+-- and selected live-out. The narrower slot stays before the wider slot.
+private def renamedLeftOccurrences := renamedLeft.admitOccurrences.get (by decide)
+private def renamedRightOccurrences := renamedRight.admitOccurrences.get (by decide)
+
+example : renamedLeft.occurrenceContext.toList = [narrowBit, bit] := by decide
+example : renamedLeft.occurrenceGraph = effectLeft.occurrenceGraph :=
+  effectLeft.occurrenceGraph_rename registerNames.toEmbedding
+
+example : renamedLeftOccurrences.code.erase = leftOccurrences.code.erase := by
+  have same := effectLeft.admitOccurrences_rename registerNames.toEmbedding
+  change renamedLeft.admitOccurrences.map (fun admitted => admitted.code.erase) =
+    effectLeft.admitOccurrences.map (fun admitted => admitted.code.erase) at same
+  rw [← Option.some_get (show renamedLeft.admitOccurrences.isSome from by decide),
+    ← Option.some_get (show effectLeft.admitOccurrences.isSome from by decide)] at same
+  exact Option.some.inj same
+
+example :
+    (renamedLeft.seed? (renameStore registerNames original)).map renamedLeft.observeOccurrences =
+      (renamedRight.seed? (renameStore registerNames original)).map renamedRight.observeOccurrences := by
+  calc
+    _ = (effectLeft.seed? original).map effectLeft.observeOccurrences :=
+      effectLeft.decodedOccurrences_rename registerNames original
+    _ = (effectRight.seed? original).map effectRight.observeOccurrences := by
+      rw [effectLeftSeed, effectRightSeed]
+      exact congrArg some effectOccurrenceEq
+    _ = _ := (effectRight.decodedOccurrences_rename registerNames original).symm
+
+example :
+    ∃ (a : Denote (.product narrowBit bit)) (b : Denote (.product bit bit)),
+      renamedLeft.seed? (effectWitness.val.rename registerNames).initial = some a ∧
+      renamedRight.seed? (effectWitness.val.rename registerNames).initial = some b ∧
+      ¬ TraceInstitution.Sat effectSignature.traceModel
+        (renamedLeftOccurrences.refinementSentence renamedRightOccurrences a b) := by
+  obtain ⟨a, b, ha, hb, _, _, rejected⟩ := effectWitness.val.refutes_renamed_occurrences
+    leftOccurrences rightOccurrences registerNames renamedLeftOccurrences renamedRightOccurrences effectWitness.property
+  exact ⟨a, b, ha, hb, rejected⟩
+
 example : renamedLeft.footprint = [(⟨40⟩, narrowBit), (⟨40⟩, bit)] := by
   rw [show renamedLeft = effectLeft.rename registerNames.toEmbedding from rfl, effectLeft.footprint_rename]
   decide
 
 example : renamedLeft.refinementFromStore? renamedRight (renameStore registerNames mismatchingStore) = some false :=
   (effectLeft.refinementFromStore?_rename effectRight registerNames mismatchingStore).trans effectRejects
+
+example : renamedLeft.refinementFromStore? renamedRight (renameStore registerNames original) = some true :=
+  (effectLeft.refinementFromStore?_rename effectRight registerNames original).trans effectAccepts
 
 example : renamedLeft.refinementOverCaptures renamedRight = effectLeft.refinementOverCaptures effectRight :=
   effectLeft.refinementOverCaptures_rename effectRight registerNames

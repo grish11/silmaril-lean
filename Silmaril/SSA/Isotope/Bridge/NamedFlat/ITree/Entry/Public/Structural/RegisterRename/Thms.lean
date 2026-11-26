@@ -26,6 +26,11 @@ theorem StructuralEntry.footprint_rename (names : V ↪ W) :
     (left.rename names).footprint = left.footprint.map (Prod.map names id) :=
   (Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.RegisterRename.seeds_rename left names).1
 
+/-- Only the names in a packet's occurrence assignment are renamed. -/
+theorem StructuralEntry.assignment_rename (names : V ↪ W) (packet : Denote inputType) :
+    (left.rename names).assignment packet = (left.assignment packet).map (Prod.map names id) :=
+  (Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.RegisterRename.seeds_rename left names).2.1 packet
+
 /-- The same structural value is read from corresponding capture slots. -/
 theorem StructuralEntry.evalSeed_rename (names : V ↪ W) (initial : V → Value Atom) (other : W → Value Atom)
     (agrees : ∀ x, other (names x) = initial x) : (left.rename names).evalSeed other = left.evalSeed initial :=

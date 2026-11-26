@@ -808,6 +808,15 @@ trace refutes the admitted comparison after a completed request. An
 injection accepted only by the wider type fails shared-store decoding.
 [Checked fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
 
+A bijection on the source registers also renames the selected live-outs.
+Rebuilding the occurrence adapter from the renamed structural certificate
+gives the same numbered graph and the same type at every slot. Exact admission
+agrees after erasing the scope indices from the checked code. Decoding the
+transported store gives the same packet, so the rebuilt named runner preserves
+ordered exits and live-out values. A directed trace witness keeps its trace
+and uses the transported initial store.
+[Occurrence adapter register-renaming laws](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/RegisterRename/Thms.lean)
+
 ### Reverse lowering of open flat SSA to mutable RTL
 
 `NamedFlat.Entry.Reverse.lowerChecked` generates an ordinary named mutable CFG
