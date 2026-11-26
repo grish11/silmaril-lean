@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Formats.Parquet.Footer.Defs
-public import Silmaril.Formats.Parquet.Page.Defs
+public import Silmaril.Formats.Parquet.Page.Checksum.Scan.Defs
 public import Silmaril.Formats.Parquet.FlatPage.Defs
 
 /-! Checked assembly for flat PLAIN INT32 columns. A supplied scalar page
@@ -52,6 +52,7 @@ inductive Error (ε : Type) where
   | unsupportedKind
   | unsupportedPageEncoding
   | crcUnsupported
+  | checksum (reason : Page.Checksum.FrameFailure)
   | pageByteLimit
   | pageSize
   | pageCount
@@ -97,9 +98,10 @@ def flatSchema {ε : Type} (limits : Limits) (schema : List Footer.SchemaElement
 
 /-- The scanner rejects every non-data page. CRC-bearing pages require a
 checksum policy supplied by a later profile. -/
-private def checkPage {ε : Type} (limits : Limits) (field : Field) (header : Page.Header) :
+private def checkPage {ε : Type} (limits : Limits) (field : Field) (header : Page.Header)
+    (rejectCRC : Bool := true) :
     Except (Error ε) (Nat × Option Nat) := do
-  if header.crc.isSome then throw .crcUnsupported
+  if rejectCRC && header.crc.isSome then throw .crcUnsupported
   if header.compressedSize > limits.maxPageBytes || header.uncompressedSize > limits.maxPageBytes then
     throw .pageByteLimit
   if header.compressedSize != header.uncompressedSize then throw .pageSize
@@ -117,9 +119,8 @@ private def checkPage {ε : Type} (limits : Limits) (field : Field) (header : Pa
     pure (info.numValues, some info.numNulls)
   | .dictionary _ | .skipped _ => throw .unsupportedKind
 
-/-- Validate one column against its schema field and row-group count, then
-consume the checked page frames in their wire order. -/
-def scanColumn {ε : Type} (limits : Limits) (decoder : DecodePage ε) (source : Bytes)
+private def scanColumnCore {ε : Type} (checksumLimit : Option Nat) (limits : Limits)
+    (decoder : DecodePage ε) (source : Bytes)
     (footerStart : Nat) (field : Field) (rowCount : Nat) (column : Footer.ColumnChunk) :
     Except (Error ε) (ColumnValues rowCount) := do
   if rowCount > limits.maxRows then throw .rowLimit
@@ -133,11 +134,15 @@ def scanColumn {ε : Type} (limits : Limits) (decoder : DecodePage ε) (source :
       (rowCount != 0 && !metadata.encodings.contains 0) then throw (.columnEncoding field.name)
   if metadata.dictionaryPageOffset.isSome || metadata.indexPageOffset.isSome then throw .unsupportedKind
   let some span := Page.columnSpan footerStart metadata | throw (.columnBounds field.name)
-  let frames ← (Page.readChunk limits.page source span).mapError .page
+  let frames ← match checksumLimit with
+    | none => (Page.readChunk limits.page source span).mapError .page
+    | some cap =>
+      (Page.Checksum.readChunkWithCRC limits.page (fun _ => min cap limits.maxPageBytes) source span).mapError
+        (fun | .page reason => .page reason | .checksum reason => .checksum reason)
   let mut remaining := rowCount
   let mut cells := #[]
   for frame in frames do
-    let (count, nulls) ← checkPage limits field frame.value
+    let (count, nulls) ← checkPage limits field frame.value checksumLimit.isNone
     if remaining < count then throw .pageCount
     let payload := Footer.fileBytes source frame.payload.start frame.payload.stop
     let values ← (decoder field frame.value payload).mapError .decoder
@@ -150,6 +155,18 @@ def scanColumn {ε : Type} (limits : Limits) (decoder : DecodePage ε) (source :
   if sized : cells.size = rowCount then
     pure ⟨cells, sized⟩
   else throw .pageCount
+
+/-- Validate and scan one PLAIN column in wire order. CRC-bearing pages are rejected. -/
+def scanColumn {ε : Type} (limits : Limits) (decoder : DecodePage ε) (source : Bytes)
+    (footerStart : Nat) (field : Field) (rowCount : Nat) (column : Footer.ColumnChunk) :
+    Except (Error ε) (ColumnValues rowCount) :=
+  scanColumnCore none limits decoder source footerStart field rowCount column
+
+/-- Verify the original framed pages before decoding any of their PLAIN bodies. -/
+def scanColumnWithCRC {ε : Type} (checksumLimit : Nat) (limits : Limits) (decoder : DecodePage ε)
+    (source : Bytes) (footerStart : Nat) (field : Field) (rowCount : Nat) (column : Footer.ColumnChunk) :
+    Except (Error ε) (ColumnValues rowCount) :=
+  scanColumnCore (some checksumLimit) limits decoder source footerStart field rowCount column
 
 private def scanColumns {ε : Type} (limits : Limits) (decoder : DecodePage ε) (source : Bytes)
     (footerStart rowCount : Nat) (pairs : List (Field × Footer.ColumnChunk)) :

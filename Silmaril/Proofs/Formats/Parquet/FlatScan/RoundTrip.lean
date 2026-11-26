@@ -34,7 +34,7 @@ theorem scanColumn_singleV1 {ε : Type} {limits : Limits} {decoder : DecodePage 
     have absent := List.any_eq_false.mp (nonNull required) none present
     exact absent rfl
   refine ⟨⟨slots.toArray, by simpa using length⟩, ?_, by simp⟩
-  simp [scanColumn, Nat.not_lt.mpr rowBound, path, kind, count, codec, encodings, dictionary, index,
+  simp [scanColumn, scanColumnCore, Nat.not_lt.mpr rowBound, path, kind, count, codec, encodings, dictionary, index,
     located, framed, page, decoded, length, noNull, Except.mapError, Bind.bind, Except.bind,
     Pure.pure, Except.pure, List.forIn_cons, List.forIn_nil]
 

@@ -55,6 +55,7 @@ private theorem readDictionary_ok {limits : Limits} {source : Bytes} {frame : Pa
   unfold Internal.readDictionary at parsed
   split at parsed <;> try contradiction
   rename_i header hkind
+  dsimp only at parsed
   split at parsed <;> try contradiction
   rename_i hcrc
   split at parsed <;> try contradiction
@@ -100,6 +101,7 @@ private theorem admitData_ok {limits : Limits} {layout : FlatPage.Layout}
     page.frame = frame ∧ page.Admitted limits layout dictionary := by
   unfold Internal.admitData at admitted
   obtain ⟨params, hparams, admitted⟩ := bind_ok admitted
+  dsimp only at admitted
   split at admitted <;> try contradiction
   rename_i hcrc
   split at admitted <;> try contradiction
@@ -184,7 +186,7 @@ theorem read_admitted {limits : Limits} {source : Bytes} {footerStart rowCount :
     {field : FlatScan.Field} {column : Footer.ColumnMetadata} {chunk : Chunk}
     (parsed : DictionaryChunk.read limits source footerStart field rowCount column = .ok chunk) :
     Admitted limits source footerStart rowCount field.layout column chunk := by
-  unfold DictionaryChunk.read at parsed
+  unfold DictionaryChunk.read Internal.readCore at parsed
   split at parsed <;> try contradiction
   split at parsed <;> try contradiction
   split at parsed <;> try contradiction
@@ -235,7 +237,7 @@ theorem scanColumn_ordered {limits : Limits} {source : Bytes} {footerStart rowCo
       DictionaryChunk.read limits source footerStart field rowCount column = .ok chunk ∧
       List.Forall₂ (DataPage.Decodes limits source chunk.dictionary) chunk.data pages ∧
       slots = pages.flatten ∧ slots.length = rowCount ∧ (field.layout = .required → none ∉ slots) := by
-  unfold scanColumn at decoded
+  unfold scanColumn Internal.scanColumnCore at decoded
   obtain ⟨chunk, admitted, decoded⟩ := bind_ok decoded
   obtain ⟨pages, frames, decoded⟩ := bind_ok decoded
   dsimp only at decoded

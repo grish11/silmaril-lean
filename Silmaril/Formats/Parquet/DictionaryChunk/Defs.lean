@@ -22,6 +22,7 @@ inductive Error where
   | page (reason : Page.Error)
   | skippedPage | misplacedDictionary | dictionaryOffset | dataOffset | missingDictionary
   | crcUnsupported | dictionaryEncoding | pageEncoding | levelEncoding
+  | checksum (reason : Page.Checksum.FrameFailure)
   | entryLimit | dictionaryByteLimit | pageByteLimit | pageSize | requiredNull
   | dictionaryBody (reason : Plain.Error)
   | plainPage (reason : ScalarPage.Error)
@@ -109,11 +110,12 @@ def splitLeading : List Page.Frame → Option Page.Frame × List Page.Frame
     | _ => (none, frame :: rest)
   | [] => (none, [])
 
-def readDictionary (limits : Limits) (source : Bytes) (frame : Page.Frame) :
+def readDictionary (limits : Limits) (source : Bytes) (frame : Page.Frame) (rejectCRC : Bool := true) :
     Except Error Dictionary :=
   match frame.value.kind with
   | .dictionary header =>
-    if frame.value.crc ≠ none then .error .crcUnsupported
+    let crc := match rejectCRC with | true => frame.value.crc | false => none
+    if crc ≠ none then .error .crcUnsupported
     else if header.encoding ≠ 0 ∧ header.encoding ≠ 2 then .error .dictionaryEncoding
     else if limits.maxEntries < header.numValues then .error .entryLimit
     else if limits.maxDictionaryBytes < frame.value.compressedSize then .error .dictionaryByteLimit
@@ -146,9 +148,10 @@ def dataParameters (layout : FlatPage.Layout) (header : Page.Header) :
       .v2 info.numNulls info.numRows info.repetitionBytes info.definitionBytes (some info.isCompressed)⟩
 
 def admitData (limits : Limits) (layout : FlatPage.Layout) (dictionary : Option Dictionary)
-    (frame : Page.Frame) : Except Error DataPage := do
+    (frame : Page.Frame) (rejectCRC : Bool := true) : Except Error DataPage := do
   let params ← dataParameters layout frame.value
-  if frame.value.crc ≠ none then .error .crcUnsupported
+  let crc := match rejectCRC with | true => frame.value.crc | false => none
+  if crc ≠ none then .error .crcUnsupported
   else if limits.scalar.compressedBytes < params.sizes.compressed ∨
       limits.scalar.uncompressedBytes < params.sizes.uncompressed then .error .pageByteLimit
   else if params.sizes.compressed ≠ params.sizes.uncompressed then .error .pageSize
@@ -157,15 +160,16 @@ def admitData (limits : Limits) (layout : FlatPage.Layout) (dictionary : Option 
   else .ok ⟨frame, params⟩
 
 def admit (limits : Limits) (source : Bytes) (span : Footer.Span) (layout : FlatPage.Layout)
-    (rowCount : Nat) (column : Footer.ColumnMetadata) (frames : List Page.Frame) : Except Error Chunk :=
+    (rowCount : Nat) (column : Footer.ColumnMetadata) (frames : List Page.Frame)
+    (rejectCRC : Bool := true) : Except Error Chunk :=
   let (leading, rest) := splitLeading frames
   if leading.map (fun frame => (frame.header.start : Int)) ≠ column.dictionaryPageOffset then
     .error .dictionaryOffset
   else if rest.head?.map (fun frame => (frame.header.start : Int)) ≠ some column.dataPageOffset then
     .error .dataOffset
   else do
-    let dictionary ← leading.mapM (readDictionary limits source)
-    let data ← rest.mapM (admitData limits layout dictionary)
+    let dictionary ← leading.mapM (fun frame => readDictionary limits source frame rejectCRC)
+    let data ← rest.mapM (fun frame => admitData limits layout dictionary frame rejectCRC)
     let slots := (data.map (·.params.numValues)).sum
     if slots ≠ rowCount then .error .rowCount
     else .ok ⟨span, dictionary, data⟩
@@ -182,11 +186,8 @@ def decodePage (limits : Limits) (source : Bytes) (dictionary : Option Dictionar
       (DictionaryIndex.decode dictionary.entries page.params limits.scalar limits.indices
         (body source page.frame)).mapError .dictionaryPage
 
-end Internal
-
-/-- Check one chunk for a schema field from the same footer and snapshot.
-The caller supplies the row group's declared count. No data body is copied here. -/
-def read (limits : Limits) (source : Bytes) (footerStart : Nat) (field : FlatScan.Field)
+def readCore (checksumLimit : Option Nat) (limits : Limits) (source : Bytes)
+    (footerStart : Nat) (field : FlatScan.Field)
     (rowCount : Nat) (column : Footer.ColumnMetadata) : Except Error Chunk :=
   if column.pathInSchema ≠ [field.name] then .error .columnPath
   else if column.physicalType ≠ .int32 then .error .columnType
@@ -197,18 +198,42 @@ def read (limits : Limits) (source : Bytes) (footerStart : Nat) (field : FlatSca
   else match Page.columnSpan footerStart column with
     | none => .error .columnBounds
     | some span => do
-      let frames ← (Page.readChunk limits.page source span).mapError .page
-      Internal.admit limits source span field.layout rowCount column frames
+      let frames ← match checksumLimit with
+        | none => (Page.readChunk limits.page source span).mapError .page
+        | some cap =>
+          let maxBytes (frame : Page.Frame) := min cap (match frame.value.kind with
+            | .dictionary _ => limits.maxDictionaryBytes
+            | _ => limits.scalar.compressedBytes)
+          (Page.Checksum.readChunkWithCRC limits.page maxBytes source span).mapError
+            (fun | .page reason => .page reason | .checksum reason => .checksum reason)
+      admit limits source span field.layout rowCount column frames checksumLimit.isNone
 
-/-- Decode the admitted data pages in wire order using one dictionary scoped
-only to this chunk. Dictionary entries never count as data slots. -/
-def scanColumn (limits : Limits) (source : Bytes) (footerStart : Nat) (field : FlatScan.Field)
+def scanColumnCore (checksumLimit : Option Nat) (limits : Limits) (source : Bytes)
+    (footerStart : Nat) (field : FlatScan.Field)
     (rowCount : Nat) (column : Footer.ColumnMetadata) : Except Error (List (Option Int32)) := do
-  let chunk ← read limits source footerStart field rowCount column
-  let pages ← chunk.data.mapM (Internal.decodePage limits source chunk.dictionary)
+  let chunk ← readCore checksumLimit limits source footerStart field rowCount column
+  let pages ← chunk.data.mapM (decodePage limits source chunk.dictionary)
   let slots := pages.flatten
   if slots.length ≠ rowCount then .error .rowCount
   else if field.layout = .required ∧ slots.any Option.isNone then .error .requiredNull
   else .ok slots
+
+end Internal
+
+/-- Check one chunk using the original CRC-rejecting profile. -/
+def read (limits : Limits) (source : Bytes) (footerStart : Nat) (field : FlatScan.Field)
+    (rowCount : Nat) (column : Footer.ColumnMetadata) : Except Error Chunk :=
+  Internal.readCore none limits source footerStart field rowCount column
+
+/-- Decode one column with a chunk-local dictionary and reject CRC-bearing pages. -/
+def scanColumn (limits : Limits) (source : Bytes) (footerStart : Nat) (field : FlatScan.Field)
+    (rowCount : Nat) (column : Footer.ColumnMetadata) : Except Error (List (Option Int32)) :=
+  Internal.scanColumnCore none limits source footerStart field rowCount column
+
+/-- Verify the original dictionary and data frames before decoding their bodies. -/
+def scanColumnWithCRC (checksumLimit : Nat) (limits : Limits) (source : Bytes)
+    (footerStart : Nat) (field : FlatScan.Field) (rowCount : Nat) (column : Footer.ColumnMetadata) :
+    Except Error (List (Option Int32)) :=
+  Internal.scanColumnCore (some checksumLimit) limits source footerStart field rowCount column
 
 end Silmaril.Formats.Parquet.DictionaryChunk
