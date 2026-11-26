@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.LetParIter.Thms
+import Silmaril.SSA.Isotope.LetParIter.Uniformity.Thms
 
 open Silmaril Silmaril.Isotope
 open Silmaril.Isotope.Parallel (Derivation)
@@ -52,7 +52,7 @@ def nativeWithEta : LetIter.LocallyNameless.Derivation Instr Γ .nil
 -- A native equation survives at its original exact typing endpoints.
 example : LetParIter.Equiv (⊥ : Bool × Bool) Γ
     (LetParIter.derivation nativeWithEta) (LetParIter.derivation nativeTyped) :=
-  .native nativeWithEta nativeTyped ⟨.letEta (LetParIter.nativeTyping nativeTyped)⟩
+  LetParIter.embed_related nativeWithEta nativeTyped ⟨.letEta (LetParIter.nativeTyping nativeTyped)⟩
 
 def unitBranch : Derivation Instr Γ (.snoc .nil U) (.bv 0 : LetParIter.Tm Empty Instr 1) U :=
   .bv
@@ -82,6 +82,32 @@ theorem swapOpen :
       (.par tickBranch unitBranch) :=
   .swap unitBranch tickBranch
 
+private def stepL : Derivation Instr Γ (.snoc .nil U)
+    (.inl LetParIter.hasCase (Parallel.Tm.swap branches)) (coprod (product U U) U) :=
+  .inl (LetParIter.Typing.swap (.par unitBranch tickBranch))
+
+private def stepR : Derivation Instr Γ (.snoc .nil U)
+    (.inl LetParIter.hasCase (.par (.op .tick .unit) (.bv 0))) (coprod (product U U) U) :=
+  .inl (.par tickBranch unitBranch)
+
+-- The recursive square is an instance of parallel swap inside the body.
+-- Opening the transported body at the original state retains its exact typing.
+private theorem uniformitySquare :
+    LetParIter.Equiv (⊥ : Bool × Bool) Γ
+      (LetParIter.Typing.uniformityLeft stepL unitBranch)
+      (LetParIter.Typing.uniformityRight
+        (LetParIter.Typing.uniformityLeft stepR unitBranch) unitBranch) := by
+  change LetParIter.Equiv (⊥ : Bool × Bool) Γ
+    (LetParIter.Typing.uniformityLeft stepL unitBranch)
+    (LetParIter.Typing.uniformityLeft stepR unitBranch)
+  exact .case (.inl swapOpen) (.refl _) (.refl _)
+
+theorem uniformityWithParallel : LetParIter.Equiv (⊥ : Bool × Bool) Γ
+    (.iter (h := rfl) .unit stepL)
+    (.iter (h := rfl) (.let₁ .unit unitBranch) (LetParIter.Typing.uniformityLeft stepR unitBranch)) :=
+  .iterUniformity .unit unitBranch .bv stepL
+    (LetParIter.Typing.uniformityLeft stepR unitBranch) uniformitySquare
+
 def substituteUnit :
     LetParIter.Subst (Γ := Γ) (.snoc .nil U) .nil (fun _ => (.unit : LetParIter.Tm Empty Instr 0)) :=
   fun i => Fin.cases .unit (fun j => Fin.elim0 j) i
@@ -105,5 +131,8 @@ variable [InstructionModel Instr Obj (Bool × Bool) m]
 
 example (P : Elgot.ParallelPairing m) (γ : CtxDen Γ) (ρ : BoundDen (.nil : BoundCtx Obj 0)) :=
   LetParIter.interpret_sound P loopSwap γ ρ
+
+example (P : Elgot.ParallelPairing m) (γ : CtxDen Γ) (ρ : BoundDen (.nil : BoundCtx Obj 0)) :=
+  LetParIter.interpret_sound P uniformityWithParallel γ ρ
 
 end LetParIterTests
