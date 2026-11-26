@@ -11,6 +11,9 @@ that machine function" against definitions a reviewer can read.
 
 Every module is in the root `Silmaril` library; there is no executable.
 
+The [LambdaIter family matrix](lambda-iter-family.md) records the assumptions of
+the semantics comparisons and the forward flat SSA/RTL commuting square.
+
 ## The calculi and translations
 
 ```mermaid
