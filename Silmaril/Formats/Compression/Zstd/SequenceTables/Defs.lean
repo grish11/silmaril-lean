@@ -88,6 +88,18 @@ inductive TableWire (alphabet : Alphabet) : Nat → List UInt8 → List UInt8 �
       FseTable.TableWire parsed.distribution table → table.WellFormed parsed.distribution →
       TableWire alphabet 2 used rest (.fse table)
 
+/-- The table originates in a checked description of this alphabet. -/
+def TableAccepted (alphabet : Alphabet) (table : Table) : Prop :=
+  ∃ mode used rest, TableWire alphabet mode used rest table
+
+def Tables.Accepted (tables : Tables) : Prop :=
+  TableAccepted .literalLength tables.literalLength ∧
+  TableAccepted .offset tables.offset ∧ TableAccepted .matchLength tables.matchLength
+
+def Section.TablesAccepted : Section → Prop
+  | .empty => True
+  | .coded _ tables _ => tables.Accepted
+
 /-- A successful prefix identifies the exact table slices in wire order
     (literal length, offset, match length) and the untouched reverse stream. -/
 inductive SectionWire : List UInt8 → Section → Prop where

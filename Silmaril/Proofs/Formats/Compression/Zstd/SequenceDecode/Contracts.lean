@@ -56,15 +56,8 @@ private theorem initialize_sound {tables : SequenceTables.Tables} {cursor rest :
     cases success
     exact readThree_sound reading
 
-private def HasWire (alphabet : FseTable.Alphabet) (table : SequenceTables.Table) : Prop :=
-  ∃ mode used rest, SequenceTables.TableWire alphabet mode used rest table
-
-private def CheckedTables (tables : SequenceTables.Tables) : Prop :=
-  HasWire .literalLength tables.literalLength ∧ HasWire .offset tables.offset ∧
-    HasWire .matchLength tables.matchLength
-
 private theorem lookup_sound {alphabet : FseTable.Alphabet} {table : SequenceTables.Table}
-    {state : Nat} {row : FseTable.Row} (hasWire : HasWire alphabet table)
+    {state : Nat} {row : FseTable.Row} (hasWire : SequenceTables.TableAccepted alphabet table)
     (selected : lookup table state = some row) : RowWire alphabet table state row := by
   obtain ⟨mode, used, rest, wire⟩ := hasWire
   cases table with
@@ -86,7 +79,7 @@ private theorem lookup_sound {alphabet : FseTable.Alphabet} {table : SequenceTab
       omega⟩
 
 private theorem selectRows_sound {tables : SequenceTables.Tables} {states : States} {rows : Rows}
-    (checked : CheckedTables tables) (success : selectRows tables states = some rows) :
+    (checked : tables.Accepted) (success : selectRows tables states = some rows) :
     RowsWire tables states rows := by
   cases ll : lookup tables.literalLength states.literalLength with
   | none => simp [selectRows, ll, bind, Option.bind] at success
@@ -139,7 +132,7 @@ private theorem advance_sound {tables : SequenceTables.Tables} {old states : Sta
       Nat.lt_of_lt_of_le (Nat.add_lt_add_left mlFits _) wire.matchLength.nextBound⟩
 
 private theorem readCommands_sound {tables : SequenceTables.Tables} {count : Nat} {states : States}
-    {cursor : Cursor} {acc out : List Sequence.Command} (checked : CheckedTables tables)
+    {cursor : Cursor} {acc out : List Sequence.Command} (checked : tables.Accepted)
     (success : readCommands tables count states cursor acc = .ok out) :
     ∃ commands, out = acc.reverse ++ commands ∧ commands.length = count ∧
       CommandsWire tables states cursor.bits commands := by
@@ -187,13 +180,8 @@ private theorem readCommands_sound {tables : SequenceTables.Tables} {count : Nat
               · simpa [List.reverse_cons, List.append_assoc] using shape
               · exact .more selected extra (advance_sound selected moving) wire
 
-private theorem tables_checked {input stream : List UInt8} {count : Nat} {tables : SequenceTables.Tables}
-    (wire : SequenceTables.SectionWire input (.coded count tables stream)) : CheckedTables tables := by
-  cases wire with
-  | coded _ _ _ ll ofc ml _ => exact ⟨⟨_, _, _, ll⟩, ⟨_, _, _, ofc⟩, ⟨_, _, _, ml⟩⟩
-
-theorem readResolved_sound {input : List UInt8} {resolvedSection : SequenceTables.Section} {commands : List Sequence.Command}
-    (wire : SequenceTables.SectionWire input resolvedSection) (success : readResolved resolvedSection = .ok commands) :
+theorem readResolved_of_accepted {resolvedSection : SequenceTables.Section} {commands : List Sequence.Command}
+    (accepted : resolvedSection.TablesAccepted) (success : Internal.readResolved resolvedSection = .ok commands) :
     PayloadWire resolvedSection commands := by
   cases resolvedSection with
   | empty =>
@@ -201,17 +189,26 @@ theorem readResolved_sound {input : List UInt8} {resolvedSection : SequenceTable
     exact .empty
   | coded count tables stream =>
     cases started : ReverseBits.start stream with
-    | none => simp [readResolved, started, throw] at success
+    | none => simp [Internal.readResolved, started, throw] at success
     | some cursor =>
       cases initialized : readInitial tables cursor with
-      | none => simp [readResolved, started, initialized, throw] at success
+      | none => simp [Internal.readResolved, started, initialized, throw] at success
       | some pair =>
         obtain ⟨states, rest⟩ := pair
-        simp only [readResolved, started, initialized] at success
-        obtain ⟨out, shape, size, body⟩ := readCommands_sound (tables_checked wire) success
+        simp only [Internal.readResolved, started, initialized] at success
+        obtain ⟨out, shape, size, body⟩ := readCommands_sound accepted success
         have same : commands = out := by simpa using shape
         subst commands
         exact .coded size (ReverseBits.start_sound started) (initialize_sound initialized) body
+
+theorem readResolved_sound {input : List UInt8} {resolvedSection : SequenceTables.Section}
+    {commands : List Sequence.Command}
+    (wire : SequenceTables.SectionWire input resolvedSection) (success : Internal.readResolved resolvedSection = .ok commands) :
+    PayloadWire resolvedSection commands := by
+  apply readResolved_of_accepted _ success
+  cases wire with
+  | empty _ => exact True.intro
+  | coded _ _ _ ll ofc ml _ => exact ⟨⟨_, _, _, ll⟩, ⟨_, _, _, ofc⟩, ⟨_, _, _, ml⟩⟩
 
 theorem decode_sound {limits : SequenceTables.Limits} {input : List UInt8} {commands : List Sequence.Command}
     (success : decode limits input = .ok commands) :

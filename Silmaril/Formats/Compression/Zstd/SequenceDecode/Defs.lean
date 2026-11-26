@@ -172,9 +172,13 @@ def readResolved : SequenceTables.Section → Except Error (List Sequence.Comman
 
 end Internal
 
+/-- Read commands from an already resolved section. A prefix resolver checks
+    the byte and sequence caps and supplies the tables for this operation. -/
+abbrev readResolved := Internal.readResolved
+
 def decode (limits : SequenceTables.Limits) (input : List UInt8) :
     Except Error (List Sequence.Command) := do
   let resolvedSection ← (SequenceTables.resolve limits input).mapError Error.prefix
-  Internal.readResolved resolvedSection
+  readResolved resolvedSection
 
 end Silmaril.Formats.Compression.Zstd.SequenceDecode

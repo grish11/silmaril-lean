@@ -17,6 +17,13 @@ theorem readResolved_sound {input : List UInt8} {resolvedSection : SequenceTable
     PayloadWire resolvedSection commands :=
   Proofs.Formats.Compression.Zstd.SequenceDecode.readResolved_sound wire success
 
+/-- Accepted tables, including tables carried forward by Repeat, suffice
+    for the same reverse-stream soundness contract. -/
+theorem readResolved_of_accepted {resolvedSection : SequenceTables.Section} {commands : List Sequence.Command}
+    (accepted : resolvedSection.TablesAccepted) (success : readResolved resolvedSection = .ok commands) :
+    PayloadWire resolvedSection commands :=
+  Proofs.Formats.Compression.Zstd.SequenceDecode.readResolved_of_accepted accepted success
+
 /-- An exact section decodes to precisely its declared number of commands,
     satisfying the caller's limits and the complete prefix and payload relations. -/
 theorem decode_sound {limits : SequenceTables.Limits} {input : List UInt8} {commands : List Sequence.Command}

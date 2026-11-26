@@ -41,8 +41,7 @@ theorem State.eq_of_previous {left right : State} (same : left.previous = right.
 
 /-- A retained table has validated wire provenance in its own alphabet.
     This witness need not be retained in the executable state. -/
-@[expose] def TableAccepted (alphabet : Alphabet) (table : Table) : Prop :=
-  ∃ mode used rest, TableWire alphabet mode used rest table
+abbrev TableAccepted := SequenceTables.TableAccepted
 
 @[expose] def State.Valid (state : State) : Prop :=
   ∀ alphabet table, state.table alphabet = some table → TableAccepted alphabet table

@@ -43,6 +43,11 @@ theorem resolve_preserves_valid {limits : Limits} {prior next : State} {input : 
     (success : resolve limits prior input = .ok (result, next)) : next.Valid :=
   Proofs.Formats.Compression.Zstd.SequenceTables.Repeat.resolve_preserves_valid valid success
 
+/-- The section can be passed to a payload reader that requires accepted tables. -/
+theorem selected_tables_accepted {prior next : State} {result : Section}
+    (update : StateUpdate prior result next) (valid : next.Valid) : result.TablesAccepted :=
+  Proofs.Formats.Compression.Zstd.SequenceTables.Repeat.selected_tables_accepted update valid
+
 theorem suffix_exact {prior : State} {input : List UInt8} {result : Section}
     (wire : SectionWire prior input result) :
     input.drop (input.length - result.bitstream.length) = result.bitstream :=

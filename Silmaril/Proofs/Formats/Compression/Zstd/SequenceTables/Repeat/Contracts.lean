@@ -81,6 +81,15 @@ theorem resolve_preserves_valid {limits : Limits} {prior next : State} {input : 
     | offset => exact selected_accepted valid ofc
     | matchLength => exact selected_accepted valid ml
 
+theorem selected_tables_accepted {prior next : State} {result : Section}
+    (update : StateUpdate prior result next) (valid : next.Valid) : result.TablesAccepted := by
+  cases result with
+  | empty => exact True.intro
+  | coded count tables stream =>
+    have stored : next.previous = some tables := update
+    refine ⟨valid .literalLength _ ?_, valid .offset _ ?_, valid .matchLength _ ?_⟩ <;>
+      simp [State.table, stored, tableFor]
+
 theorem suffix_exact {prior : State} {input : List UInt8} {result : Section}
     (wire : SectionWire prior input result) :
     input.drop (input.length - result.bitstream.length) = result.bitstream := by
