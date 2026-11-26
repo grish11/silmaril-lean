@@ -46,13 +46,13 @@ private theorem erase_toRows (schema : Scan.Schema String Unit)
 
 variable {Name : Type*} [DecidableEq Name]
 variable {db : Packed Name Csv.Field Cell} {name : Name} {schema : Scan.Schema String Unit}
-variable {ipcLimits : Arrow.ObservationLimits} {parquetLimits : FlatInt32Writer.Limits} {input : KBytes}
+variable {read : KBytes → Except Arrow.Error Arrow.ObservedStream} {parquetLimits : FlatInt32Writer.Limits} {input : KBytes}
 
-theorem convert_readback {result : FlatInt32Writer.FromCsv.Result Name}
-    (converted : convert db name schema ipcLimits parquetLimits input = .ok result) :
+theorem convertWithReader_readback {result : FlatInt32Writer.FromCsv.Result Name}
+    (converted : convertWithReader read db name schema parquetLimits input = .ok result) :
     db name = none ∧ ∃ (observed : Arrow.ObservedStream)
       (rows : Csv.Typed.Table (csvSchema schema) Cell) (batch : FlatScan.Batch),
-      Arrow.readRows ipcLimits input = .ok observed ∧ observed.fields = fields schema ∧
+      read input = .ok observed ∧ observed.fields = fields schema ∧
       result.db = Function.update db name (some ⟨csvSchema schema, rows⟩) ∧
       FlatScan.scanFileRowGroup (parquetLimits.scanLimits (FlatInt32Writer.FromCsv.writerInput schema rows))
         (FlatScan.decodeInt32Page parquetLimits.page.scalar) result.bytes 0 = .ok batch ∧
@@ -60,10 +60,10 @@ theorem convert_readback {result : FlatInt32Writer.FromCsv.Result Name}
       batch.rowCount = observed.batches.flatten.length ∧
       batch.rows.map (List.map (Option.map Arrow.Value.int32)) = observed.batches.flatten := by
   cases occupied : db name with
-  | some entry => simp [convert, occupied] at converted
+  | some entry => simp [convertWithReader, occupied] at converted
   | none =>
-    simp only [convert, occupied, Option.isSome_none, Bool.false_eq_true, ite_false] at converted
-    cases reading : Arrow.readRows ipcLimits input with
+    simp only [convertWithReader, occupied, Option.isSome_none, Bool.false_eq_true, ite_false] at converted
+    cases reading : read input with
     | error reason => simp [reading] at converted
     | ok observed =>
       by_cases matched : observed.fields = fields schema

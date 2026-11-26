@@ -31,15 +31,16 @@ def toRows (schema : Scan.Schema String Unit)
     cast (by simp [Arrow.ToCsv.Cell, Arrow.ToCsv.schemaOf, Arrow.ToCsv.labelOf, fields,
       Function.comp_def]) (row index)
 
-/-- Require complete IPC readback with the declared ordered nullable INT32
-fields. Reuse the typed CSV row adapter and write those rows directly. -/
-def convert {Name : Type*} [DecidableEq Name] (db : Packed Name Csv.Field Cell) (name : Name)
-    (schema : Scan.Schema String Unit) (ipcLimits : Arrow.ObservationLimits)
-    (parquetLimits : FlatInt32Writer.Limits) (input : KBytes) :
+/-- Consume the completed observation supplied by an IPC reader. The typed
+row check and Parquet writer enforce the declared nullable INT32 schema. -/
+def convertWithReader {Name : Type*} [DecidableEq Name]
+    (read : KBytes → Except Arrow.Error Arrow.ObservedStream)
+    (db : Packed Name Csv.Field Cell) (name : Name)
+    (schema : Scan.Schema String Unit) (parquetLimits : FlatInt32Writer.Limits) (input : KBytes) :
     Except Error (FlatInt32Writer.FromCsv.Result Name) :=
   if (db name).isSome then .error .nameConflict
   else
-    match Arrow.readRows ipcLimits input with
+    match read input with
     | .error reason => .error (.input (.ipc reason))
     | .ok observed =>
       if observed.fields = fields schema then
@@ -49,5 +50,13 @@ def convert {Name : Type*} [DecidableEq Name] (db : Packed Name Csv.Field Cell) 
           (FlatInt32Writer.FromCsv.convertRows db name schema parquetLimits (toRows schema rows)).mapError
             .writeParquet
       else .error .schemaMismatch
+
+/-- Require complete stream readback with the declared ordered nullable
+INT32 fields and pass the checked rows directly to the Parquet writer. -/
+def convert {Name : Type*} [DecidableEq Name] (db : Packed Name Csv.Field Cell) (name : Name)
+    (schema : Scan.Schema String Unit) (ipcLimits : Arrow.ObservationLimits)
+    (parquetLimits : FlatInt32Writer.Limits) (input : KBytes) :
+    Except Error (FlatInt32Writer.FromCsv.Result Name) :=
+  convertWithReader (Arrow.readRows ipcLimits) db name schema parquetLimits input
 
 end Silmaril.Formats.Csv.ParquetIpc.FromIpc
