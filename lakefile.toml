@@ -492,6 +492,11 @@ globs = ["tests.ssa.PeggyInstitution"]
 name = "PeggyEquationalTests"
 globs = ["tests.ssa.PeggyEquational"]
 
+# Check the PEG bridge against the Figure 11, ordered RVSDG and MLIR evaluators.
+[[lean_lib]]
+name = "PEGIRBridgeTests"
+globs = ["tests.ssa.PEGIRBridge"]
+
 # The component and generator tools of the Wasm release (docs/projects/wasm-components.md).
 [[lean_exe]]
 name = "wasm-tools-gen"
