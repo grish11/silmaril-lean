@@ -122,4 +122,69 @@ example : Simulation move wire :=
         rfl
       exact same.le)
 
+private def copyTable {n b : Nat} (entry : Label n b) (edges : Fin n → Label n b) :
+    Graph Bool Empty 1 b where
+  locals := n
+  entry _ := entry
+  block i := ⟨false, .let1 true (.val (.var false)) (.term (.br (edges i) (.var true)))⟩
+  closed _ := by simp [Body.toRegion, Term.toRegion, Region.fv, Op.fv, Val.fv]
+
+-- Two private blocks forward to exit 0. The unused block forwards to exit 1.
+private def chain : Graph Bool Empty 1 2 :=
+  copyTable (n := 3) (.inl 0) fun i =>
+    if i = 0 then .inl 1 else if i = 1 then .inr 0 else .inr 1
+
+private def chainWire : Graph Bool Empty 1 2 := Graph.wiring (fun _ => 0)
+
+private def chainCertificate : Simulation chain chainWire :=
+  CopyChain.certificate chain (fun _ => 0) (by decide)
+
+example : CopyChain.terminalWithin? chain 1 (.inl (0 : Fin 3)) = none := by decide
+example : chainCertificate.address (2 : Fin 3) = .inr 1 := by decide
+example : CopyChain.check chain (fun _ => 1) = false := by decide
+
+example (m : Model Empty Part Nat) (packet : Nat) :
+    chain.denote m (0, packet) = pure (0, packet) :=
+  CopyChain.denote_of_terminal m (0, packet) 0 (by
+    change CopyChain.terminal? chain (chain.entry 0) = some 0
+    decide)
+
+private def swapPorts (i : Fin 2) : Fin 2 := if i = 0 then 1 else 0
+private def swapWire : Graph Bool Empty 2 2 := Graph.wiring swapPorts
+
+private def swapCertificate : Simulation swapWire swapWire :=
+  CopyChain.certificate swapWire swapPorts (by decide)
+
+example : Simulation.check (chain.link swapWire) (chainWire.link swapWire)
+    (chainCertificate.link swapCertificate).address = true := by decide
+
+example : CopyChain.check (chain.link swapWire) (fun _ => 1) = true := by decide
+
+private def ring (entry : Label 2 1) : Graph Bool Empty 1 1 :=
+  copyTable entry fun i => .inl (if i = 0 then 1 else 0)
+
+example : CopyChain.check (ring (.inl 0)) id = false := by decide
+
+-- The old forward simulation can stutter forever. It still proves inclusion.
+example : Simulation.check (ring (.inl 0)) wire (fun _ => .inr 0) = true := by decide
+
+theorem reachable_cycle_diverges (m : Model Empty Part Nat) (packet : Nat) :
+    (ring (.inl 0)).denote m (0, packet) = Part.none :=
+  CopyChain.denote_none m (0, packet)
+    (by intro i; simp [ring, copyTable, CopyChain.next?, PacketCopy.target?]) (by
+      change CopyChain.terminal? (ring (.inl 0)) ((ring (.inl 0)).entry 0) = none
+      decide)
+
+example : CopyChain.check (ring (.inr 0)) id = false := by decide
+
+-- A cycle in the unused table is invisible to the observations at inputs.
+example (m : Model Empty Part Nat) (input : Fin 1 × Nat) :
+    (ring (.inr 0)).denote m input = wire.denote m input := by
+  rw [wire, Graph.denote_wiring,
+    CopyChain.denote_of_terminal m input input.1 (by
+      have port : input.1 = 0 := Subsingleton.elim _ _
+      rw [port]
+      rfl)]
+  rfl
+
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link

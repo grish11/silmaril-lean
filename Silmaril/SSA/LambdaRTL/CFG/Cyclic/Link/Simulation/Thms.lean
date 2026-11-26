@@ -4,6 +4,7 @@ public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Defs
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.PacketCopy
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Soundness
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Composition
+import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.CopyChain
 
 @[expose] public section
 
@@ -109,5 +110,56 @@ def directCopies_complete (model : PairModel F Part α) (source : Graph V F a b)
   entry := by
     exact Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.directCopies_entry
       model source exit typed wire included
+
+namespace CopyChain
+
+/-- A successful traversal is exactly a finite typed path to the port.
+Determinism prevents a terminating path from revisiting a private block. -/
+theorem terminal?_eq_some_iff {graph : Graph V F a b} {start : Label graph.locals b} {port : Fin b} :
+    terminal? graph start = some port ↔ ∃ trace, Path graph start trace port :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.terminal_iff
+
+theorem total_iff (graph : Graph V F a b) :
+    Total graph ↔ ∀ index, ∃ port trace, Path graph (.inl index) trace port := by
+  simp only [Total, Option.isSome_iff_exists, terminal?_eq_some_iff]
+
+theorem denote_of_terminal {graph : Graph V F a b} (model : Model F Part α)
+    (input : Fin a × α) (port : Fin b) (found : terminal? graph (graph.entry input.1) = some port) :
+    graph.denote model input = pure (port, input.2) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.denote_of_terminal model input port found
+
+/-- In an entirely copy-forwarding table, a missing terminal port means
+there is no terminating observation at this input. -/
+theorem denote_none {graph : Graph V F a b} (model : Model F Part α) (input : Fin a × α)
+    (typed : ∀ i, (next? graph i).isSome) (missing : terminal? graph (graph.entry input.1) = none) :
+    graph.denote model input = Part.none :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.denote_none model input typed missing
+
+theorem check_iff (graph : Graph V F a b) (wire : Fin a → Fin b) :
+    check graph wire = true ↔ Total graph ∧
+      ∀ input, terminal? graph (graph.entry input) = some (wire input) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.check_iff graph wire
+
+/-- Build the ordinary label-map certificate from the computed terminal
+port of each private block, including unused blocks. -/
+def certificate (graph : Graph V F a b) (wire : Fin a → Fin b)
+    (passed : check graph wire = true) : Simulation graph (Graph.wiring wire) :=
+  let total := ((check_iff graph wire).mp passed).1
+  { address := fun index => .inr (terminalPort graph total index)
+    entry := by
+      exact Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.certificate_entry passed total
+    block := by
+      exact Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.certificate_block wire total }
+
+/-- On a table in which every private block reaches a public port through
+typed copies, refinement against direct wiring is decided by the check. -/
+theorem check_iff_refines (model : PairModel F Part α) (graph : Graph V F a b)
+    (wire : Fin a → Fin b) (total : Total graph) :
+    check graph wire = true ↔
+      Refines (Quotient.mk _ graph : Arrow V F α a b) (Quotient.mk _ (Graph.wiring wire)) :=
+  ⟨fun passed => (certificate graph wire passed).refines,
+    Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.check_complete model graph wire total⟩
+
+end CopyChain
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link

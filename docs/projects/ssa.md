@@ -196,13 +196,21 @@ jump target and incoming packet in every lawful monad. The simulation preserves
 every terminating `Part` result, and the executable linker combines the
 certificates, including at handoff blocks.
 
-Against direct wiring, refinement gives a certificate if a common pair-lawful
-`Part` model exists and every source private block is a typed forwarding body
-that jumps directly to a public port. The
+Against direct wiring, `CopyChain.check` follows each chain of typed forwarding
+bodies for at most the number of private blocks. A terminating chain cannot
+revisit a private label, so that bound finds its unique terminal port.
+`CopyChain.certificate` maps each private block to its computed port and checks
+the wire's routing at each input. With a common pair-lawful `Part` model, the
+check is complete for refinement when every private block reaches a public
+port through typed forwarding bodies, including blocks unused by the inputs.
+
+For a table of typed forwarders, a failed terminal search at an input implies
+`Part.none` there. The older one-way simulation may still certify inclusion
+from a cycle into a wire, since the cycle contributes no terminating result.
+The total traversal also rejects cycles in unused blocks, even when their
+absence from all input paths makes them observationally invisible. The
 [regressions](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/Link/Simulation/Regression.lean)
-certify a one-block register copy before and after linking, reject a read
-before its defining copy and an altered payload, and check strict refinement
-from a cyclic forwarding loop to a returning wire.
+exercise a linked multi-block chain and both reachable and unused cycles.
 
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),

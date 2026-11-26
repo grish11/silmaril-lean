@@ -63,7 +63,7 @@ private theorem copiedStep (sim : Simulation left right) (model : Model F Part �
   simp only [Block.relabel, Body.evalJump_relabel, Functor.map_map]
   rfl
 
-private theorem forwardingStep (model : Model F Part α)
+theorem forwardingStep (model : Model F Part α)
     (i : Fin left.locals) (target : Label left.locals b) (packet : α)
     (typed : PacketCopy.Forwards {(left.block i).param} (left.block i).body target) :
     left.step model (.inl i, packet) = Part.some (.inr (target, packet)) := by

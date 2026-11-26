@@ -44,6 +44,48 @@ def target? (available : Finset V) : Body V K F → Option K
 
 end PacketCopy
 
+namespace CopyChain
+
+variable (graph : Graph V F a b)
+
+/-- The unique syntactically checked successor of a private block. -/
+def next? (index : Fin graph.locals) : Option (Label graph.locals b) :=
+  PacketCopy.target? {(graph.block index).param} (graph.block index).body
+
+/-- A path of typed forwarders, recording the private blocks it visits. -/
+inductive Path : Label graph.locals b → List (Fin graph.locals) → Fin b → Prop
+  | exit (port : Fin b) : Path (.inr port) [] port
+  | step {index : Fin graph.locals} {next : Label graph.locals b}
+      {rest : List (Fin graph.locals)} {port : Fin b}
+      (forwarded : PacketCopy.Forwards {(graph.block index).param} (graph.block index).body next)
+      (tail : Path next rest port) :
+      Path (.inl index) (index :: rest) port
+
+/-- Follow at most `fuel` private jumps. A public label consumes no fuel. -/
+def terminalWithin? : Nat → Label graph.locals b → Option (Fin b)
+  | _, .inr port => some port
+  | 0, .inl _ => none
+  | fuel + 1, .inl index => (next? graph index).bind (terminalWithin? fuel)
+
+/-- Search for the terminal port using one unit of fuel per private block. -/
+def terminal? (start : Label graph.locals b) : Option (Fin b) :=
+  terminalWithin? graph graph.locals start
+
+/-- The label-map certificate covers the entire private table, including
+blocks that no input can reach. Each must lead to a public port. -/
+def Total : Prop := ∀ index, (terminal? graph (.inl index)).isSome
+
+/-- The port assigned to a private address by the traversal. -/
+def terminalPort (total : Total graph) (index : Fin graph.locals) : Fin b :=
+  (terminal? graph (.inl index)).get (total index)
+
+/-- Check totality on private labels and agreement with the wire at inputs. -/
+def check (wire : Fin a → Fin b) : Bool :=
+  (List.finRange graph.locals).all (fun index => (terminal? graph (.inl index)).isSome) &&
+  (List.finRange a).all (fun input => decide (terminal? graph (graph.entry input) = some (wire input)))
+
+end CopyChain
+
 /-- The local syntactic simulation rules. -/
 inductive BlockMatch (right : Graph V F a b) (route : Label n b → Label right.locals b)
     (source : Block V (Label n b) F) (image : Label right.locals b) : Prop
