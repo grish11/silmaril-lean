@@ -42,11 +42,15 @@ returning load loop. It checks a closed completion where the load sees
 the old word before the other thread writes, and uses the instantiated
 soundness theorem to swap the two branches and their result positions.
 
+The proof suite builds [the axiom audit][audit], which imports the race
+regression and checks its transitive dependencies together with the
+soundness declarations. The standalone test runs the same audit.
+
 This is finite completed SC. The observation model has no fair infinite
 traces, divergent prefixes, or must-termination observations.
 
 ```sh
-make check CHECK_TARGETS='+Silmaril.SSA.Isotope.BrookesLetParIter.Thms +Silmaril.Proofs.SSA.Isotope.BrookesLetParIter.Regression LetIterWeakTreeSoundnessTests +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.Terms +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.PairingModel'
+make check CHECK_TARGETS='+Silmaril.SSA.Isotope.BrookesLetParIter.Thms +Silmaril.Proofs.SSA.Isotope.BrookesLetParIter.Axioms LetIterWeakTreeSoundnessTests +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.Terms +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.PairingModel'
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/BrookesLetParIterAxioms.lean
 ```
 
@@ -54,3 +58,4 @@ lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/BrookesLetPar
 [iteration]: sc-brookes-iteration.md
 [regression]: ../../Silmaril/Proofs/SSA/Isotope/BrookesLetParIter/Regression.lean
 [probe]: https://github.com/hiloopai/silmaril-lean/blob/5fda52f53b1cc6bcff1e1affca9cb60617216028/docs/projects/letpariter-ordered-freyd.md#L295-L304
+[audit]: ../../Silmaril/Proofs/SSA/Isotope/BrookesLetParIter/Axioms.lean
