@@ -95,4 +95,21 @@ theorem read_wire {limits : Limits} {policy : Policy} {source : Bytes} {footerSt
       slots = pages.flatten ∧ slots.length = rowCount :=
   Proofs.Formats.Parquet.Int96.Dictionary.read_wire h
 
+/-- The wire witness includes the exact frames returned by the checked chunk
+parser on the original source. -/
+theorem read_framed_wire {limits : Limits} {policy : Policy} {source : Bytes} {footerStart rowCount : Nat}
+    {leaf : Footer.SchemaElement} {column : Footer.ColumnMetadata} {slots : Slots policy}
+    (h : read limits policy source footerStart rowCount leaf column = .ok slots) :
+    ∃ span first rest dictionary pages,
+      Parquet.Page.columnSpan footerStart column = some span ∧
+      Parquet.Page.readChunk limits.framing source span = .ok (first :: rest) ∧
+      Parquet.Page.Chain span span.start span.stop (first :: rest) ∧
+      column.dictionaryPageOffset = some (first.header.start : Int) ∧
+      rest.head?.map (fun frame => (frame.header.start : Int)) = some column.dataPageOffset ∧
+      readDictionary limits policy source first = .ok dictionary ∧
+      List.Forall₂ (fun frame page => ∃ params, dataParameters leaf frame.value = .ok params ∧
+        decodeData limits dictionary params (frameBody source frame) = .ok page) rest pages ∧
+      slots = pages.flatten ∧ slots.length = rowCount :=
+  Proofs.Formats.Parquet.Int96.Dictionary.read_framed_wire h
+
 end Silmaril.Formats.Parquet.Int96.Dictionary

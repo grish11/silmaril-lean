@@ -59,8 +59,8 @@ framing errors keep the original framing cause at the chunk boundary.
 
 [Theorem header](../../Silmaril/Formats/Parquet/Int96/Dictionary/Thms.lean)
 
-The API stops at one chunk. Full-file dispatch, compression,
-Spark rebasing, and Arrow narrowing are separate profiles.
+The API stops at one chunk. The [selected-leaf file reader](parquet-int96-dictionary-file.md)
+applies this chunk decoder to the original snapshot in footer order.
 
 ## Independent fixtures
 

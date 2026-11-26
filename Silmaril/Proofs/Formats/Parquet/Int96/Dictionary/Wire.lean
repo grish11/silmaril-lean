@@ -277,11 +277,12 @@ private theorem pages_ordered {limits : Limits} {source : Bytes} {leaf : Footer.
         obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, pageCount⟩ := decodeData_wire read
         exact ⟨.cons ⟨params, checkedParams, read⟩ ordered, by simp [pageCount, count]⟩
 
-theorem read_wire {limits : Limits} {policy : Policy} {source : Bytes} {footerStart rowCount : Nat}
+theorem read_framed_wire {limits : Limits} {policy : Policy} {source : Bytes} {footerStart rowCount : Nat}
     {leaf : Footer.SchemaElement} {column : Footer.ColumnMetadata} {slots : Slots policy}
     (h : Dictionary.read limits policy source footerStart rowCount leaf column = .ok slots) :
     ∃ span first rest dictionary pages,
       Parquet.Page.columnSpan footerStart column = some span ∧
+      Parquet.Page.readChunk limits.framing source span = .ok (first :: rest) ∧
       Parquet.Page.Chain span span.start span.stop (first :: rest) ∧
       column.dictionaryPageOffset = some (first.header.start : Int) ∧
       rest.head?.map (fun frame => (frame.header.start : Int)) = some column.dataPageOffset ∧
@@ -319,12 +320,29 @@ theorem read_wire {limits : Limits} {policy : Policy} {source : Bytes} {footerSt
         by_cases equal : (firstData.header.start : Int) = column.dataPageOffset
         · simp [equal]
         · simp [checkDataOffset, equal] at offsetOk
-    refine ⟨span, first, rest, dictionary, pages, spanOk, chain, ?_, dataOffset,
+    refine ⟨span, first, rest, dictionary, pages, spanOk, framed, chain, ?_, dataOffset,
       mapError_ok readDictionaryOk, ?_, result.symm, ?_⟩
     · rwa [headerStart]
     · simpa using ordered
     · rw [← result, List.length_flatten, count]
       simpa [checkSlotCount] using rowsOk
+
+theorem read_wire {limits : Limits} {policy : Policy} {source : Bytes} {footerStart rowCount : Nat}
+    {leaf : Footer.SchemaElement} {column : Footer.ColumnMetadata} {slots : Slots policy}
+    (h : Dictionary.read limits policy source footerStart rowCount leaf column = .ok slots) :
+    ∃ span first rest dictionary pages,
+      Parquet.Page.columnSpan footerStart column = some span ∧
+      Parquet.Page.Chain span span.start span.stop (first :: rest) ∧
+      column.dictionaryPageOffset = some (first.header.start : Int) ∧
+      rest.head?.map (fun frame => (frame.header.start : Int)) = some column.dataPageOffset ∧
+      readDictionary limits policy source first = .ok dictionary ∧
+      List.Forall₂ (fun frame page => ∃ params, dataParameters leaf frame.value = .ok params ∧
+        decodeData limits dictionary params (frameBody source frame) = .ok page) rest pages ∧
+      slots = pages.flatten ∧ slots.length = rowCount := by
+  obtain ⟨span, first, rest, dictionary, pages, spanOk, _, chain, dictionaryOffset,
+    dataOffset, dictionaryOk, ordered, flattened, count⟩ := read_framed_wire h
+  exact ⟨span, first, rest, dictionary, pages, spanOk, chain, dictionaryOffset,
+    dataOffset, dictionaryOk, ordered, flattened, count⟩
 
 theorem readDictionary_entry_error {limits : Limits} {policy : Policy} {source : Bytes}
     {frame : Parquet.Page.Frame} {index : Nat}
