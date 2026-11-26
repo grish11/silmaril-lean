@@ -1,0 +1,27 @@
+module
+
+import Silmaril.Semantics.SQLite.Isolation.Api.Thms
+
+/-! Consumer and axiom checks for `Silmaril.Semantics.SQLite.Isolation.Api`. -/
+
+open Silmaril.SQLite.Isolation.Api
+
+#check treeSafe_bind
+#check treeSafe_guardedCall
+#check handledTreeSafe_bind
+#check replayTo_preserves_protected
+#check handled_prefix_preserves_protected
+#check handled_returnsTo_preserves_protected
+#check openReadCloseSession_safe
+#check openReadCloseSession_prefix_preserves_protected
+#check openReadCloseSession_returnsTo_preserves_protected
+#check guardedDeniedWriteSession_safe
+#check guardedDeniedWriteSession_returnsTo_preserves_protected
+#check unsafeWriteProgram_not_safe
+#check unsafeAttachProgram_not_safe
+#check unsafeLoadExtensionProgram_not_safe
+#check unsafeHostEffectProgram_not_safe
+#check unsafeReadWriteOpenProgram_not_safe
+#check unsafeWrongDbOpenProgram_not_safe
+#check referenceHandler_frameContract
+#check dishonestHandler_mutates_despite_treeSafe
