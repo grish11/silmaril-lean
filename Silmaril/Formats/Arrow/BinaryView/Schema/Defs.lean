@@ -28,6 +28,18 @@ def readField (ipc : Arrow.Limits) (limits : Column.Limits) (field : Field)
   | .binary => Batch.readBinary ipc limits field.nullable recordMetadata body
   | .utf8 => Batch.readUtf8 ipc limits field.nullable recordMetadata body
 
+/-- Decode a framed RecordBatch whose metadata was already parsed to obtain
+its declared body length. -/
+def readParsed (ipc : Arrow.Limits) (limits : Column.Limits) (field : Field)
+    {metadataBytes : KBytes} (metadata : BatchMetadata metadataBytes limits.dataBuffers) (body : KBytes) :
+    Except Batch.Error (Values field.kind) :=
+  let bound := Batch.bindParsed ipc field.nullable metadata body
+  match field.kind with
+  | .binary => bound.bind fun frame =>
+    (Column.readBinary limits frame.metadata.node field.nullable frame.buffers).mapError .column
+  | .utf8 => bound.bind fun frame =>
+    (Column.readUtf8 limits frame.metadata.node field.nullable frame.buffers).mapError .column
+
 /-- Use the checked field kind and nullability to decode the ordered column
 and retain the declared field on the result. -/
 def readBatch (ipc : Arrow.Limits) (limits : Column.Limits) (schemaMetadata recordMetadata body : KBytes) :

@@ -114,8 +114,7 @@ field and uses it to read the batch. `Schema.readBinary_iff` and
 `Schema.readUtf8_iff` compose that result with the checked wire relation
 for ordered bytes and strings. The RecordBatch does not encode a field
 name or kind, so a physically compatible batch can satisfy the supplied
-Schema even if it comes from another source. Framing and stream or file
-assembly are outside this interface. The primitive and normalized
+Schema even if it comes from another source. This standalone interface starts after framing. The primitive and normalized
 Schema readers still reject view tags.
 [Reader](../../Silmaril/Formats/Arrow/BinaryView/Schema/Defs.lean) ·
 [Laws](../../Silmaril/Formats/Arrow/BinaryView/Schema/Thms.lean)
@@ -129,13 +128,49 @@ value outside UTF-8 under a Utf8View declaration.
 [Fixture generator and hashes](../../scripts/arrow-binary-view/schema_fixtures.py) ·
 [Lean examples](../../Silmaril/Formats/Arrow/BinaryView/Schema/Examples.lean)
 
+## One-field V5 streams
+
+`BinaryView.Stream.read` consumes a complete immutable carrier. It admits
+one bodyless little-endian view Schema, uses the same field for every
+RecordBatch, and requires modern continuation envelopes and EOS exactly at
+the carrier end. The result retains the declared field for a schema-only
+stream and preserves one observation per RecordBatch in order, including
+empty batches. Batch errors identify the zero-based index and distinguish
+envelope, metadata, body, decode, trailing bytes and batch-limit failures.
+
+The stream parser reads each view RecordBatch metadata once to obtain its
+body length, then reuses the standalone binder over the checked body
+slice. The IPC batch limit applies to the entire stream, and the view row
+and value budgets apply to each batch. This profile reads flat one-field
+streams. File framing and emission are separate.
+[Reader](../../Silmaril/Formats/Arrow/BinaryView/Stream/Defs.lean)
+
+`Stream.read_iff` and `Stream.readBatches_iff` characterize the schema and
+ordered batch observations through exact EOS. `Stream.readBatch_iff`
+connects each record to the standalone field observation, and
+`Stream.batch_ranges` gives its exact carrier windows and bounded
+successor offset. `Stream.batches_length_le` bounds the number of
+observations by the batch budget.
+[Laws](../../Silmaril/Formats/Arrow/BinaryView/Stream/Thms.lean)
+
+The pinned PyArrow wheel produces separate three-batch streams for both
+view kinds, with nulls and both inline and referenced values. Lean checks
+every observation and the empty middle batch. A schema-only fixture checks
+zero-budget EOS. Rejection cases include truncated body and metadata,
+missing EOS, trailing bytes, a repeated Schema, unsupported types and byte
+order, and exhausted budgets.
+[Fixture generator](../../scripts/arrow-binary-view/stream_fixtures.py) ·
+[Lean checks](../../Silmaril/Formats/Arrow/BinaryView/Stream/Examples.lean)
+
 ```sh
 lake build --wfail +Silmaril.Formats.Arrow.BinaryView.Thms +Silmaril.Formats.Arrow.BinaryView.Examples \
   +Silmaril.Formats.Arrow.BinaryView.Column.Thms +Silmaril.Formats.Arrow.BinaryView.Column.Examples \
   +Silmaril.Formats.Arrow.BinaryView.Batch.Thms +Silmaril.Formats.Arrow.BinaryView.Batch.Examples \
-  +Silmaril.Formats.Arrow.BinaryView.Schema.Thms +Silmaril.Formats.Arrow.BinaryView.Schema.Examples
+  +Silmaril.Formats.Arrow.BinaryView.Schema.Thms +Silmaril.Formats.Arrow.BinaryView.Schema.Examples \
+  +Silmaril.Formats.Arrow.BinaryView.Stream.Thms +Silmaril.Formats.Arrow.BinaryView.Stream.Examples
 lake env lean -DautoImplicit=false -DwarningAsError=true scripts/arrow-binary-view/Axioms.lean
 python3 -I scripts/arrow-binary-view/fixtures.py --regenerate
 python3 -I scripts/arrow-binary-view/batch_fixtures.py
 python3 -I scripts/arrow-binary-view/schema_fixtures.py
+python3 -I scripts/arrow-binary-view/stream_fixtures.py
 ```

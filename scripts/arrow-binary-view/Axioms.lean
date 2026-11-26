@@ -4,6 +4,7 @@ import Silmaril.Formats.Arrow.BinaryView.Thms
 import Silmaril.Formats.Arrow.BinaryView.Column.Thms
 import Silmaril.Formats.Arrow.BinaryView.Batch.Thms
 import Silmaril.Formats.Arrow.BinaryView.Schema.Thms
+import Silmaril.Formats.Arrow.BinaryView.Stream.Thms
 
 open Silmaril.Formats.Arrow.BinaryView
 
@@ -28,3 +29,10 @@ open Silmaril.Formats.Arrow.BinaryView
 #print axioms Schema.readBatch_binds
 #print axioms Schema.readBinary_iff
 #print axioms Schema.readUtf8_iff
+
+#print axioms Stream.readSchema_iff
+#print axioms Stream.readBatch_iff
+#print axioms Stream.readBatches_iff
+#print axioms Stream.read_iff
+#print axioms Stream.batches_length_le
+#print axioms Stream.batch_ranges

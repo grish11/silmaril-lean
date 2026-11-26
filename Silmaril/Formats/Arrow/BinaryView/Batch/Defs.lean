@@ -33,11 +33,11 @@ structure Frame (metadataBytes body : KBytes) (maxDataBuffers : Nat) where
   rows : metadata.node.length = metadata.rowCount
   layout : BuffersFit body.len 0 (descriptors metadata)
 
-/-- Validate all descriptors against the actual body before taking any
-slice. The caller supplies the admitted view profile and nullability. -/
-def bindBuffers (ipc : Arrow.Limits) (limits : Column.Limits) (nullable : Bool)
-    (metadataBytes body : KBytes) : Except Error (Frame metadataBytes body limits.dataBuffers) := do
-  let metadata ← (readBatchMetadata ipc limits.dataBuffers metadataBytes).mapError .metadata
+/-- Validate the descriptors of parsed metadata against the actual body
+before taking any slice. -/
+def bindParsed (ipc : Arrow.Limits) (nullable : Bool) {metadataBytes : KBytes}
+    {maxDataBuffers : Nat} (metadata : BatchMetadata metadataBytes maxDataBuffers) (body : KBytes) :
+    Except Error (Frame metadataBytes body maxDataBuffers) := do
   if extent : metadata.bodyLength = body.len then
     if body.len > ipc.bodyBytes then throw .bodyLimit
     if aligned : body.len % 8 = 0 then
@@ -53,6 +53,12 @@ def bindBuffers (ipc : Arrow.Limits) (limits : Column.Limits) (nullable : Bool)
       else throw .malformedSource
     else throw (.unalignedBodyLength body.len)
   else throw (.bodyLength metadata.bodyLength body.len)
+
+/-- Parse metadata and bind it to the standalone RecordBatch body. -/
+def bindBuffers (ipc : Arrow.Limits) (limits : Column.Limits) (nullable : Bool)
+    (metadataBytes body : KBytes) : Except Error (Frame metadataBytes body limits.dataBuffers) := do
+  let metadata ← (readBatchMetadata ipc limits.dataBuffers metadataBytes).mapError .metadata
+  bindParsed ipc nullable metadata body
 
 /-- Extract the checked views and data descriptors in their metadata order. -/
 def Frame.buffers {metadataBytes body : KBytes} {maxDataBuffers : Nat}
