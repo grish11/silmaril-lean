@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.SSA.MLIR.SCF.LetIter.Thms
+public import Silmaril.SSA.MLIR.SCF.LetIter.LambdaSSA
 
 /-! # Closed examples with an observable yield and a divergent backedge -/
 
@@ -60,5 +60,34 @@ theorem erasing_continuation :
   · intro h
     have run : Eval model.instr noFree model.bound (.inl .unit) () (.inl .unit) () := .inl .unit
     cases h.eval.mp run
+
+private def repeatBody : Tm Empty Empty 1 := .inr (.bv 0)
+private def repeatTerm : Tm Empty Empty 0 := .iter .unit repeatBody
+private def stuckTerm : Tm Empty Empty 0 := .abort .unit
+
+/-- The raw native semantics has pairs with identical finite returns and
+different divergence observations. -/
+example :
+    (∀ value, Eval model.instr noFree model.bound repeatTerm () value () ↔
+      Eval model.instr noFree model.bound stuckTerm () value ()) ∧
+    External.Diverges model.instr noFree model.prim (.term model.bound repeatTerm ()) ∧
+    ¬ External.Diverges model.instr noFree model.prim (.term model.bound stuckTerm ()) := by
+  refine ⟨fun value => ⟨?_, ?_⟩, ?_, ?_⟩
+  · intro run
+    cases run with
+    | iter _ body =>
+        exact (Loop.induction_fixed (motive := fun _ _ _ _ => False)
+          (fun done => by cases done) (fun _ _ tail => tail) body).elim
+  · intro run
+    cases run
+  · refine .fold_core (.iter_loop .unit ?_)
+    apply External.Diverges.coinduct (fun cfg => cfg = .loop model.bound repeatBody .unit ()) _ rfl
+    rintro _ rfl
+    exact .core (.loop_step (.inr .bv) rfl)
+  · intro h
+    cases h.unfold with
+    | core h => cases h with
+      | abort arg => cases arg.unfold with
+        | core h => cases h
 
 end Silmaril.MLIR.SCF.LetIter.Examples

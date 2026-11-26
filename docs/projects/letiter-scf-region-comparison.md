@@ -92,6 +92,42 @@ realization has no fault observation. `ScalarWhile.cf_returns_iff` and
 `ScalarWhile.cf_diverges_iff` compose these agreements with the independent
 SCF-to-CF lowering.
 
+## Native LambdaSSA and partial iteration
+
+`RegionLoop.compile` calls `Morphism.SSAIter.compileSingle` on the native
+LetIter lowering. `RegionLoop.ssaBeh_compile` proves the resulting region
+preserves and reflects all parent observations in every native model.
+Finite answers carry exit label zero. Faults and divergence retain their
+original observations. `lowerLambdaSSA` composes the two discrete-scope
+institution comorphisms. `ScalarWhile.toLambdaSSA_hasType` checks the
+compiled scalar result type at the single exit.
+
+`ScalarWhile.denotePart` applies the repository's Elgot iteration in
+`Part` to the typed scalar step, including evaluation of the parent on
+exit. `denotePart_eq_iter_bind` uses Elgot naturality to factor that
+interpretation into partial iteration to the payload followed by the
+parent. `mem_denotePart_iff` identifies membership with a finite run of
+the independent SCF fuel evaluator. `denotePart_eq_none_iff` identifies its
+undefined result with divergence in this deterministic, total-primitive
+fragment. The LambdaSSA bridge proves finite returns, divergence, and
+absence of faults separately. The checked raw LetIter example has identical
+finite returns for a stuck term and a diverging term, which the full
+observations distinguish.
+
+`total_repeat_not_natural` isolates the obstruction even at an inhabited
+return type. The body `Unit → Bool ⊕ Unit` always takes its backedge.
+Mapping Boolean negation over its return summand leaves the body unchanged,
+so naturality for a total iterator would force its chosen Boolean to be a
+fixed point of negation. `repeatBool_partial` checks that the same body
+has undefined iteration in `Part`.
+
+The sum tags in this comparison are operational constructors. Categorical
+coproduct claims depend on the quotient. The joined projection-return and
+unit-η quotient fails `CopairPure`; the opt-in `WithCaseReturns`
+extension proves it and supplies finite coproducts on discard-preserving
+values. The finite constructor coproducts on singleton computation
+quotients are a separate result. [Value obstruction](https://github.com/hiloopai/silmaril-lean/pull/3156) · [Opt-in value coproducts](https://github.com/hiloopai/silmaril-lean/pull/3165) · [Computation coproducts](https://github.com/hiloopai/silmaril-lean/pull/3117)
+
 ## Scope of the claim
 
 The full observations are at the parent boundary. They omit individual
