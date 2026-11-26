@@ -65,6 +65,11 @@ private theorem distinct : looping.observe 0 packet ≠ waiting.observe 0 packet
 #guard !(looping.weakEqAt? waiting 0 packet)
 #guard waiting.weakEqAt? waiting 0 packet
 
+private def pendingWitness : Program.Mismatch signature profile :=
+  ⟨⟨0, packet⟩, .rightToLeft, .request (.ask key)⟩
+
+example : looping.explainMismatch? waiting = some pendingWitness := by cbv
+
 private def captureTypes : BoundCtx PacketType 1 := .snoc .nil .unit
 private def captures : Fin 1 → Register := fun _ => ⟨0⟩
 private instance : Silmaril.HasTy Unit PacketType := signature.typing

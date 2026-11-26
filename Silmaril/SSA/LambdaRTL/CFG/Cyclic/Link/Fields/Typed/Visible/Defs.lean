@@ -2,7 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Defs
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Defs
-public import Silmaril.Semantics.ITree.Trace.Finite.Defs
+public import Silmaril.Semantics.ITree.Trace.Finite.Explain.Defs
 public import Mathlib.Data.Fintype.Sum
 public import Mathlib.Data.Fintype.Prod
 public import Mathlib.Data.Fintype.Sigma
@@ -14,7 +14,7 @@ public import Mathlib.Data.List.ProdSigma
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 
-open Silmaril.Elgot.ITree (Tree vis diverge)
+open Silmaril.Elgot.ITree (Tree Trace HasTrace vis diverge)
 open Silmaril.Elgot.ITree.Finite (Event Head Step)
 open Silmaril.Isotope (Value)
 open Silmaril.Isotope.Bridge.NamedFlat (treeModel treeExitNumber)
@@ -269,6 +269,43 @@ def firstMismatch? [DecidableEq F] (right : Program signature inputs outputs) : 
 /-- Decide weak tree equality over every entry and its typed packets. -/
 def weakEq? [DecidableEq F] (right : Program signature inputs outputs) : Bool :=
   (program.firstMismatch? right).isNone
+
+abbrev ObservationTrace (signature : PrimitiveSignature F) :=
+  Trace (Event signature.Request signature.Reply) (Nat × Value Atom)
+
+/-- Explain failed inclusion from this program to the right program
+at a chosen entry and exact input packet. -/
+def explainRefinementAt? [DecidableEq F] (right : Program signature inputs outputs)
+    (input : Fin a) (packet : Denote (inputs input)) : Option (ObservationTrace signature) :=
+  (Silmaril.Elgot.ITree.Finite.explain (fun (key : signature.Request) => (signature.reply key.1).enumerate)
+    program.states right.states program.step right.step
+    (program.start input packet) (right.start input packet)).map (Trace.map renderResult)
+
+inductive MismatchDirection where
+  | leftToRight
+  | rightToLeft
+
+/-- The direction identifies which run has the observation. -/
+def MismatchDirection.distinguishes {E : Type → Type} {A : Type 1}
+    (direction : MismatchDirection) (left right : Tree E A) (trace : Trace E A) : Prop :=
+  match direction with
+  | .leftToRight => HasTrace left trace ∧ ¬ HasTrace right trace
+  | .rightToLeft => HasTrace right trace ∧ ¬ HasTrace left trace
+
+structure Mismatch (signature : PrimitiveSignature F) (inputs : Fin a → PacketType) where
+  packet : PacketAt inputs
+  direction : MismatchDirection
+  trace : ObservationTrace signature
+
+/-- Explain the first failing packet, trying left-to-right inclusion first. -/
+def explainMismatch? [DecidableEq F] (right : Program signature inputs outputs) :
+    Option (Mismatch signature inputs) :=
+  match program.firstMismatch? right with
+  | none => none
+  | some p =>
+    match program.explainRefinementAt? right p.1 p.2 with
+    | some trace => some ⟨p, .leftToRight, trace⟩
+    | none => (right.explainRefinementAt? program p.1 p.2).map (Mismatch.mk p .rightToLeft)
 
 end Program
 

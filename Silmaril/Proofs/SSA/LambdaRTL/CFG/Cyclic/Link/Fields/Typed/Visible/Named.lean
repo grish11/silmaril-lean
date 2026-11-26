@@ -30,7 +30,7 @@ private def encodeState (s : program.State) : program.Address × Value Atom :=
 private def encodeResult (r : Program.Result outputs) : program.Address × Value Atom :=
   (⟨.inr r.down.1⟩, encode (outputs r.down.1) r.down.2)
 
-private theorem render_injective : Function.Injective (Program.renderResult (outputs := outputs)) := by
+theorem render_injective : Function.Injective (Program.renderResult (outputs := outputs)) := by
   rintro ⟨⟨left, x⟩⟩ ⟨⟨right, y⟩⟩ equal
   have ports : left = right := Fin.ext (congrArg Prod.fst equal)
   subst right

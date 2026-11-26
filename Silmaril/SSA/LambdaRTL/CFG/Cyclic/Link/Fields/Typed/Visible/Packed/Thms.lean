@@ -8,7 +8,7 @@ public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Pack
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program
 
-open Silmaril.Elgot.ITree (TraceLE eq_iff_traceLE)
+open Silmaril.Elgot.ITree (TraceLE eq_iff_traceLE hasTrace_bind_pure_map_iff)
 open Silmaril.Isotope.LambdaSSA
 open Silmaril.Isotope.LambdaSSA.Semantics.Interaction (region)
 open Silmaril.Isotope.Bridge.NamedFlat
@@ -96,5 +96,21 @@ theorem firstMismatch?_sound_packed [DecidableEq F] {right : Program signature i
   rw [leftEntry.observe_eq _ _ _ leftAgrees, rightEntry.observe_eq _ _ _ rightAgrees]
   exact mt (program.weakEqAt?_iff_packedOutput right p.1 p.2).mpr
     (mt (program.weakEqAt?_iff right p.1 p.2).mp (program.firstMismatch?_sound found))
+
+/-- Transport the particular distinguishing trace to checked packed
+execution. The terminal result uses the dispatcher's ordered exit tag. -/
+theorem explainMismatch?_sound_packed [DecidableEq F] {right : Program signature inputs outputs}
+    {w : Mismatch signature inputs} (found : program.explainMismatch? right = some w)
+    (leftEntry : PackedEntry program w.packet.1) (rightEntry : PackedEntry right w.packet.1)
+    (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom)
+    (leftAgrees : leftEntry.recordAgrees w.packet.2 leftRecord)
+    (rightAgrees : rightEntry.recordAgrees w.packet.2 rightRecord) :
+    w.direction.distinguishes (leftEntry.observe leftAmbient leftRecord)
+      (rightEntry.observe rightAmbient rightRecord) (w.trace.map FiniteCFG.packedTreeOutput) := by
+  have sound := ((program.explainMismatch?_spec right).2 w found).2
+  rw [leftEntry.observe_eq _ _ _ leftAgrees, rightEntry.observe_eq _ _ _ rightAgrees]
+  cases direction : w.direction <;> simpa only [direction, MismatchDirection.distinguishes,
+    hasTrace_bind_pure_map_iff
+      Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Program.packedTreeOutput_injective] using sound
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program

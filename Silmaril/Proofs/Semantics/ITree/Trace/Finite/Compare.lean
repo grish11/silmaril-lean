@@ -14,7 +14,7 @@ open Silmaril.Elgot.ITree Silmaril.Elgot.ITree.Finite
 universe u
 variable {Q : Type} {Reply : Q → Type} {R S T : Type u}
 
-private theorem result_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
+theorem result_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
     {head : Head Q R S Reply} (observed : out tree = head.render run) (value : R) :
     HasTrace tree (.result value) ↔ head = .result value := by
   cases head <;> simp [HasTrace, observed, Head.render]
@@ -23,7 +23,7 @@ private def visibleKey : Visible (Event Q Reply) R (Tree (Event Q Reply) R) → 
   | .ret _ => none
   | .vis (.ask key) _ => some key
 
-private theorem request_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
+theorem request_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
     {head : Head Q R S Reply} (observed : out tree = head.render run) (key : Q) :
     HasTrace tree (.request (.ask key)) ↔ ∃ next, head = .request key next := by
   cases head with
@@ -39,6 +39,17 @@ private theorem request_trace {tree : Tree (Event Q Reply) R} {run : S → Tree 
     · rintro ⟨next', found⟩
       exact ⟨run ∘ next', by rw [observed, found, Head.render]⟩
 
+theorem exchange_at {X : Type u} {run : X → Tree (Event Q Reply) R}
+    {tree : Tree (Event Q Reply) R} {key : Q} (next : Reply key → X)
+    (observed : out tree = (Head.request key next).render run)
+    (reply : Reply key) (tail : Trace (Event Q Reply) R) :
+    HasTrace tree (.exchange (.ask key) reply tail) ↔ HasTrace (run (next reply)) tail := by
+  have root : tree = vis (.ask key) (run ∘ next) := by
+    apply out_injective
+    rw [observed, Head.render, out_vis]
+  rw [root, hasTrace_vis_exchange_iff]
+  rfl
+
 private theorem exchange_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
     {head : Head Q R S Reply} (observed : out tree = head.render run)
     (key : Q) (reply : Reply key) (tail : Trace (Event Q Reply) R) :
@@ -46,11 +57,7 @@ private theorem exchange_trace {tree : Tree (Event Q Reply) R} {run : S → Tree
       ∃ next, head = .request key next ∧ HasTrace (run (next reply)) tail := by
   have follow (next : Reply key → S) (found : head = .request key next) :
       HasTrace tree (.exchange (.ask key) reply tail) ↔ HasTrace (run (next reply)) tail := by
-    have root : tree = vis (.ask key) (run ∘ next) := by
-      apply out_injective
-      rw [observed, found, Head.render, out_vis]
-    rw [root, hasTrace_vis_exchange_iff]
-    rfl
+    exact exchange_at next (found ▸ observed) reply tail
   constructor
   · intro seen
     have pending : HasTrace tree (.request (.ask key)) := by

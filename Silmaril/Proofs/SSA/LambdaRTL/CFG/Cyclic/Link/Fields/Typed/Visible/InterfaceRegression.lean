@@ -87,6 +87,19 @@ example : (packed false mismatch.1).observe ambient (record mismatch.1 mismatch.
     (packed true mismatch.1).observe ambient (record mismatch.1 mismatch.2) :=
   left.firstMismatch?_sound_packed found _ _ _ _ _ _ (agrees false _ _) (agrees true _ _)
 
+private def explanation : Program.Mismatch signature inputs :=
+  ⟨mismatch, .leftToRight, .result (0, .inl .unit)⟩
+
+private theorem explained : left.explainMismatch? right = some explanation := by cbv
+
+#guard (left.explainMismatch? left).isNone
+
+example : explanation.direction.distinguishes
+    ((packed false mismatch.1).observe ambient (record mismatch.1 mismatch.2))
+    ((packed true mismatch.1).observe ambient (record mismatch.1 mismatch.2))
+    (explanation.trace.map FiniteCFG.packedTreeOutput) :=
+  left.explainMismatch?_sound_packed explained _ _ _ _ _ _ (agrees false _ _) (agrees true _ _)
+
 example : ¬ (∀ input packet, (packed false input).observe ambient (record input packet) =
     (packed true input).observe ambient (record input packet)) := by
   intro equal

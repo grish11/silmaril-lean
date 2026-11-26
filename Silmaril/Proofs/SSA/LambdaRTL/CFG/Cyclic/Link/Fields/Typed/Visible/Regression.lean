@@ -8,7 +8,6 @@ namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 open Silmaril.Elgot.ITree (HasTrace TraceLE Trace hasTrace_vis_exchange_iff
   out out_injective out_vis out_ret vis ret vis_bind)
 open Silmaril.Elgot.ITree.Finite (compare evaluate headFrom out_evaluate)
-open PacketType (encode)
 
 private inductive Opcode
   | poll
@@ -145,6 +144,24 @@ private theorem rejected : left.refinementAt? right 0 packet = false := by
 -- Even two requests for poll differ when their typed arguments differ.
 #guard !(compare left.states left.states left.step left.step
   (left.start 0 packet) (left.start 0 (.inl ⟨⟩, ⟨⟩)))
+
+-- Starting at ping places the distinguishing poll reply behind a matching
+-- exchange. The extracted path has both opcodes and the ordered return.
+private def viaPing (thirdExitsRight : Bool) : Program sig (fun _ : Fin 1 => bit) outputs where
+  locals := 3
+  localType := localType
+  entry _ := .inl 2
+  entryType _ := rfl
+  block := (program thirdExitsRight).block
+
+#guard
+  match (viaPing true).explainMismatch? (viaPing false) with
+  | some ⟨_, .leftToRight, .exchange (.ask ⟨.ping, _⟩) _
+      (.exchange (.ask ⟨.poll, _⟩) reply (.result (1, _)))⟩ =>
+    match PacketType.encode three reply with
+    | .inr (.inr .unit) => true
+    | _ => false
+  | _ => false
 
 section Packed
 

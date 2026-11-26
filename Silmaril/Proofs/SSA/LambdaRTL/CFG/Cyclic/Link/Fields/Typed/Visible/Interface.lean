@@ -8,7 +8,7 @@ namespace Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 
-private theorem mem_enumerate (ty : PacketType) (packet : Denote ty) :
+theorem mem_enumerate (ty : PacketType) (packet : Denote ty) :
     packet ∈ ty.enumerate := by
   induction ty with
   | base x => exact x.elim

@@ -91,6 +91,12 @@ theorem hasTrace_bind_pure_iff (f : A → B) (t : Tree E A) (p : Trace E B) :
     HasTrace (t >>= fun a => pure (f a)) p ↔ ∃ q, HasTrace t q ∧ q.map f = p :=
   Silmaril.Proofs.Semantics.Elgot.ITree.trace_map_iff f t p
 
+/-- An injective return tag preserves and reflects the particular mapped trace. -/
+theorem hasTrace_bind_pure_map_iff {f : A → B} (injective : Function.Injective f) (tree : Tree E A)
+    (trace : Trace E A) :
+    HasTrace (tree >>= fun x => pure (f x)) (trace.map f) ↔ HasTrace tree trace :=
+  Silmaril.Proofs.Semantics.Elgot.ITree.trace_bind_pure_map_iff injective tree trace
+
 theorem TraceLE.bind_pure {t s : Tree E A} (h : TraceLE t s) (f : A → B) :
     TraceLE (t >>= fun a => pure (f a)) (s >>= fun a => pure (f a)) :=
   h.bind_left (fun a => pure (f a))
