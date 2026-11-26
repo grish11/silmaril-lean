@@ -43,6 +43,16 @@ an interrupt check within a bounded number of its own steps, that every helper t
 (B-tree, pager, sorter, built-in functions) checks the flag itself or makes bounded progress
 between checks (`stutter_countermodel` shows this cannot be dropped), and eventually that the
 native x86-64 Linux ELF refines that machine.
+
+Design context: `docs/projects/sqlite-interrupt-progress-liveness.md` (uncompiled design
+note). This module is a smaller work-tick machine, not its `Vdbe.RawProgram` responsiveness
+target. Against the note: the countdown `MState.rank` plays `PollBound K`;
+`counted_steps_le_rank` is its tick-bounded cancellation with no unwind (`U = 0`);
+`cancel_liveness` is its fairness bridge, assuming `RelevantVisible` instead of a
+visibility hypothesis; `incoherent_witness` is its startup-clear/reprepare clobber race; and
+`stutter_countermodel` is its fair-host negative witness. Not modeled here: `xProgress` as a
+separate per-statement mechanism, unwinding and rollback bounds, yielded rows, connection
+quiescence (`nVdbeActive = 0`), OOM, and wall-clock corollaries.
 -/
 
 namespace Silmaril.Semantics.SQLite.Isolation.Cancel
