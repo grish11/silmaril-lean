@@ -17,6 +17,15 @@ theorem openFile_snapshot {limits : Limits} {input : Bytes} {int32 byteArray : F
     checked.projection.snapshot.metadata.numRows.toNat ≤ limits.maxFileRows :=
   Proofs.Formats.Parquet.Int32ByteArrayGroup.File.openFile_snapshot opened
 
+/-- The checked footer count rejects an over-limit file during open. -/
+theorem openFile_rowLimit {limits : Limits} {input : Bytes} {int32 byteArray : Field}
+    {projection : Int32ByteArrayGroup.Checked int32 byteArray}
+    (opened : Int32ByteArrayGroup.openFile limits.group input int32 byteArray = .ok projection)
+    (over : limits.maxFileRows < projection.snapshot.metadata.numRows.toNat) :
+    openFile limits input int32 byteArray =
+      .error (.fileRowLimit limits.maxFileRows projection.snapshot.metadata.numRows.toNat) :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.File.openFile_rowLimit opened over
+
 /-- Each batch keeps both exact projections, even for an empty group. -/
 theorem batch_projections (int32 byteArray : Field) (pairs : List Int32ByteArrayGroup.Row) :
     let batch := AlignedColumns.ofRows (rows int32 byteArray pairs)

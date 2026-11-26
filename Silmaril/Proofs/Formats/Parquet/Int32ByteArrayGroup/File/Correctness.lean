@@ -38,6 +38,19 @@ theorem openFile_snapshot {limits : File.Limits} {input : Bytes} {int32 byteArra
     cases projected
     exact (Int32ByteArrayGroup.openFile_snapshot read).1
 
+theorem openFile_rowLimit {limits : File.Limits} {input : Bytes} {int32 byteArray : Field}
+    {projection : Int32ByteArrayGroup.Checked int32 byteArray}
+    (opened : Int32ByteArrayGroup.openFile limits.group input int32 byteArray = .ok projection)
+    (over : limits.maxFileRows < projection.snapshot.metadata.numRows.toNat) :
+    File.openFile limits input int32 byteArray =
+      .error (.fileRowLimit limits.maxFileRows projection.snapshot.metadata.numRows.toNat) := by
+  unfold File.openFile
+  rw [opened]
+  change (if admitted : projection.snapshot.metadata.numRows.toNat ≤ limits.maxFileRows
+    then (Except.ok ⟨projection, admitted⟩ : Except File.Error (File.Checked limits int32 byteArray))
+    else Except.error (.fileRowLimit limits.maxFileRows projection.snapshot.metadata.numRows.toNat)) = _
+  exact dite_eq_right (Nat.not_le_of_gt over)
+
 theorem batch_projections (int32 byteArray : Field) (pairs : List Int32ByteArrayGroup.Row) :
     let batch := AlignedColumns.ofRows (File.rows int32 byteArray pairs)
     batch.rowCount = pairs.length ∧
