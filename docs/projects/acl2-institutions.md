@@ -1,5 +1,9 @@
 # ACL2 institutions for nonrecursive logical books
 
+This PR is a foundational milestone toward C2/C4. The next deliverable is a concrete standard
+ACL2 object and package layer with a checked package-sensitive nonrecursive admission.
+[Standard ACL2 roadmap](acl2-standard-roadmap.md)
+
 The fragment uses one logical value sort. User function symbols are package-qualified names in a
 partial arity table. `Signature.resolve` checks a name at a requested arity, and `Term.app`
 requires exactly that many arguments. Signature arrows include existing declarations at their

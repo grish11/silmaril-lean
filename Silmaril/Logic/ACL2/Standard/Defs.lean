@@ -2,6 +2,13 @@ module
 
 public import Silmaril.Logic.ACL2.Books.Thms
 
+/-!
+# Stock ACL2 interoperability for the nonrecursive fragment
+
+This module emits fragment events and states the obligations of an external ACL2 adapter.
+See `docs/projects/acl2-standard-roadmap.md` for the standard object, world and admission work.
+-/
+
 @[expose] public section
 
 namespace Silmaril.Logic.ACL2.Standard
