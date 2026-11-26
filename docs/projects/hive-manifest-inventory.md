@@ -91,6 +91,32 @@ resolve it. Equal sort keys keep tie order. Reordering two tied records
 with different cells can change the rows. These laws express pure trace
 behavior over supplied inputs.
 
+## Literal directory profile
+
+Pass `Manifest.Literal.parse` to `prepareInventoryWith` or
+`prepareOrderedInventoryWith` to opt into [literal path binding](hive-partition-path.md#opt-in-literal-hive-file-paths).
+Both profiles use the same schema check, bounded walk, control leaf rules
+and typed binder. The default functions continue to use the URI parser.
+Only successful typed records are sorted. Every supplied occurrence counts
+toward the admission limits under both profiles.
+
+`prepareInventoryWith_eq_reference` preserves the precise indexed admission
+outcome. `prepareInventoryWith_paths` proves exact admitted lookup keys in
+input order, including repetitions. `Inventory.orderFiles_paths` then gives
+their stable lexical order. For an ordered inventory,
+`prepareOrderedInventoryWith_scanSkippingRejected_eq_reference` carries the
+same result through the existing paired bounded scan, including aligned
+batches, termination, and original error keys. The scan's action budget
+applies after admission and stable filtering.
+
+The mixed-marker fixture supplies a raw marker path, an ordinary label and
+two occurrences of a percent-escaped marker path, interleaved with a control
+leaf. With a non-null predicate, literal mode retains both escaped
+occurrences ahead of the ordinary label and takes 15 actions to reach EOS.
+URI mode retains only the ordinary label and takes five. The pinned PyArrow
+oracle checks literal membership and ordered readback under both modes.
+Lean checks limits, exact batches and the extra EOS pull.
+
 ## Independent fixture
 
 [Fixture generator](../../scripts/hive-inventory-oracle/Oracle.py) ·

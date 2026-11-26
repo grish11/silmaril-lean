@@ -23,11 +23,18 @@ def orderFiles (files : List (File schema Value)) : List (File schema Value) :=
 
 end Inventory
 
+/-- Admit with the chosen directory profile and order successful data files. -/
+def prepareOrderedInventoryWith (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
+    (limits : Inventory.Limits) (parse : DirectoryParser) (options : PartitionPath.Options)
+    (convert : Convert Value Failure) (listing : List String) :
+    Except (Inventory.Error Failure) (List (File schema Value)) :=
+  (prepareInventoryWith physical schema limits parse options convert listing).map Inventory.orderFiles
+
 /-- Admit a supplied listing using its original order and limits, then order
 the admitted data files by their literal lookup keys. -/
 def prepareOrderedInventory (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
     (limits : Inventory.Limits) (options : PartitionPath.Options) (convert : Convert Value Failure)
     (listing : List String) : Except (Inventory.Error Failure) (List (File schema Value)) :=
-  (prepareInventory physical schema limits options convert listing).map Inventory.orderFiles
+  prepareOrderedInventoryWith physical schema limits PartitionPath.parse options convert listing
 
 end Silmaril.Formats.Hive.Manifest

@@ -44,15 +44,6 @@ def prepareFile {Kind : Type*} {Value : Kind → Type*} {Failure : Type*}
     (convert : Convert Value Failure) (declared : String) :
     Except (Error Failure) (File schema Value) :=
   if declared.utf8ByteSize > maxPathBytes then .error (.pathByteLimit maxPathBytes declared.utf8ByteSize)
-  else
-    ((splitFile declared).mapError fun reason => Error.prepare (.relativePath declared reason)).bind
-      fun (directory, leaf) =>
-        ((parse options directory).mapError fun reason => Error.prepare (.partitionPath declared reason)).bind
-          fun entries =>
-            ((PartitionPath.render options entries).mapError fun reason =>
-              Error.prepare (.partitionPath declared reason)).bind fun canonical =>
-                ((TypedPartitions.decode schema convert entries).mapError fun reason =>
-                  Error.prepare (.binding declared reason)).map fun cells =>
-                    ⟨⟨declared, canonical, leaf⟩, cells⟩
+  else (prepareFileWith schema parse options convert declared).mapError Error.prepare
 
 end Silmaril.Formats.Hive.Manifest.Literal

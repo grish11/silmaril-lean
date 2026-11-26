@@ -34,13 +34,20 @@ theorem orderFiles_paths_eq_of_perm {left right : List (File schema Value)}
 
 end Inventory
 
+theorem prepareOrderedInventoryWith_eq_reference (physical : Scan.Schema String Kind)
+    (schema : PartitionSchema Kind) (limits : Inventory.Limits) (parse : DirectoryParser)
+    (options : PartitionPath.Options) (convert : Convert Value Failure) (listing : List String) :
+    prepareOrderedInventoryWith physical schema limits parse options convert listing =
+      (prepareInventoryReferenceWith physical schema limits parse options convert listing).map Inventory.orderFiles := by
+  rw [prepareOrderedInventoryWith, prepareInventoryWith_eq_reference]
+
 /-- Keep the indexed admission reference's outcome and order only its successful file list. -/
 theorem prepareOrderedInventory_eq_reference (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
     (limits : Inventory.Limits) (options : PartitionPath.Options) (convert : Convert Value Failure)
     (listing : List String) :
     prepareOrderedInventory physical schema limits options convert listing =
       (prepareInventoryReference physical schema limits options convert listing).map Inventory.orderFiles := by
-  rw [prepareOrderedInventory, prepareInventory_eq_reference]
+  exact prepareOrderedInventoryWith_eq_reference physical schema limits PartitionPath.parse options convert listing
 
 /-- Admission failures keep the same typed cause and original listing index. -/
 theorem prepareOrderedInventory_error_iff (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
@@ -48,7 +55,8 @@ theorem prepareOrderedInventory_error_iff (physical : Scan.Schema String Kind) (
     (listing : List String) (reason : Inventory.Error Failure) :
     prepareOrderedInventory physical schema limits options convert listing = .error reason ↔
       prepareInventory physical schema limits options convert listing = .error reason := by
-  cases admitted : prepareInventory physical schema limits options convert listing <;>
-    simp [prepareOrderedInventory, Except.map, admitted]
+  change ((prepareInventory physical schema limits options convert listing).map Inventory.orderFiles = .error reason) ↔
+    prepareInventory physical schema limits options convert listing = .error reason
+  cases prepareInventory physical schema limits options convert listing <;> simp [Except.map]
 
 end Silmaril.Formats.Hive.Manifest

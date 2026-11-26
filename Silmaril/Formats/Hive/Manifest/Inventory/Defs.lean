@@ -39,38 +39,59 @@ inductive Error (Failure : Type*) where
 def isControlLeaf (leaf : String) : Bool :=
   leaf == "_SUCCESS" || leaf == "_metadata" || leaf == "_common_metadata"
 
-def checkEntry (maxPathBytes : Nat) (options : PartitionPath.Options)
-    (convert : Convert Value Failure) (index : Nat) (path : String) :
-    Except (Error Failure) (Option (File schema Value)) := do
-  if path.utf8ByteSize > maxPathBytes then
-    throw (.pathByteLimit index path.utf8ByteSize)
+/-- Retain lexically valid file paths whose literal leaf is data. On
+successful admission all other occurrences are recognized controls. -/
+def isDataPath (path : String) : Bool :=
   match splitFile path with
-  | .error reason => throw (.entry index (.relativePath path reason))
-  | .ok (_, leaf) =>
-    if isControlLeaf leaf then return none
-    else ((prepareFile schema options convert path).mapError (Error.entry index)).map some
+  | .error _ => false
+  | .ok (_, leaf) => !isControlLeaf leaf
+
+def checkEntryWith (parse : DirectoryParser) (maxPathBytes : Nat) (options : PartitionPath.Options)
+    (convert : Convert Value Failure) (index : Nat) (path : String) :
+    Except (Error Failure) (Option (File schema Value)) :=
+  if path.utf8ByteSize > maxPathBytes then .error (.pathByteLimit index path.utf8ByteSize)
+  else
+    match splitFile path with
+    | .error reason => .error (.entry index (.relativePath path reason))
+    | .ok (_, leaf) =>
+      if isControlLeaf leaf then .ok none
+      else ((prepareFileWith schema parse options convert path).mapError (Error.entry index)).map some
 
 /-- Walk the inventory once in order, accumulating file occurrences in reverse. -/
-def walk (maxPathBytes : Nat) (options : PartitionPath.Options) (convert : Convert Value Failure) :
+def walkWith (parse : DirectoryParser) (maxPathBytes : Nat) (options : PartitionPath.Options) (convert : Convert Value Failure) :
     Nat → Nat → List String → List (File schema Value) → Except (Error Failure) (List (File schema Value))
   | _, _, [], files => .ok files.reverse
   | 0, index, _ :: _, _ => .error (.entryLimit index)
   | remaining + 1, index, path :: paths, files => do
-    let selected ← checkEntry maxPathBytes options convert index path
+    let selected ← checkEntryWith parse maxPathBytes options convert index path
     let files := match selected with
       | none => files
       | some file => file :: files
-    walk maxPathBytes options convert remaining (index + 1) paths files
+    walkWith parse maxPathBytes options convert remaining (index + 1) paths files
 
 /-- Independently traverse the indexed prefix. Check the suffix only after
 the entire prefix succeeds. -/
-def referenceFrom (maxPathBytes : Nat) (options : PartitionPath.Options) (convert : Convert Value Failure)
+def referenceFromWith (parse : DirectoryParser) (maxPathBytes : Nat) (options : PartitionPath.Options) (convert : Convert Value Failure)
     (remaining index : Nat) (paths : List String) : Except (Error Failure) (List (File schema Value)) := do
   let entries ← ((paths.take remaining).zipIdx index).mapM fun (path, position) =>
-    checkEntry maxPathBytes options convert position path
+    checkEntryWith parse maxPathBytes options convert position path
   match paths.drop remaining with
   | [] => return entries.filterMap id
   | _ :: _ => throw (.entryLimit (index + remaining))
+
+
+abbrev checkEntry (maxPathBytes : Nat) (options : PartitionPath.Options)
+    (convert : Convert Value Failure) (index : Nat) (path : String) :
+    Except (Error Failure) (Option (File schema Value)) :=
+  checkEntryWith PartitionPath.parse maxPathBytes options convert index path
+
+abbrev walk (maxPathBytes : Nat) (options : PartitionPath.Options) (convert : Convert Value Failure) :
+    Nat → Nat → List String → List (File schema Value) → Except (Error Failure) (List (File schema Value)) :=
+  walkWith PartitionPath.parse maxPathBytes options convert
+
+abbrev referenceFrom (maxPathBytes : Nat) (options : PartitionPath.Options) (convert : Convert Value Failure)
+    (remaining index : Nat) (paths : List String) : Except (Error Failure) (List (File schema Value)) :=
+  referenceFromWith PartitionPath.parse maxPathBytes options convert remaining index paths
 
 end Silmaril.Formats.Hive.Manifest.Inventory
 
@@ -84,19 +105,29 @@ variable {Kind : Type*} {Value : Kind → Type*} {Failure : Type*}
 /-- Check the schema first. For each occurrence check remaining entry budget,
 path byte size, lexical validity, and then typed preparation if it is data.
 Report the first error and return a manifest only on complete success. -/
+def prepareInventoryWith (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
+    (limits : Inventory.Limits) (parse : DirectoryParser) (options : PartitionPath.Options) (convert : Convert Value Failure)
+    (paths : List String) : Except (Inventory.Error Failure) (List (File schema Value)) :=
+  match TypedPartitions.checkSchema physical schema with
+  | .error reason => .error (.schema reason)
+  | .ok () => Inventory.walkWith parse limits.maxPathBytes options convert limits.maxEntries 0 paths []
+
+/-- Reference contract for bounded admission, using a list prefix and suffix. -/
+def prepareInventoryReferenceWith (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
+    (limits : Inventory.Limits) (parse : DirectoryParser) (options : PartitionPath.Options) (convert : Convert Value Failure)
+    (paths : List String) : Except (Inventory.Error Failure) (List (File schema Value)) :=
+  match TypedPartitions.checkSchema physical schema with
+  | .error reason => .error (.schema reason)
+  | .ok () => Inventory.referenceFromWith parse limits.maxPathBytes options convert limits.maxEntries 0 paths
+
 def prepareInventory (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
     (limits : Inventory.Limits) (options : PartitionPath.Options) (convert : Convert Value Failure)
     (paths : List String) : Except (Inventory.Error Failure) (List (File schema Value)) :=
-  match TypedPartitions.checkSchema physical schema with
-  | .error reason => .error (.schema reason)
-  | .ok () => Inventory.walk limits.maxPathBytes options convert limits.maxEntries 0 paths []
+  prepareInventoryWith physical schema limits PartitionPath.parse options convert paths
 
-/-- Reference contract for bounded admission, using a list prefix and suffix. -/
 def prepareInventoryReference (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
     (limits : Inventory.Limits) (options : PartitionPath.Options) (convert : Convert Value Failure)
     (paths : List String) : Except (Inventory.Error Failure) (List (File schema Value)) :=
-  match TypedPartitions.checkSchema physical schema with
-  | .error reason => .error (.schema reason)
-  | .ok () => Inventory.referenceFrom limits.maxPathBytes options convert limits.maxEntries 0 paths
+  prepareInventoryReferenceWith physical schema limits PartitionPath.parse options convert paths
 
 end Silmaril.Formats.Hive.Manifest

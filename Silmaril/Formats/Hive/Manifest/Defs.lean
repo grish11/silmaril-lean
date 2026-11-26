@@ -59,17 +59,26 @@ inductive PrepareError (Failure : Type*) where
   | binding (path : String) (reason : TypedPartitions.Error Failure)
   deriving BEq, Repr
 
-/-- Split off the literal filename, normalize the parent with the Hive codec,
-and convert the partition cells using the supplied checked conversion. -/
-def prepareFile {Failure : Type*} (schema : PartitionSchema Kind)
-    (options : PartitionPath.Options) (convert : Convert Value Failure) (declared : String) :
-    Except (PrepareError Failure) (File schema Value) :=
+abbrev DirectoryParser :=
+  PartitionPath.Options → String → Except PartitionPath.Error PartitionPath.Partition
+
+/-- Split the literal path and bind the selected directory profile with the
+shared typed schema. The canonical directory always uses URI rendering. -/
+def prepareFileWith {Failure : Type*} (schema : PartitionSchema Kind)
+    (parse : DirectoryParser) (options : PartitionPath.Options) (convert : Convert Value Failure)
+    (declared : String) : Except (PrepareError Failure) (File schema Value) :=
   ((splitFile declared).mapError (PrepareError.relativePath declared)).bind fun (directory, filename) =>
-    ((PartitionPath.parse options directory).mapError (PrepareError.partitionPath declared)).bind fun entries =>
+    ((parse options directory).mapError (PrepareError.partitionPath declared)).bind fun entries =>
       ((PartitionPath.render options entries).mapError (PrepareError.partitionPath declared)).bind
         fun canonicalDirectory =>
           ((TypedPartitions.decode schema convert entries).mapError (PrepareError.binding declared)).map
             fun cells => ⟨⟨declared, canonicalDirectory, filename⟩, cells⟩
+
+/-- Prepare one file using the default checked URI directory profile. -/
+def prepareFile {Failure : Type*} (schema : PartitionSchema Kind)
+    (options : PartitionPath.Options) (convert : Convert Value Failure) (declared : String) :
+    Except (PrepareError Failure) (File schema Value) :=
+  prepareFileWith schema PartitionPath.parse options convert declared
 
 /-- Check the schema even for an empty list, then validate declarations from
 left to right. Repeated declarations remain separate occurrences. -/

@@ -41,6 +41,33 @@ with tempfile.TemporaryDirectory() as temp:
             assert dataset.to_table(columns=["label"], use_threads=False)["label"].to_pylist() == [expected] * 5
         print(f"{relative} gives literal={literal_value!r}, URI={uri_value!r}")
 
+    # Feed the same explicit mixed data listing to both modes. The caller's
+    # sort and non-null predicate determine which literal occurrences remain.
+    raw_marker = f"label={marker}/N%2Eparquet"
+    escaped_marker = f"label={alias}/E%2Eparquet"
+    ordinary = "label=ordinary/O%2Eparquet"
+    for relative in (raw_marker, escaped_marker, ordinary):
+        file = root / relative
+        file.parent.mkdir(exist_ok=True)
+        file.write_bytes(payload)
+    (root / "_SUCCESS").write_bytes(b"")
+    listing = [raw_marker, ordinary, "_SUCCESS", escaped_marker, escaped_marker]
+    ordered = sorted((path for path in listing if path != "_SUCCESS"), key=str.encode)
+    for profile, retained, labels in (
+        (literal, [escaped_marker, escaped_marker, ordinary], [alias, alias, "ordinary"]),
+        (uri, [ordinary], ["ordinary"]),
+    ):
+        selected = [path for path in ordered if ds.get_partition_keys(profile.parse(path))["label"] is not None]
+        assert selected == retained
+        dataset = ds.dataset(
+            [str(root / path) for path in selected], format="parquet", partitioning=profile,
+            partition_base_dir=str(root),
+        )
+        table = dataset.to_table(columns=["ordinal", "label"], use_threads=False)
+        assert table["ordinal"].to_pylist() == [-2147483648, 0, 17, 2147483647, -1] * len(retained)
+        assert table["label"].to_pylist() == [label for label in labels for _ in range(5)]
+        print(f"Explicit retained occurrences: {selected!r}")
+
 assert ds.get_partition_keys(literal.parse("label=%FF/")) == {"label": "%FF"}
 assert ds.get_partition_keys(literal.parse("label=a+b=c/")) == {"label": "a+b=c"}
 

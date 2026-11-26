@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Hive.Manifest.Literal.Defs
+import Silmaril.Formats.Hive.Manifest.Thms
 
 public section
 
@@ -19,22 +20,11 @@ theorem prepareFile_path {Kind : Type*} {Value : Kind → Type*} {Failure : Type
   · contradiction
   · rename_i fits
     have bound : declared.utf8ByteSize ≤ maxPathBytes := Nat.le_of_not_gt fits
-    cases split : splitFile declared with
-    | error reason => simp [split, Except.mapError, Except.bind] at prepared
-    | ok parts =>
-      obtain ⟨directory, leaf⟩ := parts
-      cases parsed : Silmaril.Formats.Hive.Manifest.Literal.parse options directory with
-      | error reason => simp [split, parsed, Except.mapError, Except.bind] at prepared
-      | ok entries =>
-        cases rendered : PartitionPath.render options entries with
-        | error reason => simp [split, parsed, rendered, Except.mapError, Except.bind] at prepared
-        | ok canonical =>
-          cases boundCells : TypedPartitions.decode schema convert entries with
-          | error reason => simp [split, parsed, rendered, boundCells, Except.mapError, Except.bind, Except.map] at prepared
-          | ok cells =>
-            simp [split, parsed, rendered, boundCells, Except.mapError, Except.bind, Except.map]
-              at prepared
-            subst file
-            exact ⟨rfl, bound⟩
+    cases admitted : prepareFileWith schema Silmaril.Formats.Hive.Manifest.Literal.parse options convert declared with
+    | error reason => simp [admitted, Except.mapError] at prepared
+    | ok result =>
+      simp [admitted, Except.mapError] at prepared
+      subst file
+      exact ⟨prepareFileWith_declared _ options convert admitted, bound⟩
 
 end Silmaril.Proofs.Formats.Hive.Manifest.Literal

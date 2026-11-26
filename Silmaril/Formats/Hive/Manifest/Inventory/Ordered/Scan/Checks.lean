@@ -2,11 +2,15 @@ module
 
 import Silmaril.Data.IncludeBytes
 import Silmaril.Formats.Hive.Manifest.Inventory.Ordered.Scan.Thms
+import Silmaril.Formats.Hive.Manifest.Inventory.Thms
+import Silmaril.Formats.Hive.Manifest.Literal.Defs
+import Silmaril.Formats.Hive.Manifest.Thms
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Ingress.Defs
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Bounded.Thms
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Thms
 meta import Silmaril.Data.IncludeBytes
 meta import Silmaril.Formats.Hive.Manifest.Inventory.Ordered.Defs
+meta import Silmaril.Formats.Hive.Manifest.Literal.Defs
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Ingress.Defs
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Pruning.Defs
 
@@ -103,6 +107,77 @@ private def observeTies (files : List (File partitions Value)) : List (Option In
 
 #guard observeTies [tied 1, tied 2] == List.replicate 5 (some 1) ++ List.replicate 5 (some 2)
 #guard observeTies [tied 2, tied 1] == List.replicate 5 (some 2) ++ List.replicate 5 (some 1)
+
+private def labels : PartitionSchema Kind := ⟨#[⟨"label", .byteArray .optional, .reject⟩]⟩
+private def labelOnly : Scan.Projection (labels.extend physical) := Scan.Projection.ofArray #[⟨2, by decide⟩]
+private def keepPresent : Scan.Predicate labels.toScan Value := fun row => some (row ⟨0, by decide⟩).isSome
+
+private def marker := "label=__HIVE_DEFAULT_PARTITION__/N%2Eparquet"
+private def escapedMarker := "label=%5f_HIVE_DEFAULT_PARTITION__/E%2Eparquet"
+private def ordinary := "label=ordinary/O%2Eparquet"
+private def mixedMarkers := [marker, ordinary, "_SUCCESS", escapedMarker, escapedMarker]
+private def labelAdmit (parse : DirectoryParser) :=
+  prepareOrderedInventoryWith physical labels ⟨5, 128⟩ parse {} Int32ByteArray.Ingress.convert
+
+private def labelLookup (path : String) : Except String Bytes :=
+  if path == ordinary || path == escapedMarker then .ok cleanBytes else .error "literal key missing"
+
+private def records (parse : DirectoryParser) :=
+  (labelAdmit parse mixedMarkers).toOption.map (List.map fun file =>
+    (file.path.declared, (file.cells ⟨0, by decide⟩ : Option Bytes)))
+
+private def escapedText : Bytes := ⟨"%5f_HIVE_DEFAULT_PARTITION__".toUTF8⟩
+private def ordinaryText : Bytes := ⟨"ordinary".toUTF8⟩
+
+#guard records Literal.parse ==
+  some [(escapedMarker, some escapedText), (escapedMarker, some escapedText), (marker, none),
+    (ordinary, some ordinaryText)]
+#guard records PartitionPath.parse ==
+  some [(escapedMarker, none), (escapedMarker, none), (marker, none), (ordinary, some ordinaryText)]
+
+private def scanLabels (parse : DirectoryParser) (budget : Nat) (paths : List String) :=
+  (labelAdmit parse paths).map
+    (scanInt32ByteArraySnapshotsBoundedSkippingRejected {} labelLookup labelOnly keepPresent budget)
+
+private def observesLabels (parse : DirectoryParser) (budget : Nat) (counts : List Nat)
+    (rows : List (Option Bytes)) (outcome : Events.Termination RuntimeError) : Bool :=
+  match scanLabels parse budget mixedMarkers with
+  | .error _ => false
+  | .ok trace =>
+    trace.batches.map (·.rowCount) == counts &&
+      trace.rows.map (fun row => (row ⟨0, by decide⟩ : Option Bytes)) == rows &&
+      decide (trace.termination = outcome)
+
+#guard observesLabels Literal.parse 15 [3, 0, 2, 3, 0, 2, 3, 0, 2]
+  (List.replicate 10 (some escapedText) ++ List.replicate 5 (some ordinaryText)) .eos
+#guard observesLabels Literal.parse 14 [3, 0, 2, 3, 0, 2, 3, 0, 2]
+  (List.replicate 10 (some escapedText) ++ List.replicate 5 (some ordinaryText)) .closed
+#guard observesLabels PartitionPath.parse 5 [3, 0, 2] (List.replicate 5 (some ordinaryText)) .eos
+
+private def rejectsParent (parse : DirectoryParser) : Bool :=
+  match scanLabels parse 0 [ordinary, "_SUCCESS", "not-a-partition/f.parquet", escapedMarker] with
+  | .ok _ => false
+  | .error reason =>
+    reason == .entry 2 (.partitionPath "not-a-partition/f.parquet" (.missingEquals "not-a-partition"))
+
+#guard rejectsParent Literal.parse
+#guard rejectsParent PartitionPath.parse
+#guard match labelAdmit PartitionPath.parse [ordinary, "label=%FF/f.parquet"] with
+  | .error reason => reason == .entry 1 (.partitionPath "label=%FF/f.parquet" .invalidUtf8)
+  | .ok _ => false
+#guard (labelAdmit Literal.parse [ordinary, "label=%FF/f.parquet"]).toOption.map (List.map (·.path.declared)) ==
+  some ["label=%FF/f.parquet", ordinary]
+
+#guard match prepareOrderedInventoryWith physical labels ⟨4, 128⟩ Literal.parse {}
+    Int32ByteArray.Ingress.convert mixedMarkers with
+  | .error reason => reason == .entryLimit 4
+  | .ok _ => false
+
+#print axioms prepareFileWith_declared
+#print axioms prepareInventoryWith_eq_reference
+#print axioms prepareInventoryWith_paths
+#print axioms prepareOrderedInventoryWith_eq_reference
+#print axioms prepareOrderedInventoryWith_scanSkippingRejected_eq_reference
 
 #print axioms scanBounded_congr_opener
 #print axioms int32ByteArraySnapshotOpener_congr_lookup
