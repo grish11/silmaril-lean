@@ -238,6 +238,21 @@ handoff port, and private diagnostics use the linked address of their stage.
 The linked graph is entry-typed exactly when the left inputs are supported and
 the right inputs are supported at the intermediate ports those inputs return.
 
+[Packet field routing](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Link/Fields/Thms.lean)
+checks named blocks that copy registers, build pairs, and destructure known
+pairs. The interface uses one fixed width and the usual right-nested pairs
+ending in unit. Each output slot selects an input slot, so blocks can permute
+fields or discard a field by duplicating another. The executable traversal
+composes these selections along the path and checks for repeats. Checked
+cycles stay private and preserve packet shape even when the payload changes.
+
+The verdict compares actual `Part` observations on packed inputs. Soundness
+holds in every pair-lawful model. Completeness in a given model requires that
+distinct field maps can be distinguished by some packed input. Pair-lawfulness
+and two distinct field values suffice. Width-changing projections would need
+a packet shape at each port and private label. Branches, primitive calls, and
+destructuring opaque fields are outside the checker.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`
