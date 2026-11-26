@@ -742,6 +742,35 @@ the renamed extractor after a completed primitive request. The same ordered
 exit and encoded payload still distinguish the two runs.
 [Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
 
+### Structural comparisons on the original named SSA translations
+
+The structural certificate computes its packed verdict at two independently
+decoded public packets. The original written graphs also have a separate
+named SSA translation. Attach the ordered live-out reads to each graph,
+then run the existing cyclic versioner. The returned `LexicalGraph` certifies
+the version-zero entry scope and each block's singleton parameter scope.
+`observeVersioned_eq` identifies the actual `runSSA` result with the
+original mutable observation at any corresponding store. It numbers the
+original exit and keeps the written payload and selected live-out values.
+
+At a decoded seed, `observeVersioned_eq_public` also identifies that tree
+with the checked public program's named SSA runner at its own packet type.
+The finite verdict decides the existing handled-trace sentence on the
+original versioned endpoints for every jointly typed store and shared
+reply policy. An extracted directed trace refutes that sentence in the
+all-replies model, including when the separation occurs in the selected
+live-out after a completed request.
+[Named SSA refinement and witness](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Refinement/NamedSSA/Thms.lean)
+
+The lexical certificate gives scoped named SSA. Exact typed admission for
+the independently supplied packets comes from the checked public entries.
+In the repeated-capture fixture, one written register supplies two
+different sum types with overlapping encodings. The ordinary open entry
+checker assigns one type to that slot and cannot type the pair at those
+two distinct types. Structural decoding establishes each packet from the
+same raw value instead.
+[Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
+
 ### Reverse lowering of open flat SSA to mutable RTL
 
 `NamedFlat.Entry.Reverse.lowerChecked` generates an ordinary named mutable CFG

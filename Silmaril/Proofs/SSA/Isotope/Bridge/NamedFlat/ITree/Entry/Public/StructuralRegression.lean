@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.NamedSSA.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Defs
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
@@ -245,6 +246,35 @@ example :
     effectWitness.property a b ha hb
   refine ⟨a, b, ha, hb, distinguished.1, fun accepted => distinguished.2 ?_⟩
   exact accepted () trivial _ ⟨distinguished.1, Silmaril.Elgot.ITree.Replay.allReplies _⟩
+
+-- The checked public starts use different packet types. The original
+-- versioned programs read the same store through their version-zero names.
+example : effectLeft.observeVersioned mismatchingStore =
+    (effectLeft.program.observe 0 overlapPacket >>= fun out => pure (LambdaSSA.FiniteCFG.packedTreeOutput out)) :=
+  effectLeft.observeVersioned_eq_public mismatchingStore overlapPacket (by decide)
+
+example : effectRight.observeVersioned mismatchingStore =
+    (effectRight.program.observe 0 mismatchingPacket >>= fun out => pure (LambdaSSA.FiniteCFG.packedTreeOutput out)) :=
+  effectRight.observeVersioned_eq_public mismatchingStore mismatchingPacket (by decide)
+
+example :
+    Silmaril.Elgot.ITree.HandledTrace effectSignature.traceModel.step ()
+      (effectLeft.observeVersioned effectWitness.val.initial) effectWitness.val.trace ∧
+    ¬ TraceInstitution.Sat effectSignature.traceModel
+      (effectLeft.versionedRefinementSentence effectRight effectWitness.val.initial) :=
+  let refutes := effectWitness.val.refutes_versioned effectLeft effectRight effectWitness.property
+  ⟨refutes.1, refutes.2.2⟩
+
+-- Exact open typing assigns one type per capture slot. The left seed uses
+-- the same slot at two distinct, overlapping sum types.
+example (captureType : PacketType) :
+    letI := effectSignature.typing
+    NamedFlat.infer (.snoc .nil captureType)
+      (.pair (.bv 0) (.bv 0) : LetCase.LocallyNameless.Tm Empty Unit 1) ≠ some (.product narrowBit bit) := by
+  intro same
+  change some (Ty.product captureType captureType) = some (.product narrowBit bit) at same
+  obtain ⟨first, second⟩ := Ty.product.inj (Option.some.inj same)
+  exact (by decide : narrowBit ≠ bit) (first.symm.trans second)
 
 -- Change both the repeated source capture and the selected final register.
 private def registerNames : Name ≃ Name :=
