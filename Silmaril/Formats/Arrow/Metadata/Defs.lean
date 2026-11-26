@@ -231,6 +231,12 @@ structure MixedFlat.FileFooter where
   blocks : List FileBlock
   deriving DecidableEq, Repr
 
+/-- Normalized footer Schema and ordered absolute block descriptors. -/
+structure SchemaReader.FileFooter where
+  schema : SchemaReader.Schema
+  blocks : List FileBlock
+  deriving DecidableEq, Repr
+
 end
 
 private def check (condition : Bool) : Except Error Unit :=
@@ -559,6 +565,12 @@ public def MixedFlat.readMetadata (limits : Limits) (perView totalData : Nat)
   let buffers ← ((List.range vectors.bufferCount).mapM (readBufferAt bytes vectors.bufferFirst)).mapError .metadata
   return ⟨⟨vectors.rowCount, nodes, buffers⟩, bodyLength, counts⟩
 
+private def normalizedSchema (limits : Limits) (bytes : KBytes) (payload : Table) :
+    Except Error SchemaReader.Schema := do
+  let (endian, fields) ← schemaWith limits bytes payload readSchemaEndianness
+    (fun pos => fieldWith bytes pos (readSchemaFieldType bytes) SchemaReader.Field.mk)
+  return ⟨endian, fields⟩
+
 /-- Read a standalone V5 Schema message. The normalized type payloads and
 schema byte order are available to readers without changing the existing IPC AST. -/
 public def SchemaReader.readMessage (limits : Limits) (bytes : KBytes) :
@@ -566,9 +578,7 @@ public def SchemaReader.readMessage (limits : Limits) (bytes : KBytes) :
   let (tag, payload, bodyLength) ← messageParts limits bytes
   if tag ≠ 1 then throw (.unsupported (.messageKind tag))
   if bodyLength ≠ 0 then throw (.malformed .bodyLength)
-  let (endian, fields) ← schemaWith limits bytes payload readSchemaEndianness
-    (fun pos => fieldWith bytes pos (readSchemaFieldType bytes) SchemaReader.Field.mk)
-  return ⟨endian, fields⟩
+  normalizedSchema limits bytes payload
 
 /-- Decode only the metadata slice of a V5 Message. The stream reader checks
 the envelope, message order and batch layout against the schema and body. -/
@@ -581,7 +591,7 @@ public def readMessage (limits : Limits) (bytes : KBytes) : Except Error Message
   return ⟨header, bodyLength⟩
 
 private def fileFooterWith {α : Type} (limits : Limits) (bytes : KBytes)
-    (readSchemaTable : Table → Except Error (List α)) : Except Error (List α × List FileBlock) := do
+    (readSchemaTable : Table → Except Error α) : Except Error (α × List FileBlock) := do
   if !bytes.wf then throw (.malformed .source)
   if bytes.len > limits.metadataBytes then throw (.limit .metadataBytes)
   let value ← table bytes (← target bytes 0)
@@ -591,7 +601,7 @@ private def fileFooterWith {α : Type} (limits : Limits) (bytes : KBytes)
   emptyVector bytes value 2 24 8 .dictionary
   emptyVector bytes value 4 4 4 .customMetadata
   let schemaTable ← table bytes (← require (← reference bytes value 1))
-  let fields ← readSchemaTable schemaTable
+  let observed ← readSchemaTable schemaTable
   let (first, count) ← vector bytes value 3 24 8
   if count > limits.batches then throw (.limit .batches)
   let blocks ← (List.range count).mapM fun index => do
@@ -601,7 +611,7 @@ private def fileFooterWith {α : Type} (limits : Limits) (bytes : KBytes)
     check (metadataLength < 2^31)
     let bodyLength ← natural64 bytes (pos + 16)
     pure (FileBlock.mk offset metadataLength bodyLength)
-  return (fields, blocks)
+  return (observed, blocks)
 
 /-- Decode an Arrow V5 File.fbs footer for the primitive profile. -/
 public def readFileFooter (limits : Limits) (bytes : KBytes) : Except Error FileFooter := do
@@ -612,5 +622,11 @@ public def readFileFooter (limits : Limits) (bytes : KBytes) : Except Error File
 public def MixedFlat.readFileFooter (limits : Limits) (bytes : KBytes) : Except Error MixedFlat.FileFooter := do
   let (fields, blocks) ← fileFooterWith limits bytes (mixedSchema limits bytes)
   return ⟨fields, blocks⟩
+
+/-- Decode the footer through the same normalized Schema parser as a Message. -/
+public def SchemaReader.readFileFooter (limits : Limits) (bytes : KBytes) :
+    Except Error SchemaReader.FileFooter := do
+  let (schema, blocks) ← fileFooterWith limits bytes (normalizedSchema limits bytes)
+  return ⟨schema, blocks⟩
 
 end Silmaril.Formats.Arrow
