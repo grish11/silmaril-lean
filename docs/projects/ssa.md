@@ -228,6 +228,15 @@ supported target outcome. A source return requires a target return at the same
 port. Unsupported syntax reached on either side gives `none`. With a common
 pair-lawful `Part` model, the verdict decides refinement for these graphs.
 Using a wiring graph as the target gives the same verdict as `refinement?`.
+The decision is exact for satisfaction by the compiled named SSA classes at
+every input port and initial store in each pair-lawful `Part` model. When
+compiling after primitive renaming, the same verdict applies by model reduct.
+
+Entry outcomes compose through the executable linker. A left cycle ends the
+scan in its own stage. A left return selects a right input through the matching
+handoff port, and private diagnostics use the linked address of their stage.
+The linked graph is entry-typed exactly when the left inputs are supported and
+the right inputs are supported at the intermediate ports those inputs return.
 
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),

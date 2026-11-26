@@ -52,6 +52,25 @@ theorem relabel {available : Finset V} {body : Body V K F} {target : K}
   | jump read => exact .jump read
   | copy read next ih => exact .copy read ih
 
+theorem target_relabel (rename : K → K') (available : Finset V) (body : Body V K F) :
+    target? available (body.relabel rename) = (target? available body).map rename := by
+  induction body generalizing available with
+  | let1 dst op rest ih =>
+    cases op with
+    | val value =>
+      cases value with
+      | var src => by_cases read : src ∈ available <;> simp [Body.relabel, target?, read, ih]
+      | _ => rfl
+    | _ => rfl
+  | let2 => rfl
+  | term term =>
+    cases term with
+    | br label value =>
+      cases value with
+      | var src => by_cases read : src ∈ available <;> simp [Body.relabel, Term.relabel, target?, read]
+      | _ => rfl
+    | case => rfl
+
 theorem evalJump {M : Type → Type} [Monad M] [LawfulMonad M]
     (model : Model F M α) {available : Finset V} {body : Body V K F} {target : K}
     (typed : Forwards available body target) (store : V → α) (packet : α)
