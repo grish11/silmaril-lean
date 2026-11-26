@@ -198,4 +198,27 @@ theorem iter_reduct_projection :
     ((modelFunctor (LetIter.institution (ε := Unit) D Γ)).map swap.op).toFunctor.obj M =
       M.reduct swap := rfl
 
+-- The composite preserves truth and carries the selected witnesses through a swap.
+theorem seq_iter_true :
+    LetIter.Sentence.Satisfies M (caseIterSentence (seqCaseSentence seqEquation)) :=
+  ((seqIterCoHom (ε := Unit) Γ D).satisfaction S M seqEquation).mpr seq_true
+
+theorem seq_iter_translated_false :
+    ¬ LetIter.Sentence.Satisfies M
+      (LetIter.Sentence.translate swap (caseIterSentence (seqCaseSentence seqEquation))) := by
+  rw [← seqIterSentence_natural]
+  exact fun h => seq_translated_false ((seqIter_satisfaction M _).mp h)
+
+-- The second inclusion also exercises a native branch and the reduct on model arrows.
+theorem case_iter_true : LetIter.Sentence.Satisfies M (caseIterSentence caseEquation) :=
+  (caseIter_satisfaction M caseEquation).mpr case_true
+
+theorem case_iter_false_in_reduct :
+    ¬ LetIter.Sentence.Satisfies (M.reduct swap) (caseIterSentence caseEquation) :=
+  fun h => case_false_in_reduct ((caseIter_satisfaction _ _).mp h)
+
+example :
+    (((caseIterRho Γ D).app S).mod ⋙ Model.reductFunctor D swap).map inclusion =
+      (Model.reductFunctor D swap ⋙ ((caseIterRho Γ D).app S).mod).map inclusion := rfl
+
 end Silmaril.Isotope.Institution.Relational.Tests

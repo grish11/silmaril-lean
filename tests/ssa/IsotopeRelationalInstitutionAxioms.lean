@@ -2,6 +2,8 @@ module
 
 import all tests.ssa.IsotopeRelationalInstitution
 import all Silmaril.SSA.Isotope.Institution.Relational.Thms
+import all Silmaril.SSA.Isotope.Institution.Relational.Inclusions.Defs
+import all Silmaril.SSA.Isotope.Institution.Relational.Inclusions.Thms
 import all Silmaril.SSA.Isotope.Institution.Relational.Model.Defs
 import all Silmaril.SSA.Isotope.Institution.Relational.Model.Thms
 import all Silmaril.SSA.Isotope.Institution.Relational.LetSeq.Defs
@@ -11,6 +13,7 @@ import all Silmaril.SSA.Isotope.Institution.Relational.LetCase.Thms
 import all Silmaril.SSA.Isotope.Institution.Relational.LetIter.Defs
 import all Silmaril.SSA.Isotope.Institution.Relational.LetIter.Thms
 import all Silmaril.Proofs.SSA.Isotope.Institution.Relational.Model
+import all Silmaril.Proofs.SSA.Isotope.Institution.Relational.Inclusions
 import all Silmaril.Proofs.SSA.Isotope.Institution.Relational.LetSeq
 import all Silmaril.Proofs.SSA.Isotope.Institution.Relational.LetCase
 import all Silmaril.Proofs.SSA.Isotope.Institution.Relational.LetIter

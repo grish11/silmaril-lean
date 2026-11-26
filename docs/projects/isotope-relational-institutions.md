@@ -92,6 +92,32 @@ derivation independence, soundness of an entire equational presentation, or
 completeness for a syntax quotient. The existing exact equational institutions
 instead use algebras of a presented syntax and have their own entailment results.
 
+## Checked sequential inclusions
+
+The relational header exports `Relational.seqCaseCoHom` and
+`Relational.caseIterCoHom` over the identity instruction-signature functor,
+and their composite `Relational.seqIterCoHom`. The sentence maps
+`seqCaseSentence` and `caseIterSentence` reuse the existing exact equation
+inclusions. Their `_eq` and `_natural` theorems give the native term and
+derivation at both endpoints and show that the whole sentence commutes with
+opcode relabelling.
+
+The comparisons use the same `D`, the same product, unit and coproduct
+equivalences, the same primitive relation model, and the same environments
+on both sides. The target tier supplies the coproduct structure even for a
+LetSeq sentence. The backwards model functors are identities, so
+`seqCase_model_reduct` and `caseIter_model_reduct` commute with reduct on
+objects and arrows. These equalities use the fixed common interpretation.
+
+`seqCase_denoteRelation` and `caseIter_denoteRelation` prove pointwise
+agreement by induction on the selected exact derivation in the native
+relational evaluator. They use the direct relational abort clause and
+require no `EmptyModel D` or monad laws. Applying them to both witnesses
+gives `seqCase_satisfaction`, `caseIter_satisfaction`, and
+`seqIter_satisfaction`. The chain regression preserves a true equation and
+carries a truth-changing opcode swap through both inclusions.
+[Checked inclusion API](../../Silmaril/SSA/Isotope/Institution/Relational/Inclusions/Thms.lean)
+
 ## Parallel interface plan
 
 The shared pieces are the existing `InstrSig` category, the exact judgment

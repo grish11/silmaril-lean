@@ -1,8 +1,6 @@
 module
 
-public import Silmaril.SSA.Isotope.Institution.Relational.LetSeq.Thms
-public import Silmaril.SSA.Isotope.Institution.Relational.LetCase.Thms
-public import Silmaril.SSA.Isotope.Institution.Relational.LetIter.Thms
+public import Silmaril.SSA.Isotope.Institution.Relational.Inclusions.Thms
 
 /-! # Relational institutions for the exact sequential let family -/
 
