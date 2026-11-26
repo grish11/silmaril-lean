@@ -273,3 +273,33 @@ prefix lengths and EOS.
 make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.File.Window.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Window.Axioms'
 python3 -I scripts/arrow-mixed-flat/window_fixtures.py --out /tmp/arrow-mixed-window.bin
 ```
+
+### Selected batch projection
+
+After admitting a carrier-window index, use `Index.checkProjection` to
+check zero-based column positions against the footer and
+`Index.readProjectedAt` to read one batch with those positions.
+`Relational.Scan.Projection` permits reordering and repetition. Its
+positions refer to the original field declarations, including their
+names, types and nullability.
+
+The full selected batch passes the existing decode and budget checks
+before projection. Corruption in an omitted column still produces the
+original indexed source error. Other batches are unread. A missing
+batch returns `.ok none`, and an explicit zero-row batch returns
+`.ok (some observed)`. An empty projection keeps the original
+`rowCount`, including for a nonempty batch. Output width is the width
+of the caller's request, which may include repeated positions.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/File/Window/Projection/Defs.lean) ·
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/File/Window/Projection/Thms.lean)
+
+The Lean checks use the same independently produced carrier with batch
+counts `[4, 0, 2]` at origin 64. The pinned PyArrow 26.0.1 oracle
+checks repeated and reordered positions, zero-width row counts, and
+selected corruption with readable neighbors after full batch validation.
+
+```sh
+lake build --wfail +Silmaril.Formats.Arrow.MixedFlat.File.Window.Projection.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Window.Projection.Axioms
+python3 -I scripts/arrow-mixed-flat/window_fixtures.py --out /tmp/arrow-mixed-window.bin
+python3 -I scripts/arrow-mixed-flat/window_projection.py /tmp/arrow-mixed-window.bin
+```
