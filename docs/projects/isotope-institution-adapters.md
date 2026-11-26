@@ -1,0 +1,70 @@
+# Cross-tier Isotope institution adapters
+
+All signature maps are in the shared `InstrSig τ ε` category. The comorphisms
+use its identity functor. The exact sequential sentence API takes the types,
+effects and free-name sorts in one universe. Relabeling preserves the declared source, target and
+effect of each instruction. The sentence maps retain the two exact typing
+derivations, including their bound types and binder witnesses.
+
+## Lower tiers
+
+`Silmaril.SSA.Isotope.Institution.Adapters.Powerset.Thms` gives
+`Powerset.letSeq` and `Powerset.letCase`. Each includes the relational syntax
+into the corresponding native parallel syntax and restricts that parallel
+institution to the Mathlib `SetM` monad with a fixed operation for parallel
+pairing. Each primitive interpretation is represented by its membership
+relation. The strict model arrows have identity computation maps and preserve
+the primitive sets. Taking membership sends each such arrow to a pointwise
+relation inclusion. `Model.strict_arrow_iff` characterizes this restriction in
+the native strict model category.
+
+The equation maps commute with opcode relabeling, including the endpoint casts.
+The model comparison commutes with signature reducts on objects and arrows.
+The satisfaction equivalence uses exact native evaluation and extensional
+equality of powersets. This use of powerset extensionality is local to the
+restricted models.
+
+The rooms fix the context, value family, product and unit interpretations,
+and pairing operation. The case room also fixes coproduct and empty-type
+equivalences. Lower primitive interpretations are arbitrary relations. Effect
+annotations are preserved by relabeling, and the comparisons require no
+semantic purity, pairing laws, or iteration.
+
+## Upper tier
+
+`Silmaril.SSA.Isotope.Institution.Adapters.Iteration.Thms` gives two
+comorphisms into the native LetParIter institution.
+
+- `Iteration.letParCase` widens exact LetParCase witnesses and uses the native
+  LetParIter reduct. The reduct forgets iteration, retaining the lawful monad,
+  instruction computations and the supplied pairing. Model arrows keep their
+  strict computation maps, which preserve the retained operations. The
+  comparison fixes the four value equivalences to those of the upper
+  `TypeModel`. It requires the map from native free environments to visible
+  free valuations to be surjective. This holds in the empty context. Native
+  bound environments represent every bound valuation.
+- `Iteration.letIter` includes exact LetIter witnesses from the monadic
+  companion. The companion uses the native sequential evaluator and the same
+  strict model category as LetParIter. Upper models supply a lawful monad,
+  lawful Elgot iteration, a symmetric parallel pairing, and both primitive
+  computations and coherent pure interpretations of bottom-effect instructions.
+  The companion's satisfaction is equality of native computations. Its
+  sentence and signature reduct laws use the same fixed witnesses and the
+  upper institution's change-of-signature law.
+
+For the fixed native powerset model, `Iteration.set_satisfaction` also compares
+the image of a LetIter equation directly with its relational satisfaction.
+It uses the repository's lawful finite-success `SetM` iteration, the same
+primitive computations viewed by membership, and a supplied symmetric
+powerset pairing. Bottom-effect instructions must have coherent pure
+interpretations. The comparison applies on the same visible environment
+coverage as the case reduct.
+
+`Silmaril.SSA.Isotope.Institution.Adapters.Thms` exposes the commuting
+sentence squares and outer rectangle, using equality of exact witnesses.
+It also states equality of the lower corridors on both sentence and model
+components, and relates the upper case path to successful-result satisfaction.
+
+The underlying syntax is proof relevant. These maps apply to each given
+endpoint witness. A raw syntax descent requires separate compatibility of the
+generating equations and endpoints. See the [tagged partial-model witness separation](https://github.com/hiloopai/silmaril-lean/commit/9936e209bd6244b2f27722216b2f129e59f7f541).
