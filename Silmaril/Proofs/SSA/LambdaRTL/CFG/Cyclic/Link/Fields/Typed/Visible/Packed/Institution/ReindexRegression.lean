@@ -2,7 +2,7 @@ module
 
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Reindex.Thms
 import Silmaril.Semantics.ITree.Signature.Execution.Thms
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Lift.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Lift.Composition.Thms
 import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
@@ -403,6 +403,88 @@ example (M : liftInst.Mod.obj (Opposite.op filteredObj)) :
   exact (Program.refinementAtUnder?_iff_valid_liftSat (aliasArrow ≫ firstArrow) imageMask
     (signature.replyImageMask_iff (aliases ≫ keepFirst)) packet (packed false 0) (packed false 1)
     env env env env (fun _ => rfl) (fun _ => rfl)).mp accepted M
+
+-- Keep only the true intermediate name for the first reply. Choosing the
+-- false name before applying the second filter would lose that reply.
+private def keepTrueFirst : aliased ⟶ filtered :=
+  { keepFirst with
+    reply := fun
+      | ⟨_, .ask _⟩, _ => (true, .inl ⟨⟩) }
+
+private def trueFirstArrow : aliasedObj ⟶ filteredObj := ⟨keepTrueFirst, keepFirst_keys⟩
+
+private instance finiteAliases (k : signature.Request) :
+    Fintype ((aliases.request ⟨_, .ask k⟩).1) :=
+  inferInstanceAs (Fintype (AliasedReply k))
+
+private instance (k : signature.Request) :
+    Fintype (((aliases ≫ keepTrueFirst).request ⟨_, .ask k⟩).1) :=
+  inferInstanceAs (Fintype Bool)
+
+private def secondFilter (k : signature.Request) (reply : AliasedReply k) : Bool :=
+  letI : DecidableEq (AliasedReply k) := inferInstanceAs (DecidableEq (Bool × Denote bit))
+  let backward : Bool → AliasedReply k := keepTrueFirst.reply (aliases.request ⟨_, .ask k⟩)
+  decide (∃ targetReply : Bool, backward targetReply = reply)
+
+private theorem secondFilter_exact (k : signature.Request) (reply : AliasedReply k) :
+    secondFilter k reply = true ↔
+      ∃ targetReply, keepTrueFirst.reply (aliases.request ⟨_, .ask k⟩) targetReply = reply := by
+  simp only [secondFilter, decide_eq_true_eq]
+  rfl
+
+private def projected := signature.projectReplyMask aliases secondFilter
+private def direct := signature.replyImageMask (aliases ≫ keepTrueFirst)
+
+example : secondFilter (key false) (false, .inl ⟨⟩) = false := by rfl
+example : secondFilter (key false) (true, .inl ⟨⟩) = true := by rfl
+example : projected (key false) (.inl ⟨⟩) = true := by rfl
+example : projected (key false) (.inr ⟨⟩) = false := by rfl
+
+private theorem mask_agrees : projected = direct :=
+  PrimitiveSignature.projectReplyMask_eq_comp aliases keepTrueFirst secondFilter secondFilter_exact
+
+example :
+    (fixture false 0).refinementAtUnder? projected (fixture false 1) 0 packet =
+      (fixture false 0).refinementAtUnder? direct (fixture false 1) 0 packet ∧
+    (fixture false 0).refinementUnder? projected (fixture false 1) =
+      (fixture false 0).refinementUnder? direct (fixture false 1) := by
+  rw [mask_agrees]
+  exact ⟨rfl, rfl⟩
+
+private theorem stagedAtAccepts : (fixture false 0).refinementAtUnder? projected (fixture false 1) 0 packet = true := by cbv
+private theorem stagedInterfaceAccepts : (fixture false 0).refinementUnder? projected (fixture false 1) = true := by cbv
+example : (fixture false 0).refinement? (fixture false 1) = false := by cbv
+
+private def entryAt (port : Fin 2) (input : Fin 1) : Program.PackedEntry (fixture false port) input := by
+  have zero : input = 0 := Subsingleton.elim _ _
+  subst input
+  exact packed false port
+
+private theorem agreesAt (port : Fin 2) (input : Fin 1) (pkt : Denote (inputs input)) :
+    (entryAt port input).recordAgrees pkt env := by
+  have zero : input = 0 := Subsingleton.elim _ _
+  subst input
+  exact fun _ => rfl
+
+example : liftInst.Sat aliasedObj
+    ⟨(TraceInstitution.allRepliesModel ⟨filtered⟩).reduct keepTrueFirst⟩
+    (liftInst.Sen.map aliasArrow orderedComparison) := by
+  exact (Program.refinementAtUnder?_iff_staged_liftSat aliasArrow trueFirstArrow (finiteMid := finiteAliases)
+    secondFilter secondFilter_exact packet (packed false 0) (packed false 1)
+    env env env env (fun _ => rfl) (fun _ => rfl)).mp stagedAtAccepts
+
+example (input : Fin 1) (pkt : Denote (inputs input)) (M : liftInst.Mod.obj (Opposite.op filteredObj)) :
+    liftInst.Sat filteredObj M (liftInst.Sen.map (aliasArrow ≫ trueFirstArrow)
+      ((entryAt 0 input).refinementSentence (entryAt 1 input) .leftToRight env env env env)) := by
+  let sentence := (entryAt 0 input).refinementSentence (entryAt 1 input) .leftToRight env env env env
+  have staged := (Program.refinementUnder?_iff_staged_liftSat aliasArrow trueFirstArrow (finiteMid := finiteAliases)
+    secondFilter secondFilter_exact (entryAt 0) (entryAt 1) env env (fun _ _ => env) (fun _ _ => env)
+    (agreesAt 0) (agreesAt 1)).mp stagedInterfaceAccepts input pkt
+  let all := TraceInstitution.allRepliesModel ⟨filtered⟩
+  have final := (liftInst.satisfaction trueFirstArrow ⟨all⟩ (liftInst.Sen.map aliasArrow sentence)).mpr staged
+  have valid := (TraceInstitution.liftInstitution_valid_iff filteredObj _).mpr final M
+  erw [← liftInst.Sen.map_comp_apply aliasArrow trueFirstArrow] at valid
+  exact valid
 
 end ReplyAliases
 

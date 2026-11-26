@@ -90,4 +90,46 @@ theorem refinementAt_valid_liftSat [DecidableEq F]
   erw [leftEntry.observe_mapped, rightEntry.observe_mapped]
   exact (f.hom.traceLE_iff_of_surjective f.property onto).symm
 
+theorem projectReplyMask_exact {Mid Out : Silmaril.Elgot.ITree.Signature.{0}}
+    (f : signature.traceSignature.toSignature ⟶ Mid) (g : Mid ⟶ Out)
+    [finite : ∀ key : signature.Request, Fintype (f.request ⟨_, Event.ask key⟩).1]
+    (admits : ∀ key : signature.Request, (f.request ⟨_, Event.ask key⟩).1 → Bool)
+    (exactSecond : ∀ key r, admits key r = true ↔
+      ∃ targetReply, g.reply (f.request ⟨_, Event.ask key⟩) targetReply = r)
+    (key : signature.Request) (reply : signature.Reply key) :
+    signature.projectReplyMask f admits key reply = true ↔ signature.ReplyRealizable (f ≫ g) key reply := by
+  simp only [PrimitiveSignature.projectReplyMask, decide_eq_true_eq, exactSecond, PrimitiveSignature.ReplyRealizable]
+  constructor
+  · rintro ⟨r, ⟨targetReply, rfl⟩, equal⟩
+    exact ⟨targetReply, equal⟩
+  · rintro ⟨targetReply, equal⟩
+    exact ⟨g.reply (f.request ⟨_, Event.ask key⟩) targetReply, ⟨targetReply, rfl⟩, equal⟩
+
+theorem refinementAtUnder_staged_liftSat [DecidableEq F]
+    {Mid : Silmaril.Elgot.ITree.Signature.InjectiveRequests.{0}}
+    (f : TraceSignature.includeInjectiveRequests.obj signature.traceSignature ⟶ Mid) (g : Mid ⟶ Target)
+    [finiteMid : ∀ key : signature.Request, Fintype (f.hom.request ⟨_, Event.ask key⟩).1]
+    (admits : ∀ key : signature.Request, (f.hom.request ⟨_, Event.ask key⟩).1 → Bool)
+    (exactSecond : ∀ key r, admits key r = true ↔
+      ∃ targetReply, g.hom.reply (f.hom.request ⟨_, Event.ask key⟩) targetReply = r)
+    (packet : Denote (inputs input)) (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom)
+    (leftAgrees : leftEntry.recordAgrees packet leftRecord) (rightAgrees : rightEntry.recordAgrees packet rightRecord) :
+    left.refinementAtUnder? (signature.projectReplyMask f.hom (finite := finiteMid) admits) right input packet = true ↔
+      TraceInstitution.liftInstitution.{0,1,0}.Sat Mid
+        ⟨(TraceInstitution.allRepliesModel ⟨Target.obj⟩).reduct g.hom⟩
+        (TraceInstitution.liftInstitution.{0,1,0}.Sen.map f
+          (leftEntry.refinementSentence rightEntry .leftToRight leftAmbient rightAmbient leftRecord rightRecord)) := by
+  let sentence := leftEntry.refinementSentence rightEntry .leftToRight leftAmbient rightAmbient leftRecord rightRecord
+  let all := TraceInstitution.allRepliesModel ⟨Target.obj⟩
+  have reduct := reduct_allReplies_eq (Target := Target) (f.hom ≫ g.hom)
+    (signature.projectReplyMask f.hom (finite := finiteMid) admits) (projectReplyMask_exact f.hom g.hom (finite := finiteMid) admits exactSecond)
+  change all.reduct (f.hom ≫ g.hom) = _ at reduct
+  erw [Model.reduct_comp] at reduct
+  have sat := TraceInstitution.satisfaction_lift (S := signature.traceSignature) (T := ⟨Mid.obj⟩)
+    f.hom f.property (all.reduct g.hom) sentence
+  erw [reduct] at sat
+  exact (Program.refinementAtUnder?_iff_traceSat (signature.projectReplyMask f.hom (finite := finiteMid) admits) packet leftEntry rightEntry
+    leftAmbient rightAmbient leftRecord rightRecord leftAgrees rightAgrees).trans sat.symm
+
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution
