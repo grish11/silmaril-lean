@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Defs
+public import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Bounded.Defs
 import Silmaril.Proofs.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray
 
 public section
@@ -13,6 +14,14 @@ open Int32ByteArrayGroup (Field)
 open Int32ByteArrayGroup.File (Kind Value)
 
 variable {Failure : Type} {int32 byteArray : Field} {partitions : PartitionSchema Kind}
+
+/-- Each paired open sets one pull per group and one for EOS. Closing its
+immutable cursor succeeds for every remaining suffix. -/
+theorem int32ByteArraySnapshotOpener_fullConsumption (limits : Int32ByteArrayGroup.File.Limits)
+    (int32 byteArray : Field) (partitions : PartitionSchema Kind) (lookup : String → Except Failure Bytes) :
+    Opener.FullConsumption (int32ByteArraySnapshotOpener limits int32 byteArray partitions lookup) :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.int32ByteArraySnapshotOpener_fullConsumption
+    limits int32 byteArray partitions lookup
 
 /-- The strict scan agrees with the independent ordered group fold on exact
 projected batches and the first reached typed outcome, including for filtered

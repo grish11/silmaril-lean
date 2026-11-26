@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Defs
 import all Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Defs
+public import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Bounded.Defs
 import Silmaril.Formats.Hive.ParquetScan.Thms
 import Silmaril.Formats.Parquet.Reader.Thms
 import Silmaril.Semantics.Relational.Scan.Thms
@@ -18,6 +19,19 @@ open Int32ByteArrayGroup (Field)
 open Int32ByteArrayGroup.File (Kind Value)
 
 variable {Failure : Type} {int32 byteArray : Field} {partitions : PartitionSchema Kind}
+
+theorem int32ByteArraySnapshotOpener_fullConsumption (limits : Int32ByteArrayGroup.File.Limits)
+    (int32 byteArray : Field) (partitions : PartitionSchema Kind) (lookup : String → Except Failure Bytes) :
+    Opener.FullConsumption (int32ByteArraySnapshotOpener limits int32 byteArray partitions lookup) := by
+  intro path opened admitted
+  cases checked : Int32ByteArray.openChecked limits int32 byteArray partitions lookup path with
+  | error reason => simp [int32ByteArraySnapshotOpener, checked, Except.map] at admitted
+  | ok file =>
+    have equal : ⟨Int32ByteArray.source file, (Int32ByteArray.source file
+        (Failure := Failure)).groups.length + 1⟩ = opened := by
+      simpa [int32ByteArraySnapshotOpener, checked, Except.map] using admitted
+    subst opened
+    exact ⟨rfl, fun _ => rfl⟩
 
 private theorem readFile_denote (source : Reader.Source Nat
     (Int32ByteArrayGroup.File.schema int32 byteArray) Value (Int32ByteArray.Error Failure)) :

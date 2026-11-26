@@ -13,6 +13,45 @@ open Silmaril.Formats.Hive.TypedPartitions (PartitionSchema)
 variable {Kind Failure : Type*} {Value : Kind → Type*}
 variable {physical : Scan.Schema String Kind} {schema : PartitionSchema Kind}
 
+variable {Group ReadError : Type*}
+
+/-- Full-consumption openers admit a cost witness for every finite manifest. -/
+theorem scanCost_exists (opener : Opener Group physical Value ReadError)
+    (admitted : opener.FullConsumption) (files : List (File schema Value)) :
+    ∃ actions, ScanCost opener files actions :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.scanCost_exists opener admitted files
+
+/-- A budget covering the witnessed actions recovers exactly the strict trace. -/
+theorem scanBounded_eq_scan_of_cost (opener : Opener Group physical Value ReadError)
+    (admitted : opener.FullConsumption)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    {budget actions : Nat} {files : List (File schema Value)}
+    (cost : ScanCost opener files actions) (enough : actions ≤ budget) :
+    scanBounded opener projection keep budget files = scan opener projection keep files :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.scanBounded_eq_scan_of_cost
+    opener admitted projection keep cost enough
+
+/-- The bounded trace closes exactly below the witnessed cost. Its aligned
+batches form an ordered prefix of the strict trace at every budget. -/
+theorem scanBounded_exact_boundary (opener : Opener Group physical Value ReadError)
+    (admitted : opener.FullConsumption)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    {budget actions : Nat} {files : List (File schema Value)}
+    (cost : ScanCost opener files actions) :
+    let bounded := scanBounded opener projection keep budget files
+    let strict := scan opener projection keep files
+    (bounded.termination = .closed ↔ budget < actions) ∧ List.IsPrefix bounded.batches strict.batches :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.scanBounded_exact_boundary opener admitted projection keep cost
+
+/-- Appending occurrences after a stopped trace cannot affect that trace. -/
+theorem scanBounded_append_of_stopped (opener : Opener Group physical Value ReadError)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    (budget : Nat) (files suffix : List (File schema Value))
+    (stopped : (scanBounded opener projection keep budget files).termination ≠ .eos) :
+    scanBounded opener projection keep budget (files ++ suffix) = scanBounded opener projection keep budget files :=
+  Proofs.Formats.Hive.Manifest.ParquetSnapshot.scanBounded_append_of_stopped
+    opener projection keep budget files suffix stopped
+
 /-- Exact trace equality with the budgeted group-prefix denotation. It
 includes ordered selected batches and their counts, and the first reached
 failure with its literal path and original typed payload. -/

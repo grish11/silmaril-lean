@@ -14,29 +14,62 @@ open Silmaril.Formats.Hive.TypedPartitions (PartitionSchema extendRow)
 variable {Kind Failure : Type*} {Value : Kind → Type*}
 variable {physical : Scan.Schema String Kind} {schema : PartitionSchema Kind}
 
+/-- A fully consumed source has one pull per group and one for EOS.
+Closing an immutable source succeeds without consuming an action. -/
+def Opener.FullConsumption {Group Error : Type*} (opener : Opener Group physical Value Error) : Prop :=
+  ∀ ⦃path opened⦄, opener path = .ok opened →
+    opened.fuel = opened.source.groups.length + 1 ∧
+    ∀ remaining, opened.source.close remaining = .ok ()
+
 /-- In literal manifest order, spend one action on each checked open (including
 lookup), one on each row-group pull, and one on each file EOS pull. Empty
-manifests give EOS. At zero budget a pending file or unread cursor gives
-`.closed`, including a cursor whose last group was already emitted. Snapshot
-cleanup is free. Filtering changes output batches but still spends actions
-and observes failures. The budget counts logical actions. -/
-def scanSnapshotsBounded (limits : Snapshot.Limits) (lookup : String → Except Failure Bytes)
-    (bind : Snapshot.Bind physical Value Failure)
+manifests give EOS. A pending open at zero budget gives `.closed`. If the
+budget ends with an open cursor, observe its close outcome even after
+emitting its last group. Cleanup consumes no action. Filtering changes
+output batches while preserving charges and reached failures. Charge a
+completed file by its source group count plus its EOS pull. -/
+def scanBounded {Group Error : Type*} (opener : Opener Group physical Value Error)
     (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value) :
-    Nat → List (File schema Value) → Events.Trace projection.schema Value (FileError (Snapshot.Error Failure))
+    Nat → List (File schema Value) → Events.Trace projection.schema Value (FileError Error)
   | _, [] => ⟨[], .eos⟩
   | 0, _ :: _ => ⟨[], .closed⟩
   | pulls + 1, file :: rest =>
-    match snapshotOpener limits lookup bind file.path.declared with
+    match opener file.path.declared with
     | .error reason => ⟨[], .readError (.open file.path.declared reason)⟩
     | .ok opened =>
       let current := scanFile (fun _ => .ok { opened with fuel := pulls }) projection keep file
       match current.termination with
       | .eos =>
-        -- The original fuel is the group count plus the file EOS pull.
-        let tail := scanSnapshotsBounded limits lookup bind projection keep (pulls - opened.fuel) rest
+        let tail := scanBounded opener projection keep (pulls - (opened.source.groups.length + 1)) rest
         ⟨current.batches ++ tail.batches, tail.termination⟩
       | _ => current
+
+/-- Strict budgeted traversal over checked byte snapshots. -/
+def scanSnapshotsBounded (limits : Snapshot.Limits) (lookup : String → Except Failure Bytes)
+    (bind : Snapshot.Bind physical Value Failure)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value) :
+    Nat → List (File schema Value) → Events.Trace projection.schema Value (FileError (Snapshot.Error Failure)) :=
+  scanBounded (snapshotOpener limits lookup bind) projection keep
+
+/-- Logical action witness for an ordered scan of fully consumed sources. A
+failure ends the witness at the failed action, and each completed occurrence
+charges its open, all group pulls, and a separate EOS pull. -/
+inductive ScanCost {Group Error : Type*} (opener : Opener Group physical Value Error) :
+    List (File schema Value) → Nat → Prop where
+  | nil : ScanCost opener [] 0
+  | openError {file rest reason} (failed : opener file.path.declared = .error reason) :
+      ScanCost opener (file :: rest) 1
+  | complete {file rest source rows actions}
+      (opened : opener file.path.declared = .ok ⟨source, source.groups.length + 1⟩)
+      (decoded : source.groups.mapM source.readGroup = .ok rows)
+      (tail : ScanCost opener rest actions) :
+      ScanCost opener (file :: rest) (source.groups.length + 2 + actions)
+  | readError {file rest source before group after rows reason}
+      (opened : opener file.path.declared = .ok ⟨source, source.groups.length + 1⟩)
+      (split : source.groups = before ++ group :: after)
+      (decoded : before.mapM source.readGroup = .ok rows)
+      (failed : source.readGroup group = .error reason) :
+      ScanCost opener (file :: rest) (before.length + 2)
 
 /-- Independently open each affordable occurrence and denote its affordable
 group prefix. Build one batch per successful retained group by projecting its

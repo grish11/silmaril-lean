@@ -1,9 +1,9 @@
 module
 
 import Silmaril.Data.IncludeBytes
-import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Thms
+import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Bounded.Thms
 meta import Silmaril.Data.IncludeBytes
-meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Defs
+meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Bounded.Defs
 
 namespace Silmaril.Formats.Hive.Manifest
 
@@ -64,16 +64,25 @@ private def observeRow {output : Scan.Schema String Kind} (row : Scan.Row output
     | .int32 _ => .inl (cast (congrArg (fun k => Option (Value k)) kind) (row i))
     | .byteArray _ => .inr (cast (congrArg (fun k => Option (Value k)) kind) (row i))
 
-private def projected (partitions : PartitionSchema Kind)
-    (projection : Scan.Projection (partitions.extend physical)) (keep : Scan.Predicate partitions.toScan Value)
+private def observes (partitions : PartitionSchema Kind) {output : Scan.Schema String Kind}
+    (run : List (File partitions Value) → Events.Trace output Value Failure)
     (paths : List String) (expected : List (List (List Cell))) (outcome : Events.Termination Failure) : Bool :=
   match prepare physical partitions {} convert paths with
   | .error _ => false
   | .ok files =>
-    let trace := scan (int32ByteArraySnapshotOpener {} ordinal payload partitions lookup) projection keep files
+    let trace := run files
     trace.batches.map (fun batch => batch.toRows.map observeRow) == expected &&
       trace.batches.map (·.rowCount) == expected.map List.length &&
       decide (trace.termination = outcome)
+
+private def projected (partitions : PartitionSchema Kind)
+    (projection : Scan.Projection (partitions.extend physical)) (keep : Scan.Predicate partitions.toScan Value) :=
+  observes partitions (scan (int32ByteArraySnapshotOpener {} ordinal payload partitions lookup) projection keep)
+
+private def bounded (partitions : PartitionSchema Kind)
+    (projection : Scan.Projection (partitions.extend physical)) (keep : Scan.Predicate partitions.toScan Value)
+    (budget : Nat) :=
+  observes partitions (scanInt32ByteArraySnapshotsBounded {} lookup projection keep budget)
 
 private def all (partitions : PartitionSchema Kind) : Scan.Predicate partitions.toScan Value :=
   fun _ => some true
@@ -142,7 +151,36 @@ private def reordered : Scan.Projection (years.extend physical) :=
   | .error reason => decide (reason = .parquet (.openFailure (.bind .int32 (.unknownLeaf "absent"))))
   | .ok _ => false
 
+#guard bounded years (Scan.Projection.id _) (all years) 0 [] [] .eos
+#guard bounded years (Scan.Projection.id _) (all years) 0 [missing] [] .closed
+
+#guard bounded years (Scan.Projection.id _) (all years) 3 [middle] (expectedMiddle.take 2) .closed
+#guard bounded years (Scan.Projection.ofArray #[]) (all years) 4 [middle]
+  [List.replicate 3 [], [], List.replicate 2 []] .closed
+#guard bounded years (Scan.Projection.ofArray #[]) (all years) 5 [middle]
+  [List.replicate 3 [], [], List.replicate 2 []] .eos
+
+#guard bounded years (Scan.Projection.id _) (all years) 14 [first, nullYear, first]
+  (expectedFile (some 7) ++ expectedFile none ++ expectedFile (some 7)) .closed
+#guard bounded years (Scan.Projection.id _) (all years) 15 [first, nullYear, first]
+  (expectedFile (some 7) ++ expectedFile none ++ expectedFile (some 7)) .eos
+
+#guard bounded years (Scan.Projection.id _) keepExceptEight 7 [first, late, missing]
+  (expectedFile (some 7)) .closed
+#guard bounded years (Scan.Projection.id _) keepExceptEight 8 [first, late, missing]
+  (expectedFile (some 7)) lateError
+#guard bounded years (Scan.Projection.ofArray #[]) (all years) 8 [first, late, missing]
+  (List.replicate 4 (List.replicate 12 [])) lateError
+
+#guard bounded keys (Scan.Projection.id _) (all keys) 5 [beforeCollision, collision] expectedMiddle .closed
+#guard bounded keys (Scan.Projection.id _) (all keys) 6 [beforeCollision, collision] expectedMiddle
+  (.readError (.open collision (.reservedPartition "key")))
+
 #print axioms scanInt32ByteArraySnapshots_eq_reference
 #print axioms scanInt32ByteArraySnapshots_collect_eq_rows
+#print axioms int32ByteArraySnapshotOpener_fullConsumption
+#print axioms int32ByteArrayScanCost_exists
+#print axioms scanInt32ByteArraySnapshotsBounded_eq_reference_of_cost
+#print axioms scanInt32ByteArraySnapshotsBounded_exact_boundary
 
 end Silmaril.Formats.Hive.Manifest

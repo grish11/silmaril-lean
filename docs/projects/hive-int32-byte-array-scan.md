@@ -41,6 +41,24 @@ groups directly, and projects materialized rows before building aligned
 batches. `scanInt32ByteArraySnapshots_collect_eq_rows` gives the
 corresponding ordered row and terminal observation.
 
+## Logical action budget
+
+[`scanInt32ByteArraySnapshotsBounded`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Int32ByteArray/Bounded/Defs.lean)
+uses the common [bounded manifest traversal](hive-file-manifest.md#one-budget-across-checked-snapshots)
+with this checked opener. Charge one action per attempted literal open,
+one per group pull, and one for the explicit file EOS pull. Each repeated
+path is charged independently. A filtered partition still consumes its
+actions and preserves its reached failure.
+
+[`Int32ByteArrayScanCost` and its laws](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Int32ByteArray/Bounded/Thms.lean)
+witness the actions through manifest EOS or the first reached failure for
+every prepared manifest. The scan returns `.closed` exactly below that
+cost. At any budget its aligned batches form an ordered prefix of the
+full trace. A sufficient budget gives the exact existing mixed manifest denotation. An empty batch
+costs one group pull and keeps its boundary even at zero projected width.
+An empty manifest reaches EOS with zero actions. The budget measures
+these logical actions over supplied immutable snapshots.
+
 ## Fixtures
 
 [Lean checks](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Int32ByteArray/Checks.lean)
