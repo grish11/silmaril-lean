@@ -21,7 +21,7 @@ public theorem checkOrder_sound {limits : Footer.Limits} {snapshot : Snapshot.Ch
   cases selected : readOrderFields limits snapshot binding with
   | error reason => simp [checkOrder, selected, bind, Except.bind] at h
   | ok fields =>
-    simp only [checkOrder, selected, bind, Except.bind] at h
+    simp only [checkOrder, selected, bind, Except.bind, checkOrderFields] at h
     split at h
     · cases h
     rename_i annotation

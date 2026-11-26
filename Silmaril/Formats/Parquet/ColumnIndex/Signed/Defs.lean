@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Parquet.ColumnIndex.Defs
+public import Silmaril.Formats.Parquet.Footer.ColumnOrder.Defs
 public import Silmaril.Formats.Parquet.FlatColumn.Defs
 public import Silmaril.Formats.Parquet.FlatScan.Scalar.Defs
 
@@ -57,48 +58,27 @@ structure Limits where
 private def readStruct (reader : Reader) (start : Nat) : Except OrderError (List Field × Nat) :=
   (Traversal.readStruct reader start).mapError .compact
 
-private def field? (fields : List Field) (id : Int) : Except OrderError (Option Field) :=
-  match fields.filter (·.id == id) with
-  | [] => .ok none
-  | [field] => .ok (some field)
-  | _ => .error .footerShape
-
-private def structList (reader : Reader) (field : Field) : Except OrderError (List (List Field)) := do
-  if field.type ≠ .payload .list then throw .footerShape
-  let (result, stop) ← Traversal.readList reader OrderError.compact .struct (readStruct reader) field.start
-  if stop ≠ field.stop then throw .footerShape
-  pure result
+@[expose] def OrderError.ofColumnOrder : Footer.ColumnOrder.Error → OrderError
+  | .footerByteLimit => .footerByteLimit
+  | .compact reason => .compact reason
+  | _ => .footerShape
 
 structure OrderFields where
   reader : Reader
   leaf : List Field
   order : List Field
 
-/-- Read the original raw leaf and column-order union at their respective
-ordinals in the exact checked footer slice. -/
-def readOrderFields (limits : Footer.Limits) (snapshot : Snapshot.Checked)
+/-- Use shared wire selection and translate its detailed failures to the
+original signed diagnostic. -/
+@[expose] def readOrderFields (limits : Footer.Limits) (snapshot : Snapshot.Checked)
     {name : String} {layout : FlatColumn.Layout}
     (binding : FlatColumn.Binding snapshot ⟨name, .int32, layout⟩) : Except OrderError OrderFields := do
-  if snapshot.footer.stop - snapshot.footer.start > limits.maxFooterBytes then throw .footerByteLimit
-  let source := Footer.fileBytes snapshot.bytes snapshot.footer.start snapshot.footer.stop
-  let reader : Reader := ⟨source, limits.compact, limits.varintMode⟩
-  let (fields, stop) ← readStruct reader 0
-  if stop ≠ source.length then throw .footerShape
-  let some schemaField ← field? fields 2 | throw .footerShape
-  let schema ← structList reader schemaField
-  if schema.length ≠ snapshot.metadata.schema.length then throw .footerShape
-  let some leaf := schema[binding.leafOrdinal]? | throw .footerShape
-  let some order ← field? fields 7 | throw .missingOrder
-  let orders ← structList reader order
-  if orders.length + 1 ≠ schema.length then throw .footerShape
-  let some selected := orders[binding.columnOrdinal]? | throw .footerShape
-  pure ⟨reader, leaf, selected⟩
+  let selected ← (Footer.ColumnOrder.readSelection limits snapshot binding.columnOrdinal).mapError
+    OrderError.ofColumnOrder
+  let some order := selected.order | throw .missingOrder
+  pure ⟨selected.reader, selected.leaf.item.fields, order.item.fields⟩
 
-/-- Admit the signed type-defined order of an unannotated INT32 leaf. -/
-def checkOrder (limits : Footer.Limits) (snapshot : Snapshot.Checked)
-    {name : String} {layout : FlatColumn.Layout}
-    (binding : FlatColumn.Binding snapshot ⟨name, .int32, layout⟩) : Except OrderError Unit := do
-  let fields ← readOrderFields limits snapshot binding
+def checkOrderFields (fields : OrderFields) : Except OrderError Unit := do
   if fields.leaf.any (fun field => field.id == 6 || field.id == 10) then throw .annotated
   let [member] := fields.order | throw .footerShape
   if member.id ≠ 1 then throw .unsupportedOrder
@@ -106,6 +86,14 @@ def checkOrder (limits : Footer.Limits) (snapshot : Snapshot.Checked)
   let (members, next) ← readStruct fields.reader member.start
   if !members.isEmpty || next ≠ member.stop then throw .footerShape
   pure ()
+
+/-- Admit the signed type-defined order of an unannotated INT32 leaf.
+Selection, annotation presence, then marker checks retain their original
+error precedence. -/
+@[expose] def checkOrder (limits : Footer.Limits) (snapshot : Snapshot.Checked)
+    {name : String} {layout : FlatColumn.Layout}
+    (binding : FlatColumn.Binding snapshot ⟨name, .int32, layout⟩) : Except OrderError Unit :=
+  readOrderFields limits snapshot binding >>= checkOrderFields
 
 /-- The selected leaf has neither annotation field. Its ColumnOrder is the
 singleton TYPE_ORDER arm with an exactly consumed empty struct. -/
