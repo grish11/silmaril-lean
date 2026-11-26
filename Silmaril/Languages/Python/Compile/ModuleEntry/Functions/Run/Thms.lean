@@ -16,6 +16,15 @@ theorem callOperand_numericArgument (scope : Source.Scope) (result : NumericArgu
       | .boolean value => .bool value)) := by
   cases result <;> rfl
 
+theorem callOperand_literalBooleanEquality {scope : Source.Scope}
+    (session : Core.Module.Functions.Session) (left right : Bool) :
+    let operand : Operand scope := .binary .equal (.boolean left) (.boolean right)
+    callOperand? operand = some (.literal (.bool (left == right))) ∧
+      evaluate session operand = .ok (.bool (left == right)) := by
+  refine ⟨rfl, ?_⟩
+  simp only [evaluate]
+  cases left <;> cases right <;> rfl
+
 theorem retainTupleOrigins_unobserved {scope : Source.Scope} (instructions : List (Instruction scope))
     (unobserved : instructions.any Instruction.observesTupleIdentity = false) :
     retainTupleOrigins instructions = instructions := by

@@ -35,6 +35,11 @@ variable (cert : Certificate g allowInvariant allowBranch) (m : Interpretation.{
 theorem Certificate.demandWellFounded (cert : Certificate g allowInvariant allowBranch) : WellFounded g.Demand :=
   g.demandWellFounded_of_check cert.rank cert.ranked
 
+theorem Certificate.runStore_exec (fuel : Nat) (store : Tuple m.Value (.bool :: carried))
+    {final : Tuple m.Value (.bool :: carried)} (ran : cert.runStore m fuel store = some final) :
+    Exec m (.while rfl (.var .head) cert.body.enableWhile) store (some final) :=
+  Proofs.runStore_exec cert fuel store ran
+
 theorem Certificate.runFuel_returns (fuel : Nat) {value : m.Value result}
     (ran : cert.runFuel m fuel input = some value) : cert.revert.Returns m input value :=
   Proofs.runFuel_returns cert fuel ran

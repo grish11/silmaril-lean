@@ -8,12 +8,11 @@ public section
 namespace Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.Reindex.Proofs
 
 open SeaOfNodes.Diamond (Model ValueSort dataPorts)
-open SeaOfNodes.Diamond.SCCP (Fact evalFacts gather tupleFacts)
+open SeaOfNodes.Diamond.SCCP (Fact tupleFacts)
 open SeaOfNodes.Loop.SCCP (BankFacts BankDecidableEq bankTuple bankTuple_tupleFacts)
 open Tail.Diamond.MLIR.CF.Pruned.Reindex (Permutation pull pull_get)
-open RVSDG (Tuple Wires Locals)
+open RVSDG (Tuple)
 open Join (Block)
-open Semantics.Dataflow (Flat)
 
 universe u v w
 
@@ -21,44 +20,17 @@ variable {Data : Type u} {Op : SeaOfNodes.Diamond.Signature.{u, v} Data}
 variable {old new : List (ValueSort Data)} {out : ValueSort Data}
 variable (order : Registers old new) (m : Model.{u, v, w} Op)
 
-/-- The existing compiled producer interpreter performs these writes in
-order. This auxiliary fold is only used to prove its change-of-slots law. -/
-private def abstractQuad (q : Quad Op old) (bank : Tuple (Fact m.value) (dataPorts old)) :
-    Tuple (Fact m.value) (dataPorts old) :=
-  write q.dest (Flat.map (m.run q.op) (gather (q.operands.map (fun _ p => bank.get p)))) bank
-
-private theorem compile_eval (block : Block Op old)
-    {args : List (SeaOfNodes.Diamond.Ty Data)} {past : List (List (SeaOfNodes.Diamond.Ty Data))}
-    (entry : Tuple (Fact m.value) args) (locals : Locals (Fact m.value) past)
-    (current : Wires args past (dataPorts old)) :
-    let compiled := CFG.compileBlock block current
-    compiled.outgoing.read entry (evalFacts m entry compiled.flow locals) =
-      block.foldl (fun bank q => abstractQuad m q bank) (current.read entry locals) := by
-  induction block generalizing past with
-  | nil => rfl
-  | cons q rest ih =>
-    simp only [CFG.compileBlock, Loop.Transfer.prepend, evalFacts, List.foldl_cons]
-    refine (ih (locals.snoc _) (rebind current q.dest)).trans ?_
-    apply congrArg (fun bank => rest.foldl (fun bank q => abstractQuad m q bank) bank)
-    refine (read_rebind entry locals current q.dest _).trans ?_
-    simp only [abstractQuad, Quad.inputWires, read_operands]
-
-private theorem blockFacts_eq_fold (block : Block Op old) (entry : Tuple (Fact m.value) (dataPorts old)) :
-    SCCP.blockFacts m block entry = block.foldl (fun bank q => abstractQuad m q bank) entry := by
-  exact (compile_eval (past := []) m block entry PUnit.unit (initial old)).trans
-    (congrArg (List.foldl (fun bank q => abstractQuad m q bank) · block) (read_initial_tuple entry))
-
 theorem blockFacts_pull (block : Block Op old) (input : Tuple (Fact m.value) (dataPorts new)) :
     pull order (SCCP.blockFacts m (block.map (quad order)) input) =
       SCCP.blockFacts m block (pull order input) := by
-  simp only [blockFacts_eq_fold]
+  simp only [SCCP.blockFacts_fold]
   induction block generalizing input with
   | nil => rfl
   | cons q rest ih =>
     simp only [List.map_cons, List.foldl_cons]
     rw [ih]
-    apply congrArg (fun bank => rest.foldl (fun bank q => abstractQuad m q bank) bank)
-    simp only [abstractQuad, quad, read_renamed]
+    apply congrArg (fun bank => rest.foldl (fun bank q => SCCP.quadFacts m q bank) bank)
+    simp only [SCCP.quadFacts, quad, read_renamed]
     exact pull_write (F := Fact m.value) order q.dest _ input
 
 private theorem tupleFacts_bankTuple {value : Data → Type w}

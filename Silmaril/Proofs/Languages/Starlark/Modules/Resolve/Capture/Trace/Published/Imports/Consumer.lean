@@ -1,64 +1,109 @@
 module
 
 public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Defs
-import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Thms
-import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Entry.Thms
-import Silmaril.Languages.Starlark.Modules.Resolve.Capture.RootCall.Thms
-import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.Thms
 import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Body.Thms
+import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named.Thms
+import Silmaril.Languages.Starlark.Modules.Resolve.Thms
 
 public section
 
 namespace Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports
 
 open Silmaril.Languages.Starlark
-open Silmaril.Languages.Starlark.Modules (enter fileSlot globalSlot)
+open Silmaril.Languages.Starlark.Modules (fileSlot globalSlot)
 open Silmaril.Languages.Starlark.Modules.Resolve
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults
-open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call (ClosureAt)
-open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named (resolves_at runs_at)
-open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Published
+open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named (resolves_at)
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports
-open Silmaril.Languages.Starlark.Functions
-open Silmaril.Languages.Starlark.Functions.Lowering.Resolve (resolveTracked)
-open Silmaril.Languages.Starlark.Lists (State Slot Outcome)
-open Silmaril.Languages.Starlark.Modules.Loader (Session)
+open Silmaril.Languages.Starlark.Functions (Program)
+local notation "CodeExpr" => Silmaril.Languages.Starlark.Functions.Lowering.Expr
+open Silmaril.Languages.Starlark.Functions.Lowering.Resolve (resolveExpr resolveTracked)
+open Silmaril.Languages.Starlark.Lists (State)
 
-local notation "Value" => Lists.Value
+local notation "SourceCommand" => Modules.Resolve.Command
+
+theorem read_resolves {importName name : String} {globals : List String} (declared : name = importName ∨ name ∈ globals) :
+    Assignment.ReadResolves (block importName globals) name (Leaf.readOperand (readSlot importName name)) [readSlot importName name] ∧
+    ∃ origin, ReadOrigin (block importName globals) (readSlot importName name) origin := by
+  by_cases same : name = importName
+  · subst name
+    simpa [readSlot, Leaf.readOperand, fileSlot] using And.intro
+      (Assignment.ReadResolves.owned (block := block importName globals) (name := importName) (by simp [block]))
+      (show ∃ origin, ReadOrigin (block importName globals) (fileSlot importName) origin from ⟨_, .owned (by simp [block])⟩)
+  · have global := declared.resolve_left same
+    have outside : name ∉ (block importName globals).owned := by simpa [block] using same
+    simpa [readSlot, same, Leaf.readOperand, globalSlot] using And.intro
+      (Assignment.ReadResolves.global (block := block importName globals) outside (by simp [block]) global)
+      (show ∃ origin, ReadOrigin (block importName globals) (globalSlot name) origin from
+        ⟨_, .module outside (by simp [block]) global⟩)
+
+private theorem plain_assignment {context : BlockContext} {source : Silmaril.Languages.Starlark.Functions.Lowering.Resolve.SourceExpr}
+    {name : String} {rhs : CodeExpr} {reads : List Binding} {program : Program}
+    (resolved : resolveTracked context.reads source = .ok (rhs, reads)) :
+    elaborateCommand context (.assign name source) program = .ok (.exec (.assignExpr name rhs), program) := by
+  rw [elaborateCommand_assign, resolved]
+  rfl
+
+private theorem compiles_step {importName globals} (step : Step importName globals) (program : Program) :
+    elaborateCommand ⟨(block importName globals).context, .global⟩ step.source program = .ok (step.code, program) := by
+  cases step with
+  | @assign name declared source rhs reads operand _ =>
+    have resolved : resolveExpr (block importName globals).context source [] = .ok (rhs, reads.reverse) := by
+      simpa using Body.resolves_at operand []
+    apply plain_assignment (reads := reads)
+    change resolveTracked (block importName globals).context source = .ok (rhs, reads)
+    simp [resolveTracked, resolved, Except.map]
+  | invoke call =>
+    obtain ⟨resolved, origin, selected⟩ := read_resolves call.declared
+    exact plain_assignment (resolves_at (readSlot importName call.callee) (.read call.legal resolved selected)
+      call.operands call.keywords call.star call.mapping)
+
+private theorem compiles_suite {importName globals} (body : List (Step importName globals)) (program : Program) :
+    ((body.map Step.source).mapM (elaborateCommand ⟨(block importName globals).context, .global⟩)) program =
+      .ok (body.map Step.code, program) := by
+  induction body with
+  | nil => rfl
+  | cons first rest ih =>
+    simp [List.mapM_cons, bind, StateT.bind, Except.bind, pure, StateT.pure, Except.pure, compiles_step, ih]
+
+private theorem suite_names {importName globals} (body : List (Step importName globals)) :
+    globalNames (body.map Step.source) = body.map Step.destination ∧ fileNames (body.map Step.source) = [] := by
+  induction body with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons head tail ih =>
+    cases head <;> simp [globalNames, fileNames, Step.source, Step.destination, globalNames] at *
+    all_goals exact ⟨ih.1, ih.2⟩
 
 theorem consumer_layout (plan : Consumer) {program : Program} {consumer : ResolvedModule}
     (checked : resolve plan.commands program = .ok consumer) :
     consumer.program = program ∧ consumer.source.commands = plan.code ∧
-    consumer.source.globals = [plan.destination, plan.tail] ∧ consumer.source.fileNames = [plan.alias] := by
-  let lexical := block plan.alias plan.destination plan.tail
-  have callee : Body.Operand lexical (.scalar (.read plan.alias))
-      (Leaf.readOperand (fileSlot plan.alias)) [fileSlot plan.alias] :=
-    .read plan.legal (.owned (by simp [lexical, block])) (.owned (by simp [lexical, block]))
-  have call := resolves_at (fileSlot plan.alias) callee plan.operands plan.keywords plan.star plan.mapping
-  have context : moduleBlock plan.commands = ⟨lexical.context, .global⟩ := by
-    simp [moduleBlock, fileNames, globalNames, Consumer.commands, Consumer.item, lexical, block,
-      Assignment.LexicalBlock.context]
-  have first := elaborateCommand_assign ⟨lexical.context, .global⟩ plan.destination plan.call program
-  have tail := elaborateCommand_assign ⟨lexical.context, .global⟩ plan.tail plan.rhs program
-  have resolvedRhs : resolveTracked lexical.context plan.rhs = .ok (plan.rhsCode, plan.rhsReads) := by
-    have operand : Lowering.Resolve.resolveExpr lexical.context plan.rhs [] =
-        .ok (plan.rhsCode, plan.rhsReads.reverse) := by
-      simpa [lexical] using Body.resolves_at plan.suffix []
-    simp [resolveTracked, operand, Except.map]
-  rw [show resolveTracked lexical.context plan.call = .ok (_, _) from call] at first
-  rw [resolvedRhs] at tail
+    consumer.source.globals = plan.globals ∧ consumer.source.fileNames = [plan.alias] := by
+  have names : globalNames plan.commands = plan.globals := by
+    change globalNames (plan.body.map Step.source) = plan.globals
+    exact (suite_names plan.body).1.trans plan.declared
+  have files : fileNames plan.commands = [plan.alias] := by
+    change plan.alias :: fileNames (plan.body.map Step.source) = [plan.alias]
+    rw [(suite_names plan.body).2]
+  have context : moduleBlock plan.commands = ⟨(block plan.alias plan.globals).context, .global⟩ := by
+    simp [moduleBlock, names, files, block, Assignment.LexicalBlock.context]
   have compiled : elaborateCommands plan.commands program = .ok (plan.code, program) := by
     rw [elaborateCommands, context]
-    have load : elaborateCommand ⟨lexical.context, .global⟩ (.load plan.label [plan.item]) program =
-        .ok (.load plan.label [plan.item], program) := elaborateCommand_load _ _ _ _ _
     simp [Consumer.commands, Consumer.code, List.mapM_cons, bind, StateT.bind, Except.bind, pure,
-      StateT.pure, Except.pure, load, first, tail, Except.map, Except.mapError, Consumer.callCode]
+      StateT.pure, Except.pure, elaborateCommand_load, compiles_suite]
   have detail := checked_of_resolve checked
   obtain ⟨sameCode, sameTable⟩ := Prod.mk.inj (Except.ok.inj (detail.1.symm.trans compiled))
-  refine ⟨sameTable, sameCode, ?_, ?_⟩
-  · simpa [Consumer.commands, globalNames] using detail.2.1
-  · simp [Modules.Source.fileNames, detail.2.2.1, sameCode, Consumer.code, Consumer.item]
+  refine ⟨sameTable, sameCode, detail.2.1.trans names, ?_⟩
+  have noLoads : (plan.body.map Step.code).flatMap
+      (fun command => match command with
+        | .load _ imports => imports.map Modules.Import.localName
+        | _ => []) = [] := by
+    induction plan.body with
+    | nil => rfl
+    | cons head tail ih => cases head <;> simpa [Step.code] using ih
+  rw [Modules.Source.fileNames, detail.2.2.1, sameCode, Consumer.code]
+  change plan.alias :: _ = [plan.alias]
+  exact congrArg (List.cons plan.alias) noLoads
 
 theorem import_agrees {plan : Consumer} {published : Modules.Published} {s : State} {out : Modules.Result Unit}
     (source : BindsAlias plan published s out) :
@@ -70,79 +115,5 @@ theorem import_agrees {plan : Consumer} {published : Modules.Published} {s : Sta
   | found loaded =>
     simp [Modules.importsOf, Modules.bindImports, Consumer.item, plan.publicName, loaded, List.mapM_cons,
       bind, Except.bind, pure, Except.pure]
-
-/-- Read the actual imported file-local slot and keep the record at the
-published address. The import writes one owned binding cell. -/
-theorem reached_alias {plan : Consumer} {callee : Callable} {before defining : State}
-    {address aliasCell : Nat} {frozen : Bool}
-    (owned : before.slots (fileSlot plan.alias) = some (.owned aliasCell))
-    (blank : before.heap[aliasCell]? = some ⟨.binding none, frozen⟩)
-    (record : ClosureAt callee.site callee.id defining before address) :
-    let bound := before.write (fileSlot plan.alias) (.function address)
-    Body.Evaluates (block plan.alias plan.destination plan.tail) bound (.scalar (.read plan.alias))
-      (Leaf.readOperand (fileSlot plan.alias)) (.ok (.function address) bound) ∧
-    Nonempty (ClosureAt callee.site callee.id defining bound address) := by
-  intro bound
-  have within := (Array.getElem?_eq_some_iff.mp blank).choose
-  have loaded : bound.bindingValue (fileSlot plan.alias) = .ok (.function address) := by
-    simp [bound, State.bindingValue, Slot.address, State.write, owned, blank,
-      Array.getElem?_setIfInBounds_self_of_lt within]
-  have read := Body.Evaluates.read (state := bound)
-    (Assignment.ReadResolves.owned (block := block plan.alias plan.destination plan.tail)
-      (name := plan.alias) (by simp [block]))
-  change Body.Evaluates _ _ _ _ (bound.read (.bound (fileSlot plan.alias))) at read
-  rw [State.read, loaded] at read
-  refine ⟨read, ⟨{record with recorded := ?_, live := Body.capture_cells_written _ _ _ record.live}⟩⟩
-  have different : before.slots (fileSlot plan.alias) ≠ some (.owned address) := by
-    intro hit
-    have same : aliasCell = address := by simpa [owned] using hit
-    subst aliasCell
-    rw [record.recorded] at blank
-    cases blank
-  exact (RootCall.write_other_cell _ _ _ _ different).trans record.recorded
-
-private theorem assigned_step {program : Program} {manifest : Modules.Loader.Manifest} {active : List Nat}
-    {s : Session} {id : Nat} {name : String} {code : Lowering.Expr} {out : Outcome Value}
-    (exec : ExecExpr program (List.range program.size) s.runtime code out) :
-    Modules.Loader.Runs program manifest active (.command id (.exec (.assignExpr name code))) s
-      (Modules.Loader.liftResult id s (afterWrite name out)) := by
-  cases out <;> exact .exec (code := .assignExpr name code) (.assignExpr exec)
-
-theorem tail_reached {program : Program} {manifest : Modules.Loader.Manifest} {consumer : ResolvedModule}
-    {plan : Consumer} (checked : resolve plan.commands program = .ok consumer)
-    (same : consumer.program = program) (callee : Callable) (linked : callee.Linked program)
-    {s : Session} {defining : State} {address : Nat}
-    (read : Body.Evaluates (block plan.alias plan.destination plan.tail) s.runtime
-      (.scalar (.read plan.alias)) (Leaf.readOperand (fileSlot plan.alias)) (.ok (.function address) s.runtime))
-    (closure : ClosureAt callee.site callee.id defining s.runtime address) :
-    ∃ out, Tail plan callee s.runtime out ∧
-      Modules.Loader.Runs program manifest [1] (.commands 1 plan.code.tail) s
-        (Modules.Loader.liftResult 1 s out) := by
-  have linkedHere : callee.Linked consumer.program := same.symm ▸ linked
-  have found := linkedHere.1
-  have permitted : callee.id ∈ List.range consumer.program.size :=
-    List.mem_range.mpr (Array.getElem?_eq_some_iff.mp found).choose
-  obtain ⟨result, source, native, _, _⟩ :=
-    runs_at callee.site callee.BodyRuns checked callee.id found _ permitted
-      (enter_callable checked linkedHere) (fileSlot plan.alias) read closure
-      plan.operands plan.keywords plan.star plan.mapping
-  have exactCall : ExecExpr program (List.range program.size) s.runtime plan.callCode result := same ▸ native
-  have step := assigned_step (manifest := manifest) (id := 1) (active := [1])
-    (s := s) (name := plan.destination) exactCall
-  cases result with
-  | error error stopped =>
-    exact ⟨_, .callError source, .failed step⟩
-  | ok value returned =>
-    let next := returned.write (globalSlot plan.destination) value
-    obtain ⟨suffix, evaluated, _⟩ := Body.operand_total plan.suffix next
-    have nativeSuffix : ExecExpr program (List.range program.size) next plan.rhsCode suffix :=
-      .evaluates (calls := fun _ _ _ => False) (fun _ _ _ no => no.elim)
-        (Body.evaluates_with _ _ _ evaluated)
-    have tail := assigned_step (manifest := manifest) (id := 1) (active := [1])
-      (s := {s with runtime := next}) (name := plan.tail) nativeSuffix
-    refine ⟨_, .called source evaluated, .step step ?_⟩
-    cases suffix with
-    | error => exact .failed tail
-    | ok => exact .step tail .done
 
 end Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports

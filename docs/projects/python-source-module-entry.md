@@ -365,9 +365,9 @@ same closure heap and follows the descriptor through assignment and stock
 closed origins leave both identity operators undefined in this profile,
 since CPython can share a constant across literal sites.
 
-The opt-in `legacyTupleIdentitySeed` supplies the Boolean `___assertTrue`
-helper. The helper's receipt records `None` on success and
-`AssertionError(False)` on a false result. A failed callee or operand read
+The opt-in `legacyTupleIdentitySeed` supplies the stock `___assertTrue`
+helper. For a Boolean argument, the helper's receipt records `None` on success
+and `AssertionError(False)` on a false result. A failed callee or operand read
 preserves the reached heaps and prior receipts. The exact four-statement
 prefix of `tuple-constructors.py` completes with the stock constructor and
 helper, including the positive identity on line 5. The tuple-chain regression
@@ -416,6 +416,20 @@ helper in ordinary and empty seeded execution, and the missing stock
 CPython 3.13.5 differential also exercises separate fresh conversions,
 constructor aliases, masks, combining marks, a non-BMP point, and
 a lone surrogate.
+
+A checked Boolean equality on two literal Booleans can be lowered to
+a Boolean positional operand. This includes the canonical Boolean result
+of a checked `not` expression, such as `not ()`. A tuple display in a
+positional operand delivers an exact tuple. The live seeded
+`___assertTrue` descriptor tests the contents' nonemptiness for either
+a tuple payload or a tracked tuple reference. A false Boolean retains
+`False` as its assertion payload, and a false tuple retains `()`.
+
+The unchanged `tuple-truth.py` sends `True` and then `(42,)` to the
+existing stock helper in both `legacyTupleIdentitySeed` placements.
+Both calls settle successful `None` receipts. Profiles without the
+helper reach its first missing-name lookup. The two statements leave
+both modeled heaps intact and add no user bindings.
 
 A scalar comparison chain has at least two links. Every link uses one of
 `==`, `!=`, `<`, `<=`, `>` or `>=` and every operand is an exact

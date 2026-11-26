@@ -31,6 +31,10 @@ theorem Backend.terminates_iff (backend : Backend) (a : Artifacts regs result) (
 
 variable [BankDecidableEq Word (dataPorts regs)]
 
+/-- Replaying the checker on the stored source and facts returns the same admission. -/
+theorem Admitted.admit_self (p : Admitted regs result) : admit p.source p.facts = .ok p :=
+  Proofs.admit_self p
+
 theorem Admitted.emitted (p : Admitted regs result) :
     Bypass.MLIR.CF.EntryGuard.compile p.source p.facts = .ok p.emit.cf ∧
       Bypass.Numbered.EntryGuard.compile p.source p.facts = .ok p.emit.numbered :=

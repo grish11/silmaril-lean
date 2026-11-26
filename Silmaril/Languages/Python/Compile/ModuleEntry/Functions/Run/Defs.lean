@@ -57,6 +57,7 @@ def callOperand? {scope : Scope} : Operand scope → Option Core.Module.Function
   | .integer value => some (.literal (.int value))
   | .boolean value => some (.literal (.bool value))
   | .read name _ => some (.readGlobal name)
+  | .binary .equal (.boolean left) (.boolean right) => some (.literal (.bool (left == right)))
   | .none_ | .binary .. | .identityChain .. => none
 
 def callValue? {scope : Scope} : CallValue scope → Option Core.Module.Functions.Operand

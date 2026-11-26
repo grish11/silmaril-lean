@@ -209,6 +209,14 @@ theorem evaluate_closedSequenceComparison {scope : Source.Scope} (session : Core
   simp only [Except.map, Except.ok.injEq]
   exact ⟨Run.evaluate_scalarResult session (.bool value), evaluateScalar_booleanResult space context value⟩
 
+theorem literalBooleanEquality_call_agrees {scope : Source.Scope}
+    (space : Namespace) (context left right : Bool) :
+    let operand : Operand scope := .binary .equal (.boolean left) (.boolean right)
+    (callOperand? operand).map (fun value => (lowerCallOperand value).eval space #v[]) =
+      some (evaluateScalar space context operand) := by
+  simp only [evaluateScalar]
+  cases left <;> cases right <;> rfl
+
 theorem evaluateScalar_notEqual {scope : Source.Scope} (space : Namespace) (context : Bool)
     (left right : ModuleEntry.Operand scope) :
     evaluateScalar space context (.binary .notEqual left right) = (do

@@ -25,10 +25,11 @@ returns.
 
 `normalize_stopped` says that a fresh call to
 `Builder.Preheader.optimize?` on the returned native graph returns
-`none`. The step returns `none` if the builder refuses, the current
-search finds no shrinking proposal, or restoration of its selected
-rewrite fails. A restoration refusal ends the attempt at that selected
-rewrite. The saturation claim is relative to this sequence of checks.
+`none`. If the final graph builds, `Builder.Preheader.optimize_none_iff`
+then excludes every shrinking proposal accepted by the current view's
+enumeration. Every accepted deletion in this enumeration restores to the
+native interface. A builder refusal can also stop the driver.
+[Restoration and proposal scope](sea-of-nodes-gvn-cyclic-preheader.md#native-rewrite)
 
 ## Native regression
 

@@ -1053,6 +1053,40 @@ of finite completion at that same typed entry.
 lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.Sequential.Linked.Regression
 ```
 
+##### One linked typed MemRef CFG
+
+`Linked.MemRef.lower` reuses both emitted ordered MemRef CFGs and
+their body interpreter. The first exit branches to the second entry
+with the returned word and the same live buffer. The second entry
+uses `Boundary.Wiring` to pick the two initial addresses and the
+remaining typed captures. Every second-stage edge, including
+feedback, carries the first word as a block argument. The final exit
+returns both words and the complete buffer.
+[Typed CFG and transition laws](../../../../Silmaril/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/Sequential/Linked/MemRef/Thms.lean)
+
+`returns_iff_stages` relates the single CFG to the two separate MemRef
+emitters at their own fuels, with the exact intermediate buffer.
+`returns_iff_numbered` and `returns_iff_coloured` compare its complete
+result with the linked θ graph and linked net. The two
+`no_return_iff_*` laws quantify over all finite observations and
+leave the backend witnesses independent. The profile uses one
+initialized, statically sized rank-one buffer and typed in-bounds
+addresses.
+
+```lean
+import Silmaril.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.Sequential.Linked.MemRef.Thms
+```
+
+The shared disjoint-write fixture runs the single MemRef CFG. It
+returns words `(3, 3)` and buffer `[11, 73, 11, 22, 91, 22]` at eight
+block steps. Seven steps are insufficient. Each θ in the numbered
+fixture takes one backedge.
+[Runnable MemRef regression](../../../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Loop/TwoAddress/Institution/Sequential/Linked/MemRef/Regression.lean)
+
+```sh
+lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Memory.Loop.TwoAddress.Institution.Sequential.Linked.MemRef.Regression
+```
+
 ### Equations for coloured Petri completion
 
 `petriHolds` compares the two emitted graphs' finite completions for

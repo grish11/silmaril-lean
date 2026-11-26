@@ -28,20 +28,20 @@ private theorem stay {f : Frame} {n : Nat} {cont : Wasm.Lime1.Expr}
   Computed.lime_label_stays nonvalue notBranch notReturn notFinalTrap
 
 private theorem function_context {s : Store H} {code : List Admin}
-    (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label 1 [] code] out) :
+    (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label p.functionResults.length [] code] out) :
     Internal ⟨s, outer, p.functionCode arg code⟩ dst ↔
       ∃ mid, Internal ⟨s, p.active arg, code⟩ mid ∧
-        dst = ⟨mid.store, outer, [.frame 1 mid.frame [.label 1 [] mid.code]]⟩ := by
+        dst = ⟨mid.store, outer, [.frame p.functionResults.length mid.frame [.label p.functionResults.length [] mid.code]]⟩ := by
   constructor
   · intro step
     rcases Computed.lime_body_step_cases step with inside | ⟨out, pop, _⟩
     · exact inside
     · exact (stays out pop).elim
   · rintro ⟨mid, step, rfl⟩
-    exact .frame (.label step 1 []) 1 outer
+    exact .frame (.label step p.functionResults.length []) p.functionResults.length outer
 
 private theorem function_iff {s : Store H} {code next : List Admin}
-    (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label 1 [] code] out)
+    (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label p.functionResults.length [] code] out)
     (localStep : ∀ {mid}, Internal ⟨s, p.active arg, code⟩ mid ↔ mid = ⟨s, p.active arg, next⟩) :
     Internal ⟨s, outer, p.functionCode arg code⟩ dst ↔ dst = ⟨s, outer, p.functionCode arg next⟩ := by
   rw [function_context stays]
@@ -56,9 +56,9 @@ private theorem loop_context {s : Store H} {code : List Admin}
     (stays : ∀ out, ¬ PureStep (p.active arg).module.types [.label 1 [p.loop.instr] code] out) :
     Internal ⟨s, outer, p.functionCode arg (p.loopCode code)⟩ dst ↔
       ∃ mid, Internal ⟨s, p.active arg, code⟩ mid ∧
-        dst = ⟨mid.store, outer, [.frame 1 mid.frame [.label 1 [] (p.loopCode mid.code)]]⟩ := by
+        dst = ⟨mid.store, outer, [.frame p.functionResults.length mid.frame [.label p.functionResults.length [] (p.loopCode mid.code)]]⟩ := by
   have fnStays (out : List Admin) :
-      ¬ PureStep (p.active arg).module.types [.label 1 [] (p.loopCode code)] out :=
+      ¬ PureStep (p.active arg).module.types [.label p.functionResults.length [] (p.loopCode code)] out :=
     stay (saved := [i64 p.saved]) rfl (by simp) (by simp) (by simp)
   rw [function_context fnStays]
   have invert {target : Config H} :=

@@ -10,7 +10,7 @@ public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Thms
 namespace Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.SCCP
 
 open Diamond (Model Signature Ty ValueSort Val dataPorts sortValue)
-open Diamond.SCCP (Fact evalFacts tupleFacts)
+open Diamond.SCCP (Fact evalFacts gather tupleFacts)
 open SeaOfNodes.Loop.SCCP (BankFacts BankDecidableEq bankTuple)
 open Join (Block)
 open RVSDG (Tuple)
@@ -33,6 +33,11 @@ def exitIndex : Fin 4 := 3
 
 abbrev State (value : Data → Type w) (regs : List (ValueSort Data)) (out : ValueSort Data) :=
   Marked × (BankFacts value (dataPorts regs) × Flat (sortValue value out))
+
+/-- Apply the producer interpreter's flat operation rule to a register assignment. -/
+def quadFacts (m : Model.{u, v, w} Op) (q : Quad Op regs)
+    (bank : Tuple (Fact m.value) (dataPorts regs)) : Tuple (Fact m.value) (dataPorts regs) :=
+  write q.dest (Flat.map (m.run q.op) (gather (q.operands.map (fun _ p => bank.get p)))) bank
 
 /-- Interpret the compiled versions of one ordered source block using the
 shared abstract producer table. -/

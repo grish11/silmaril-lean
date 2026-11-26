@@ -25,18 +25,18 @@ private def program : Program Nat where
   saved := 42
 
 private def base : Store Nat :=
-  { memories := [initial], funcs := [.wasm signature program.module program.function,
+  { memories := [initial], funcs := [.wasm program.functionType program.module program.function,
       .host producerType 10, .host middle.type middle.code, .host last.type last.code] }
 
 private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
 private def caller : Frame := ⟨[i32 99], { funcs := [⟨0⟩] }⟩
 
 private theorem checked : program.Checked memory caller ⟨0⟩ := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, rfl⟩
-  have lastChecked : Continuation.Checked base program.module [.int .i64] [] signature.results
+  refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, rfl, rfl⟩
+  have lastChecked : Continuation.Checked base program.module [.int .i64] [signature.results] signature.results
       [.int .i64, .int .i32, .int .i64] [.call ⟨2⟩ last] :=
     .call (base := base) (site := last) (index := ⟨2⟩) (saved := []) rfl rfl .nil
-  have middleTail : Continuation.Checked base program.module [.int .i64] [] signature.results
+  have middleTail : Continuation.Checked base program.module [.int .i64] [signature.results] signature.results
       [.int .i64, .int .i32, .int .i64] postMiddle :=
     .drop (type := .int .i64) (.get (stack := [.int .i64, .int .i32]) (index := ⟨0⟩)
       (type := .int .i64) rfl lastChecked)
@@ -191,14 +191,14 @@ example : ¬ ({ program with loopIndex := ⟨1⟩ }).Checked memory caller ⟨0�
   have impossible : none = some signature := bad.loopIndex
   cases impossible
 
-example : ¬ Continuation.Checked base program.module [.int .i64] [] signature.results
+example : ¬ Continuation.Checked base program.module [.int .i64] [signature.results] signature.results
     [.int .i64, .int .i32] [.get ⟨1⟩] := by
   intro typed
   generalize ([.int .i64, .int .i32] : List NumType) = stack at typed
   cases typed with
   | get lookup _ => cases lookup
 
-example : ¬ Continuation.Checked base program.module [.int .i64] [] signature.results
+example : ¬ Continuation.Checked base program.module [.int .i64] [signature.results] signature.results
     [.int .i32, .int .i64] [.call ⟨1⟩ middle] := by
   intro typed
   generalize bad : ([.int .i32, .int .i64] : List NumType) = stack at typed

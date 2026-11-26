@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Defs
+public import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Chain.Segment.Incoming.Thms
 import Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Correctness
 import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Prefix.Thms
 
@@ -27,6 +28,19 @@ theorem Program.inner_edges_distinct : p.innerEdgeOccurrence true ≠ p.innerEdg
 /-- The exclusive outer routes contribute distinct predecessor occurrences. -/
 theorem Program.outer_edges_distinct : p.outerEdgeOccurrence true ≠ p.outerEdgeOccurrence false :=
   Proofs.outer_edges_distinct p
+
+theorem Program.outer_predecessors_distinct :
+    (p.outerEdgeOccurrence true).1 ≠ (p.outerEdgeOccurrence false).1 :=
+  Proofs.outer_predecessors_distinct p
+
+/-- The original last predecessor takes the selected edge to the outer
+tail and supplies its source-computed full bank. -/
+theorem Program.selected_outer_edge (old : Bank (regs := regs) m) :
+    let occurrence := p.toControl.selected m old
+    let pred := (p.outerEdgeOccurrence (occurrence != .outerFalse)).1
+    let bank := (src pred).body.eval m (p.outerPredecessorBank m old occurrence)
+    (src pred).terminator.select m bank = .jump p.stop ∧ bank = p.outerBank m old occurrence :=
+  Proofs.selected_outer_edge p m old
 
 /-- The selected outer predecessor supplies the complete reaching bank
 before the common tail. -/

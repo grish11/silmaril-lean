@@ -15,9 +15,9 @@ open LambdaSSA.Semantics.Interaction.Typed.Ordered
 open LambdaSSA.UB.Overlay.Shape
 open LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration
 open LambdaSSA.UB.Overlay.Shape.Category.FiniteIteration.CFG.Dependent (Packet)
-open LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands (ReplyEnumeration ConfigurationEnumeration)
+open LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands (Table ReplyEnumeration ConfigurationEnumeration)
 
-private inductive Op where | poll
+private inductive Op where | poll | flip
   deriving DecidableEq
 
 private inductive Reg : Type 1 where
@@ -39,7 +39,9 @@ private abbrev nativeSig := Recognize.signature Op
 private abbrev SortName := ULift.{1} Empty
 private abbrev bit : Ty SortName := .coprod .unit .unit
 private instance : HasTy Op (Ty SortName) :=
-  ⟨fun _ => bit, fun _ => LambdaSSA.Region.packedExitType [bit, .unit, .unit]⟩
+  ⟨fun _ => bit, fun
+    | .poll => LambdaSSA.Region.packedExitType [bit, .unit, .unit]
+    | .flip => bit⟩
 private instance : HasEff Op Bool := ⟨fun _ => true⟩
 
 private def signature : FlatInstitution.Signature.{0, 0} SortName := { Instr := Op }
@@ -64,27 +66,28 @@ private def loopReg (alternate : Bool) : Reg := if alternate then .alt else .arg
 
 /-- The final arm is required by the named sum syntax. Its empty payload
 can never be supplied by the shared typed request. -/
-private def source (alternate : Bool) (misroute : Bool := false) : CFG Reg Label signature.Instr :=
+private def source (alternate : Bool) (reroute prequery : Bool := false) : CFG Reg Label signature.Instr :=
   let param := loopReg alternate
+  let poll : CFG.Body Reg Label signature.Instr := .term (.case (.app .poll (.var param))
+    .again (.br .loop (.var .again))
+    .rest (.case (.val (.var .rest))
+      .left (.br (if reroute then .right else .left) (.var .left))
+      .tail (.case (.val (.var .tail))
+        .right (.br .right (.var .right)) .impossible (.br .right .unit))))
+  let body := if prequery then .let1 param (.app .flip (.var param)) poll else poll
   ⟨.term (.br .loop (.var .seed)),
-    [(.loop, ⟨param, .term (.case (.app .poll (.var param))
-      .again (.br .loop (.var .again))
-      .rest (.case (.val (.var .rest))
-        .left (.br (if misroute then .right else .left) (.var .left))
-        .tail (.case (.val (.var .tail))
-          .right (.br .right (.var .right)) .impossible (.br .right .unit))))⟩),
+    [(.loop, ⟨param, body⟩),
      (.left, ⟨.arg, .term (.br .first .unit)⟩),
      (.right, ⟨.arg, .term (.br .second .unit)⟩)]⟩
 
 private def arguments (i : Fin 3) : Ty SortName := if i = 0 then bit else .unit
-private def admitNamed (alternate : Bool) (misroute : Bool := false) :=
-  PacketLocal.admit (P := signature) ports fields (source alternate misroute) arguments
+private def admitNamed (alternate : Bool) (reroute prequery : Bool := false) :=
+  PacketLocal.admit (P := signature) ports fields (source alternate reroute prequery) arguments
 
-private def admitted (alternate : Bool) (misroute : Bool := false) :
-    Admission signature ports fields (source alternate misroute) :=
-  (admitNamed alternate misroute).get (by cases alternate <;> cases misroute <;> decide +kernel)
-
-private abbrev native := Recognize.guardedTable Op.poll
+private def admitted (alternate : Bool) (reroute prequery : Bool := false) :
+    Admission signature ports fields (source alternate reroute prequery) :=
+  (admitNamed alternate reroute prequery).get
+    (by cases alternate <;> cases reroute <;> cases prequery <;> decide +kernel)
 
 private def leftBit : Syntax.Payload Bit := ⟨.inl .unit, .inl .unit⟩
 private def rightBit : Syntax.Payload Bit := ⟨.inr .unit, .inr .unit⟩
@@ -105,7 +108,9 @@ private def query : Query nativeSig Event :=
   fun _ p => vis (.poll (isRight p.val)) fun reply => pure ⟨reply⟩
 
 private def raw : Primitive Event signature.Instr Runtime :=
-  fun _ x => vis (.poll (isRight x)) fun reply => pure (Recognize.replyValue ULift.up reply)
+  fun
+    | .poll, x => vis (.poll (isRight x)) fun reply => pure (Recognize.replyValue ULift.up reply)
+    | .flip, x => pure (if isRight x then .inl .unit else .inr .unit)
 
 private def input (x : Syntax.Payload Bit) : Reg × Nat → Value Runtime :=
   fun reg => if reg = (.seed, 0) then Recognize.encodeValue ULift.up x.val else .unit
@@ -131,24 +136,39 @@ private theorem agrees : Recognize.QueryAgreement (P := signature) .poll ULift.u
     cases argument.val <;> rfl
   simp only [raw, query, key, vis_bind, pure_bind]
 
-private def adapter (alternate : Bool) (caller : Syntax.Payload Bit) (misroute : Bool := false) :=
-  Recognize.recognizeAdapter (seed := Reg.seed) (names := labels) (admitted alternate misroute)
+private def adapter (alternate : Bool) (caller : Syntax.Payload Bit) (reroute prequery : Bool := false) :=
+  Recognize.recognizeAdapter (seed := Reg.seed) (names := labels) (admitted alternate reroute prequery)
     .poll ULift.up query raw (input caller) agrees caller rfl
 
-private theorem recognized (alternate : Bool) :
-    (Recognize.recognize (seed := Reg.seed) (names := labels) (admitted alternate) .poll).isSome = true := by
-  cases alternate <;> decide +kernel
+private theorem recognized (alternate reroute : Bool) :
+    (Recognize.recognize (seed := Reg.seed) (names := labels) (admitted alternate reroute) .poll).isSome = true := by
+  cases alternate <;> cases reroute <;> decide +kernel
 
-private def correspondence (alternate : Bool) (caller : Syntax.Payload Bit) :
-    Corresponds (admitted alternate) native caller query raw (input caller) :=
-  (adapter alternate caller).get (by
-    simpa only [adapter, Recognize.recognizeAdapter, Option.isSome_map] using recognized alternate)
+private def checkedAdapter (alternate : Bool) (caller : Syntax.Payload Bit) (reroute : Bool := false) :=
+  (adapter alternate caller reroute).get (by
+    simpa only [adapter, Recognize.recognizeAdapter, Option.isSome_map] using recognized alternate reroute)
 
--- Tag one still carries unit, so the changed named graph passes ordinary
--- typed admission. Its branch now selects the other ordered exit row.
-example : (admitNamed false true).isSome = true := by decide +kernel
+private abbrev nativeRoutes := (checkedAdapter false leftBit).1
+private abbrev native := Recognize.guardedTable Op.poll nativeRoutes
+private abbrev rerouted := Recognize.guardedTable Op.poll (checkedAdapter false leftBit true).1
 
-example : (adapter false leftBit true).isNone = true := by decide +kernel
+private def firstUnitDestination (table : Table nativeSig Packets) : Option Nat :=
+  match table.row 0 with
+  | .request _ _ next _ => some (next 1).val
+  | .exit .. => none
+
+-- The guarded heads use the destinations extracted from the compiled row.
+example : firstUnitDestination native = some 1 ∧ firstUnitDestination rerouted = some 2 :=
+  ⟨rfl, rfl⟩
+
+example : native ≠ rerouted := fun eq => (by decide : some (1 : Nat) ≠ some 2)
+  (congrArg firstUnitDestination eq)
+
+-- A separate primitive before the poll changes the query bit. The named
+-- compiler accepts it, but this recognizer requires the exact request row.
+example : (admitNamed false false true).isSome = true := by decide +kernel
+
+example : (adapter false leftBit false true).isNone = true := by decide +kernel
 
 private def packets : List (Packet Packets) :=
   [⟨0, leftBit⟩, ⟨0, rightBit⟩, ⟨1, unitPacket⟩, ⟨2, unitPacket⟩]
@@ -168,12 +188,12 @@ private def replies : ReplyEnumeration nativeSig := ⟨fun _ => packets, fun _ =
 private def inventory : ConfigurationEnumeration Packets := ⟨packets, packets_complete⟩
 private def diagonal : List (Packet Packets × Packet Packets) := packets.map fun p => (p, p)
 
-private noncomputable def observation (alternate : Bool) :=
-  LiveOut.observeRaw raw ports.exits (fun k => (fields k).map Prod.fst) (source alternate)
+private noncomputable def observation (alternate : Bool) (reroute : Bool := false) :=
+  LiveOut.observeRaw raw ports.exits (fun k => (fields k).map Prod.fst) (source alternate reroute)
     (fun reg => input leftBit (reg, 0))
 
 example : observation false = observation true :=
-  observe_eq_of_checkProduct (correspondence false leftBit) (correspondence true leftBit)
+  observe_eq_of_checkProduct ((checkedAdapter false leftBit).2) ((checkedAdapter true leftBit).2)
     replies diagonal (by decide +kernel) (fun _ => rfl)
 
 example : (match native.searchProduct native leftBit leftBit replies inventory inventory with
@@ -183,17 +203,42 @@ example : (match native.searchProduct native leftBit leftBit replies inventory i
 example : observation false = observation true := by
   obtain ⟨pairs, accepted⟩ := (native.searchProduct_accepts_iff native leftBit leftBit replies inventory
     inventory).mpr ⟨diagonal, by decide +kernel⟩
-  exact observe_eq_of_searchProduct (correspondence false leftBit) (correspondence true leftBit)
+  exact observe_eq_of_searchProduct ((checkedAdapter false leftBit).2) ((checkedAdapter true leftBit).2)
     replies inventory inventory pairs accepted (fun _ => rfl)
 
+private theorem observe_routes (reroute : Bool) : observation false reroute =
+    iter (step (Recognize.guardedTable Op.poll (checkedAdapter false leftBit reroute).1)
+      leftBit query (unitExit (α := Runtime))) (atBlock ⟨0, leftBit⟩) :=
+  (checkedAdapter false leftBit reroute).2.observe_eq
+
+-- The derived adapter computes the actual rerouted named runner.
+example : observation false true =
+    iter (step rerouted leftBit query (unitExit (α := Runtime))) (atBlock ⟨0, leftBit⟩) :=
+  observe_routes true
+
+-- Shared reply tag one reaches different ordinary ordered exits.
+example : (match native.searchProduct rerouted leftBit leftBit replies inventory inventory with
+    | .accepted _ => none
+    | .mismatch pair path => some (pair.1.1.val, pair.2.1.val, path.map fun edge => edge.1.2.1.val)) =
+    some (1, 2, [0, 1]) := by decide +kernel
+
 private def runStep := step native leftBit query (unitExit (α := Runtime))
+
+private theorem native_reply (reply : Packet Packets) :
+    (⟨nativeRoutes.destination reply.1,
+      cast (congrArg Syntax.Payload (nativeRoutes.packet reply.1).symm) reply.2⟩ : Packet Packets) = reply := by
+  obtain ⟨i, payload⟩ := reply
+  fin_cases i <;> rfl
 
 private theorem runsPoll (x : Syntax.Payload Bit) :
     iter runStep (atBlock ⟨0, x⟩) =
       vis (.poll (isRight x.val)) (fun reply => iter runStep (atBlock reply)) := by
   rw [congrFun (iterate_fixpoint runStep) (atBlock ⟨0, x⟩)]
-  change ((query .poll x >>= fun p => pure (Sum.inr (atBlock p.down) : Transfer Runtime ⊕ Cursor Packets)) >>= _) = _
-  simp only [query, vis_bind, pure_bind, Sum.elim_inr]
+  change ((query .poll x >>= fun p => pure (Sum.inr (atBlock (R := Packets)
+    ⟨nativeRoutes.destination p.down.1,
+      cast (congrArg Syntax.Payload (nativeRoutes.packet p.down.1).symm) p.down.2⟩)
+    : Transfer Runtime ⊕ Cursor Packets)) >>= _) = _
+  simp only [native_reply, query, vis_bind, pure_bind, Sum.elim_inr]
 
 private theorem runsRight :
     iter runStep (atBlock ⟨2, unitPacket⟩) = pure (unitExit 1) := by
@@ -211,8 +256,7 @@ private theorem runsRight :
 example : HasTrace (observation false)
     (.exchange (.poll false) ⟨0, rightBit⟩
       (.exchange (.poll true) ⟨2, unitPacket⟩ (.result (unitExit 1)))) := by
-  unfold observation
-  rw [(correspondence false leftBit).observe_eq]
+  rw [observe_routes false]
   change HasTrace (iter runStep (atBlock ⟨0, leftBit⟩)) _
   rw [runsPoll]
   apply (hasTrace_vis_exchange_iff _ _ _ _).mpr

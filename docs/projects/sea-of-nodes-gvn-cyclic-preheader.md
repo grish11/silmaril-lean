@@ -31,8 +31,26 @@ and `prepare_packet` prove equality with the original reads, and
 the original entry tuple. The adapter runs the existing builder and
 one-step pass on the prepared graph. It then checks every surviving
 header operand and every observation for use of a temporary capture
-before restoring the original input interface. A failed build, pass
-or restoration returns `none`.
+before restoring the original input interface.
+
+`proposal_restores` proves that restoration succeeds on every checked
+deletion in `Pass.proposals` for a view of the prepared loop. Preparation
+introduces capture arguments only in the entry column. The prepared
+header and its observations read the lifted original arguments or
+producer outputs. A proposed redirect reads an available prefix output.
+Deletion preserves argument references and only reindexes producer
+outputs. Thus every surviving operand and every guard, feedback and
+exit wire passes the existing restoration check.
+
+`optimize_eq_scan` equates the current implementation to applying
+`restore? loop` inside `Pass.proposals`' ordered `findSome?`. Both select
+the first checked deletion, with direct deletions before redirects.
+Once the builder succeeds, `optimize_none_iff` says that `none` excludes
+every deletion the enumerated proposals can produce at the computed
+partition. This says nothing about edits outside those proposals.
+`restore?` still checks arbitrary supplied edited graphs for capture
+reads.
+[Restoration theorems](../../Silmaril/SSA/SeaOfNodes/GVN/Cyclic/Builder/Preheader/Thms.lean)
 
 A successful result keeps the original preheader and entry column and
 removes exactly one header binding. `optimize_activation` preserves
@@ -48,7 +66,12 @@ They share an ID and initialize the same class. Changing one child or
 one feedback operand separates the lanes and blocks this deletion.
 On the accepted case the restored loop shrinks from four header
 bindings to three, sends `(false, 16, 16)` on the first backedge,
-and returns 34 with one backedge of budget.
+and returns 34 with one backedge of budget. The runnable `proposalScan`
+regression enumerates 16 proposals. With matching feedback, both of the
+two checked deletions restore. With mismatched feedback, the loop still
+builds and the same 16 proposals yield zero checked deletions. The
+universal restoration theorem rules out a first rejected restoration
+followed by a later successful one in this scan.
 [Native regression](../../Silmaril/Proofs/SSA/SeaOfNodes/GVN/Cyclic/Builder/Preheader/Regression.lean)
 
 ```sh

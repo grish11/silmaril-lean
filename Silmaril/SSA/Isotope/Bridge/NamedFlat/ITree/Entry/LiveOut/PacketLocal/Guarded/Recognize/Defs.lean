@@ -32,11 +32,34 @@ attribute [local instance] requestTypes
 abbrev signature (Φ : Type) : RequestSignature Φ :=
   ⟨fun _ => Packets, fun _ => rfl⟩
 
+/-- Every reply carries the original payload to a block with that exact
+packet type. The two unit positions can choose either unit block. -/
+structure Routes where
+  destination : Fin 3 → Fin 3
+  packet : ∀ i, Packets.get (destination i) = Packets.get i
+
+/-- Read the three occupied reply destinations from the written case spine.
+The reconstructed graph is checked separately for its operands and shape. -/
+def readRoutes {Φ : Type} (row : Flat Φ 5 2) : Option Routes :=
+  match row with
+  | .let₂ _ (.case _ (.br bit _) (.case _ (.br first _) (.case _ (.br second _) _))) => do
+    let block (label : Fin 5) : Option (Fin 3) :=
+      if bound : label.val < 3 then some ⟨label.val, bound⟩ else none
+    let bitBlock ← block bit
+    let firstBlock ← block first
+    let secondBlock ← block second
+    let route : Fin 3 → Fin 3 := Fin.cases bitBlock (Fin.cases firstBlock (fun _ => secondBlock))
+    if typed : (List.finRange 3).all
+        (fun i => decide (Packets.get (route i) = Packets.get i)) = true then
+      some ⟨route, fun i => of_decide_eq_true (List.all_eq_true.mp typed i (List.mem_finRange i))⟩
+    else none
+  | _ => none
+
 /-- The ordinary guarded table associated with this exact row shape. -/
-abbrev guardedTable {Φ : Type} (opcode : Φ) : Table (signature Φ) Packets where
+abbrev guardedTable {Φ : Type} (opcode : Φ) (routes : Routes) : Table (signature Φ) Packets where
   entry := 0
   row := Fin.cases (motive := fun i : Fin 3 => Row (signature Φ) Packets [Packets.get i, Bit])
-    (.request opcode (.var 0) id (fun _ => rfl))
+    (.request opcode (.var 0) routes.destination routes.packet)
     (Fin.cases (motive := fun i : Fin 2 => Row (signature Φ) Packets [Packets.get i.succ, Bit])
       (.exit 0) (fun _ => .exit 1))
   selected := fun _ => false
@@ -44,13 +67,15 @@ abbrev guardedTable {Φ : Type} (opcode : Φ) : Table (signature Φ) Packets whe
 /-- Literal lexical readback of the argument-plus-unit entry, the request
 with three replies, and its two unit exit rows. The empty reply tail has
 a written branch to row two. -/
-def expected {Φ : Type} (opcode : Φ) : FiniteCFG Φ 3 2 1 :=
+def expected {Φ : Type} (opcode : Φ) (routes : Routes) : FiniteCFG Φ 3 2 1 :=
   ⟨.br 0 (.pair (.bv 0) .unit), Fin.cases (motive := fun _ : Fin 3 => Flat Φ 5 2)
     (.let₂ (.bv 0) (.case (.op opcode (.bv 1))
-      (.br 0 (.pair (.bv 0) .unit))
+      (.br ((routes.destination 0).castAdd 2) (.pair (.bv 0) .unit))
       (.case (.bv 0)
-        (.br 1 (.pair (.bv 0) .unit))
-        (.case (.bv 0) (.br 2 (.pair (.bv 0) .unit)) (.br 2 (.pair .unit .unit))))))
+        (.br ((routes.destination 1).castAdd 2) (.pair (.bv 0) .unit))
+        (.case (.bv 0)
+          (.br ((routes.destination 2).castAdd 2) (.pair (.bv 0) .unit))
+          (.br 2 (.pair .unit .unit))))))
     (Fin.cases (motive := fun _ : Fin 2 => Flat Φ 5 2)
       (.let₂ (.bv 0) (.br 3 (.pair .unit .unit)))
       (fun _ => .let₂ (.bv 0) (.br 4 (.pair .unit .unit))))⟩
@@ -72,11 +97,12 @@ variable (a : Admission P (interface (κ := κ) seed names) (fun _ => []) source
 
 local notation "lexical" => a.versioned.source
 
-/-- Success certifies the exact admitted lexical readback and the first-match
-numbering of all five labels. Both checks are independent of reachable rank. -/
+/-- Success records the extracted routes and certifies the exact admitted lexical
+readback and first-match numbering of all five labels, independent of reachable rank. -/
 structure Checked (opcode : P.Instr) : Type where
+  routes : Routes
   count : (lexical).blocks.length = 3
-  accepted : elaborateAt lexical (I).exits (I).version.names 3 count = some (expected opcode)
+  accepted : elaborateAt lexical (I).exits (I).version.names 3 count = some (expected opcode routes)
   numbered : ∀ i : Fin 5, (labelIndex (lexical).blocks (I).exits (names i)).map Fin.val = some i.val
 
 /-- Transport literal readback across the checked written row count. -/
@@ -92,16 +118,17 @@ theorem recover_readback {source : CFG V K P.Instr} {d n : Nat} {exits : List K}
 /-- Compare the existing admitted code with the exact entry and row shapes,
 then check its named label numbering. No row proof is supplied by the caller. -/
 def recognize [DecidableEq P.Instr] (opcode : P.Instr) : Option (Checked a opcode) :=
-  if h : a.versioned.table.blocks = 3 then
+  if h : a.versioned.table.blocks = 3 then do
     let code : FiniteCFG P.Instr 3 2 1 :=
       cast (congrArg (fun x => FiniteCFG P.Instr x 2 1) h) a.versioned.table.code
-    let want := expected opcode
+    let routes ← readRoutes (code.block 0)
+    let want := expected opcode routes
     if rows : code.entry = want.entry ∧ ∀ i, code.block i = want.block i then
       have same : code = want := congrArg₂ FiniteCFG.mk rows.1 (funext rows.2)
       let count := a.versioned.count.trans h
       if numbered : (List.finRange 5).all (fun i =>
           decide ((labelIndex (lexical).blocks (I).exits (names i)).map Fin.val = some i.val)) = true then
-        some ⟨count, (recover_readback a.versioned.count h a.versioned.accepted).trans
+        some ⟨routes, count, (recover_readback a.versioned.count h a.versioned.accepted).trans
           (congrArg some same),
           fun i => of_decide_eq_true (List.all_eq_true.mp numbered i (List.mem_finRange i))⟩
       else none

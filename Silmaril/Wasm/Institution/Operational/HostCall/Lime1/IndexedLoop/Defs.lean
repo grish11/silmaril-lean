@@ -13,6 +13,8 @@ with that input, and keeps one saved i64 below the label. The loop calls
 its first host and tests the i32 at the top of the returned stack. Restart
 uses the new i64 and discards the i32 below it. Fallthrough drops the i64
 and delivers the i32 result to the continuation above the saved operand.
+The function's separately resolved result list governs its implicit label
+and frame. The root and loop share the one-i64 parameter profile.
 -/
 
 @[expose] public section
@@ -25,6 +27,7 @@ open Wasm.Lime1.Execution
 abbrev i32 (bits : BitVec 32) : Value := Value.int .i32 bits
 abbrev i64 (bits : BitVec 64) : Value := Value.int .i64 bits
 
+/-- The indexed loop signature, also the default root function signature. -/
 def signature : Wasm.Lime1.FuncType := ⟨[.int .i64], [.int .i32]⟩
 def producerType : Wasm.Lime1.FuncType := ⟨[.int .i64], [.int .i32, .int .i64, .int .i32]⟩
 
@@ -37,6 +40,8 @@ structure Program (H : Type) where
   producerCode : H
   continuation : List (Continuation.Op H)
   saved : BitVec 64
+  functionIndex : TypeIdx := loopIndex
+  functionResults : List NumType := signature.results
 
 namespace Program
 
@@ -47,25 +52,29 @@ def producer (p : Program H) : Site H := ⟨p.producerAddress, producerType, p.p
 def loop (p : Program H) : Loops.LimeIndexedLoop :=
   ⟨p.loopIndex, signature, [.call p.producerIndex, .brIf ⟨0⟩, .drop]⟩
 
+def functionType (p : Program H) : Wasm.Lime1.FuncType := ⟨signature.params, p.functionResults⟩
+
 def function (p : Program H) : Wasm.Lime1.Func :=
-  ⟨p.loopIndex, [], [.intConst .i64 p.saved, .localGet ⟨0⟩, p.loop.instr] ++
+  ⟨p.functionIndex, [], [.intConst .i64 p.saved, .localGet ⟨0⟩, p.loop.instr] ++
     Continuation.expr p.continuation⟩
 
 def active (p : Program H) (arg : BitVec 64) : Frame := ⟨[i64 arg], p.module⟩
 
-/-- Source entry links the active type table and the producer host to the
-allocated declarations, then checks the full normal continuation. The function
-consults a single Memory32. -/
+/-- Source entry links the allocated root and producer and resolves the loop
+and function signatures in the active module. The root result list is the
+outermost branch target in the checked suffix. The function consults a single
+Memory32. -/
 structure Checked (p : Program H) {base : Store H} (memory : Memory32 base)
     (caller : Frame) (index : FuncIdx) : Prop where
   rootIndex : caller.module.funcs[index.toNat]? = some p.rootAddress
-  root : base.funcs[p.rootAddress.value]? = some (.wasm signature p.module p.function)
+  root : base.funcs[p.rootAddress.value]? = some (.wasm p.functionType p.module p.function)
   loopIndex : p.module.types[p.loopIndex.toNat]? = some signature
   producerIndex : p.module.funcs[p.producerIndex.toNat]? = some p.producerAddress
   producer : p.producer.Allocated base
-  continuation : Continuation.Checked base p.module [.int .i64] [] signature.results
+  continuation : Continuation.Checked base p.module [.int .i64] [p.functionResults] p.functionResults
     [.int .i64, .int .i32] p.continuation
   memorySlot : p.module.memories = [memory.address]
+  functionIndex : p.module.types[p.functionIndex.toNat]? = some p.functionType
 
 def Contract (p : Program H) {base : Store H} (memory : Memory32 base)
     (host : HostSemantics H) : Prop :=
@@ -101,10 +110,10 @@ def loopCode (inner : List Admin) : List Admin :=
   value (i64 p.saved) :: .label 1 [p.loop.instr] inner :: p.afterLoop
 
 def functionCode (arg : BitVec 64) (code : List Admin) : List Admin :=
-  Continuation.entered 1 (p.active arg) code
+  Continuation.entered p.functionResults.length (p.active arg) code
 
 def functionContext (arg : BitVec 64) : EvalCtx Wasm.Lime1.Instr :=
-  .frame 1 (p.active arg) (.label 1 [] .hole)
+  .frame p.functionResults.length (p.active arg) (.label p.functionResults.length [] .hole)
 
 def producerContext (arg : BitVec 64) : EvalCtx Wasm.Lime1.Instr :=
   (p.functionContext arg).comp
@@ -124,14 +133,14 @@ def code (index : FuncIdx) (arg : BitVec 64) : Phase H → List Admin
   | .dropInput res input => p.functionCode arg (p.loopCode (values [i32 res, i64 input] ++ [.source .drop]))
   | .loopResult res => p.functionCode arg (p.loopCode (values [i32 res]))
   | .loopTrap tail => p.functionCode arg (p.loopCode (.trap :: tail))
-  | .continuation phase labels => phase.renderCode signature.results (p.active arg) labels
+  | .continuation phase labels => phase.renderCode p.functionResults (p.active arg) labels
 
 def render {base : Store H} (memory : Memory32 base) (caller : Frame)
     (index : FuncIdx) (arg : BitVec 64) (state : State H) : Config H :=
   ⟨memory.store state.bytes, caller, p.code index arg state.phase⟩
 
 def Ready {base : Store H} (mem : Memory32 base) (host : HostSemantics H) (arg : BitVec 64) : Phase H → Prop
-  | .continuation phase labels => Continuation.Ready mem host (p.active arg) signature.results phase labels
+  | .continuation phase labels => Continuation.Ready mem host (p.active arg) p.functionResults phase labels
   | _ => True
 
 end Program
@@ -169,7 +178,7 @@ inductive Edge {H : Type} (p : Program H) {base : Store H} (memory : Memory32 ba
   | producerDiverges {bytes input} (answer : host p.producerCode (memory.store bytes) [i64 input] .diverged) :
       Edge p memory host arg ⟨bytes, .producerInvoke input⟩ ⟨bytes, .producerInvoke input⟩
   | continuation {bytes next a b labels rest}
-      (move : Continuation.Edge memory host (p.active arg) ⟨bytes, a, labels⟩ ⟨next, b, rest⟩) :
+      (move : Continuation.Edge memory host (p.active arg) p.functionResults ⟨bytes, a, labels⟩ ⟨next, b, rest⟩) :
       Edge p memory host arg ⟨bytes, .continuation a labels⟩ ⟨next, .continuation b rest⟩
 
 end Silmaril.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop

@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Defs
 public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Thms
+import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Suite
 import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Execution
 import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Producer
 import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Consumer
@@ -17,7 +18,7 @@ open Lists (State)
 theorem consumer_layout (plan : Consumer) {program : Program} {consumer : ResolvedModule}
     (checked : resolve plan.commands program = .ok consumer) :
     consumer.program = program ∧ consumer.source.commands = plan.code ∧
-    consumer.source.globals = [plan.destination, plan.tail] ∧ consumer.source.fileNames = [plan.alias] :=
+    consumer.source.globals = plan.globals ∧ consumer.source.fileNames = [plan.alias] :=
   Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.consumer_layout plan checked
 
 /-- Preserving the heap entries transports the exact published callable,
@@ -27,6 +28,24 @@ theorem cached_publication {exports : Environment} {program : Program} {publishe
     (kept : ∀ (address : Nat) cell, state.heap[address]? = some cell → next.heap[address]? = some cell) :
     PublishedLive exports program published next :=
   Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.cached_publication live kept
+
+/-- A finite suite follows the reached environment and stops at the
+first error. On success each entry in its final environment still
+selects the actual linked closure. -/
+theorem run_suite {source : List Command} {seed : Program} {resolved : ResolvedModule}
+    (checked : resolve source seed = .ok resolved)
+    {manifest : Modules.Loader.Manifest} {active : List Nat} {id : Nat}
+    {importName : String} {globals : List String} (separate : importName ∉ globals)
+    (steps : List (Step importName globals)) {env : Environment} (admitted : ReadyFor env steps)
+    (session : Modules.Loader.Session) (frame : Frame importName globals session.runtime)
+    (live : Live importName resolved.program env session.runtime) :
+    ∃ out, SuiteRuns session.runtime steps out ∧
+      Modules.Loader.Runs resolved.program manifest active (.commands id (steps.map Step.code)) session
+        (Modules.Loader.liftResult id session out) ∧
+      ∀ reached, out = .ok () reached →
+        Frame importName globals reached ∧ Live importName resolved.program (steps.foldl Step.advance env) reached :=
+  Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.run_suite
+    checked separate steps admitted session frame live
 
 /-- From a cold session, the reached dependency and import derive the
 actual callable and exact consumer outcome. -/

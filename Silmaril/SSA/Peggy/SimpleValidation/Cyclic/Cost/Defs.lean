@@ -17,27 +17,27 @@ open EPEG.Selection (FeedbackRank Row)
 open PEG.Simple.Revert.While
 open RVSDG (Tuple)
 
-universe u v
+universe u v w
 
 variable {Data : Type u} {P : InstructionSet.{u,v} Data}
-variable {params : List (Ty Data)} {result : Ty Data} {n : Nat}
-variable {source : Graph P params [result] n 1}
+variable {params results : List (Ty Data)} {result : Ty Data} {n : Nat}
+variable {source : Graph P params results n 1}
 
 /-- Materialized graph with a typed representative assignment and common-row
 evidence. Class membership, demands, cycles and scheduling are checked later. -/
-structure Candidate (source : Graph P params [result] n 1) where
+structure Candidate (source : Graph P params results n 1) where
   size : Nat
-  graph : Graph P params [result] size 1
+  graph : Graph P params results size 1
   selection : Selection source graph
   rows : ∀ i, Row selection i
 
 /-- Copy the selected labels and supply their new ordered wiring. The caller
 chooses every representative and root. This construction does not check classes. -/
-def Candidate.wire (source : Graph P params [result] n 1) {size : Nat}
+def Candidate.wire (source : Graph P params results n 1) {size : Nat}
     (rep : Fin size → Fin n)
     (args : ∀ i, Tuple (Ref (source.sort ∘ rep)) (source.node (rep i)).inputs)
-    (roots : Tuple (Ref (source.sort ∘ rep)) [result]) : Candidate source :=
-  let graph : Graph P params [result] size 1 :=
+    (roots : Tuple (Ref (source.sort ∘ rep)) results) : Candidate source :=
+  let graph : Graph P params results size 1 :=
     ⟨source.forest, source.sort ∘ rep, fun i => Node.ofLabel (source.node (rep i)).label (args i), roots⟩
   let sel : Selection source graph :=
     ⟨fun i => Ref.ofId source.sort (rep i), Region.Automatic.inferDemandRank graph⟩
@@ -64,10 +64,35 @@ def Candidate.checkLegal (classes : Classes n) (candidate : Candidate source) :
     some ⟨ok.1, ok.2, feedback⟩
   else none
 
-structure Accepted (source : Graph P params [result] n 1) (classes : Classes n) where
+/-- Keep an emission certificate attached to the exact table that passed
+the structural checks. Different supported emitters share the selector. -/
+structure Checked (source : Graph P params results n 1) (classes : Classes n)
+    (Certificate : Candidate source → Type w) where
   candidate : Candidate source
   legal : Legal classes candidate
-  reversion : Region.Certificate candidate.graph
+  reversion : Certificate candidate
+
+variable {Certificate : Candidate source → Type w}
+
+def Candidate.checkWith (classes : Classes n) (emit : ∀ c, Option (Certificate c))
+    (candidate : Candidate source) : Option (Checked source classes Certificate) :=
+  match candidate.checkLegal classes with
+  | none => none
+  | some legal => (emit candidate).map fun reversion => ⟨candidate, legal, reversion⟩
+
+/-- Keep the first accepted minimum in pool order. Empty or entirely
+rejected pools have no result. -/
+def selectWith (classes : Classes n) (emit : ∀ c, Option (Certificate c))
+    (cost : Candidate source → Nat) (pool : List (Candidate source)) :
+    Option (Checked source classes Certificate) :=
+  (pool.filterMap (Candidate.checkWith classes emit)).minOn? (fun a => cost a.candidate)
+
+section Scalar
+
+variable {source : Graph P params [result] n 1}
+
+abbrev Accepted (g : Graph P params [result] n 1) (classes : Classes n) :=
+  Checked g classes (fun c => Region.Certificate c.graph)
 
 def Accepted.output {classes : Classes n} (accepted : Accepted source classes) :
     PEG.Simple.Program P true params result :=
@@ -79,15 +104,12 @@ variable [DecidableEq Data] [∀ ins out, DecidableEq (P ins out)]
 for one parentless loop and a single sampled return. -/
 def Candidate.check (classes : Classes n) (candidate : Candidate source) :
     Option (Accepted source classes) :=
-  match candidate.checkLegal classes with
-  | none => none
-  | some legal =>
-    (Region.Automatic.extract candidate.graph).map fun reversion => ⟨candidate, legal, reversion⟩
+  candidate.checkWith classes (fun c => Region.Automatic.extract c.graph)
 
-/-- Keep the first accepted minimum in pool order. Empty or entirely
-rejected pools have no result. -/
 def select (classes : Classes n) (cost : Candidate source → Nat) (pool : List (Candidate source)) :
     Option (Accepted source classes) :=
-  (pool.filterMap (Candidate.check classes)).minOn? (fun a => cost a.candidate)
+  selectWith classes (fun c => Region.Automatic.extract c.graph) cost pool
+
+end Scalar
 
 end Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost

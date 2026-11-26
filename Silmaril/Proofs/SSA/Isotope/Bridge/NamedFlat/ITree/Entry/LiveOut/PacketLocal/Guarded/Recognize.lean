@@ -36,9 +36,7 @@ variable {a : Admission P (interface (κ := κ) seed names) (fun _ => []) source
   (query : Query (signature P.Instr) E) (instr : Primitive E P.Instr α)
   (input : V × Nat → Value α)
 
-local notation "code" => (expected opcode)
 local notation "lexical" => a.versioned.source
-local notation "G" => (guardedTable opcode)
 local notation "m" => treeModel instr
 
 private theorem entryAt {F : Type} {n d : Nat} (graph : CFG V K F) (exits : List K)
@@ -137,14 +135,17 @@ private theorem headStep_eq (query : Query (signature P.Instr) E) (h : Head (sig
     headStep (B := Transfer α) query h = (next query h >>= fun p => pure (.inr p)) := by
   cases h <;> simp [headStep, next]
 
-private theorem eval_entry (instr : Primitive E P.Instr α) (env : Env α) :
-    region instr env (code).entry.erase = pure (0, .pair (env 0) .unit) := by
+private theorem cast_payload_val {A B : Syntax.Ty} (h : A = B) (p : Syntax.Payload A) :
+    (cast (congrArg Syntax.Payload h) p).val = p.val := by cases h; rfl
+
+private theorem eval_entry (routes : Routes) (instr : Primitive E P.Instr α) (env : Env α) :
+    region instr env (expected opcode routes).entry.erase = pure (0, .pair (env 0) .unit) := by
   simp [expected, Flat.erase, Morphism.CaseSSA.erase, region, LambdaSSA.Semantics.Interaction.term]
 
-private theorem eval_loop (agrees : QueryAgreement opcode atom query instr)
+private theorem eval_loop (routes : Routes) (agrees : QueryAgreement opcode atom query instr)
     (env : Env α) (packet : Syntax.Payload Bit) :
-    region instr (extend env (.pair (encodeValue atom packet.val) .unit)) ((code).block 0).erase =
-      (query opcode packet >>= fun r => pure (r.down.1.val, .pair (encodeValue atom r.down.2.val) .unit)) := by
+    region instr (extend env (.pair (encodeValue atom packet.val) .unit)) ((expected opcode routes).block 0).erase =
+      (query opcode packet >>= fun r => pure ((routes.destination r.down.1).val, .pair (encodeValue atom r.down.2.val) .unit)) := by
   simp only [expected, Fin.cases_zero, Flat.erase, Morphism.CaseSSA.erase, region, LambdaSSA.Semantics.Interaction.term, pure_bind]
   change (instr opcode (encodeValue atom packet.val) >>= _) = _
   rw [agrees packet, bind_assoc]
@@ -155,28 +156,35 @@ private theorem eval_loop (agrees : QueryAgreement opcode atom query instr)
   fin_cases i <;> simp [replyValue, pack, extend] <;> rfl
 
 omit [DecidableEq K] in
-private theorem eval_row (agrees : QueryAgreement opcode atom query instr)
+private theorem eval_row (routes : Routes) (agrees : QueryAgreement opcode atom query instr)
     (env : Env α) (caller : Syntax.Payload Bit) (p : Packet Packets) :
-    region instr (extend env (.pair (encodeValue atom p.2.val) .unit)) ((code).block p.1).erase =
-      (next query ((G).head caller p) >>= fun t => pure (number names (encodeCursor names atom t))) := by
+    region instr (extend env (.pair (encodeValue atom p.2.val) .unit)) ((expected opcode routes).block p.1).erase =
+      (next query ((guardedTable opcode routes).head caller p) >>= fun t => pure (number names (encodeCursor names atom t))) := by
   rcases p with ⟨i, payload⟩
   fin_cases i
   · change Syntax.Payload Bit at payload
-    change region instr (extend env (.pair (encodeValue atom payload.val) .unit)) ((code).block 0).erase = _
-    rw [eval_loop atom query instr agrees env payload]
-    change _ = ((query opcode payload >>= fun r => pure (atBlock r.down)) >>= _)
+    change region instr (extend env (.pair (encodeValue atom payload.val) .unit)) ((expected opcode routes).block 0).erase = _
+    rw [eval_loop atom query instr routes agrees env payload]
+    change _ = ((query opcode payload >>= fun r => pure (atBlock (R := Packets)
+      ⟨routes.destination r.down.1, cast (congrArg Syntax.Payload (routes.packet r.down.1).symm) r.down.2⟩)) >>= _)
     erw [bind_assoc]
     congr 1
     funext reply
     change ULift.{1} (Packet Packets) at reply
     rw [pure_bind]
     simp [encodeCursor, atBlock, number]
+    exact congrArg (fun value => (pure ((routes.destination reply.down.1).val,
+      .pair (encodeValue atom value) .unit) : Tree E (Transfer α)))
+      (cast_payload_val (routes.packet reply.down.1).symm reply.down.2).symm
   · change region instr (extend env (.pair (encodeValue atom payload.val) .unit))
       (.let₂ (.var 0) (.br 3 (.pair .unit .unit))) = (pure (atExit 0) >>= _)
     simp [region, LambdaSSA.Semantics.Interaction.term, extend, number, encodeCursor, atExit]
   · change region instr (extend env (.pair (encodeValue atom payload.val) .unit))
       (.let₂ (.var 0) (.br 4 (.pair .unit .unit))) = (pure (atExit 1) >>= _)
     simp [region, LambdaSSA.Semantics.Interaction.term, extend, number, encodeCursor, atExit]
+
+local notation "code" => (expected opcode checked.routes)
+local notation "G" => (guardedTable opcode checked.routes)
 
 include checked
 
@@ -189,7 +197,7 @@ private theorem entry_eq (caller : Syntax.Payload Bit) (seedValue : input (seed,
   apply bind_injective (E := E) (number names) (restore names) (restore_number names)
   change ((lexical).entry.evalJump m input >>= fun p => pure (number names p)) = _
   rw [read]
-  exact (eval_entry instr env).trans (by simp [env, encodeCursor, atBlock, number])
+  exact (eval_entry checked.routes instr env).trans (by simp [env, encodeCursor, atBlock, number])
 
 private theorem block_eq (agrees : QueryAgreement opcode atom query instr)
     (caller : Syntax.Payload Bit) (p : Packet Packets) :
@@ -215,7 +223,7 @@ private theorem block_eq (agrees : QueryAgreement opcode atom query instr)
       (fun s => pure (s.map id (number names))) = _ from read]
   change (region instr (extend env (.pair (encodeValue atom p.2.val) .unit)) ((code).block p.1).erase
     >>= fun out => pure (Sum.inr out : (K × Value α) ⊕ Transfer α)) = _
-  rw [eval_row (names := names) atom query instr agrees env caller p]
+  rw [eval_row (names := names) atom query instr checked.routes agrees env caller p]
   simp only [bind_assoc, pure_bind, Sum.map_inr]
 
 theorem entry (caller : Syntax.Payload Bit) (seedValue : input (seed, 0) = encodeValue atom caller.val) :

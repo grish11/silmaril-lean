@@ -16,7 +16,7 @@ variable {H : Type} {base : Store H} {mem : Memory32 base} {host : HostSemantics
 
 /-- Every edge preserves live memory and the typing of the remaining code or
 the returned results. The active frame is fixed until native restoration. -/
-theorem preserves (move : Edge mem host active a b)
+theorem preserves (move : Edge mem host active results a b)
     (ready : Ready mem host active results a.phase a.labels) (live : mem.Live a.bytes) :
     Ready mem host active results b.phase b.labels ∧ mem.Live b.bytes :=
   ⟨Proofs.ready_step move ready, Proofs.live_step move live⟩
@@ -25,12 +25,13 @@ theorem preserves (move : Edge mem host active a b)
 stack of entered labels and its function frame. The native i32 selection
 and the selected block's ordered parameter delivery are separate steps.
 Normal label exit delivers the declared result stack to the saved prefix.
-A taken conditional branch crosses one explicit label per native step.
-Its final transfer delivers the ordered target results and discards the
-target's remaining instructions. -/
+A direct or taken conditional branch crosses one intervening label per native
+step. The target transfer delivers the ordered results and discards the
+target's remaining instructions. A function-label target leaves a value-only
+frame for the subsequent native caller-restoration step. -/
 theorem step_iff (ready : Ready mem host active results a.phase a.labels) (live : mem.Live a.bytes) :
     Step host (render mem outer active results a) dst ↔
-      ∃ next, Edge mem host active a next ∧ dst = render mem outer active results next :=
+      ∃ next, Edge mem host active results a next ∧ dst = render mem outer active results next :=
   Proofs.step_iff ready live
 
 end Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Continuation

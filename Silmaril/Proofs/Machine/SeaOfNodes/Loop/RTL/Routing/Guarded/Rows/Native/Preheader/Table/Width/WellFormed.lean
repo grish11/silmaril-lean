@@ -44,7 +44,7 @@ private theorem port_lt {t : PortTy} (port : Port ports t) : port.index < ports.
 private theorem ports_length (n : Nat) : (wordPorts n).length = n := by
   simp
 
-private theorem wires_length {ts : List PortTy} (wires : Wires ports past ts) :
+theorem wires_length {ts : List PortTy} (wires : Wires ports past ts) :
     wires.addresses.length = ts.length := by
   induction wires with
   | nil => rfl
@@ -209,6 +209,38 @@ private theorem header_okUse {pc : Nat} {r : Reg} (bound : pc ≤ sigs.length)
   · apply local_okUse (block := header g) rfl
     rw [header_ops]
     exact Or.inr (op_before _ g.header lt bound)
+
+private theorem header_scope_defined {r : Reg}
+    (valid : InScope (wordPorts captures ++ wordPorts bank) Reg.node sigs.length r) :
+    r ∈ (preheader g).defs ∨ r ∈ (header g).defs := by
+  rcases valid with ⟨i, lt, rfl⟩ | ⟨i, lt, rfl⟩
+  · by_cases cap : i < captures
+    · exact Or.inl (List.mem_append_left _ ((arg_mem _ _ _).mpr ⟨Nat.zero_le _, by simpa using cap⟩))
+    · exact Or.inr (List.mem_append_left _ ((arg_mem _ _ _).mpr
+        ⟨Nat.le_of_not_gt cap, by simpa [ports_length] using lt⟩))
+  · right
+    rw [Block.defs, header_ops, emit_flat_defs]
+    simp only [List.length_nil]
+    exact List.mem_append_right _ (List.mem_map.mpr ⟨i, List.mem_range'_1.mpr ⟨Nat.zero_le _, by simpa only [Nat.zero_add] using lt⟩, rfl⟩)
+
+theorem header_origin_defined {t : PortTy}
+    (wire : Origin (wordPorts captures ++ wordPorts bank) (extend [] sigs) t) :
+    register wire.address ∈ (preheader g).defs ∨ register wire.address ∈ (header g).defs := by
+  apply header_scope_defined g
+  have valid := origin_inScope Reg.node wire
+  have eq : registerWithResults (fun p => .arg p.index) Reg.node wire =
+      register wire.address := resolve_address Reg.node wire
+  rw [eq] at valid
+  simpa only [extend_length, List.length_nil, Nat.zero_add] using valid
+
+theorem header_column_defined {ts : List PortTy}
+    (wires : Wires (wordPorts captures ++ wordPorts bank) (extend [] sigs) ts)
+    {r : Reg} (used : r ∈ wires.addresses.map register) :
+    r ∈ (preheader g).defs ∨ r ∈ (header g).defs := by
+  apply header_scope_defined g
+  have valid : InScope (wordPorts captures ++ wordPorts bank) Reg.node (extend [] sigs).length r :=
+    column_scope Reg.node wires used
+  simpa only [extend_length, List.length_nil, Nat.zero_add] using valid
 
 private theorem usesDominated : (lowerFunc g).UsesDominated := by
   unfold Func.UsesDominated Func.usesDominated

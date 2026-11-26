@@ -49,6 +49,11 @@ theorem keep_captures {state next : State} {captures : List Capture} (live : Bod
   obtain ⟨value, frozen, cell⟩ := live capture member
   exact ⟨value, frozen, keep_cell kept cell⟩
 
+theorem keep_record {callee : Callable} {defining state next : State} {address : Nat}
+    (record : ClosureAt callee.site callee.id defining state address)
+    (kept : Body.Keeps state.heap.size state next) : Nonempty (ClosureAt callee.site callee.id defining next address) :=
+  ⟨{record with recorded := keep_cell kept record.recorded, live := keep_captures record.live kept}⟩
+
 theorem keep_live {globals : List String} {env : Environment} {state next : State}
     (frame : Frame globals state) (live : Live env state)
     (tracked : ∀ name root, env name = some root → name ∈ globals)
@@ -58,11 +63,9 @@ theorem keep_live {globals : List String} {env : Environment} {state next : Stat
   obtain ⟨slot, value, frozen, owned, stored⟩ := frame.2 name (tracked _ _ chosen)
   have loadedNext : next.bindingValue (globalSlot name) = .ok (.function address) := by
     simpa [State.bindingValue, Lists.Slot.address, kept.1, owned, stored, keep_cell kept stored] using loaded
-  exact ⟨address, defining, loadedNext, ⟨{record with
-    recorded := keep_cell kept record.recorded
-    live := keep_captures record.live kept}⟩⟩
+  exact ⟨address, defining, loadedNext, keep_record record kept⟩
 
-private theorem same_slots (state : State) (binding : Binding) (value : Value) :
+theorem write_slots (state : State) (binding : Binding) (value : Value) :
     (state.write binding value).slots = state.slots := by
   unfold State.write
   split <;> try rfl
@@ -71,13 +74,13 @@ private theorem same_slots (state : State) (binding : Binding) (value : Value) :
 theorem write_keeps_below {state : State} {binding : Binding} {slot floor : Nat}
     (owned : state.slots binding = some (.owned slot)) (fresh : floor ≤ slot) (value : Value) :
     Body.Keeps floor state (state.write binding value) := by
-  refine ⟨same_slots state binding value, fun address cell low found => ?_⟩
+  refine ⟨write_slots state binding value, fun address cell low found => ?_⟩
   refine (RootCall.write_other_cell state binding value address ?_).trans found
   intro hit
   have equal : slot = address := by simpa [owned] using hit
   omega
 
-private theorem written_cell {state : State} {binding : Binding} {address : Nat} {old : Option Value}
+theorem written_cell {state : State} {binding : Binding} {address : Nat} {old : Option Value}
     {frozen : Bool} (value : Value) (owned : state.slots binding = some (.owned address))
     (stored : state.heap[address]? = some ⟨.binding old, frozen⟩) :
     (state.write binding value).heap[address]? = some ⟨.binding (some value), frozen⟩ := by
@@ -88,10 +91,10 @@ theorem write_frame {globals : List String} {name : String} {state : State} (val
     (frame : Frame globals state) (_member : name ∈ globals) : Frame globals (state.write (globalSlot name) value) := by
   refine ⟨?_, fun read global => ?_⟩
   · intro a b address first second
-    exact frame.1 a b address (by simpa only [same_slots] using first) (by simpa only [same_slots] using second)
+    exact frame.1 a b address (by simpa only [write_slots] using first) (by simpa only [write_slots] using second)
   · obtain ⟨slot, old, frozen, owned, stored⟩ := frame.2 read global
     have reached : (state.write (globalSlot name) value).slots (globalSlot read) = some (.owned slot) := by
-      simpa only [same_slots] using owned
+      simpa only [write_slots] using owned
     by_cases same : name = read
     · subst read
       exact ⟨slot, some value, frozen, reached, written_cell value owned stored⟩
@@ -104,7 +107,7 @@ theorem written_binding {globals : List String} {state : State} {name : String}
     (frame : Frame globals state) (member : name ∈ globals) (value : Value) :
     (state.write (globalSlot name) value).bindingValue (globalSlot name) = .ok value := by
   obtain ⟨address, old, frozen, owned, stored⟩ := frame.2 name member
-  simp [State.bindingValue, Lists.Slot.address, same_slots, owned, written_cell value owned stored]
+  simp [State.bindingValue, Lists.Slot.address, write_slots, owned, written_cell value owned stored]
 
 private theorem write_captures {state : State} {captures : List Capture}
     (live : Body.CaptureCells state captures) (binding : Binding) (value : Value) :
@@ -115,12 +118,13 @@ private theorem write_captures {state : State} {captures : List Capture}
   · exact ⟨some value, frozen, written_cell value hit stored⟩
   · exact ⟨old, frozen, (RootCall.write_other_cell state binding value _ hit).trans stored⟩
 
-theorem write_record {globals : List String} {root : Callable} {defining state : State}
-    {address : Nat} (record : ClosureAt root.site root.id defining state address)
-    (frame : Frame globals state) {name : String} (member : name ∈ globals) (value : Value) :
-    Nonempty (ClosureAt root.site root.id defining (state.write (globalSlot name) value) address) := by
-  obtain ⟨slot, old, frozen, owned, stored⟩ := frame.2 name member
-  have other : state.slots (globalSlot name) ≠ some (.owned address) := by
+theorem write_slot_record {callee : Callable} {defining state : State} {address slot : Nat}
+    {target : Binding} {old : Option Value} {frozen : Bool}
+    (record : ClosureAt callee.site callee.id defining state address)
+    (owned : state.slots target = some (.owned slot))
+    (stored : state.heap[slot]? = some ⟨.binding old, frozen⟩) (value : Value) :
+    Nonempty (ClosureAt callee.site callee.id defining (state.write target value) address) := by
+  have other : state.slots target ≠ some (.owned address) := by
     intro hit
     have equal : slot = address := by simpa [owned] using hit
     subst slot
@@ -129,6 +133,13 @@ theorem write_record {globals : List String} {root : Callable} {defining state :
   exact ⟨{record with
     recorded := (RootCall.write_other_cell state _ _ _ other).trans record.recorded
     live := write_captures record.live _ _}⟩
+
+theorem write_record {globals : List String} {root : Callable} {defining state : State}
+    {address : Nat} (record : ClosureAt root.site root.id defining state address)
+    (frame : Frame globals state) {name : String} (member : name ∈ globals) (value : Value) :
+    Nonempty (ClosureAt root.site root.id defining (state.write (globalSlot name) value) address) := by
+  obtain ⟨slot, old, frozen, owned, stored⟩ := frame.2 name member
+  exact write_slot_record record owned stored value
 
 theorem write_live {globals : List String} {state : State} {env : Environment}
     (frame : Frame globals state) (live : Live env state)

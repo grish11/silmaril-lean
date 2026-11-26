@@ -45,7 +45,7 @@ private def program : Program Nat where
   saved := 42
 
 private def base : Store Nat :=
-  { memories := [initial], funcs := [.wasm signature program.module program.function, .host producerType 10,
+  { memories := [initial], funcs := [.wasm program.functionType program.module program.function, .host producerType 10,
       .host prepare.type prepare.code, .host choose.type choose.code, .host innerJoin.type innerJoin.code,
       .host outerJoin.type outerJoin.code, .host finalJoin.type finalJoin.code] }
 
@@ -53,8 +53,8 @@ private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
 private def caller : Frame := ⟨[i32 9], {funcs := [⟨0⟩]}⟩
 
 private abbrev Check := Continuation.Checked base program.module [num64]
-private abbrev outerTargets := [outerType.results]
-private abbrev innerTargets := [innerIf.signature.results, outerType.results]
+private abbrev outerTargets := [outerType.results, [num32]]
+private abbrev innerTargets := [innerIf.signature.results, outerType.results, [num32]]
 
 private theorem checked : program.Checked memory caller ⟨0⟩ := by
   have inside : Check innerTargets [num32] [] innerArm :=
@@ -67,9 +67,9 @@ private theorem checked : program.Checked memory caller ⟨0⟩ := by
       (.call (site := outerJoin) (saved := []) rfl rfl .nil)
   have outside : Check outerTargets [num64, num32] [] outerArm :=
     .get (type := num64) (stack := []) rfl (.call (site := prepare) (saved := []) rfl rfl innerControlChecked)
-  have final : Check [] [num32] [num64, num64, num32] finalTail :=
+  have final : Check [[num32]] [num32] [num64, num64, num32] finalTail :=
     .call (site := finalJoin) (saved := []) rfl rfl .nil
-  exact ⟨rfl, rfl, rfl, rfl, rfl, .if_ (type := outerIf) (saved := [num64]) rfl outside outside final, rfl⟩
+  exact ⟨rfl, rfl, rfl, rfl, rfl, .if_ (type := outerIf) (saved := [num64]) rfl outside outside final, rfl, rfl⟩
 
 private def host : HostSemantics Nat := fun id store args outcome =>
   match id with
@@ -129,7 +129,7 @@ private abbrev Path := Relation.ReflTransGen (Edge program memory host 7) ⟨byt
 private abbrev BodyPath (q : Continuation.State Nat) := Path ⟨q.bytes, .continuation q.phase q.labels⟩
 
 private theorem BodyPath.step {a b : Continuation.State Nat} (path : BodyPath a)
-    (move : Continuation.Edge memory host (program.active 7) a b) : BodyPath b :=
+    (move : Continuation.Edge memory host (program.active 7) program.functionResults a b) : BodyPath b :=
   path.tail (.continuation move)
 
 private theorem atOuter : BodyPath ⟨bytes 1, .source [] outerArm, [outerLabel]⟩ := by
@@ -216,9 +216,8 @@ example : Steps host launch ⟨memory.store (bytes 6), caller, values [i32 101]�
 example : Steps host launch ⟨memory.store (bytes 7), caller, values [i32 102]⟩ :=
   finish fellThrough rfl (.inr ⟨rfl, rfl, rfl⟩)
 
--- Depth two would target the implicit function label, which is outside this
--- explicit-label judgment.
-example : ¬ Check innerTargets [num32] [num32, num64, num32, num32] (.brIf ⟨2⟩ :: innerTail) := by
+-- Depth three is outside both explicit labels and the implicit function label.
+example : ¬ Check innerTargets [num32] [num32, num64, num32, num32] (.brIf ⟨3⟩ :: innerTail) := by
   intro checked
   generalize ([num32, num64, num32, num32] : List NumType) = stack at checked
   cases checked with

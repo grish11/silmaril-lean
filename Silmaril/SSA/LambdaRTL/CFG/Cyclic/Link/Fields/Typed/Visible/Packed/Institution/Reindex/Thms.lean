@@ -31,7 +31,8 @@ theorem PackedEntry.observe_reindexed (entry : PackedEntry left input) (f : sign
     entry f ambient record
 
 theorem PackedEntry.refinementSentence_reindexed
-    (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    {c : Nat} {rightInputs : Fin c → PacketType} {right : Program signature rightInputs outputs}
+    {rightInput : Fin c} (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right rightInput)
     (f : signature.traceSignature ⟶ Target) (direction : MismatchDirection)
     (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom) :
     (leftEntry.refinementSentence rightEntry direction leftAmbient rightAmbient leftRecord rightRecord).translate f =
@@ -42,7 +43,8 @@ theorem PackedEntry.refinementSentence_reindexed
 /-- The existing institutional satisfaction square for the two checked
 packed entries and the same supplied records. -/
 theorem PackedEntry.sat_reindexed_iff
-    (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    {c : Nat} {rightInputs : Fin c → PacketType} {right : Program signature rightInputs outputs}
+    {rightInput : Fin c} (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right rightInput)
     (f : signature.traceSignature ⟶ Target) (policy : Silmaril.Logic.ITree.Model.{0, 0} Target.toSignature)
     (direction : MismatchDirection) (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom) :
     TraceInstitution.Sat policy

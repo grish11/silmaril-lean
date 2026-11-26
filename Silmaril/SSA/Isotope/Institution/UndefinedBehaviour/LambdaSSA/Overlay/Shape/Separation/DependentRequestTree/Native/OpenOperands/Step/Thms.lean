@@ -67,6 +67,15 @@ theorem Table.observe_step (g : Table S R) (caller : Syntax.Payload (R.get g.ent
   Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.observe_step
     g caller prim config s
 
+/-- A complete classification of native closure determines the decorated
+observation by applying the selected exit at the terminal store. -/
+theorem Table.observe_of_closed (g : Table S R) (caller : Syntax.Payload (R.get g.entry))
+    (prim : Syntax.Primitives Φ states) (config : Packet R) (s : Fin states) (outcome : Result 2 states)
+    (closed : Feedback.close (g.feedback caller prim) (blockPoint config s) = resultBehaviour outcome) :
+    g.observeAt caller prim config s = resultBehaviour (g.markExit outcome) :=
+  Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.observe_of_closed
+    g caller prim config s outcome closed
+
 /-- Exact re-emission connects the typed starting configuration to the
 original decorated native CFG. The entry is the typed caller-forwarding jump. -/
 theorem Table.observe_entry [DecidableEq Φ] (g : Table S R)

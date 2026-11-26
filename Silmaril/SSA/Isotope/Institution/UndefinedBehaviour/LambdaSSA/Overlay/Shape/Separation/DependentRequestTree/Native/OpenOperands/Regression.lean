@@ -1,5 +1,6 @@
 module
 
+import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.DependentRequestTree.Native.OpenOperands.Step.FixedCarrier.Thms
 import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.DependentRequestTree.Native.OpenOperands.Step.Product.Search.Replay.Schedule.Thms
 import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Feedback.Thms
 import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.TwoRequest.Thms
@@ -620,6 +621,49 @@ example : ∃ prim : Syntax.Primitives Op 2,
   rw [terminal] at realized
   exact scheduled.refutes_queries (raw := backedge.native) (raw' := literalLoop.native)
     rfl rfl rfl rfl 0 ((InterpreterScript.feasible_iff _).mp ⟨_, realized⟩)
+
+example : backedge.runFinite left returnsForever inventory (stores 3) loopStart 0 = .diverge := rfl
+
+example : marked.runFinite left primitives inventory (stores 3) loopStart 0 = .ub := rfl
+example : marked.runFinite right primitives inventory (stores 3) loopNext 0 = .fault 2 := rfl
+example : source.runFinite left primitives inventory (stores 3) loopStart 0 = .ret 0 2 := rfl
+
+example : source.checkAllInterpreters? marked source.native marked.native left left enumeration
+    inventory inventory (stores 1) = some true := rfl
+
+example : marked.checkAllInterpreters? source marked.native source.native left left enumeration
+    inventory inventory (stores 1) = some false := rfl
+
+example : source.checkAllInterpreters? marked marked.native marked.native left left enumeration
+    inventory inventory (stores 1) = none := rfl
+
+-- These entries have different evaluated arguments. There is no
+-- synchronized reply edge to a common downstream mismatch.
+example : backedge.productEdges literalLoop right right enumeration (loopNext, loopNext) = [] := rfl
+
+private def unsynchronized : Syntax.Primitives Op 1 := fun _ arg _ =>
+  match arg.val with
+  | .inr _ => .fault 0
+  | _ => .diverge
+
+example : backedge.runFinite right unsynchronized inventory (stores 1) loopNext 0 = .fault 0 := rfl
+example : literalLoop.runFinite right unsynchronized inventory (stores 1) loopNext 0 = .diverge := rfl
+
+example : backedge.checkAllInterpreters? literalLoop backedge.native literalLoop.native right right
+    enumeration inventory inventory (stores 1) = some false := rfl
+
+example : ¬ Shape.denote (withExitUB backedge.native backedge.selected)
+      (Syntax.model unsynchronized (backedge.bindings right)) 0 ≤
+    Shape.denote (withExitUB literalLoop.native literalLoop.selected)
+      (Syntax.model unsynchronized (literalLoop.bindings right)) 0 := by
+  have lower := (backedge.observe_entry backedge.native rfl right unsynchronized 0).trans
+    (backedge.observe_runFinite right unsynchronized inventory (stores 1) loopNext 0)
+  have upper := (literalLoop.observe_entry literalLoop.native rfl right unsynchronized 0).trans
+    (literalLoop.observe_runFinite right unsynchronized inventory (stores 1) loopNext 0)
+  intro le
+  have compared := Eq.mp (congrArg₂ (· ≤ ·) lower upper) le
+  have impossible := (TwoRequest.result_order (.fault (0 : Fin 1)) .diverge).mp compared
+  simp [Result.refines] at impossible
 
 private def terminalTable (i : Tag) : Table sig [.unit] where
   entry := 0

@@ -3,10 +3,12 @@ module
 import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.MemRef.CF.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.MemRef.CF.FinalEntry.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.MemRef.CF.LoadTail.Thms
 
 meta import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.Defs
 meta import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.MemRef.CF.Defs
 meta import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.MemRef.CF.FinalEntry.Defs
+meta import Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite.MemRef.CF.LoadTail.Defs
 meta import Silmaril.SSA.SeaOfNodes.Memory.MLIR.MemRef.Defs
 
 namespace Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite
@@ -131,13 +133,17 @@ private def inspectSwitch {order : Predecessors 2} (program : MemRef.CF.Program 
   let final ← MemRef.CF.run program input arrival fuel initial
   some (slot.val, readback (words.get .here, joined.2), readback final)
 
-private def runSwitch (order : Predecessors 2) (fits : MemRef.CF.Fits order)
-    (arm : Occurrence order → Memory.Graph Args) (candidate : Candidate Args order)
+private def compareSwitch {order : Predecessors 2} (emitted : Option (MemRef.CF.Programs 3 Args order))
     (arrival : Occurrence order) (fuel : Nat) : Option (Nat × List Nat × List Nat) := do
-  let programs ← MemRef.CF.lower order fits shared arm candidate suffix input
+  let programs ← emitted
   let before ← inspectSwitch programs.original arrival fuel
   let after ← inspectSwitch programs.optimized arrival fuel
   if before == after then some after else none
+
+private def runSwitch (order : Predecessors 2) (fits : MemRef.CF.Fits order)
+    (arm : Occurrence order → Memory.Graph Args) (candidate : Candidate Args order)
+    (arrival : Occurrence order) (fuel : Nat) : Option (Nat × List Nat × List Nat) :=
+  compareSwitch (MemRef.CF.lower order fits shared arm candidate suffix input) arrival fuel
 
 private theorem fits : MemRef.CF.Fits preds := by decide
 private theorem reversedFits : MemRef.CF.Fits reversed := by decide
@@ -194,11 +200,8 @@ private def entryBuffers (programs : MemRef.CF.Programs 3 Args preds) : List Nat
 #guard readback (observe retainedEntry input initial) == [7, 11, 7, 55]
 
 private def runEntrySwitch (arrival : Occurrence preds) (fuel : Nat) :
-    Option (Nat × List Nat × List Nat) := do
-  let programs ← entryPrograms
-  let before ← inspectSwitch programs.original arrival fuel
-  let after ← inspectSwitch programs.optimized arrival fuel
-  if before == after then some after else none
+    Option (Nat × List Nat × List Nat) :=
+  compareSwitch entryPrograms arrival fuel
 
 #guard (List.ofFn fun i => runEntrySwitch i 3) ==
   [some (0, [7, 11, 7, 55], [11, 11, 7, 55]),
@@ -223,5 +226,58 @@ private def aliasInput : Tuple (Val 3) Args :=
 
 #guard (MemRef.CF.FinalEntry.lower preds fits (sourceEntry sidePort) 3 (fun _ => last)
     (fun _ => ⟨1, []⟩) suffix aliasInput).map entryBuffers == some ([99, 3, 55], [11, 3, 55])
+
+private def tailPrefix (tail : Memory.Body Args [[.word]] 2) : Memory.Graph Args :=
+  .load (.latest 0) (.arg sidePort)
+    (.store (.latest 0) (.arg headPort) loaded
+      (.store (.latest 1) (.arg sidePort) (.arg firstWord) tail))
+
+-- Return keeps the first trailing Load, whose value differs from the
+-- pre-Store Load's value.
+private def trailingReads (version : Nat) : Memory.Body Args [[.word]] version :=
+  .load (.latest version) (.arg sidePort)
+    (.load (.latest version) (.arg sidePort) (.ret (.latest version) (.output (1 : Fin 3) .head)))
+
+private def tailEntry : Memory.Graph Args :=
+  tailPrefix (.store (.latest 2) (.arg headPort) (.arg entryWord) (trailingReads 3))
+
+private def keptTailEntry : Memory.Graph Args := tailPrefix (trailingReads 2)
+
+private def tailFacts : Memory.Forwarding.Disjoint.Certificate Args := ⟨headPort, [sidePort]⟩
+
+private theorem tailCutAccepted :
+    MemRef.CF.LoadTail.cut tailFacts 3 tailEntry input = some (shared, keptTailEntry) := rfl
+
+private def tailPrograms :=
+  MemRef.CF.LoadTail.lower preds fits tailEntry 3 (arms sidePort) witnesses suffix input tailFacts
+
+private def emittedEntryWord (program : MemRef.CF.Program 3 Args preds) : Option Nat :=
+  program.entry.memory.map fun code => (Discovery.MemRef.CF.runWord code input initial).1.toNat
+
+#guard tailPrograms.map entryBuffers == some ([99, 11, 55], [3, 11, 55])
+#guard (tailPrograms.map fun p => (emittedEntryWord p.original, emittedEntryWord p.optimized)) ==
+  some (some 11, some 11)
+
+private def runTailSwitch (arrival : Occurrence preds) (fuel : Nat) :
+    Option (Nat × List Nat × List Nat) :=
+  compareSwitch tailPrograms arrival fuel
+
+#guard (List.ofFn fun i => runTailSwitch i 3) ==
+  [some (0, [11, 11, 11, 55], [11, 11, 11, 55]),
+   some (1, [11, 22, 22, 55], [22, 22, 11, 55]),
+   some (2, [99, 99, 11, 55], [99, 99, 99, 55])]
+#guard (runTailSwitch 1 2).isNone
+
+-- A concrete alias rejects even when every route overwrites first.
+#guard (check preds shared (fun _ => last) (fun _ => ⟨1, []⟩) aliasInput).isSome
+#guard (MemRef.CF.LoadTail.lower preds fits tailEntry 3 (fun _ => last)
+    (fun _ => ⟨1, []⟩) suffix aliasInput tailFacts).isNone
+#guard (MemRef.CF.LoadTail.lower preds fits tailEntry 3 (arms sidePort) witnesses suffix input
+    ⟨headPort, []⟩).isNone
+#guard (MemRef.CF.LoadTail.lower preds fits sourceEntry 3 (arms sidePort) witnesses suffix input tailFacts).isNone
+
+example : MemRef.CF.LoadTail.lower preds fits tailEntry 3 (arms headPort) witnesses suffix input tailFacts = none :=
+  (MemRef.CF.LoadTail.lower_eq_none_iff tailCutAccepted).mpr ⟨1, rfl⟩
+#guard (MemRef.CF.LoadTail.lower preds fits tailEntry 3 (arms headPort) witnesses suffix input tailFacts).isNone
 
 end Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore.Finite

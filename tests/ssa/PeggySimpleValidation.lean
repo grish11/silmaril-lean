@@ -3,10 +3,12 @@ module
 import Silmaril.SSA.Peggy.SimpleValidation.Thms
 import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Source.Thms
 import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Thms
+import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Bundle.Thms
 import Silmaril.SSA.PEG.Thms
 meta import Silmaril.SSA.Peggy.SimpleValidation.Defs
 meta import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Source.Defs
 meta import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Defs
+meta import Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost.Bundle.Defs
 meta import Silmaril.SSA.PEG.Defs
 
 namespace Silmaril.SSA.Peggy.SimpleValidation.Tests
@@ -420,6 +422,93 @@ example (a : Cost.Accepted sharedSource sharedMatch.classes) (total : a.reversio
       sharedSource.observe model (sharedSource.denote model (store 7) sharedSourceWF) i =
         .cons (some ⟨1⟩) .nil :=
   a.returns_iff_observe sharedSourceWF (sharedMatch.classes_valid sharedSourceWF) total neg i ⟨1⟩
+
+private abbrev bundleParams : List (Ty Unit) := [.count, .count]
+private abbrev bundleResults : List (Ty Unit) := [.count, .count, .count]
+
+private def bundleSort (i : Fin 12) : Ty Unit :=
+  if i = 6 ∨ i = 7 then .bool else .count
+
+private def evalArgs (theta pass : Ref bundleSort .count) :
+    Tuple (Ref bundleSort) [.count, .count] :=
+  .cons theta (.cons pass .nil)
+
+private def roots (first second third : Ref bundleSort .count) : Tuple (Ref bundleSort) bundleResults :=
+  .cons first (.cons second (.cons third .nil))
+
+private def bundleGraph : Graph Op bundleParams bundleResults 12 1 where
+  forest := ⟨fun _ => none⟩
+  sort := bundleSort
+  node i := match i with
+    | 0 => .ofLabel (.param .head) .nil
+    | 1 => .ofLabel (.param (.tail .head)) .nil
+    | 2 => .ofLabel (.theta 0) (evalArgs ⟨0, rfl⟩ ⟨5, rfl⟩)
+    | 3 => .ofLabel (.theta 0) (evalArgs ⟨1, rfl⟩ ⟨3, rfl⟩)
+    | 4 => .ofLabel (.op .one) .nil
+    | 5 => .ofLabel (.op .sub) (evalArgs ⟨2, rfl⟩ ⟨4, rfl⟩)
+    | 6 => .ofLabel (.op .aboveTwo) (.cons ⟨2, rfl⟩ .nil)
+    | 7 => .ofLabel (.op .not) (.cons ⟨6, rfl⟩ .nil)
+    | 8 => .ofLabel (.pass 0) (.cons ⟨7, rfl⟩ .nil)
+    | 9 => .ofLabel (.eval 0) (evalArgs ⟨2, rfl⟩ ⟨8, rfl⟩)
+    | 10 => .ofLabel (.eval 0) (evalArgs ⟨3, rfl⟩ ⟨8, rfl⟩)
+    | 11 => .ofLabel (.pass 0) (.cons ⟨7, rfl⟩ .nil)
+    | ⟨k + 12, bound⟩ => False.elim (by omega)
+  roots := roots ⟨9, rfl⟩ ⟨10, rfl⟩ ⟨9, rfl⟩
+
+private def bundleWiring (first second : Ref bundleSort .count) (i : Fin 12) :
+    Tuple (Ref bundleSort) (bundleGraph.node i).inputs :=
+  if atFirst : i = 9 then atFirst.symm ▸ evalArgs ⟨2, rfl⟩ first
+  else if atSecond : i = 10 then atSecond.symm ▸ evalArgs ⟨3, rfl⟩ second
+  else (bundleGraph.node i).args
+
+private def bundleCandidate (first second : Ref bundleSort .count)
+    (outputs : Tuple (Ref bundleSort) bundleResults) : Cost.Candidate bundleGraph :=
+  Cost.Candidate.wire bundleGraph id (bundleWiring first second) outputs
+
+private def passRows : EPEG.MatchingNodes bundleGraph 8 11 :=
+  ⟨[.bool], .count, .pass 0, .cons ⟨7, rfl⟩ .nil, .cons ⟨7, rfl⟩ .nil, rfl, rfl, HEq.rfl, HEq.rfl⟩
+
+private def bundleClasses : EPEG.Classes 12 := EPEG.Classes.discrete.merge 8 11
+private def sharedPass := bundleCandidate ⟨8, rfl⟩ ⟨8, rfl⟩ bundleGraph.roots
+private def otherPass := bundleCandidate ⟨11, rfl⟩ ⟨11, rfl⟩ bundleGraph.roots
+private def splitPass := bundleCandidate ⟨8, rfl⟩ ⟨11, rfl⟩ bundleGraph.roots
+private def swapped := bundleCandidate ⟨8, rfl⟩ ⟨8, rfl⟩ (roots ⟨10, rfl⟩ ⟨9, rfl⟩ ⟨9, rfl⟩)
+
+-- The swap is well typed and independently revertible, but has the wrong
+-- provenance at two ports. Split passes are in the same source class
+-- and replay successfully, but are distinct addresses in the emitter.
+#guard (PEG.Simple.Revert.While.Region.Bundle.extract swapped.graph).isSome
+#guard !swapped.selection.check bundleClasses
+#guard (swapped.checkLegal bundleClasses).isNone
+#guard (splitPass.checkLegal bundleClasses).isSome
+#guard (Cost.Bundle.check bundleClasses splitPass).isNone
+
+private def bundleInput : Tuple model.Value bundleParams := .cons ⟨5⟩ (.cons ⟨17⟩ .nil)
+private def returnedCounts (out : Tuple model.Value bundleResults) : List Nat :=
+  [(out.get .head).down, (out.get (.tail .head)).down, (out.get (.tail (.tail .head))).down]
+
+private def runBundle (pool : List (Cost.Candidate bundleGraph)) (fuel : Nat) :
+    Option (Nat × List Nat) := do
+  let a ← Cost.Bundle.select bundleClasses Cost.Candidate.primitiveRows pool
+  let out ← a.reversion.runFuel model fuel bundleInput
+  return (a.reversion.scalar.descriptor.pass.id.val, returnedCounts out)
+
+#guard runBundle [swapped, splitPass, sharedPass, otherPass] 3 == some (8, [2, 17, 2])
+#guard runBundle [otherPass, sharedPass] 3 == some (11, [2, 17, 2])
+#guard runBundle [sharedPass] 2 == none
+
+private theorem bundleWF : WellFounded bundleGraph.Demand :=
+  bundleGraph.demandWellFounded_of_check
+    (PEG.Simple.Revert.While.Region.Automatic.inferDemandRank bundleGraph) (by decide)
+
+example (a : Cost.Bundle.Accepted bundleGraph bundleClasses) (idx : Index 1)
+    (neg : ∀ b : Bool, model.run a.reversion.scalar.descriptor.negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    (ran : Exec model a.output bundleInput (some (.cons ⟨2⟩ (.cons ⟨17⟩ (.cons ⟨2⟩ .nil))))) :
+    bundleGraph.observe model (bundleGraph.denote model bundleInput bundleWF) idx =
+      .cons (some ⟨2⟩) (.cons (some ⟨17⟩) (.cons (some ⟨2⟩) .nil)) :=
+  let valid := passRows.merge_sound (bundleGraph.denote_solves model bundleInput bundleWF)
+    EPEG.Classes.discrete_valid (by decide)
+  Exists.elim (a.firstExit_of_exec bundleWF valid neg idx ran) (fun _ seen => seen.2.2)
 
 end Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Tests
 

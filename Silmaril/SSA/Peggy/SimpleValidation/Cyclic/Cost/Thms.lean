@@ -52,21 +52,43 @@ theorem Accepted.returns_iff_observe (a : Accepted source classes) (wf : WellFou
   (a.reversion.returns_iff_observe m input total neg i value).trans
     (congrArg (· = .cons (some value) .nil) (a.observe_eq wf valid i).symm).to_iff
 
+section Checked
+
+variable {results : List (Ty Data)} {g : Graph P params results n 1}
+variable {Certificate : Candidate g → Type w} {emit : ∀ c, Option (Certificate c)}
+variable {cost : Candidate g → Nat} {pool : List (Candidate g)}
+variable {chosen : Checked g classes Certificate}
+
+theorem selectWith_admitted (found : selectWith classes emit cost pool = some chosen) :
+    chosen.candidate ∈ pool ∧ chosen.candidate.checkWith classes emit = some chosen :=
+  Silmaril.Proofs.SSA.Peggy.SimpleValidation.Cyclic.Cost.selected found
+
+theorem selectWith_min (found : selectWith classes emit cost pool = some chosen) {other : Candidate g}
+    (member : other ∈ pool) (admitted : (other.checkWith classes emit).isSome = true) :
+    cost chosen.candidate ≤ cost other :=
+  Silmaril.Proofs.SSA.Peggy.SimpleValidation.Cyclic.Cost.minimal found member admitted
+
+theorem selectWith_none_iff :
+    selectWith classes emit cost pool = none ↔ ∀ candidate ∈ pool, candidate.checkWith classes emit = none :=
+  Silmaril.Proofs.SSA.Peggy.SimpleValidation.Cyclic.Cost.select_none
+
+end Checked
+
 variable [DecidableEq Data] [∀ ins out, DecidableEq (P ins out)]
 variable {cost : Candidate source → Nat} {pool : List (Candidate source)}
 variable {chosen : Accepted source classes}
 
 theorem select_admitted (found : select classes cost pool = some chosen) :
     chosen.candidate ∈ pool ∧ chosen.candidate.check classes = some chosen :=
-  Silmaril.Proofs.SSA.Peggy.SimpleValidation.Cyclic.Cost.selected found
+  selectWith_admitted found
 
 theorem select_min (found : select classes cost pool = some chosen) {other : Candidate source}
     (member : other ∈ pool) (admitted : (other.check classes).isSome = true) :
     cost chosen.candidate ≤ cost other :=
-  Silmaril.Proofs.SSA.Peggy.SimpleValidation.Cyclic.Cost.minimal found member admitted
+  selectWith_min found member admitted
 
 theorem select_none_iff :
     select classes cost pool = none ↔ ∀ candidate ∈ pool, candidate.check classes = none :=
-  Silmaril.Proofs.SSA.Peggy.SimpleValidation.Cyclic.Cost.select_none
+  selectWith_none_iff
 
 end Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Cost

@@ -60,6 +60,7 @@ private def detail : AssertionArgument → String
   | .textPair left right =>
     s!"text-pair:{reprStr (left.points.map UInt32.toNat)}:{reprStr (right.points.map UInt32.toNat)}"
   | .tuplePair left right => s!"tuple-pair:{reprStr left}:{reprStr right}"
+  | .emptyTuple => "tuple:()"
 
 private def raised : Raised → String
   | .assertionError argument => "AssertionError:" ++ detail argument
@@ -911,6 +912,8 @@ def assertion(error):
     if type(argument) is bool:
         return f"AssertionError:bool:{argument}"
     if isinstance(argument, tuple):
+        if not argument:
+            return "AssertionError:tuple:()"
         left, right = argument
         if type(left) is bool and type(right) is bool:
             return f"AssertionError:bool-pair:{str(left).lower()}:{str(right).lower()}"

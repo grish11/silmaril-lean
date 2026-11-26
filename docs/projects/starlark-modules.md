@@ -1279,36 +1279,45 @@ open.
 ## Checked callable imports
 
 The checked graph has a load-free normalized producer and one
-normalized consumer. The consumer renames a single public import, calls
-it through its file-local slot, then executes one ordinary assignment.
-The producer emits the shared declaration table. The consumer's checked
-elaboration preserves the full table and derives its imported slot and
-module globals from source order.
+normalized consumer. The consumer renames a single public import and
+executes a finite suite of ordinary name assignments and calls through
+tracked names. The producer emits the shared declaration table. The
+consumer's checked elaboration preserves that table and derives its
+imported slot and ordered module globals from the source commands.
 
-Cold loading derives the published value from the producer's
-independent source trace. The producer restores the consumer's frame
-and retains the original cells, with freezing allowed to update cell
-flags. The import reads the reached export and binds the same function
-address. The checked invocation uses the record's saved defaults,
-captured addresses and linked declaration. The warm theorem first
-derives the actual producer load and cache entry, then transports that
-same publication through allocation of the consumer's frame. Its
-dependency step is a real cache hit.
+Cold loading derives publication from the producer's independent
+source trace. The producer restores the consumer's frame and retains
+the original cell contents, with freezing allowed to update cell flags.
+The import binds the actual exported function address. The warm
+theorem first derives the producer load and cache entry, then transports
+the same record through allocation of the consumer's frame.
 
-The independent producer, alias lookup and call rules determine the
-same result, exports, heap and cache as the loader denotation. A
-missing export stops before the call and keeps the producer cached.
-A reached body error keeps earlier allocations and the producer
-publication, restores the caller thread and skips the consumer
-publication. Lean and pinned Go controls exercise cold and warm calls
-that read producer globals in the presence of a same-spelled consumer
-global, saved defaults and live captured locals. They also exercise
-missing export and body errors.
+The suite invariant relates each tracked name to the closure stored in
+its reached file-local or global slot. A name copy transfers the
+closure's link, and a checked call updates its destination using the
+actual return and reached heap. Successive calls use the closure's
+original defining environment, captured addresses and saved defaults.
+The reusable suite theorem retains the invariant at the end of a
+successful suite and stops at the first reached error.
 
-This composition covers one dependency edge and one imported callable
-invocation with the existing checked operands and body profile. A
-source certificate for arbitrary cached modules, broader consumer
-sequences, multiple imports or general source graphs remains open.
+The independent source rules and loader denotation agree on exact
+exports, heap, cache and errors. A missing export stops before any
+consumer work. A later call error retains the earlier calls and writes,
+as well as the producer publication, and skips consumer publication.
+The Lean and pinned Go controls call an imported factory through an
+alias, copy the new child and call it with named arguments and both
+spreads. The returned function and the child result are distinct
+observations. The child shares the producer's global cell with an
+earlier closure and owns a different captured local. A second-call
+error leaves the earlier factory and ordinary assignment effects.
+
+The UTF-8 adapter hands normalized commands to the same resolver and
+loader. It keeps module IDs in manifest order, so the producer-first
+layout uses the same linked table when the importer only has the
+checked commands above. The suite theorem's source input starts at
+normalized commands and their checked step judgments. Multiple imports,
+consumer declaration emission, arbitrary cache histories and general
+source graphs remain open.
 [Theorems](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Published/Imports/Thms.lean) · [Lean controls](../../Silmaril/Languages/Starlark/Modules/Resolve/Capture/Trace/Published/ReturnChecks.lean) · [Pinned Go controls](../../scripts/starlark/imported-checked/check.go)
 
 ## Finite-manifest loader

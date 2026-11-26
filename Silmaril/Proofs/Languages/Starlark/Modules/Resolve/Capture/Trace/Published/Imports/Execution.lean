@@ -3,6 +3,8 @@ module
 public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Defs
 import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Producer
 import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Consumer
+import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Invariant
+import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Published.Imports.Suite
 import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Entry.Thms
 import Silmaril.Languages.Starlark.Modules.Loader.Thms
 
@@ -36,7 +38,7 @@ private theorem consumer_agrees {commands : List Modules.Resolve.Command}
       PublishedLive exports producer.program publication reached.runtime ∧
       ∀ name value, publication.exports.lookup name = some value → name ∈ Trace.names commands) :
     Agrees commands producer consumer plan exports caller := by
-  obtain ⟨same, code, _, files⟩ := consumer_layout plan checked
+  obtain ⟨same, code, globals, files⟩ := consumer_layout plan checked
   have valid : Modules.validateSource producer.program consumer.source = .ok () :=
     same ▸ (checked_of_resolve checked).2.2.2
   have label : Modules.Loader.resolve (graph producer consumer plan) 1 plan.label = some 0 := by
@@ -66,7 +68,10 @@ private theorem consumer_agrees {commands : List Modules.Resolve.Command}
       exact .load label nativeDependency
     cases tracked : exports plan.name with
     | none =>
-      have absent : plan.name ∉ Trace.names commands := covered.resolve_left (by simp [tracked])
+      have absent : plan.name ∉ Trace.names commands := covered.resolve_left (by
+        rintro ⟨_, seen, _⟩
+        rw [tracked] at seen
+        cases seen)
       have missing : published.exports.lookup plan.name = none := by
         cases seen : published.exports.lookup plan.name with
         | none => rfl
@@ -77,16 +82,23 @@ private theorem consumer_agrees {commands : List Modules.Resolve.Command}
         (Modules.Loader.runs_iff_denote _ _ _ _ _ _).mp native⟩
     | some callee =>
       obtain ⟨linked, address, defining, loaded, record, _⟩ := live plan.name callee tracked plan.publicName
-      obtain ⟨aliasCell, owned, blank⟩ := Entry.entered_blank consumer.source caller.runtime (fileSlot plan.alias)
-        (by simp [files])
-      obtain ⟨flag, preserved⟩ := kept _ _ blank
-      obtain ⟨read, ⟨closure⟩⟩ := reached_alias (plan := plan) (slots.symm ▸ owned) preserved record
+      obtain ⟨selected, sameEntry, admitted⟩ := covered.resolve_right (fun absent =>
+        absent (declared _ _ loaded))
+      have equal := Option.some.inj (tracked.symm.trans sameEntry)
+      subst selected
+      have frame := dependency_frame (plan := plan) globals files slots kept
       let bound := reached.runtime.write (fileSlot plan.alias) (.function address)
+      let session := {reached with runtime := bound}
+      have liveBinding := initial_live frame record linked
       have independent := BindsAlias.found (plan := plan) (state := reached.runtime) loaded
-      obtain ⟨out, tail, nativeTail⟩ := tail_reached (manifest := graph producer consumer plan)
-        (s := {reached with runtime := bound}) checked same callee linked read closure
+      obtain ⟨out, tail, tailRan, _⟩ := run_suite checked (manifest := graph producer consumer plan)
+        (active := [1]) (id := 1) plan.separate plan.body admitted session
+        (writes_frame frame (fileSlot plan.alias) (.function address)) (same.symm ▸ liveBinding)
+      have nativeTail : Modules.Loader.Runs producer.program (graph producer consumer plan) [1]
+          (.commands 1 (plan.body.map Step.code)) session (Modules.Loader.liftResult 1 session out) :=
+        same ▸ tailRan
       have native := complete _ (.step (runImport independent) nativeTail)
-      rw [← observed_eq (before := {reached with runtime := bound})] at native
+      rw [← observed_eq (before := session)] at native
       exact ⟨_, .called sourceDependency independent tracked tail, native,
         (Modules.Loader.runs_iff_denote _ _ _ _ _ _).mp native⟩
 

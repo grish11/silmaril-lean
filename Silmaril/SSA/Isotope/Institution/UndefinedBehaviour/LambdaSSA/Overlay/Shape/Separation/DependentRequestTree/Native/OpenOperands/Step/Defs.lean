@@ -80,6 +80,11 @@ noncomputable def Table.feedback {states : Nat} (g : Table S R)
     Feedback.Run R Exits Unit (Fin states) :=
   feedbackRun (.native g.entryRegion) (fun i => .native (g.blocks i)) (Syntax.model prim (g.bindings caller)).raw
 
+/-- Apply the ordered selected-exit continuations to a classified result. -/
+def Table.markExit {states : Nat} (g : Table S R) : Result 2 states → Result 2 states
+  | .ret i t => if g.selected i then .ub else .ret i t
+  | other => other
+
 /-- Close native feedback at an exact block point and run the designated
 exit continuation on a successful outward result. -/
 noncomputable def Table.observeAt {states : Nat} (g : Table S R)

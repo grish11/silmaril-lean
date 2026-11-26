@@ -35,6 +35,7 @@ inductive Op (H : Type) where
   | get (index : LocalIdx)
   | drop
   | call (index : FuncIdx) (site : Site H)
+  | br (depth : LabelIdx)
   | brIf (depth : LabelIdx)
   | if_ (type : IfType) (thenArm elseArm : List (Op H))
 
@@ -43,6 +44,7 @@ def Op.instr {H : Type} : Op H → Wasm.Lime1.Instr
   | .get index => .localGet index
   | .drop => .drop
   | .call index _ => .call index
+  | .br depth => .br depth
   | .brIf depth => .brIf depth
   | .if_ type left right => .if_ type.blockType (expr left) (expr right)
 
@@ -54,7 +56,7 @@ end
 def code {H : Type} (ops : List (Op H)) : List Admin := expression (expr ops)
 
 /-- Static checks use the entered module, base allocation and active local types.
-The first index lists explicit label results from innermost to outermost.
+The first index lists label results from the innermost label to the function label.
 The next indices give the delivered result types and the initial stack types.
 Each operand stack is ordered bottom to top. -/
 inductive Checked {H : Type} (base : Store H) (module : ModuleInst)
@@ -69,6 +71,10 @@ inductive Checked {H : Type} (base : Store H) (module : ModuleInst)
       (resolved : module.funcs[index.toNat]? = some site.address) (allocated : site.Allocated base)
       (tail : Checked base module locals targets results (saved ++ site.type.results) ops) :
       Checked base module locals targets results (saved ++ site.type.params) (.call index site :: ops)
+  /-- An unconditional transfer skips the suffix in its current label. -/
+  | br {targets} {depth : LabelIdx} {results scratch payload : List NumType} {ops : List (Op H)}
+      (target : targets[depth.toNat]? = some payload) :
+      Checked base module locals targets results (scratch ++ payload) (.br depth :: ops)
   | brIf {targets} {depth : LabelIdx} {results scratch payload : List NumType} {ops : List (Op H)}
       (target : targets[depth.toNat]? = some payload)
       (tail : Checked base module locals targets results (scratch ++ payload) ops) :
@@ -90,6 +96,7 @@ inductive Contract {H : Type} {base : Store H} (mem : Memory32 base) (host : Hos
   | drop {ops} (tail : Contract mem host ops) : Contract mem host (.drop :: ops)
   | call {index site ops} (siteContract : site.Contract mem host) (tail : Contract mem host ops) :
       Contract mem host (.call index site :: ops)
+  | br {depth ops} : Contract mem host (.br depth :: ops)
   | brIf {depth ops} (tail : Contract mem host ops) : Contract mem host (.brIf depth :: ops)
   | if_ {type left right ops} (thenArm : Contract mem host left) (elseArm : Contract mem host right)
       (tail : Contract mem host ops) : Contract mem host (.if_ type left right :: ops)
@@ -102,13 +109,15 @@ structure Label (H : Type) where
 
 inductive Phase (H : Type) where
   | source (stack : List Value) (ops : List (Op H))
-  /-- The taken source branch still has its native suffix until this label is discarded. -/
-  | branch (stack : List Value) (depth : LabelIdx) (ops : List (Op H))
   | block (label : Label H) (args : List Value) (arm : List (Op H))
   | invoke (saved : List Value) (site : Site H) (args : List Value) (ops : List (Op H))
   | trapped (saved : List Value) (rest : List Admin)
   | frameResult (result : Result)
   | done (result : Result)
+
+/-- Source and lowered branches share the same native instruction and suffix. -/
+abbrev Phase.branch {H : Type} (stack : List Value) (depth : LabelIdx) (ops : List (Op H)) : Phase H :=
+  .source stack (.br depth :: ops)
 
 structure State (H : Type) where
   bytes : ByteArray
@@ -123,15 +132,16 @@ def labelResults {H : Type} (results : List NumType) : List (Label H) → List N
   | [] => results
   | label :: _ => label.type.signature.results
 
-def targetTypes {H : Type} (labels : List (Label H)) : List (List NumType) :=
-  labels.map (fun label => label.type.signature.results)
+def targetTypes {H : Type} (results : List NumType) : List (Label H) → List (List NumType)
+  | [] => [results]
+  | label :: rest => label.type.signature.results :: targetTypes results rest
 
 inductive LabelsReady {H : Type} {base : Store H} (mem : Memory32 base) (host : HostSemantics H)
     (active : Frame) (results : List NumType) : List (Label H) → Prop where
   | nil : LabelsReady mem host active results []
   | cons {label : Label H} {rest : List (Label H)}
       (tail : Checked base active.module (active.locals.map Value.type)
-        (targetTypes rest) (labelResults results rest)
+        (targetTypes results rest) (labelResults results rest)
         (label.saved.map Value.type ++ label.type.signature.results) label.tail)
       (contract : Contract mem host label.tail)
       (outer : LabelsReady mem host active results rest) :
@@ -140,13 +150,11 @@ inductive LabelsReady {H : Type} {base : Store H} (mem : Memory32 base) (host : 
 def Ready {H : Type} {base : Store H} (mem : Memory32 base) (host : HostSemantics H)
     (active : Frame) (results : List NumType) (phase : Phase H) (labels : List (Label H)) : Prop :=
   LabelsReady mem host active results labels ∧
-  let targets := targetTypes labels
+  let targets := targetTypes results labels
   let delivered := labelResults results labels
   match phase with
   | .source stack ops => Checked base active.module (active.locals.map Value.type) targets delivered
       (stack.map Value.type) ops ∧ Contract mem host ops
-  | .branch stack depth _ => ∃ scratch payload,
-      stack.map Value.type = scratch ++ payload ∧ targets[depth.toNat]? = some payload
   | .block label args arm => label.type.Resolved active.module ∧
       args.map Value.type = label.type.signature.params ∧
       Checked base active.module (active.locals.map Value.type)
@@ -187,8 +195,6 @@ def invokeContext {H : Type} (scope : Scope) (arity : Nat) (active : Frame)
 
 def Phase.renderIn {H : Type} (scope : Scope) (arity : Nat) (active : Frame) : Phase H → List Admin
   | .source stack ops => framed active [.label arity [] (values stack ++ code ops)] scope
-  | .branch stack depth ops => framed active [.label arity []
-      (values stack ++ .source (.br depth) :: code ops)] scope
   | .block label args arm => framed active [.label arity [] (values (label.saved ++ args) ++
       .source (.block label.type.blockType (expr arm)) :: code label.tail)] scope
   | .invoke saved site args ops => (invokeContext scope arity active saved ops).plug value
@@ -212,51 +218,55 @@ def select {H : Type} (guard : BitVec 32) (left right : List (Op H)) : List (Op 
 /-- Each edge corresponds to one native step. Leaving an explicit label
 restores the enclosing sequence directly, with no additional graph step. -/
 inductive Edge {H : Type} {base : Store H} (mem : Memory32 base) (host : HostSemantics H)
-    (active : Frame) : State H → State H → Prop where
+    (active : Frame) (results : List NumType) : State H → State H → Prop where
   | get {bytes stack index v ops labels} (found : active.locals[index.toNat]? = some v) :
-      Edge mem host active ⟨bytes, .source stack (.get index :: ops), labels⟩
+      Edge mem host active results ⟨bytes, .source stack (.get index :: ops), labels⟩
         ⟨bytes, .source (stack ++ [v]) ops, labels⟩
-  | drop {bytes stack v ops labels} : Edge mem host active ⟨bytes, .source (stack ++ [v]) (.drop :: ops), labels⟩
+  | drop {bytes stack v ops labels} : Edge mem host active results ⟨bytes, .source (stack ++ [v]) (.drop :: ops), labels⟩
       ⟨bytes, .source stack ops, labels⟩
   | brIf {bytes stack guard depth ops labels} :
-      Edge mem host active ⟨bytes, .source (stack ++ [Value.int .i32 guard]) (.brIf depth :: ops), labels⟩
+      Edge mem host active results ⟨bytes, .source (stack ++ [Value.int .i32 guard]) (.brIf depth :: ops), labels⟩
         ⟨bytes, if guard = 0 then .source stack ops else .branch stack depth ops, labels⟩
   | branchLower {bytes stack depth ops label labels} (positive : 0 < depth.toNat) :
-      Edge mem host active ⟨bytes, .branch stack depth ops, label :: labels⟩
+      Edge mem host active results ⟨bytes, .branch stack depth ops, label :: labels⟩
         ⟨bytes, .branch (label.saved ++ stack) (lowerLabel depth) label.tail, labels⟩
   | branchDeliver {bytes scratch payload depth ops label labels} (zero : depth.toNat = 0)
       (typed : payload.map Value.type = label.type.signature.results) :
-      Edge mem host active ⟨bytes, .branch (scratch ++ payload) depth ops, label :: labels⟩
+      Edge mem host active results ⟨bytes, .branch (scratch ++ payload) depth ops, label :: labels⟩
         ⟨bytes, .source (label.saved ++ payload) label.tail, labels⟩
+  | functionBranch {bytes scratch payload depth ops} (zero : depth.toNat = 0)
+      (typed : payload.map Value.type = results) :
+      Edge mem host active results ⟨bytes, .branch (scratch ++ payload) depth ops, []⟩
+        ⟨bytes, .frameResult (.values payload), []⟩
   | if_ {bytes saved args guard type left right ops labels} (typed : args.map Value.type = type.signature.params) :
-      Edge mem host active ⟨bytes, .source ((saved ++ args) ++ [Value.int .i32 guard]) (.if_ type left right :: ops), labels⟩
+      Edge mem host active results ⟨bytes, .source ((saved ++ args) ++ [Value.int .i32 guard]) (.if_ type left right :: ops), labels⟩
         ⟨bytes, .block ⟨type, saved, ops⟩ args (select guard left right), labels⟩
   | block {bytes label args arm labels} :
-      Edge mem host active ⟨bytes, .block label args arm, labels⟩ ⟨bytes, .source args arm, label :: labels⟩
+      Edge mem host active results ⟨bytes, .block label args arm, labels⟩ ⟨bytes, .source args arm, label :: labels⟩
   | resolve {bytes saved args index site ops labels} (typed : site.Arguments args) :
-      Edge mem host active ⟨bytes, .source (saved ++ args) (.call index site :: ops), labels⟩
+      Edge mem host active results ⟨bytes, .source (saved ++ args) (.call index site :: ops), labels⟩
         ⟨bytes, .invoke saved site args ops, labels⟩
   | returned {bytes next saved site args ops vs labels} (live : mem.Live next)
       (typed : site.TypedResult (.values vs))
       (answer : host site.code (mem.store bytes) args (.returned (mem.store next) (.values vs))) :
-      Edge mem host active ⟨bytes, .invoke saved site args ops, labels⟩ ⟨next, .source (saved ++ vs) ops, labels⟩
+      Edge mem host active results ⟨bytes, .invoke saved site args ops, labels⟩ ⟨next, .source (saved ++ vs) ops, labels⟩
   | trapped {bytes next saved site args ops labels} (live : mem.Live next)
       (answer : host site.code (mem.store bytes) args (.returned (mem.store next) .trap)) :
-      Edge mem host active ⟨bytes, .invoke saved site args ops, labels⟩ ⟨next, .trapped saved (code ops), labels⟩
+      Edge mem host active results ⟨bytes, .invoke saved site args ops, labels⟩ ⟨next, .trapped saved (code ops), labels⟩
   | diverged {bytes saved site args ops labels} (answer : host site.code (mem.store bytes) args .diverged) :
-      Edge mem host active ⟨bytes, .invoke saved site args ops, labels⟩ ⟨bytes, .invoke saved site args ops, labels⟩
+      Edge mem host active results ⟨bytes, .invoke saved site args ops, labels⟩ ⟨bytes, .invoke saved site args ops, labels⟩
   | erase {bytes stack kept removed before cut rest labels}
       (split : stack = kept ++ removed) (suffix : before = cut ++ rest) (activeTrap : removed ≠ [] ∨ cut ≠ []) :
-      Edge mem host active ⟨bytes, .trapped stack before, labels⟩ ⟨bytes, .trapped kept rest, labels⟩
+      Edge mem host active results ⟨bytes, .trapped stack before, labels⟩ ⟨bytes, .trapped kept rest, labels⟩
   | armResult {bytes stack label labels} :
-      Edge mem host active ⟨bytes, .source stack [], label :: labels⟩
+      Edge mem host active results ⟨bytes, .source stack [], label :: labels⟩
         ⟨bytes, .source (label.saved ++ stack) label.tail, labels⟩
   | armTrap {bytes label labels} :
-      Edge mem host active ⟨bytes, .trapped [] [], label :: labels⟩
+      Edge mem host active results ⟨bytes, .trapped [] [], label :: labels⟩
         ⟨bytes, .trapped label.saved (code label.tail), labels⟩
-  | labelTrap {bytes} : Edge mem host active ⟨bytes, .trapped [] [], []⟩ ⟨bytes, .frameResult .trap, []⟩
-  | labelResult {bytes stack} : Edge mem host active ⟨bytes, .source stack [], []⟩
+  | labelTrap {bytes} : Edge mem host active results ⟨bytes, .trapped [] [], []⟩ ⟨bytes, .frameResult .trap, []⟩
+  | labelResult {bytes stack} : Edge mem host active results ⟨bytes, .source stack [], []⟩
       ⟨bytes, .frameResult (.values stack), []⟩
-  | frameDone {bytes out} : Edge mem host active ⟨bytes, .frameResult out, []⟩ ⟨bytes, .done out, []⟩
+  | frameDone {bytes out} : Edge mem host active results ⟨bytes, .frameResult out, []⟩ ⟨bytes, .done out, []⟩
 
 end Silmaril.Wasm.Institution.Operational.HostCall.Lime1.Continuation

@@ -43,7 +43,7 @@ private def program : Program Nat where
   saved := 42
 
 private def base : Store Nat :=
-  { memories := [initial], funcs := [.wasm signature program.module program.function, .host producerType 10,
+  { memories := [initial], funcs := [.wasm program.functionType program.module program.function, .host producerType 10,
       .host prepare.type prepare.code, .host inner.type inner.code, .host alternate.type alternate.code,
       .host innerJoin.type innerJoin.code, .host outerJoin.type outerJoin.code,
       .host innerAlternate.type innerAlternate.code] }
@@ -52,23 +52,23 @@ private def memory : Memory32 base := ⟨⟨0⟩, initial, rfl⟩
 private def caller : Frame := ⟨[i32 99], {funcs := [⟨0⟩]}⟩
 
 private theorem checked : program.Checked memory caller ⟨0⟩ := by
-  have innerChecked : Continuation.Checked base program.module [num64] [armType.results, [num32]] armType.results armType.params innerArm :=
+  have innerChecked : Continuation.Checked base program.module [num64] [armType.results, [num32], [num32]] armType.results armType.params innerArm :=
     .call (site := inner) (saved := []) rfl rfl .nil
-  have otherInnerChecked : Continuation.Checked base program.module [num64] [armType.results, [num32]] armType.results armType.params otherInnerArm :=
+  have otherInnerChecked : Continuation.Checked base program.module [num64] [armType.results, [num32], [num32]] armType.results armType.params otherInnerArm :=
     .call (site := innerAlternate) (saved := []) rfl rfl .nil
-  have alternateChecked : Continuation.Checked base program.module [num64] [[num32]] [num32] [] alternateArm :=
+  have alternateChecked : Continuation.Checked base program.module [num64] [[num32], [num32]] [num32] [] alternateArm :=
     .get (type := num64) (stack := []) rfl (.call (site := alternate) (saved := []) rfl rfl .nil)
-  have innerTailChecked : Continuation.Checked base program.module [num64] [[num32]] [num32] [num64, num64, num32, num64] innerTail :=
+  have innerTailChecked : Continuation.Checked base program.module [num64] [[num32], [num32]] [num32] [num64, num64, num32, num64] innerTail :=
     .call (site := innerJoin) (saved := []) rfl rfl .nil
-  have branch : Continuation.Checked base program.module [num64] [[num32]] [num32]
+  have branch : Continuation.Checked base program.module [num64] [[num32], [num32]] [num32]
       [num64, num32, num64, num32] innerBranch :=
     .if_ (type := innerType) (saved := [num64]) rfl innerChecked otherInnerChecked innerTailChecked
-  have outerChecked : Continuation.Checked base program.module [num64] [[num32]] [num32] [] outerArm :=
+  have outerChecked : Continuation.Checked base program.module [num64] [[num32], [num32]] [num32] [] outerArm :=
     .get (type := num64) (stack := []) rfl (.get (type := num64) (stack := [num64]) rfl
       (.call (site := prepare) (saved := [num64]) rfl rfl branch))
-  have joinChecked : Continuation.Checked base program.module [num64] [] [num32] [num64, num32] joinTail :=
+  have joinChecked : Continuation.Checked base program.module [num64] [[num32]] [num32] [num64, num32] joinTail :=
     .call (site := outerJoin) (saved := []) rfl rfl .nil
-  exact ⟨rfl, rfl, rfl, rfl, rfl, .if_ (type := .scalar num32) (saved := [num64]) rfl outerChecked alternateChecked joinChecked, rfl⟩
+  exact ⟨rfl, rfl, rfl, rfl, rfl, .if_ (type := .scalar num32) (saved := [num64]) rfl outerChecked alternateChecked joinChecked, rfl, rfl⟩
 
 private def guardValue (thenArm : Bool) : BitVec 32 := if thenArm then 1 else 0
 private def loopBytes (thenArm : Bool) : ByteArray := bytes (if thenArm then 1 else 2)
@@ -151,7 +151,7 @@ private def wrap (q : Continuation.State Nat) : State Nat := ⟨q.bytes, .contin
 private abbrev BodyPath (q : Continuation.State Nat) := Path (wrap q)
 
 private theorem BodyPath.step {a b : Continuation.State Nat} (path : BodyPath a)
-    (move : Continuation.Edge memory host (program.active 7) a b) : BodyPath b :=
+    (move : Continuation.Edge memory host (program.active 7) program.functionResults a b) : BodyPath b :=
   path.tail (.continuation move)
 
 private theorem firstInvoke : Path ⟨bytes 0, .producerInvoke 7⟩ :=
@@ -297,7 +297,7 @@ example : Steps host launch ⟨memory.store (bytes 5), caller, [.trap]⟩ := by
   exact (call_run_iff (arg := 7) checked contract).mpr ⟨_, (erased.step .labelTrap).step .frameDone, rfl, rfl⟩
 
 -- An in-range type index must resolve to the full declared signature.
-example : ¬ Continuation.Checked base program.module [num64] [[num32]] [num32] [num64, num32, num64, num32]
+example : ¬ Continuation.Checked base program.module [num64] [[num32], [num32]] [num32] [num64, num32, num64, num32]
     (.if_ (.indexed ⟨0⟩ armType) innerArm otherInnerArm :: innerTail) := by
   intro checked
   generalize ([num64, num32, num64, num32] : List NumType) = stack at checked
@@ -307,7 +307,7 @@ example : ¬ Continuation.Checked base program.module [num64] [[num32]] [num32] 
     exact (by decide : signature ≠ armType) (Option.some.inj resolved)
 
 -- The complete parameter suffix is checked before selecting an arm.
-example : ¬ Continuation.Checked base program.module [num64] [[num32]] [num32] [num64, num32] innerBranch := by
+example : ¬ Continuation.Checked base program.module [num64] [[num32], [num32]] [num32] [num64, num32] innerBranch := by
   intro checked
   generalize supplied : ([num64, num32] : List NumType) = stack at checked
   cases checked with
@@ -315,7 +315,7 @@ example : ¬ Continuation.Checked base program.module [num64] [[num32]] [num32] 
     have tooShort := congrArg List.length supplied
     simp [innerType, armType, Continuation.IfType.signature] at tooShort
 
-example : ¬ Continuation.Checked base program.module [num64] [[num32]] [num32] [num64, num32, num32] innerBranch := by
+example : ¬ Continuation.Checked base program.module [num64] [[num32], [num32]] [num32] [num64, num32, num32] innerBranch := by
   intro checked
   generalize supplied : ([num64, num32, num32] : List NumType) = stack at checked
   cases checked with
@@ -327,7 +327,7 @@ example : ¬ Continuation.Checked base program.module [num64] [[num32]] [num32] 
 
 -- The untaken arm would leave the input order in place, which differs from
 -- the declared result order.
-example : ¬ Continuation.Checked base program.module [num64] [[num32]] [num32] [num64, num32, num64, num32]
+example : ¬ Continuation.Checked base program.module [num64] [[num32], [num32]] [num32] [num64, num32, num64, num32]
     (.if_ innerType innerArm [] :: innerTail) := by
   intro checked
   generalize ([num64, num32, num64, num32] : List NumType) = stack at checked

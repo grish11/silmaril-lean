@@ -225,7 +225,7 @@ def check_closure_bodies():
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "Example.py"
         destination = Path(tmp) / "Example.lean"
-        emit(source, destination, """
+        fixtures = [("""
 def outer(seed):
     offset = 2
     def middle(increment):
@@ -235,9 +235,7 @@ def outer(seed):
             return seed + offset
         return inner(increment)
     return middle(3)
-""")
-        check_lean(destination, """
-open Silmaril.Languages.Python.Compile.Closure.Body
+""", """
 
 private def captureSlots {parent child : Silmaril.Languages.Python.Core.Closure.Layout}
     (operands : Fin child.captures → Silmaril.Languages.Python.Core.Closure.CaptureSlot parent) :
@@ -269,8 +267,8 @@ private def shape : Bool :=
   | .error _ => false
 
 #guard shape
-""", extra_imports=imports)
-        emit(source, destination, """
+""")]
+        fixtures.append(("""
 def outer():
     def first():
         def inside():
@@ -279,22 +277,16 @@ def outer():
     def second():
         return 2
     return first() + second()
-""")
-        check_lean(destination, """
-open Silmaril.Languages.Python.Compile.Closure.Body
+""", """
 #guard ((compile pythonSource).toOption.map Compiled.paths) ==
   some [[0], [0, 0], [0, 0, 0], [0, 1]]
-""", extra_imports=imports)
-        emit(source, destination, "def outer(value=1): return value\n")
-        check_lean(destination, """
-open Silmaril.Languages.Python.Compile.Closure.Body
+"""))
+        fixtures.append(("def outer(value=1): return value\n", """
 #guard (match compile pythonSource with | .error .parameterProfile => true | _ => false)
-""", extra_imports=imports)
-        emit(source, destination, "def outer(fn): return fn(keyword=1)\n")
-        check_lean(destination, """
-open Silmaril.Languages.Python.Compile.Closure.Body
+"""))
+        fixtures.append(("def outer(fn): return fn(keyword=1)\n", """
 #guard (match compile pythonSource with | .error .argumentProfile => true | _ => false)
-""", extra_imports=imports)
+"""))
         generator_cases = (
             ("def outer():\n    if False: yield 1\n    return 2\n", [0]),
             ("def outer():\n    def child():\n        yield 1\n    return 2\n", [0, 0]),
@@ -302,18 +294,16 @@ open Silmaril.Languages.Python.Compile.Closure.Body
             ("def outer():\n    def child(value=(yield 1)): return value\n    return 2\n", [0]),
         )
         for text, rejected_path in generator_cases:
-            emit(source, destination, text)
-            check_lean(destination, f"""
-open Silmaril.Languages.Python.Compile.Closure.Body
+            fixtures.append((text, f"""
 #guard (match compile pythonSource with
   | .error (.unsupportedGenerator path) => path == {rejected_path}
   | _ => false)
-""", extra_imports=imports)
-        emit(source, destination, "def outer(value=0): yield value\n")
-        check_lean(destination, """
-open Silmaril.Languages.Python.Compile.Closure.Body
+"""))
+        fixtures.append(("def outer(value=0): yield value\n", """
 #guard (match compile pythonSource with | .error .parameterProfile => true | _ => false)
-""", extra_imports=imports)
+"""))
+        check_lean_batch(source, destination, fixtures, f"open {body_header.removesuffix('.Defs')}\n",
+                         extra_imports=imports)
 
 
 if __name__ == "__main__":

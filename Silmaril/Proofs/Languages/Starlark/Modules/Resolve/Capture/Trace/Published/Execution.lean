@@ -18,13 +18,14 @@ namespace Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Publi
 open Silmaril.Languages.Starlark
 open Silmaril.Languages.Starlark.Modules (globalSlot Catalog enter finish Published TopCode)
 open Silmaril.Languages.Starlark.Modules.Resolve
+open Silmaril.Languages.Starlark.Modules.Resolve.Assignment (LexicalBlock)
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence (PreservesDeclarations)
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive
   (lexical_defaults default_layout)
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call
-  (ClosureAt BodyEntry)
+  (ClosureAt BodyEntry RunsActual BindingRule PackRule)
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Suite.Provenance
   (runs_activated_for entry_guard return_link invoked_value_at)
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Nested.Sequence.Recursive.Call.Named (RunsAt runs_at)
@@ -73,7 +74,7 @@ theorem enter_callable {callee : Callable}
     runs_activated_for callee.site suite checked table _ guarded caller defining captures installed live assigned
   exact ⟨out, ⟨ran, resultRecord⟩, exec, Body.returned_keeps caller callee.site.declaration captures assigned out kept⟩
 
-private theorem returned_linked {callee : Callable} {program : Program} (known : callee.Linked program) :
+theorem returned_linked {callee : Callable} {program : Program} (known : callee.Linked program) :
     ∀ next, callee.returned.map Callable.nested = some next → next.Linked program := by
   intro next found
   cases result : callee.returned with
@@ -84,11 +85,10 @@ private theorem returned_linked {callee : Callable} {program : Program} (known :
     obtain ⟨_, _, _, _, _, table, suite⟩ := known
     exact return_link suite table (fun _ _ no => nomatch no) entry result
 
-private theorem returned_record {globals : List String} {callee : Callable} {call : Invocation globals}
+theorem returned_record {callee : Callable} {block : LexicalBlock} {name : String} {slot : Binding}
+    {Bound : Type} {actuals : State → Outcome Actual → Prop} {binds : BindingRule Bound} {packs : PackRule Bound}
     {state reached : State} {value : Value}
-    (ran : RunsAt callee.site callee.BodyRuns
-      (moduleLex globals) callee.id call.callee (globalSlot call.callee)
-      call.arguments call.codes call.keywords.source call.keywords.codes call.star call.mapping state (.ok value reached)) :
+    (ran : RunsActual callee.site callee.BodyRuns block callee.id name slot actuals binds packs state (.ok value reached)) :
     ∀ next, callee.returned.map Callable.nested = some next → ∃ address defining, value = .function address ∧
       Nonempty (ClosureAt next.site next.id defining reached address) := by
   intro next found
@@ -260,7 +260,7 @@ private theorem run_plan {globals : List String} {env : Environment} {commands :
       have arrived := keep_frame frame kept
       have nextLive := write_live arrived (keep_live frame live (known_globals ready) kept)
         (known_globals ready) call.destinationGlobal value (callee.returned.map Callable.nested)
-        (returned_record (call := call) ran)
+        (returned_record ran)
       have nextReady := ready_update ready call.destinationGlobal (callee.returned.map Callable.nested) (returned_linked known)
       have saved := Body.keeps_trans (kept_below (floor := floor) kept)
         (write_keeps arrived (fresh_after fresh kept.1) call.destinationGlobal value)

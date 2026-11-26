@@ -2,6 +2,7 @@ module
 
 import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Reindex.Thms
 import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Thms
 
 namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table
 
@@ -582,5 +583,58 @@ private def wideSpin : WordTuple 4 := .cons (0 : Word) (bank 1 99 1)
 example : wideTargets.1.divOracle 0 (words wideSpin) mem :=
   (Width.rtl_divOracle_iff wideAccepted wideSpin mem).mpr
     ((show widenCaptures.pull wideSpin = spin by cbv).symm ▸ spinAbsent)
+
+private def dispatchSource : Width.Dispatch.Source 3 3 Entry Header :=
+  ⟨source, .cons (.output (0 : Fin 2) .head)
+    (.cons (.arg (old 2)) (.cons (.arg (old 1)) .nil)), .arg (prefixPort (capture 2))⟩
+
+private def dispatchProg := Width.Dispatch.lowerRTL (Width.Dispatch.mapCaptures removeCapture dispatchSource)
+private def otherTarget : Checked.Phi.Targets :=
+  (Table.lowerChecked (dispatchSource.row false)).get (by cbv)
+
+private theorem dispatchAccepted : Width.Dispatch.lowerChecked removeCapture dispatchSource = some dispatchProg :=
+  Width.Dispatch.lowerChecked_of_accepted removeCapture dispatchSource
+    (left := targets) (right := otherTarget) accepted (by cbv)
+
+example : (dispatchProg.func? 0).map (·.sig.params) = some 2 :=
+  (Width.Dispatch.lowerChecked_sound removeCapture dispatchSource dispatchAccepted).2.2.2
+
+example : (dispatchProg.block? 0 3).map (·.term.args) =
+    some [(1, [.node 0, .arg 3, .arg 4]), (1, [.node 0, .arg 4, .arg 3])] := by cbv
+
+private def leftInput := narrowInput
+private def rightInput := pair 0 (-1)
+
+example : dispatchSource.step (removeCapture.pull leftInput) (bank 0 2 5) =
+    .inr (true, bank 2 2 5) := by cbv
+example : dispatchSource.step (removeCapture.pull rightInput) (bank 0 (-1) 0) =
+    .inr (false, bank (-1) 0 (-1)) := by cbv
+
+-- Observe the actual register bank after the first selected dispatcher transfer.
+private def firstFeedback (input : WordTuple 2) : Option (Nat × List Word × Memory) := do
+  let state ← runningState? (dispatchProg.runMain 7 0 (words input) mem)
+  let values ← state.frame.readAll (paramRegs 2 3)
+  pure (state.point.label, values, state.mem)
+
+example : firstFeedback leftInput = some (1, [2, 2, 5], mem) := by cbv
+example : firstFeedback rightInput = some (1, [-1, 0, -1], mem) := by cbv
+example : dispatchProg.runMain 15 0 (words leftInput) mem = .returned [6] mem := by cbv
+example : dispatchProg.runMain 11 0 (words rightInput) mem = .returned [-1] mem := by cbv
+example : dispatchProg.runMain 15 0 (words (removeCapture.pull leftInput)) mem = .stuck := by cbv
+
+private theorem rightCounted : dispatchSource.ReturnsAfter (removeCapture.pull rightInput) 1
+    (source.initial model (removeCapture.pull rightInput)) (-1) :=
+  .feedback (side := false) (next := bank (-1) 0 (-1)) (by cbv) (.exit (by cbv))
+
+example : dispatchProg.oracle 0 (words rightInput) mem [-1] mem :=
+  (Width.Dispatch.rtl_return_iff removeCapture dispatchSource dispatchAccepted rightInput mem mem [-1]).mpr
+    ⟨1, -1, rightCounted, rfl, rfl⟩
+
+example : (dispatchProg.runMain 10 0 (words rightInput) mem).returnedValues? = none := by cbv
+
+-- The alternate projection must pass the same ordinary source checker.
+example : Width.Dispatch.lowerChecked removeCapture { dispatchSource with
+    other := .cons (.output (0 : Fin 2) .head)
+      (.cons (.output (0 : Fin 2) .head) (.cons (.arg (old 1)) .nil)) } = none := by cbv
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table

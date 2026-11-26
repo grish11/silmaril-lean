@@ -7,6 +7,8 @@ namespace Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.Regression
 open Silmaril.SSA.SeaOfNodes
 open Diamond (Ty ValueSort)
 open GVN.Cyclic.Activation (Inputs)
+open GVN.Cyclic.FixedPoint (normalize)
+open GVN.Cyclic.Pass (proposals tryProposal?)
 open GVN.Cyclic.Builder (build?)
 open GVN.Cyclic.Builder.Preheader
 open Pure.SubZero (model word wordPort)
@@ -72,5 +74,19 @@ theorem actual_rewrite_deletes_one_binding_and_keeps_packet_and_return :
         .inr (.cons ⟨false⟩ (.cons (16 : BitVec 64) (.cons (16 : BitVec 64) .nil))) ∧
       loop.evalBackedges model 0 input = none ∧ loop.evalBackedges model 1 input = some (34 : BitVec 64) :=
   ⟨rfl, rfl, rfl, rfl⟩
+
+/-- Enumerate the real pass proposals and count checked deletions before
+and after native restoration. The first number includes refused proposals. -/
+private def proposalScan (sameFeedback : Bool) : Option (Nat × Nat × Nat) := do
+  let loop := fixture true sameFeedback
+  let built ← build? (prepare loop)
+  let candidates := proposals built.view
+  let partition := normalize built.graph
+  let deleted := candidates.filterMap (tryProposal? built.view partition)
+  pure (candidates.length, deleted.length, (deleted.filterMap (restore? loop)).length)
+
+theorem enumeration_restores_every_accepted_deletion :
+    proposalScan true = some (16, 2, 2) ∧ proposalScan false = some (16, 0, 0) :=
+  ⟨rfl, rfl⟩
 
 end Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.Regression

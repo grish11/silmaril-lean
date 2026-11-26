@@ -12,7 +12,7 @@ abbrev Address := Nat
 /-- Universal callables supported by the resolved shared-store profile. -/
 inductive Builtin where
   | bool | len | type | list | tuple | range | abs | any | all
-  deriving DecidableEq, BEq, Repr
+  deriving DecidableEq, BEq, ReflBEq, LawfulBEq, Repr
 
 def Builtin.name : Builtin → String
   | .bool => "bool"
@@ -67,12 +67,20 @@ def Value.address? : Value → Option Address
   | .list address | .tuple address | .dict address | .function address => some address
   | .scalar _ | .builtin _ | .string _ | .range _ => none
 
-/-- Scalar values admitted as dictionary key parts. -/
+/-- Canonical scalar dictionary codes. Integers and floats share the numeric tag. -/
 inductive ScalarKey where
   | none
   | bool (value : Bool)
-  | int (value : Int)
-  deriving DecidableEq, BEq, Repr
+  | number (value : Binary64.Number)
+  deriving DecidableEq, BEq, ReflBEq, LawfulBEq, Repr
+
+abbrev ScalarKey.int (value : Int) : ScalarKey := .number (.ofInt value)
+
+def ScalarKey.ofValue : Starlark.Value → ScalarKey
+  | .none => .none
+  | .bool value => .bool value
+  | .int value => .int value
+  | .float bits => .number (Binary64.decode bits)
 
 /-- Canonical key encoding for tagged scalars and well-bracketed tuples. -/
 inductive KeyPart where
@@ -82,7 +90,7 @@ inductive KeyPart where
   | function (address : Address)
   | builtin (id : Builtin)
   | string (text : String)
-  deriving DecidableEq, BEq, Repr
+  deriving DecidableEq, BEq, ReflBEq, LawfulBEq, Repr
 
 abbrev Key := List KeyPart
 
@@ -269,16 +277,11 @@ def dictEntries (address : Address) : Meaning (List Entry) :=
     | _ => none
 
 /-- Mutable container keys are disallowed, including when frozen. A tuple's
-cached key is computed from its fields at construction. Float keys require
-numeric equality across float and integer values and are outside this profile. -/
+cached key is computed from its fields at construction. Numeric leaves use
+the same exact observation as scalar comparison. -/
 def State.keyOf (state : State) (value : Value) : Except Error Key :=
   match value with
-  | .scalar scalar =>
-    match scalar with
-    | .none => .ok [.scalar .none]
-    | .bool value => .ok [.scalar (.bool value)]
-    | .int value => .ok [.scalar (.int value)]
-    | .float _ => .error (.unhashableKey (.scalar scalar))
+  | .scalar scalar => .ok [.scalar (ScalarKey.ofValue scalar)]
   | .tuple address =>
     match state.heap[address]? with
     | none => .error (.danglingAddress address)

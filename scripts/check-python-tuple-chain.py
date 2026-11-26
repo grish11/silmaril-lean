@@ -23,6 +23,11 @@ CONSTRUCTORS_SHA = "f4c4456ed6ffc8dc95d34f46a18636a57196236e1ff7bafc5cc4b851532a
 IMMUTABLE_ALIAS_PIN = "tests/python/programs/original/lambda-py/python-reference/scope/immutable-alias.py"
 IMMUTABLE_ALIAS_SHA = "e5c11007f121cac93bfb3cbb9aa9ec74b48ac1e617400434a42b4668b7b9f7ef"
 
+TUPLE_TRUTH_PIN = "tests/python/programs/original/lambda-py/python-reference/tuple/tuple-truth.py"
+TUPLE_TRUTH_SHA = "b2cadc65b6d30d9998a4b5ae435d2452705ae82bd74dd3d98dbfb5275f0e8e44"
+HARNESS_PIN = "tests/python/evaluation/programs.py"
+HARNESS_SHA = "55091465bd9ff2b6f784d31b48798f50dfffb98b712e22c96fe4092b6e4eb37f"
+
 LIVE_COMPARISON_PIN = "tests/python/programs/original/k-python/programs/testtuples11.py"
 LIVE_COMPARISON_SHA = "b1e88db0dfe2d8470404900de6cac22eb9067b7042ad2a1af0b941a9e3cd7aab"
 
@@ -90,6 +95,13 @@ private def ordinaryBindings (source : Source.Module)
       (residual.globals name).map Compile.ModuleEntry.Functions.Run.Seeded.seededValue == value) &&
     residual.lists == lists && residual.heap.next == 1 &&
     (residual.heap.contents 0).map Compile.ModuleEntry.Functions.Run.Seeded.seededValue == some (.int 23)
+
+private def tupleTruthArguments (source : Source.Module) (space : Namespace) : Option (List Value) := do
+  let compiled ← (Compile.ModuleEntry.Functions.Run.compile source).toOption
+  let [.call .discard "___assertTrue" [first], .nestedCall .discard "___assertTrue" [.scalar second]] :=
+    compiled.instructions | none
+  [first, second].mapM fun operand =>
+    ((Compile.ModuleEntry.Functions.Run.Seeded.lowerCallOperand operand).eval space #v[]).toOption
 
 private def ordinaryTupleLists (source : Source.Module) :
     Option (Compile.ModuleEntry.Functions.Run.Completion × Array (List Core.Module.Value) × Option Value) := do
@@ -965,6 +977,86 @@ def tuple_text_controls(source_path, lean_path):
             "canonical_empty": True, "ordered_errors_and_receipts": True}
 
 
+def replay_tuple_truth(checkout, source_path, lean_path):
+    source = SUITE["pinned_source"](checkout, TUPLE_TRUTH_PIN, TUPLE_TRUTH_SHA)
+    raw = (checkout / TUPLE_TRUTH_PIN).read_bytes()
+    assert raw == source.encode("utf-8")
+    harness = SUITE["pinned_source"](checkout, HARNESS_PIN, HARNESS_SHA)
+    preamble, = (ast.literal_eval(stmt.value) for stmt in ast.parse(harness).body
+                 if isinstance(stmt, ast.Assign) and any(
+                     isinstance(target, ast.Name) and target.id == "LAMBDA_PY_PREAMBLE"
+                     for target in stmt.targets))
+    helper_namespace = {}
+    exec(compile(preamble, HARNESS_PIN, "exec", dont_inherit=True, optimize=0), helper_namespace)
+    stock_helper = helper_namespace["___assertTrue"]
+    missing = "NameError:___assertTrue"
+    assert execute(raw, {}, expected={}) == missing
+    failed = '[("___assertTrue", .error (.raised (.runtime (.nameError "___assertTrue"))))]'
+    receipts = '(List.replicate 2 ("___assertTrue", .ok .none))'
+    guards = ['#guard ordinaryBindings pythonSource (.raised (.nameError "___assertTrue")) []']
+    for profile in ("empty", "legacy_builtin", "legacy_preamble"):
+        assert SUITE["cpython"](raw, profile, expected_globals={}) == [missing, "absent", "absent"]
+        space = f'(initial {json.dumps(profile)})'
+        guards.append(outcome(space, missing, f"{space}.moduleGlobals", failed))
+    for placement in ("builtin", "preamble"):
+        trace = []
+
+        def observe(value):
+            assert stock_helper(value) is None
+            trace.append((type(value), value))
+
+        helper = {"___assertTrue": observe}
+        fallback, initial = (helper, {}) if placement == "builtin" else ({}, helper)
+        assert execute(raw, fallback, initial, initial) == "normal"
+        assert trace == [(bool, True), (tuple, (42,))]
+        space = f"(legacyTupleIdentitySeed .{placement})"
+        guards.extend((
+            f"#guard tupleTruthArguments pythonSource {space} == some [.bool true, .returnedTuple [.int 42]]",
+            outcome(space, "normal", f"{space}.moduleGlobals", receipts),
+        ))
+    check(source, source_path, lean_path, *guards)
+    return {"sha256": TUPLE_TRUTH_SHA, "arguments": [True, [42]], "receipts": 2,
+            "fixed_profiles": missing, "stock_helper_placements": "normal"}
+
+
+def tuple_truth_controls(source_path, lean_path):
+    seed = "(legacyTupleIdentitySeed .builtin)"
+    python_seed = {"___assertTrue": assert_true}
+    fixtures = []
+
+    source = "keep = 7\n___assertTrue((0, False, None))\n___assertTrue(())\ntail = 9\n"
+    assert execute(source, python_seed, expected={"keep": 7}) == "AssertionError:tuple:()"
+    failure = '.error (.raised (.assertionError .emptyTuple))'
+    receipts = f'[("___assertTrue", .ok .none), ("___assertTrue", {failure})]'
+    fixtures.append((source, outcome(seed, "AssertionError:tuple:()", '[("keep", .int 7)]', receipts)))
+
+    source = "___assertTrue(not (42,))\n"
+    assert execute(source, python_seed, expected={}) == "AssertionError:bool:False"
+    receipts = '[("___assertTrue", .error (.raised (.assertionError (.boolean false))))]'
+    fixtures.append((source, outcome(seed, "AssertionError:bool:False", "[]", receipts)))
+
+    source = "item = 0\nt = (item,)\nsaved = ___assertTrue\n___assertTrue = None\nsaved(t)\n"
+    assert execute(source, python_seed, expected={"item": 0, "t": (0,), "saved": assert_true,
+                                                  "___assertTrue": None}) == "normal"
+    bindings = ('[("___assertTrue", .none), ("saved", .helper .assertTrue), '
+                '("t", .tupleObject ⟨some 1, [.int 0]⟩), ("item", .int 0)]')
+    fixtures.append((source, outcome(seed, "normal", bindings, '[("saved", .ok .none)]',
+                                     allocated="[.returnedTuple [.int 0]]")))
+
+    source = "___assertTrue = 0\n___assertTrue((missing,))\ntail = 9\n"
+    assert execute(source, python_seed, expected={"___assertTrue": 0}) == "NameError:missing"
+    fixtures.append((source, outcome(seed, "NameError:missing", '[("___assertTrue", .int 0)]')))
+
+    source = "___assertTrue = 0\n___assertTrue((0,))\ntail = 9\n"
+    assert execute(source, python_seed, expected={"___assertTrue": 0}) == "TypeError"
+    receipts = '[("___assertTrue", .error (.raised (.runtime .notCallable)))]'
+    fixtures.append((source, outcome(seed, "TypeError", '[("___assertTrue", .int 0)]', receipts)))
+
+    INTAKE["check_lean_batch"](source_path, lean_path, fixtures, LEAN, extra_imports=SUITE["IMPORTS"])
+    return {"fixtures": len(fixtures), "tuple_and_boolean_payloads": True, "tracked_tuple": True,
+            "live_helper_and_error_order": True}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream", type=Path, required=True)
@@ -983,6 +1075,8 @@ if __name__ == "__main__":
                     "live_comparison_pin": replay_live_tuple_comparison(args.upstream, source, lean),
                     "live_comparisons": live_comparison_controls(source, lean),
                     "tuple_identity": tuple_identity_controls(source, lean),
+                    "tuple_truth_pin": replay_tuple_truth(args.upstream, source, lean),
+                    "tuple_truth_controls": tuple_truth_controls(source, lean),
                     "empty_list_tuple": tuple_empty_list_controls(source, lean),
                     "flat_list_tuple": tuple_flat_list_controls(source, lean),
                     "text_tuple": tuple_text_controls(source, lean)}

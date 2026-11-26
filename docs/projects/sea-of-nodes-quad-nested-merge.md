@@ -726,6 +726,62 @@ The near miss sends the outer false route into an exclusive inner
 prefix and is refused.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/Numbered/Regression.lean)
 
+### Compare outer reconvergence in typed CF and numbered θ
+
+`Shared.Outer.MLIR.CF.lower` uses the existing typed CF compiler on the
+original checked table. `outer_arrival` gives the actual successor frame
+from the selected predecessor block. Both outer predecessors target the
+first original tail block with the full typed bank in register order.
+`outer_arrival_sites_distinct` distinguishes the original predecessor
+labels. CF frames carry the destination and its operands. The originating
+block and outgoing slot are available through `Program.outerEdgeOccurrence`.
+`from_header_eq_tail` connects these packets to execution from the header.
+[CF laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Thms.lean)
+
+`Comparison.outer_arrival` matches the frame against the actual outer γ
+output. `Comparison.latch_successor_at_activation` reads the numbered
+activation's control port and carried data to recover the CF feedback
+frame or typed exit frame.
+`cf_returns_iff` and `cf_finishes_iff` relate finite CF results to numbered
+returns and coloured completions with their own witnesses.
+`cf_noFiniteReturn_iff` and `cf_noCompletion_iff` quantify over all finite
+bounds or completions. CF uses one more visit than the source runner for
+its synthetic return block, θ counts activations, and coloured completion
+uses a finite firing sequence. The laws cover the admitted pure outer
+profile with full banks.
+[Comparison API](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Comparison/Thms.lean)
+
+Build the two imports with `lake build --wfail`, prefixing each module
+with `+`. Paste into `QuadNestedOuterCF.lean` and run
+`lake env lean -DautoImplicit=false -DwarningAsError=true QuadNestedOuterCF.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Comparison.Thms
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.MLIR.CF.Example
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.Outer.Numbered.Example
+  (runSource runNumbered)
+
+#eval arrivals
+#eval successors
+#eval (runSource 25, runCF 26, runNumbered 3)
+#eval (runSource 24, runCF 25, runNumbered 2)
+```
+
+The arrivals report `(predecessor, slot, target, result register)` as
+`(6, 0, 10, 15)`, `(6, 0, 10, 73)` and `(7, 0, 10, 150)` for inner true,
+inner false and outer false. The latch returns to header `1` twice,
+passing `(counter, result register)` pairs `(2, 17)` and `(1, 75)`, then
+exits with `152`. All three runners return `152` at `25/26/3` and exhaust
+at `24/25/2`. The regression also derives finite coloured completion
+from the actual CF result.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Outer/MLIR/CF/Regression.lean)
+
 ## Complete the emitted loop by coloured firing
 
 The `Backends/Petri/Thms` import adds completion laws for the numbered

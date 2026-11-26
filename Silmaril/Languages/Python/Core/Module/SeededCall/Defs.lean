@@ -34,6 +34,7 @@ inductive AssertionArgument where
   | booleanPair (left right : Bool)
   | textPair (left right : Core.Text)
   | tuplePair (left right : List Core.Module.TupleDispatch.Element)
+  | emptyTuple
   deriving DecidableEq, Repr
 
 inductive Raised where
@@ -249,6 +250,7 @@ def InstanceProbe.result : InstanceProbe → Bool
 calling an exception class would construct an object outside this profile. -/
 inductive Request (arity : Nat) where
   | assertBoolean (value : Bool)
+  | assertTuple (nonempty : Bool)
   | compare (left right : Int)
   | compareNumeric (left right : NumericOperand)
   | compareText (left right : Core.Text)
@@ -271,6 +273,8 @@ inductive Request (arity : Nat) where
 def Request.decode (callee : Value) (arguments : List Value) : Request arguments.length :=
   match callee, arguments with
   | .helper .assertTrue, [.bool result] => .assertBoolean result
+  | .helper .assertTrue, [.returnedTuple items]
+  | .helper .assertTrue, [.tupleObject ⟨_, items⟩] => .assertTuple (!items.isEmpty)
   | .helper .assertEqual, [.int left, .int right] => .compare left right
   | .helper .assertEqual, [.float64 left, .float64 right] => .compareNumeric (.float64 left) (.float64 right)
   | .helper .assertEqual, [.float64 left, .int right] => .compareNumeric (.float64 left) (.integer right)
@@ -313,6 +317,8 @@ def invoke (callee : Value) (arguments : List Value) : Result :=
   match Request.decode callee arguments with
   | .assertBoolean true => .ok .none
   | .assertBoolean false => .error (.raised (.assertionError (.boolean false)))
+  | .assertTuple true => .ok .none
+  | .assertTuple false => .error (.raised (.assertionError .emptyTuple))
   | .compare left right =>
     if left = right then .ok .none else .error (.raised (.assertionError (.integerPair left right)))
   | .compareNumeric left right =>
@@ -344,6 +350,9 @@ inductive Executes : {arity : Nat} → Request arity → Result → Prop where
   | asserted {arity : Nat} : Executes (arity := arity) (.assertBoolean true) (.ok .none)
   | assertionFailed {arity : Nat} :
       Executes (arity := arity) (.assertBoolean false) (.error (.raised (.assertionError (.boolean false))))
+  | tupleAsserted {arity : Nat} : Executes (arity := arity) (.assertTuple true) (.ok .none)
+  | tupleAssertionFailed {arity : Nat} :
+      Executes (arity := arity) (.assertTuple false) (.error (.raised (.assertionError .emptyTuple)))
   | equal {arity : Nat} (left right : Int) (same : left = right) :
       Executes (arity := arity) (.compare left right) (.ok .none)
   | unequal {arity : Nat} (left right : Int) (different : left ≠ right) :

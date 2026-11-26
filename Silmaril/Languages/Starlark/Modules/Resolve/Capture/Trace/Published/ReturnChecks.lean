@@ -215,10 +215,12 @@ private inductive ImportCase where
   | ok | bodyError | missing
 
 private def importName : ImportCase → String
-  | .ok | .bodyError => "escaped"
+  | .ok | .bodyError => "factory"
   | .missing => "absent"
 
-private def importsMapping (test : ImportCase) : Mapping (block "loaded" "result" "late") :=
+private def importerGlobals : List String := ["starter", "made", "held", "marker", "result", "late"]
+
+private def importsMapping (test : ImportCase) : Mapping (block "loaded" importerGlobals) :=
   match test with
   | .bodyError =>
     ⟨[(.string "key", starlark%[8])], [(.atom (.string "key"), int 8)], [],
@@ -227,14 +229,24 @@ private def importsMapping (test : ImportCase) : Mapping (block "loaded" "result
     ⟨[(.string "extra", starlark%[9])], [(.atom (.string "extra"), int 9)], [],
       .entry (.string "extra") (.plain (.int 9)) .empty⟩
 
-private def consumer (test : ImportCase) : Consumer where
-  label := "producer.star"
-  name := importName test
-  alias := "loaded"
-  destination := "result"
-  tail := "late"
+private def factoryCall : Imports.Invocation "loaded" importerGlobals where
+  callee := "starter"
+  declared := .inr (by decide)
   legal := by decide
-  publicName := by cases test <;> simp [importName, Modules.isPublic, String.startsWith_string_eq_false_iff]
+  destination := "made"
+  destinationGlobal := by decide
+  arguments := [starlark%[[41]]]
+  codes := [boxed 41]
+  reads := []
+  operands := .cons (.list (.int 41)) .nil
+  keywords := .empty
+
+private def childCall (test : ImportCase) : Imports.Invocation "loaded" importerGlobals where
+  callee := "held"
+  declared := .inr (by decide)
+  legal := by decide
+  destination := "result"
+  destinationGlobal := by decide
   arguments := []
   codes := []
   reads := []
@@ -243,15 +255,32 @@ private def consumer (test : ImportCase) : Consumer where
     .cons (.list (.int 71)) .nil, by decide⟩
   star := some (.list (.cons (.int 17) (.cons (.int 18) .nil)))
   mapping := some (importsMapping test)
-  rhs := starlark%[[199]]
-  rhsCode := boxed 199
-  rhsReads := []
-  suffix := .list (.int 199)
+
+private def consumer (test : ImportCase) : Consumer where
+  label := "prodé.star"
+  name := importName test
+  alias := "loaded"
+  publicName := by cases test <;> simp [importName, Modules.isPublic, String.startsWith_string_eq_false_iff]
+  globals := importerGlobals
+  body :=
+    [.assign "starter" (by decide)
+        (.read (by decide) (.owned (by decide)) (.owned (by decide))) (.name "loaded"),
+      .invoke factoryCall,
+      .assign "held" (by decide)
+        (.read (by decide) (.global (by decide) (by decide) (by decide))
+          (.module (by decide) (by decide) (by decide))) (.name "made"),
+      .assign "marker" (by decide) (.list (.int 88)) .forget,
+      .invoke (childCall test),
+      .assign "late" (by decide) (.list (.int 199)) .forget]
+  declared := rfl
+  separate := by decide
 
 private theorem covered (test : ImportCase) : Covered exports (commands false) (consumer test) := by
+  have ready : ReadyFor (initial "loaded" root.callable) (consumer test).body := by
+    exact ⟨root.callable, rfl, ⟨.nested returned, rfl, trivial⟩⟩
   cases test
-  · exact .inl rfl
-  · exact .inl rfl
+  · exact .inl ⟨root.callable, rfl, ready⟩
+  · exact .inl ⟨root.callable, rfl, ready⟩
   · exact .inr (by decide)
 
 example (test : ImportCase) {producer importer : ResolvedModule}
@@ -286,33 +315,39 @@ private def runImport (test : ImportCase) (warm : Bool) : Option (Loader.Result 
 private def imported (warm : Bool) : Bool :=
   match runImport .ok warm with
   | some (.ok published final) =>
-    match final.cache.lookup 0, published.exports.lookup "result", published.exports.lookup "late" with
-    | some producer, some (.list result), some (.list consumerLate) =>
-      match producer.exports.lookup "escaped", producer.exports.lookup "data", producer.exports.lookup "late" with
-      | some (.function escaped), some (.list original), some (.list producerLate) =>
-        match final.runtime.heap[escaped]? with
-        | some ⟨.function closure, true⟩ =>
+    match final.cache.lookup 0, published.exports.lookup "result", published.exports.lookup "late",
+      published.exports.lookup "made", published.exports.lookup "held" with
+    | some producer, some (.list result), some (.list consumerLate), some (.function made), some (.function held) =>
+      match producer.exports.lookup "factory", producer.exports.lookup "escaped", producer.exports.lookup "late" with
+      | some (.function factory), some (.function escaped), some (.list producerLate) =>
+        match final.runtime.heap[made]?, final.runtime.heap[escaped]? with
+        | some ⟨.function closure, true⟩, some ⟨.function prior, true⟩ =>
           let lists := final.runtime.heap.toList.filterMap (fun cell => match cell.contents with
             | .list [.scalar (.int n)] => some n
             | _ => none)
-          final.cache.map Prod.fst == [1, 0] && result == producerLate && result != consumerLate &&
-          published.exports.lookup "loaded" == none &&
+          final.cache.map Prod.fst == [1, 0] && made == held && made != escaped &&
+          published.exports.lookup "starter" == some (.function factory) &&
+          published.exports.lookup "loaded" == none && result == producerLate && result != consumerLate &&
           final.runtime.heap[result]? == some ⟨.list [.scalar (.int 83)], true⟩ &&
           final.runtime.heap[consumerLate]? == some ⟨.list [.scalar (.int 199)], true⟩ &&
-          closure.defaults == [(fileSlot "key", .list original)] &&
-          (match closure.captures with
-           | [localCapture, globalCapture] =>
+          (match closure.defaults with
+           | [(name, .list saved)] =>
+             name == fileSlot "key" && final.runtime.heap[saved]? == some ⟨.list [.scalar (.int 41)], true⟩
+           | _ => false) &&
+          (match closure.captures, prior.captures with
+           | [localCapture, globalCapture], [oldLocal, oldGlobal] =>
+             localCapture.address != oldLocal.address && globalCapture.address == oldGlobal.address &&
              (match final.runtime.heap[localCapture.address]? with
              | some ⟨.binding (some (.list rebound)), true⟩ =>
                final.runtime.heap[rebound]? == some ⟨.list [.scalar (.int 52)], true⟩
              | _ => false) &&
              final.runtime.heap[globalCapture.address]? == some ⟨.binding (some (.list producerLate)), false⟩
-           | _ => false) &&
+           | _, _ => false) &&
           lists.count 31 == 1 && lists.count 44 == 2 && final.runtime.iterators == [123] &&
           (final.runtime.slots (fileSlot "loaded")).isNone
-        | _ => false
+        | _, _ => false
       | _, _, _ => false
-    | _, _, _ => false
+    | _, _, _, _, _ => false
   | _ => false
 
 #guard imported false
@@ -329,11 +364,12 @@ private def failedImport (test : ImportCase) (warm : Bool) (expected : Modules.E
   | _ => false
 
 -- The producer's unreachable operand/body allocations remain in both heaps.
--- Only the body failure reaches the consumer's argument and first body allocations.
-#guard failedImport .missing false (.missingExport "producer.star" "absent") [61, 44]
-#guard failedImport .missing true (.missingExport "producer.star" "absent") [61, 44]
-#guard failedImport .bodyError false (.runtime .indexTarget) [61, 44, 71, 44]
-#guard failedImport .bodyError true (.runtime .indexTarget) [61, 44, 71, 44]
+-- The missing import skips the full suite. The second-call error retains
+-- the factory's saved value, rebinding and earlier importer assignment.
+#guard failedImport .missing false (.missingExport "prodé.star" "absent") [61, 44]
+#guard failedImport .missing true (.missingExport "prodé.star" "absent") [61, 44]
+#guard failedImport .bodyError false (.runtime .indexTarget) [61, 44, 41, 52, 88, 71, 44]
+#guard failedImport .bodyError true (.runtime .indexTarget) [61, 44, 41, 52, 88, 71, 44]
 
 
 end Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Published

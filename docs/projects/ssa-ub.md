@@ -1191,6 +1191,29 @@ terminal store. A fault and divergence still conflict if the two terminal
 queries have the same opcode and argument at that store.
 [Fixed-carrier schedule search][ssa-ub-open-guarded-schedule]
 
+`Table.checkAllInterpreters?` decides the pointwise shaped refinement of
+two original exact-readback guarded CFGs at supplied typed caller packets,
+for all total deterministic primitive interpreters and all initial states
+of the same fixed `Fin n` carrier. A failed readback returns `none`.
+The support is the union of both programs' opcode, evaluated argument and
+incoming state keys over their exhaustive typed configuration and state
+inventories. At each distinct key the checker enumerates typed successful
+replies with their final state, faults with their final state, and ordinary
+divergence. The reply packet lists must be exhaustive at each opcode. The
+script extension uses ordinary divergence off this support.
+
+For each script the two runners execute independently. The existing
+positional feedback classifier bounds a run by the length of its
+configuration–state inventory. Exhausting the bound by internal transfers
+gives an actual infinite replay and ordinary divergence. A selected ordered
+exit produces fresh top. Ordinary singletons compare by exact outcome,
+including ordered exit and final state, and every result refines target
+top. The regression exercises a state-changing cycle and a failing
+comparison whose initial evaluated arguments already differ. Enumeration
+has worst-case exponential size in the number of keys. The result applies
+to the guarded grammar at fixed callers and the supplied carrier.
+[Fixed-carrier refinement][ssa-ub-open-guarded-fixed-carrier]
+
 ## Coverage and gaps
 
 | Language | Refinement and institutions in the repository | UB construction and remaining hypotheses |
@@ -1356,5 +1379,6 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-open-guarded-search]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/Product/Search/Thms.lean
 [ssa-ub-open-guarded-replay]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/Product/Search/Replay/Thms.lean
 [ssa-ub-open-guarded-schedule]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/Product/Search/Replay/Schedule/Thms.lean
+[ssa-ub-open-guarded-fixed-carrier]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Separation/DependentRequestTree/Native/OpenOperands/Step/FixedCarrier/Thms.lean
 [ssa-ub-open-ranks]: ../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Rank/Thms.lean
 [ssa-ub-cyclic-native-checker]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Iteration/Finite/CFG/Dependent/Native/Thms.lean

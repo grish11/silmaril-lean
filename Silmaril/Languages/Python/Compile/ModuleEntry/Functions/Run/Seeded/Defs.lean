@@ -81,7 +81,7 @@ def legacyTupleSeed (placement : SeedPlacement) : Namespace :=
   let seed := legacySeed placement
   { seed with builtins := ("tuple", .builtin .tuple) :: seed.builtins }
 
-/-- Supply the exact Boolean helper in the selected harness placement. -/
+/-- Supply the stock truth assertion helper in the selected harness placement. -/
 def legacyTupleIdentitySeed (placement : SeedPlacement) : Namespace :=
   let space := legacyTupleSeed placement
   let truthHelper := ("___assertTrue", Value.helper .assertTrue)

@@ -15,7 +15,9 @@ open Paper.WithCaseBind.SelectedTerminal (Seed)
 open _root_.Silmaril.Isotope.Institution.Acyclic.Captured.Rewrite.Reply.Payload
 
 local instance comparisonHasTy : HasTy signature.Instr (Ty Empty) := signature.hasTy
-local instance comparisonInstrDecEq : DecidableEq signature.Instr
+/-- Exact opcode comparison for selected syntax and its readback. -/
+@[instance_reducible]
+def payloadInstrDecEq : DecidableEq signature.Instr
   | Op.emit a, Op.emit b =>
     if h : a = b then .isTrue (congrArg Op.emit h) else .isFalse (fun eq => h (Op.emit.inj eq))
   | Op.ask a, Op.ask b =>
@@ -23,6 +25,7 @@ local instance comparisonInstrDecEq : DecidableEq signature.Instr
   | Op.emit _, Op.ask _ => .isFalse (by intro eq; cases eq)
   | Op.ask _, Op.emit _ => .isFalse (by intro eq; cases eq)
 
+attribute [local instance] payloadInstrDecEq
 
 /-- Exact acyclic syntax. Branch arguments and discriminators include their
 original instruction, variable and binder syntax. -/

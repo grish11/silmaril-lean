@@ -4,6 +4,7 @@ public import Silmaril.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.Defs
 import Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.Seed
 import Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.Prepare
 import Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.Correctness
+import Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.Restorable
 import Silmaril.SSA.SeaOfNodes.Loop.Thms
 
 public section
@@ -73,6 +74,29 @@ theorem optimize_witness (accepted : optimize? loop = some result) :
     ∃ built : Built (prepare loop), ∃ edited, build? (prepare loop) = some built ∧
       Pass.step? built.view = some edited ∧ restore? loop edited = some result :=
   Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.optimize_witness accepted
+
+/-- Every accepted proposal emitted by the pass for a prepared native
+header can drop all temporary capture arguments. -/
+theorem proposal_restores (built : Built (prepare loop)) {proposal : Pass.Proposal (prepare loop) (sorts (prepare loop))}
+    {edited : Deletion.DeletedLoop Opcode (carried ++ inputs) carried [] out}
+    (member : proposal ∈ Pass.proposals built.view)
+    (accepted : Pass.tryProposal? built.view (FixedPoint.normalize built.graph) proposal = some edited) :
+    ∃ result, restore? loop edited = some result :=
+  Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.proposal_restores built member accepted
+
+/-- Selecting the first accepted shrinking step and checking restoration
+gives the same native result as checking restoration inside the ordered scan. -/
+theorem optimize_eq_scan (built : Built (prepare loop)) (builtEq : build? (prepare loop) = some built) :
+    optimize? loop = (Pass.proposals built.view).findSome? (fun proposal =>
+      (Pass.tryProposal? built.view (FixedPoint.normalize built.graph) proposal).bind (restore? loop)) :=
+  Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.optimize_eq_scan built builtEq
+
+/-- Once building succeeds, failure excludes every accepted proposal
+in that view's enumeration. -/
+theorem optimize_none_iff (built : Built (prepare loop)) (builtEq : build? (prepare loop) = some built) :
+    optimize? loop = none ↔
+      ∀ proposal ∈ Pass.proposals built.view, Pass.tryProposal? built.view (FixedPoint.normalize built.graph) proposal = none :=
+  Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Preheader.optimize_none_iff built builtEq
 
 theorem optimize_entry (accepted : optimize? loop = some result) :
     result.graph.preheader = loop.preheader ∧ result.graph.phiInputs .entry = loop.phiInputs .entry :=

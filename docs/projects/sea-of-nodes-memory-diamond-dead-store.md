@@ -158,6 +158,34 @@ three occurrences, including repeated predecessor IDs. A read of
 the overwritten cell on the middle path refuses emission.
 [Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean)
 
+## Keep certified trailing Loads before the switch
+
+`DeadStore.Finite.MemRef.CF.LoadTail.lower` combines the typed
+`Final.cutWith` prefix traversal with `Static.Final.LoadTail.checkTail`.
+The nominated last Store takes its address and data from original
+argument ports. Its suffix consists of a nonempty chain of
+argument-addressed Loads and the original Return. The cut preserves
+the admitted typed Load/Store prefix, the suffix's read order, and
+the selected return wire. One concrete typed input validates every
+suffix separation fact and every finite route certificate.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/Defs.lean) ·
+[Pinned Simple memory Phi](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/README.md#memory-is-an-ssa-variable)
+
+The emitted entry word agrees for every initialized buffer. Reapplying
+the removed write to the optimized entry buffer recovers the entire
+original entry buffer. The shared switch emitter preserves the selected
+occurrence and the exact join frame, including its word and full
+buffer. Both CFGs return the same native word and buffer at every
+common CF budget.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/MemRef/CF/LoadTail/Thms.lean)
+
+The fixture returns a trailing Load from the actual compiled entry
+and checks every selected join packet and final buffer with duplicate
+predecessor IDs. It covers refusal for a missing separation fact, two
+distinct ports naming the same cell, and a middle route that reads the
+old cell before its overwrite.
+[Runnable fixture](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Finite/Regression.lean)
+
 ## Bypass a single-user Store inside one arm
 
 `DeadStore.SingleUser.rewrite graph slot version` applies Simple chapter

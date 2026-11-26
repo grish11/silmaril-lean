@@ -20,7 +20,7 @@ open Silmaril.Isotope.LambdaSSA.Acyclic.Positional
 universe u v
 
 variable {Data : Type u} {P : InstructionSet.{u,v} Data}
-variable {carried vars : List (Ty Data)} {result t : Ty Data} {n : Nat}
+variable {carried vars results : List (Ty Data)} {result t : Ty Data} {n : Nat}
 
 structure CarriedRow (g : Graph P carried [result] n 1) (t : Ty Data) where
   theta : Ref g.sort t
@@ -77,13 +77,13 @@ def labelPhase : {ins : List (Ty Data)} → {out : Ty Data} →
 
 /-- A separate phase for each sampling boundary lets eval and pass read
 arbitrary iteration counts inside the region. -/
-def phase (g : Graph P carried [result] n 1) (i : Fin n) : Nat :=
+def phase (g : Graph P carried results n 1) (i : Fin n) : Nat :=
   labelPhase (g.node i).label
 
 /-- Edges that require a local decrease after comparing phase and loop
 counter. The final PEG checker also checks edges on which phase increases
 or a sampling edge does not leave its phase. -/
-def localTargets (g : Graph P carried [result] n 1) (i : Fin n) : List (Fin n) :=
+def localTargets (g : Graph P carried results n 1) (i : Fin n) : List (Fin n) :=
   let row := g.node i
   (List.finRange row.inputs.length).filterMap fun slot =>
     let child := (row.arg slot).id
@@ -95,7 +95,7 @@ def localTargets (g : Graph P carried [result] n 1) (i : Fin n) : List (Fin n) :
 /-- Synthesize the local phase component by removing sinks in the
 same-phase, same-index dependency graph. The PEG checker validates the
 assembled rank against all rows. -/
-def inferDemandRank (g : Graph P carried [result] n 1) : DemandRank n 1 :=
+def inferDemandRank (g : Graph P carried results n 1) : DemandRank n 1 :=
   let ranks := Rank.rounds (localTargets g) n
   [.phase (phase g), .counter 0, .phase fun i => (ranks.get i).getD 0]
 

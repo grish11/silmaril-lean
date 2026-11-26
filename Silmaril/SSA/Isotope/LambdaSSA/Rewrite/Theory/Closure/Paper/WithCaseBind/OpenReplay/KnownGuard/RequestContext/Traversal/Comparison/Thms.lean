@@ -10,6 +10,8 @@ public section
 namespace Silmaril.Isotope.LambdaSSA.Region.Paper.WithCaseBind.OpenReplay
 
 open Silmaril
+open Paper.WithComputedProductProducers.Intrinsic (CaseTree)
+open _root_.Silmaril.Isotope.Institution.Acyclic.Captured.Rewrite.Reply.Payload (signature)
 open Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper
 
 /-- The witness is available from an executable positive verdict. -/
@@ -17,6 +19,19 @@ theorem EqualityVerdict.sound {claim : Prop} (v : EqualityVerdict claim) (h : v.
   cases v with
   | equal proof => exact proof
   | unknown => cases h
+
+local instance comparisonThmsHasTy : HasTy signature.Instr (Ty Empty) := signature.hasTy
+
+/-- The actual selected compiler emits syntax with an exact acyclic key. -/
+theorem AcyclicSyntax.selected_readable {X : Ty Empty} {L : List (Ty Empty)}
+    (p : CaseTree signature.Instr X L) : (AcyclicSyntax.read p.elaborate.val).isSome :=
+  SelectedGuardComparison.selected_readable p
+
+/-- Exact target comparison is complete at a scope with an available key. -/
+theorem ScopedTarget.compare_accepted_iff {X : Ty Empty} {L : List (Ty Empty)} (left right : ScopedTarget X L)
+    (readable : (AcyclicSyntax.read left.val).isSome) :
+    (left.compare right).accepted = true ↔ left = right :=
+  SelectedGuardComparison.scoped_compare_accepted_iff left right readable
 
 /-- Every target emitted by this traversal has an exact acyclic readback. -/
 theorem SelectedAt.normalized_readable {X : Ty Empty} {L : List (Ty Empty)} (p : SelectedAt X L) :

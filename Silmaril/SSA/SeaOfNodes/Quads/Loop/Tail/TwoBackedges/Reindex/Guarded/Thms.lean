@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.Reindex.Guarded.Defs
 public import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.SCCP.Dispatch.DeleteRoute.Bypass.MLIR.CF.EntryGuard.Thms
 public import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.SCCP.Dispatch.DeleteRoute.Bypass.Numbered.EntryGuard.Thms
+import Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.Reindex.Guarded.Admission
 import Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.TwoBackedges.Reindex.Guarded.Correctness
 
 /-! The actual re-emitted artifacts commute with reduction of the typed entry valuation. -/
@@ -24,6 +25,19 @@ open SCCP.Dispatch.DeleteRoute.Bypass.Backends.Guarded.Institution
 
 open SCCP.Dispatch.DeleteRoute.Bypass.MLIR.CF.EntryGuard (entry entry_eval)
 open SCCP.Dispatch.DeleteRoute.Bypass.Numbered.EntryGuard (selector selector_run)
+
+universe u v w
+
+/-- Every singleton certificate is recovered by the existing FIFO checker. -/
+theorem fifo_accepts {Data : Type u} {Op : SeaOfNodes.Diamond.Signature.{u, v} Data}
+    {regs : List (ValueSort Data)} {result : ValueSort Data}
+    {m : SeaOfNodes.Diamond.Model.{u, v, w} Op}
+    [BankDecidableEq m.value (dataPorts regs)]
+    {source : Program Op regs result}
+    {facts : RVSDG.Tuple (SeaOfNodes.Diamond.SCCP.Fact m.value) (dataPorts regs)}
+    (cert : SCCP.Dispatch.Checked m source facts) :
+    SCCP.Dispatch.DeleteRoute.Bypass.Backends.Worklist.admit m source facts = .ok cert :=
+  Proofs.fifo_accepts cert
 
 variable {old new : List (ValueSort Width)} {result : Width}
 variable [BankDecidableEq Word (dataPorts old)] [BankDecidableEq Word (dataPorts new)]

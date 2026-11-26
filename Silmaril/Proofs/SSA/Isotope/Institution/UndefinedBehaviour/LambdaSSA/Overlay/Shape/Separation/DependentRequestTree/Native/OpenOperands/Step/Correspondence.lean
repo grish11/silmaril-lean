@@ -124,6 +124,19 @@ theorem observe_step (g : Table S R) (caller : Payload (R.get g.entry)) (prim : 
     rw [Table.observeAt, close_terminal (o := .diverge) run]
     exact diverge_bind _
 
+theorem observe_of_closed (g : Table S R) (caller : Payload (R.get g.entry))
+    (prim : Primitives Φ states) (config : Packet R) (s : Fin states) (outcome : Result 2 states)
+    (closed : Feedback.close (g.feedback caller prim) (blockPoint config s) = resultBehaviour outcome) :
+    g.observeAt caller prim config s = resultBehaviour (g.markExit outcome) := by
+  rw [Table.observeAt, closed]
+  cases outcome with
+  | ret i t =>
+    rw [resultBehaviour, return_bind, CFG.Dependent.Native.denote_exitContinuation]
+    cases selected : g.selected i <;> simp [Table.markExit, selected, resultBehaviour]
+  | fault t => exact fault_bind t _
+  | diverge => exact diverge_bind _
+  | ub => exact Behaviour.top_bind _
+
 theorem observe_entry [DecidableEq Φ] (g : Table S R)
     (raw : CFG.Dependent.Native.Typed Φ [R.get g.entry] Exits)
     (checked : g.checkNative raw = true) (caller : Payload (R.get g.entry)) (prim : Primitives Φ states)

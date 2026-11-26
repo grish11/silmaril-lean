@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.Acyclic.Native.Replay.Calls.SumBind.Thms
+import Silmaril.SSA.Isotope.Bridge.Acyclic.Native.Replay.Calls.SumBind.Continuation.Thms
 import Silmaril.SSA.Isotope.LetCase.Structural.Reply.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithComputedCallReturns.OrderedPairs.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.UnaryReturn.Thms
@@ -20,6 +20,7 @@ private inductive Op where
   | choose
   | left
   | right
+  | finish
 
 private abbrev bit : Shape := .sum .unit .unit
 private abbrev rightPayload : Shape := .pair .unit bit
@@ -79,7 +80,7 @@ private def scheduled : Region Op :=
 
 -- Both arms read the fresh payload at zero and the original capture below
 -- the two producer reply slots. The output labels have the same payload type.
-example : Schedule [X] scheduled exits [([.prepare, .choose, .left], 0), ([.prepare, .choose, .right], 1)] ∧
+private theorem scheduled_replay : Schedule [X] scheduled exits [([.prepare, .choose, .left], 0), ([.prepare, .choose, .right], 1)] ∧
     Eqv false [X] (original producer).toSSA.bindBranchArguments scheduled exits := by
   have runProducer : CallSchedule [X] scheduledProducer S [.prepare, .choose] :=
     .call (.var rfl) (.call (.var rfl) (.ret (.var rfl)))
@@ -243,5 +244,202 @@ example (ρ : BoundEnv V β) {output : Output} {log : Log Empty Op}
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj done
     rw [← (Prod.mk.inj handled).2]
     exact .inr ⟨reply, rfl, rfl⟩
+
+section Continuation
+
+open Morphism.CaseSSA (erase erase_hasType)
+
+private def caseOperand : Operand Op β X :=
+  (Code.case producer (.br left) (.br right)).toLetCase
+
+private def finishOperand : Operand Op β X :=
+  ⟨.op .finish caseOperand.1, .op caseOperand.2⟩
+
+private def route : FiniteExit Op exits (β.snoc X) :=
+  .case ⟨.bv 0, .bv⟩ (.br outL ⟨.bv 2, .bv⟩) (.br outR ⟨.bv 2, .bv⟩)
+
+private theorem routeSchedule : Schedule [X, X] route.toSSA exits [([], 0), ([], 1)] :=
+  .caseVar (slot := 0) rfl (.ret outL (.var (i := 2) rfl)) (.ret outR (.var (i := 2) rfl))
+
+private def source : Region Op :=
+  .let₁ (erase finishOperand.1) route.toSSA
+
+-- The scheduled operands keep the inner payload and capture. The later
+-- reply selects either original outward label, even though their types agree.
+example : ∃ s before, CasePaths [.prepare, .choose] [.left] [.right] 0 0 before ∧
+    Schedule [X] s exits (Continuation.callPaths .finish before [([], 0), ([], 1)]) ∧
+    Continuation.Eqv false [X] source s exits :=
+  Continuation.operand_schedule (f := Op.finish) producer left right trivial ⟨trivial, trivial⟩
+    ⟨trivial, trivial⟩ routeSchedule
+
+example : ∃ s before, CasePaths [.prepare, .choose] [.left] [.right] 0 0 before ∧
+    Schedule [X] s exits (Continuation.callPaths .finish before [([], 1)]) ∧
+    Continuation.Eqv false [X] ((Code.ofLetCase finishOperand.2).guardedSSA 1) s exits :=
+  Continuation.guarded_operand_schedule (f := Op.finish) outR producer left right trivial
+    ⟨trivial, trivial⟩ ⟨trivial, trivial⟩
+
+private def argumentSchedule : Region Op :=
+  scheduled.renameLabels (fun _ => 0)
+
+private theorem argumentTyped : Schedule [X] argumentSchedule [X]
+    [([.prepare, .choose, .left], 0), ([.prepare, .choose, .right], 0)] :=
+  .call (.var rfl) (.call (.var rfl) (.caseVar (slot := 0) rfl
+    (.call (.pair (.var (i := 0) rfl) (.var (i := 3) rfl)) (.ret (i := 0) rfl (.var rfl)))
+    (.call (.pair (.var (i := 0) rfl) (.var (i := 3) rfl)) (.ret (i := 0) rfl (.var rfl)))))
+
+private def finalSchedule : Region Op :=
+  argumentSchedule.lsubst (fun _ => Continuation.invoke .finish route.toSSA)
+
+-- The capture is still present after both reply binders and the terminal case.
+example : finalSchedule = .let₁ (.op .prepare (.var 0)) (.let₁ (.op .choose (.var 0))
+    (.case (.var 0)
+      (.let₁ (.op .left (.pair (.var 0) (.var 3))) (.let₁ (.op .finish (.var 0))
+        (.case (.var 0) (.br 0 (.var 6)) (.br 1 (.var 6)))))
+      (.let₁ (.op .right (.pair (.var 0) (.var 3))) (.let₁ (.op .finish (.var 0))
+        (.case (.var 0) (.br 0 (.var 6)) (.br 1 (.var 6))))))) :=
+  rfl
+
+example : Schedule [X] finalSchedule exits
+    [([.prepare, .choose, .left, .finish], 0), ([.prepare, .choose, .left, .finish], 1),
+      ([.prepare, .choose, .right, .finish], 0), ([.prepare, .choose, .right, .finish], 1)] ∧
+    Continuation.Eqv false [X] source finalSchedule exits := by
+  have labels : Ren exits [X] (fun _ => 0) := by
+    intro i A hi
+    have typed : A = X := by simpa [exits] using List.mem_of_getElem? hi
+    exact typed ▸ (rfl : At [X] 0 X)
+  have ep := scheduled_replay.2.renameLabels labels
+  change Eqv false [X]
+    (.case (erase producer.1) ((Code.br left).guardedSSA 0) ((Code.br right).guardedSSA 0))
+    argumentSchedule [X] at ep
+  exact ⟨Continuation.splice (f := Op.finish) argumentTyped routeSchedule,
+    Continuation.call_replay (f := Op.finish) (erase_hasType producer.2.toHasType) (erase_hasType left.2.toHasType)
+      (erase_hasType right.2.toHasType) routeSchedule.valueBranches.hasType argumentTyped.valueBranches (Continuation.ofSums ep)⟩
+
+private def onArgument (x : V X) : V S → Trace Empty Op (V X)
+  | .inl a => eval .left (a, x)
+  | .inr b => eval .right (b, x)
+
+private theorem run_argument (ρ : BoundEnv V β) :
+    run caseOperand.2 ρ =
+      ((eval .prepare (ρ 0) >>= eval .choose) >>= onArgument (ρ 0)) := by
+  simp only [caseOperand, producer, left, right, Code.toLetCase, run, LetCase.LocallyNameless.Derivation.denote]
+  have prep : ((pure (ρ 0) : Trace Empty Op (V X)) >>= eval .prepare) = eval .prepare (ρ 0) :=
+    pure_step (ρ 0) _
+  erw [prep]
+  congr 1
+  funext packet
+  cases packet with
+  | inl a =>
+    change ((do let l ← (pure a : Trace Empty Op (V X))
+                let x ← (pure (ρ 0) : Trace Empty Op (V X))
+                pure (l, x)) >>= eval .left) = eval .left (a, ρ 0)
+    erw [assemble a (ρ 0)]
+    exact pure_step (a, ρ 0) (eval .left)
+  | inr b =>
+    change ((do let r ← (pure b : Trace Empty Op (V Y))
+                let x ← (pure (ρ 0) : Trace Empty Op (V X))
+                pure (r, x)) >>= eval .right) = eval .right (b, ρ 0)
+    erw [assemble b (ρ 0)]
+    exact pure_step (b, ρ 0) (eval .right)
+
+private def routeTag (x : V X) : V X → Output
+  | .inl _ => .inl x
+  | .inr _ => .inr (.inl x)
+
+private theorem run_route (ρ : BoundEnv V β) (reply : V X) :
+    run route.encode.toLetCase.2 (ρ.snoc reply) = pure (routeTag (ρ 0) reply) := by
+  simp only [route, FiniteExit.encode, FiniteExit.tag, exits, Code.toLetCase, run,
+    LetCase.LocallyNameless.Derivation.denote]
+  refine (pure_step (A := V X) (B := Output) reply _).trans ?_
+  cases reply with
+  | inl u => exact pure_step (A := V X) (B := Output) (ρ 0) _
+  | inr u =>
+    change (((pure (ρ 0) : Trace Empty Op (V X)) >>= fun v =>
+      (pure (.inl v) : Trace Empty Op (V (Ty.coprod X Ty.empty)))) >>= fun v => pure (Sum.inr v : Output)) = _
+    erw [show ((pure (ρ 0) : Trace Empty Op (V X)) >>= fun v =>
+      (pure (.inl v) : Trace Empty Op (V (Ty.coprod X Ty.empty)))) = pure (.inl (ρ 0)) from pure_step (ρ 0) _]
+    exact pure_step (.inl (ρ 0) : V (Ty.coprod X Ty.empty)) _
+
+private def traceCode : Code Op β (Region.packedExitType exits) :=
+  .let₁ finishOperand route.encode
+
+private theorem run_continuation (ρ : BoundEnv V β) :
+    run traceCode.toLetCase.2 ρ =
+      (eval .prepare (ρ 0) >>= fun prepared => eval .choose prepared >>= fun packet =>
+        onArgument (ρ 0) packet >>= fun value => eval .finish value >>= fun reply =>
+          pure (routeTag (ρ 0) reply)) := by
+  change ((run caseOperand.2 ρ >>= eval .finish) >>= fun reply =>
+    run route.encode.toLetCase.2 (ρ.snoc reply)) = _
+  have routed : (fun reply : V X => run route.encode.toLetCase.2 (ρ.snoc reply)) =
+      fun reply => (pure (routeTag (ρ 0) reply) : Trace Empty Op Output) :=
+    funext (run_route ρ)
+  erw [run_argument, routed]
+  exact (bind_assoc _ _ _).trans ((bind_assoc _ _ _).trans (bind_assoc _ _ _))
+
+private theorem request_event {f : Op} {a : V (instrSrc f)} {b : V (instrTrg f)}
+    {k : V (instrTrg f) → Trace Empty Op Output} {y : Output} {tail : Log Empty Op}
+    (h : (y, tail) ∈ (k b).outcomes) :
+    (y, event f a b * tail) ∈ (eval f a >>= k).outcomes :=
+  mem_bind.mpr ⟨b, event f a b, tail, ⟨b, rfl⟩, h, rfl⟩
+
+-- The selected arm's actual reply becomes the later call's argument.
+-- The final output returns the original capture at the selected label.
+example (ρ : BoundEnv V β) (prepared payload armReply : V X) :
+    (Sum.inl (ρ 0), event .prepare (ρ 0) prepared *
+      (event .choose prepared (.inl payload) *
+        (event .left (payload, ρ 0) armReply * event .finish armReply (.inl PUnit.unit)))) ∈
+      (run traceCode.toLetCase.2 ρ).outcomes := by
+  rw [run_continuation]
+  apply request_event (f := Op.prepare) (b := prepared)
+  apply request_event (f := Op.choose) (b := .inl payload)
+  apply request_event (f := Op.left) (b := armReply)
+  rw [← mul_one (event .finish armReply (.inl PUnit.unit))]
+  exact request_event (f := Op.finish) (b := .inl PUnit.unit) rfl
+
+example (ρ : BoundEnv V β) (prepared armReply : V X) (payload : V Y) :
+    (Sum.inr (Sum.inl (ρ 0)), event .prepare (ρ 0) prepared *
+      (event .choose prepared (.inr payload) *
+        (event .right (payload, ρ 0) armReply * event .finish armReply (.inr PUnit.unit)))) ∈
+      (run traceCode.toLetCase.2 ρ).outcomes := by
+  rw [run_continuation]
+  apply request_event (f := Op.prepare) (b := prepared)
+  apply request_event (f := Op.choose) (b := .inr payload)
+  apply request_event (f := Op.right) (b := armReply)
+  rw [← mul_one (event .finish armReply (.inr PUnit.unit))]
+  exact request_event (f := Op.finish) (b := .inr PUnit.unit) rfl
+
+private theorem observed_event {f : Op} {a : V (instrSrc f)}
+    {k : V (instrTrg f) → Trace Empty Op Output} {y : Output} {log : Log Empty Op}
+    (h : (y, log) ∈ (eval f a >>= k).outcomes) :
+    ∃ reply tail, (y, tail) ∈ (k reply).outcomes ∧ log = event f a reply * tail := by
+  obtain ⟨reply, _, tail, ⟨_, called⟩, rest, rfl⟩ := mem_bind.mp h
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj called
+  exact ⟨_, tail, rest, rfl⟩
+
+private theorem handler_events (ρ : BoundEnv V β) (f : Op) (a : V (instrSrc f))
+    (argument : V (instrTrg f) → V X) {output : Output} {log : Log Empty Op}
+    (h : (output, log) ∈ (eval f a >>= fun b =>
+      eval .finish (argument b) >>= fun reply => pure (routeTag (ρ 0) reply)).outcomes) :
+    log.toList.map Event.generator = [f, .finish] := by
+  obtain ⟨_, _, next, rfl⟩ := observed_event h
+  obtain ⟨_, tail, done, rfl⟩ := observed_event next
+  have pureTrace : (output, tail) = (_, 1) := done
+  rw [(Prod.mk.inj pureTrace).2]
+  rfl
+
+-- Every successful execution contains the two producer requests, exactly
+-- one handler, and exactly one call by the enclosing operand context.
+example (ρ : BoundEnv V β) {output : Output} {log : Log Empty Op}
+    (h : (output, log) ∈ (run traceCode.toLetCase.2 ρ).outcomes) :
+    log.toList.map Event.generator = [.prepare, .choose, .left, .finish] ∨
+      log.toList.map Event.generator = [.prepare, .choose, .right, .finish] := by
+  rw [run_continuation] at h
+  obtain ⟨_, _, afterPrepare, rfl⟩ := observed_event h
+  obtain ⟨packet, _, afterChoose, rfl⟩ := observed_event afterPrepare
+  cases packet with
+  | inl a => exact .inl (congrArg ([Op.prepare, Op.choose] ++ ·) (handler_events ρ Op.left (a, ρ 0) id afterChoose))
+  | inr b => exact .inr (congrArg ([Op.prepare, Op.choose] ++ ·) (handler_events ρ Op.right (b, ρ 0) id afterChoose))
+
+end Continuation
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Native.SumBind

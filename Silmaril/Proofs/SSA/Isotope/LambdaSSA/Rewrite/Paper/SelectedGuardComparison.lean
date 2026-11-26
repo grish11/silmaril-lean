@@ -110,6 +110,21 @@ private theorem read_available {Φ : Type} {r : Region Φ} (h : Acyclic r) :
     simp [AcyclicSyntax.read, ha]
   | cfg => exact False.elim h
 
+theorem selected_readable {X : Ty Empty} {L : List (Ty Empty)} (p : CaseTree signature.Instr X L) :
+    (AcyclicSyntax.read p.elaborate.val).isSome :=
+  read_available (selected_acyclic p)
+
+theorem scoped_compare_accepted_iff {X : Ty Empty} {L : List (Ty Empty)} (left right : ScopedTarget X L)
+    (readable : (AcyclicSyntax.read left.val).isSome) :
+    (left.compare right).accepted = true ↔ left = right := by
+  constructor
+  · cases left.compare right with
+    | unknown => simp [EqualityVerdict.accepted]
+    | equal h => exact fun _ => h
+  · rintro rfl
+    obtain ⟨a, ha⟩ := Option.isSome_iff_exists.mp readable
+    simp [ScopedTarget.compare, ha, EqualityVerdict.accepted]
+
 theorem normalized_readable {X : Ty Empty} {L : List (Ty Empty)} (p : SelectedAt X L) :
     (AcyclicSyntax.read p.normalized.val).isSome := by
   apply read_available
@@ -122,13 +137,6 @@ theorem compare_accepted_iff {X : Ty Empty} {L : List (Ty Empty)} (left right : 
     unfold SelectedAt.compare
     cases left.normalized.compare right.normalized <;> rfl
   rw [accepted]
-  constructor
-  · cases left.normalized.compare right.normalized with
-    | unknown => simp [EqualityVerdict.accepted]
-    | equal h => exact fun _ => h
-  · intro h
-    rw [h]
-    obtain ⟨a, ha⟩ := Option.isSome_iff_exists.mp (normalized_readable right)
-    simp [ScopedTarget.compare, ha, EqualityVerdict.accepted]
+  exact scoped_compare_accepted_iff _ _ (normalized_readable left)
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.SelectedGuardComparison

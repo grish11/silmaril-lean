@@ -65,7 +65,7 @@ private theorem sound (checked : p.Checked mem outer index) {a b : State H}
   | producerDiverges answer => exact Step.callout_diverged (pending_producer checked) answer
   | @continuation bytes next a b labels rest edge =>
     exact (Continuation.step_iff (mem := mem) (host := host) (outer := outer) (active := p.active arg)
-      (results := signature.results) (a := ⟨bytes, a, labels⟩) (dst := p.render mem outer index arg ⟨next, .continuation b rest⟩)
+      (results := p.functionResults) (a := ⟨bytes, a, labels⟩) (dst := p.render mem outer index arg ⟨next, .continuation b rest⟩)
       ready live).mpr ⟨_, edge, rfl⟩
 
 private theorem producer_step (checked : p.Checked mem outer index) (contract : p.Contract mem host)
@@ -105,13 +105,13 @@ theorem step_iff (checked : p.Checked mem outer index) (contract : p.Contract me
     exact sound checked ready live edge
   intro move
   rcases a with ⟨bytes, phase⟩
-  have allocation : (mem.store bytes).funcs[p.rootAddress.value]? = some (.wasm signature p.module p.function) :=
+  have allocation : (mem.store bytes).funcs[p.rootAddress.value]? = some (.wasm p.functionType p.module p.function) :=
     checked.root
   cases phase
   case producerInvoke input => exact producer_step checked contract live input move
   case continuation phase labels =>
     have theoremAtTail := Continuation.step_iff (mem := mem) (host := host) (outer := outer) (active := p.active arg)
-      (results := signature.results) (a := ⟨bytes, phase, labels⟩) (dst := dst) ready live
+      (results := p.functionResults) (a := ⟨bytes, phase, labels⟩) (dst := dst) ready live
     obtain ⟨next, edge, eq⟩ := theoremAtTail.mp move
     exact ⟨⟨next.bytes, .continuation next.phase next.labels⟩, .continuation edge, eq⟩
   all_goals

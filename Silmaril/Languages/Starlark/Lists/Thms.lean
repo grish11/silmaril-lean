@@ -28,6 +28,18 @@ theorem freezes_iff_freeze (heap : Heap) (roots : List Address) (after : Heap) :
   ⟨Proofs.Languages.Starlark.Lists.eq_freeze_of_freezes,
     fun h => h ▸ Proofs.Languages.Starlark.Lists.freezes_freeze heap roots⟩
 
+/-- Scalar key encodings agree exactly with language equality, independently of the store. -/
+theorem scalar_key_eq_iff_eq (s t : State) (left right : Starlark.Value) :
+    s.keyOf (.scalar left) = t.keyOf (.scalar right) ↔
+      Starlark.applyBinary .eq left right = .ok (.bool true) :=
+  Proofs.Languages.Starlark.Lists.scalar_key_eq_iff_eq s t left right
+
+/-- The equality test used by dictionary lookup agrees with scalar language equality. -/
+theorem scalar_key_match_iff_eq {s t : State} {left right : Starlark.Value} {a b : Key}
+    (first : s.keyOf (.scalar left) = .ok a) (second : t.keyOf (.scalar right) = .ok b) :
+    (a == b) = true ↔ Starlark.applyBinary .eq left right = .ok (.bool true) := by
+  simpa only [first, second, Except.ok.injEq, beq_iff_eq] using scalar_key_eq_iff_eq s t left right
+
 /-- An update preserves iteration order and an insertion adds its key at the end. -/
 theorem putEntry_keys (entry : Entry) (entries : List Entry) :
     (putEntry entry entries).map Entry.key =

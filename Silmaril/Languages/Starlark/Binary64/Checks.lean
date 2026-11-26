@@ -8,6 +8,7 @@ import Silmaril.Numeric.Ieee754
 meta import Silmaril.Languages.Starlark.Functions.Builtins.Defs
 meta import Silmaril.Languages.Starlark.Functions.Denotation.Defs
 meta import Silmaril.Languages.Starlark.Lists.Defs
+meta import Silmaril.Languages.Starlark.Lists.Iteration.Defs
 meta import Silmaril.Languages.Starlark.Denotation.Defs
 
 namespace Silmaril.Languages.Starlark.Binary64
@@ -20,6 +21,7 @@ open Lists.Iteration (Flow finishState)
 deriving instance DecidableEq for Except
 
 private def value (bits : UInt64) : Lists.Value := .scalar (.float bits)
+private def integer (n : Int) : Lists.Value := .scalar (.int n)
 
 private def result {α : Type} : Outcome α → Except Error α
   | .ok value _ => .ok value
@@ -122,7 +124,80 @@ private def checksOrder (lhs rhs : Value) (order : Ordering) : Bool :=
     denoteExpr (.binary .lt (.read (.predeclared (.float 0))) (.read (.bound rhs))) frame =
       .error (.uninitialized rhs)
 
--- Float dictionary keys fail during display, read, or write. A tuple cannot hide the float.
+-- Replacements through equivalent numeric aliases retain the first key's bits and position.
+#guard
+  let negZero := value 0x8000000000000000
+  let firstNaN := value 0xfff0000000000001
+  let secondNaN := value 0x7ff8000000000021
+  let posInf := value 0x7ff0000000000000
+  let negInf := value 0xfff0000000000000
+  let boundary := value 0x4340000000000000
+  let adjacentInt := integer (Int.shiftLeft 1 53 + 1)
+  let fraction := value 0x3ff8000000000000
+  let boolFalse : Lists.Value := .scalar (.bool false)
+  let action : Lists.Meaning (List Lists.Value × List Lists.Value) := do
+    let dict ← Lists.allocateDict []
+    Lists.insertDisplayEntry dict negZero (.string "first zero")
+    Lists.insertDisplayEntry dict boolFalse (.string "bool")
+    Lists.insertDisplayEntry dict firstNaN (.string "first NaN")
+    Lists.insertDisplayEntry dict posInf (.string "+inf")
+    Lists.writeIndex dict (integer 0) (.string "zero")
+    Lists.writeIndex dict secondNaN (.string "nan")
+    Lists.writeIndex dict negInf (.string "-inf")
+    Lists.writeIndex dict boundary (.string "rounded boundary")
+    Lists.writeIndex dict adjacentInt (.string "exact integer")
+    Lists.writeIndex dict (integer 1) (.string "first one")
+    Lists.writeIndex dict (value 0x3ff0000000000000) (.string "one")
+    Lists.writeIndex dict fraction (.string "fraction")
+    let (_, keys) ← Lists.Iteration.iterationSource dict
+    let found ← [value 0, negZero, boolFalse, firstNaN, secondNaN, posInf, negInf,
+      integer (Int.shiftLeft 1 53), adjacentInt, integer 1, fraction].mapM (Lists.readIndex dict)
+    pure (keys, found)
+  result (action {}) = .ok
+    ([negZero, boolFalse, firstNaN, posInf, negInf, boundary, adjacentInt, integer 1, fraction],
+      ["zero", "zero", "bool", "nan", "nan", "+inf", "-inf", "rounded boundary", "exact integer", "one",
+       "fraction"].map Lists.Value.string)
+
+-- Separately allocated nested tuples share a code when their numeric leaves compare equal.
+#guard
+  let action : Lists.Meaning (Lists.Value × List Lists.Value) := do
+    let inner ← Lists.allocateTuple [value 0x8000000000000000, value 0xfff0000000000001]
+    let original ← Lists.allocateTuple [.string "pair", inner]
+    let alternateInner ← Lists.allocateTuple [integer 0, value 0x7ff8000000000021]
+    let alternate ← Lists.allocateTuple [.string "pair", alternateInner]
+    let dict ← Lists.allocateDict []
+    Lists.insertDisplayEntry dict original (.string "first")
+    Lists.writeIndex dict alternate (.string "updated")
+    let found ← Lists.readIndex dict alternate
+    let (_, keys) ← Lists.Iteration.iterationSource dict
+    pure (found, keys)
+  result (action {}) = .ok (.string "updated", [.tuple 1])
+
+-- The flattened code can match beyond the pinned Go oracle's recursive comparison limit.
+#guard
+  let nested := fun leaf : Lists.Value =>
+    (List.range 10).foldlM (fun key _ => Lists.allocateTuple [key]) leaf
+  let action : Lists.Meaning Lists.Value := do
+    let first ← nested (value 0x8000000000000000)
+    let second ← nested (integer 0)
+    let dict ← Lists.allocateDict []
+    Lists.writeIndex dict first (.string "deep")
+    Lists.readIndex dict second
+  result (action {}) = .ok (.string "deep")
+
+-- A duplicate checked display retains its private accepted prefix.
+#guard
+  let original := value 0x8000000000000000
+  let duplicate := integer 0
+  let expr : Functions.Lowering.Expr := .dict [
+    (.atom (.scalar (.float 0x8000000000000000)), .atom (.string "first")),
+    (.atom (.scalar (.int 0)), .atom (.string "second"))]
+  let out := run #[] (.assignExpr ⟨.local, "out"⟩ expr) {}
+  result out = .error (.duplicateKey duplicate) ∧
+    result (Lists.dictEntries 0 (finishState out)) =
+      .ok [⟨original, [.scalar (.int 0)], .string "first"⟩]
+
+-- An unhashable list still makes any tuple containing it unhashable.
 #guard
   let rejects := fun (state : State) (key : Lists.Value) =>
     let display := Lists.addDisplayEntry [] key (.scalar .none) state
@@ -131,13 +206,12 @@ private def checksOrder (lhs rhs : Value) (order : Ordering) : Bool :=
     decide (result display = .error (.unhashableKey key) ∧
       result get = .error (.unhashableKey key) ∧ result put = .error (.unhashableKey key) ∧
       (finishState put).heap = state.heap)
-  let key := value 0x3ff0000000000000
   let state : State := { heap := #[⟨.dict [], false⟩] }
-  let tuple := Lists.allocateTuple [key] state
+  let list := Lists.allocate [value 0x3ff0000000000000] state
+  let tuple := Outcome.resume list (fun leaf => Lists.allocateTuple [leaf])
   let nested := Outcome.resume tuple (fun inner => Lists.allocateTuple [inner])
-  let withList := finishState (Outcome.resume nested (fun outer => Lists.allocate [outer]))
-  rejects state key && rejects withList (.tuple 1) &&
-    rejects withList (.tuple 2) && rejects withList (.list 3)
+  let final := finishState nested
+  rejects final (.list 1) && rejects final (.tuple 2) && rejects final (.tuple 3)
 
 -- Raw heap clients use the same restricted key code type for cached tuples and dictionary entries.
 example : True := by

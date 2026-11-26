@@ -77,7 +77,8 @@ def refinementWithHandler? [DecidableEq F] {H : Type} [DecidableEq H] [Fintype H
 /-- An ordinary trace-predicate sentence over the actual packed trees.
 It requires every admitted source trace to occur in the target tree. -/
 noncomputable def PackedEntry.refinementSentence
-    (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)
+    {c : Nat} {rightInputs : Fin c → PacketType} {right : Program signature rightInputs outputs}
+    {rightInput : Fin c} (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right rightInput)
     (direction : MismatchDirection)
     (leftAmbient rightAmbient leftRecord rightRecord : Semantics.Env Atom) :
     TraceInstitution.Sentence.{0, 1} signature.traceSignature :=

@@ -19,6 +19,52 @@ structure Field where
   type : FieldType
   deriving DecidableEq, Repr
 
+namespace SchemaReader
+
+/-- Byte order recorded in the Schema, independently of body decoder support. -/
+inductive Endianness where
+  | little | big
+  deriving DecidableEq, Repr
+
+def Endianness.code : Endianness → Nat
+  | .little => 0
+  | .big => 1
+
+inductive DateUnit where
+  | day | millisecond
+  deriving DecidableEq, Repr
+
+def DateUnit.code : DateUnit → Nat
+  | .day => 0
+  | .millisecond => 1
+
+/-- An omitted Date unit has the IDL default MILLISECOND. -/
+def DateUnit.normalize (encoded : Option Nat) : Except Error DateUnit :=
+  match encoded.getD 1 with
+  | 0 => .ok .day
+  | 1 => .ok .millisecond
+  | _ => .error (.malformed .flatbuffer)
+
+/-- Reader-only type payloads. The existing writer and stream AST use
+`Arrow.FieldType` independently. -/
+inductive FieldType where
+  | primitive (type : Arrow.FieldType)
+  | date (unit : DateUnit)
+  deriving DecidableEq, Repr
+
+structure Field where
+  name : String
+  nullable : Bool
+  type : FieldType
+  deriving DecidableEq, Repr
+
+structure Schema where
+  endianness : Endianness
+  fields : List Field
+  deriving DecidableEq, Repr
+
+end SchemaReader
+
 structure FieldNode where
   length : Nat
   nullCount : Nat
@@ -145,7 +191,24 @@ private def string (bytes : KBytes) (value : Table) (index : Nat) : Except Error
     | throw (.malformed .invalidUtf8)
   return name
 
-private def field (bytes : KBytes) (pos : Nat) : Except Error Field := do
+private def primitiveFieldType (bytes : KBytes) (tag : Nat) (payload : Table) :
+    Except Error FieldType := do
+  match tag with
+  | 2 => do
+    tableShape payload 2
+    let width ← scalar bytes payload 0 4
+    let signed ← bool bytes payload 1
+    check (width == 8 || width == 16 || width == 32 || width == 64)
+    if width != 32 || !signed then throw (.unsupported .fieldInteger)
+    return .int32
+  | 5 => do
+    tableShape payload 0
+    return .utf8
+  | _ => throw (.unsupported (.fieldType tag))
+
+private def fieldWith {α β : Type} (bytes : KBytes) (pos : Nat)
+    (typeOf : Nat → Table → Except Error α) (make : String → Bool → α → β) :
+    Except Error β := do
   let value ← table bytes pos
   tableShape value 7
   let name ← string bytes value 0
@@ -153,34 +216,47 @@ private def field (bytes : KBytes) (pos : Nat) : Except Error Field := do
   let tag ← scalar bytes value 2 1
   check (tag != 0)
   let payload ← table bytes (← require (← reference bytes value 3))
-  let type ← match tag with
-    | 2 => do
-      tableShape payload 2
-      let width ← scalar bytes payload 0 4
-      let signed ← bool bytes payload 1
-      check (width == 8 || width == 16 || width == 32 || width == 64)
-      if width != 32 || !signed then throw (.unsupported .fieldInteger)
-      pure FieldType.int32
-    | 5 => do
-      tableShape payload 0
-      pure FieldType.utf8
-    | _ => throw (.unsupported (.fieldType tag))
+  let type ← typeOf tag payload
   noTable bytes value 4 .dictionary
   emptyVector bytes value 5 4 4 .nested
   emptyVector bytes value 6 4 4 .customMetadata
-  return ⟨name, nullable, type⟩
+  return make name nullable type
 
-private def schema (limits : Limits) (bytes : KBytes) (value : Table) :
-    Except Error (List Field) := do
+private def field (bytes : KBytes) (pos : Nat) : Except Error Field :=
+  fieldWith bytes pos (primitiveFieldType bytes) Field.mk
+
+private def schemaWith {α β : Type} (limits : Limits) (bytes : KBytes) (value : Table)
+    (endianOf : Nat → Except Error α) (fieldAt : Nat → Except Error β) :
+    Except Error (α × List β) := do
   tableShape value 4
-  let endian ← scalar bytes value 0 2
-  if endian ≠ 0 then throw (.unsupported (.endianness endian))
+  let endian ← endianOf (← scalar bytes value 0 2)
   let (first, count) ← vector bytes value 1 4 4
   if count > limits.fields then throw (.limit .fields)
   emptyVector bytes value 2 4 4 .customMetadata
   emptyVector bytes value 3 8 8 .schemaFeatures
-  (List.range count).mapM fun index => do
-    field bytes (← target bytes (first + 4 * index))
+  let fields ← (List.range count).mapM fun index => do
+    fieldAt (← target bytes (first + 4 * index))
+  return (endian, fields)
+
+private def schema (limits : Limits) (bytes : KBytes) (value : Table) :
+    Except Error (List Field) :=
+  (schemaWith limits bytes value
+    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
+    (field bytes)).map Prod.snd
+
+private def readSchemaEndianness : Nat → Except Error SchemaReader.Endianness
+  | 0 => .ok .little
+  | 1 => .ok .big
+  | value => .error (.unsupported (.endianness value))
+
+private def readSchemaFieldType (bytes : KBytes) (tag : Nat) (payload : Table) :
+    Except Error SchemaReader.FieldType := do
+  if tag = 8 then
+    tableShape payload 1
+    let unit ← (← slot bytes payload 0 2).mapM (fun pos => uint bytes pos 2)
+    return .date (← SchemaReader.DateUnit.normalize unit)
+  else
+    return .primitive (← primitiveFieldType bytes tag payload)
 
 private def batch (limits : Limits) (bytes : KBytes) (value : Table) :
     Except Error RecordBatch := do
@@ -202,9 +278,8 @@ private def batch (limits : Limits) (bytes : KBytes) (value : Table) :
     pure (Buffer.mk (← natural64 bytes pos) (← natural64 bytes (pos + 8)))
   return ⟨rowCount, nodes, buffers⟩
 
-/-- Decode only the metadata slice of a V5 Message. The stream reader checks
-the envelope, message order and batch layout against the schema and body. -/
-public def readMessage (limits : Limits) (bytes : KBytes) : Except Error Message := do
+private def messageParts (limits : Limits) (bytes : KBytes) :
+    Except Error (Nat × Table × Nat) := do
   if !bytes.wf then throw (.malformed .source)
   if bytes.len > limits.metadataBytes then throw (.limit .metadataBytes)
   let value ← table bytes (← target bytes 0)
@@ -217,6 +292,23 @@ public def readMessage (limits : Limits) (bytes : KBytes) : Except Error Message
   let bodyLength ← scalar bytes value 3 8
   if bodyLength ≥ 2^63 then throw (.malformed .bodyLength)
   emptyVector bytes value 4 4 4 .customMetadata
+  return (tag, payload, bodyLength)
+
+/-- Read a standalone V5 Schema message. The normalized type payloads and
+schema byte order are available to readers without changing the existing IPC AST. -/
+public def SchemaReader.readMessage (limits : Limits) (bytes : KBytes) :
+    Except Error SchemaReader.Schema := do
+  let (tag, payload, bodyLength) ← messageParts limits bytes
+  if tag ≠ 1 then throw (.unsupported (.messageKind tag))
+  if bodyLength ≠ 0 then throw (.malformed .bodyLength)
+  let (endian, fields) ← schemaWith limits bytes payload readSchemaEndianness
+    (fun pos => fieldWith bytes pos (readSchemaFieldType bytes) SchemaReader.Field.mk)
+  return ⟨endian, fields⟩
+
+/-- Decode only the metadata slice of a V5 Message. The stream reader checks
+the envelope, message order and batch layout against the schema and body. -/
+public def readMessage (limits : Limits) (bytes : KBytes) : Except Error Message := do
+  let (tag, payload, bodyLength) ← messageParts limits bytes
   let header ← match tag with
     | 1 => MessageHeader.schema <$> schema limits bytes payload
     | 3 => MessageHeader.recordBatch <$> batch limits bytes payload

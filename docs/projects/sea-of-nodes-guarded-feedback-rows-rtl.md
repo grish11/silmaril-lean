@@ -739,6 +739,52 @@ checked pure, single-header dependent-preheader profile. The regressions
 cover zero, one, and two backedges, RTL fuel one instruction below a
 return, and genuinely nonreturning inputs.
 
+### Two feedback successor occurrences
+
+`Width.Dispatch.Source` shares one admitted dependent preheader, one pure
+header producer table, the continue guard, and the exit projection.
+Its alternate column is checked by the ordinary row recognizer as a
+second native graph projection. An independent typed word selects a
+column on a continuing visit. Each projection still has the existing
+explicit-Φ view, and `Dispatch.phi_feedback` identifies its latch with
+the corresponding column. [Resized entry and header proofs][resized-rtl]
+
+The RTL ABI uses the mapped capture count and the original bank width.
+The header branches to a dispatcher whose successors both target the
+header. Slot 0 carries the nonzero selector's column and slot 1 carries
+the zero selector's column. `Dispatch.checked_activation` proves the
+fetched terminator, the slot selected by the actual frame read, and
+all operand values before rebinding. The original native step at the
+pulled captures selects the same occurrence and whole packet. The
+transfer and return preserve all memory.
+
+```lean
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Thms
+
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy)
+open Silmaril.Machine.SeaOfNodes.Loop.RTL
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader
+
+example {entrySigs sigs : List (List PortTy)} (mapping : InputMap 3 2)
+    (source : Table.Width.Dispatch.Source 3 3 entrySigs sigs) {a b : Checked.Phi.Targets}
+    (primary : Table.lowerChecked (source.row true) = some a)
+    (other : Table.lowerChecked (source.row false) = some b) :
+    Table.Width.Dispatch.lowerChecked mapping source =
+      some (Table.Width.Dispatch.lowerRTL (Table.Width.Dispatch.mapCaptures mapping source)) :=
+  Table.Width.Dispatch.lowerChecked_of_accepted mapping source primary other
+```
+
+`Dispatch.rtl_runMain_fuel_iff` and `Dispatch.rtl_return_iff` relate
+independent finite return witnesses. A return after `k` feedback transfers
+uses `entrySigs.length + 1 + (sigs.length + 2) * (k + 1)` instructions.
+A visit ends with either the dispatch transfer or the return instruction.
+The three-to-two regression observes different packets at the same
+header, rejects a duplicate producer in the alternate row, and checks
+returns after one or two feedbacks on nonempty memory.
+[Checked regression][table-regression]
+
 ```sh
 lake build --wfail +Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Fuel.Thms \
   +Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Regression \
@@ -770,3 +816,5 @@ lake build --wfail +Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Fu
 [simple-latch]: https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter08/src/main/java/com/seaofnodes/simple/GraphEvaluator.java#L93-L110
 [preheader-regression]: ../../Silmaril/Proofs/Machine/SeaOfNodes/Loop/RTL/Routing/Guarded/Rows/Native/Preheader/Regression.lean
 [table-regression]: ../../Silmaril/Proofs/Machine/SeaOfNodes/Loop/RTL/Routing/Guarded/Rows/Native/Preheader/Table/Regression.lean
+
+[resized-rtl]: https://github.com/hiloopai/silmaril-lean/pull/4456

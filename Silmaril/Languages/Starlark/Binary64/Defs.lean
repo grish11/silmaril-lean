@@ -19,13 +19,14 @@ inductive Truth (input : UInt64) : Bool → Prop where
   | zero : input.toNat % 2 ^ 63 = 0 → Truth input false
   | nonzero : input.toNat % 2 ^ 63 ≠ 0 → Truth input true
 
-/-- Numeric observations used only for comparison. A finite value counts units
+/-- Exact numeric observations for comparison and dictionary keys. A finite value counts units
 of the least positive subnormal, `2⁻¹⁰⁷⁴`. Signed zeros share one observation. -/
 inductive Number where
   | negativeInfinity
   | finite (units : Int)
   | positiveInfinity
   | nan
+  deriving DecidableEq, BEq, ReflBEq, LawfulBEq, Repr
 
 def Number.ofInt (value : Int) : Number := .finite (value * 2 ^ 1074)
 

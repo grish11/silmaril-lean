@@ -75,6 +75,92 @@ func checkEqualityAndKeys() {
 	fmt.Println("PASS Go equality and hash controls for signed zeros, NaNs, mixed numbers and tuple keys")
 }
 
+func checkDictionaryLookup(dict *starlark.Dict, key starlark.Value, want string) {
+	got, found, err := dict.Get(key)
+	require(err == nil && found && got == starlark.String(want),
+		fmt.Sprintf("key %v: want %q, got %v, present %v (%v)", key, want, got, found, err))
+}
+
+func checkOriginalScalarKey(got, want starlark.Value) {
+	require(got.Type() == want.Type(), fmt.Sprintf("key type changed from %s to %s", want.Type(), got.Type()))
+	if floating, ok := want.(starlark.Float); ok {
+		require(math.Float64bits(float64(got.(starlark.Float))) == math.Float64bits(float64(floating)),
+			fmt.Sprintf("float key bits changed for %v", want))
+	} else {
+		equal, err := starlark.Equal(got, want)
+		require(err == nil && equal, fmt.Sprintf("key changed from %v to %v (%v)", want, got, err))
+	}
+}
+
+func checkNumericDictionaryUpdates() {
+	negZero := fromBits(0x8000000000000000)
+	firstNaN, secondNaN := fromBits(0xfff0000000000001), fromBits(0x7ff8000000000021)
+	posInf, negInf := fromBits(0x7ff0000000000000), fromBits(0xfff0000000000000)
+	boundary, adjacentInt := fromBits(0x4340000000000000), starlark.MakeInt64((1<<53)+1)
+	zero, one := starlark.MakeInt(0), starlark.MakeInt(1)
+	fraction := starlark.Float(1.5)
+	dict := starlark.NewDict(0)
+	for _, tc := range []struct {
+		key   starlark.Value
+		value string
+	}{
+		{negZero, "first zero"}, {starlark.False, "bool"}, {firstNaN, "first NaN"}, {posInf, "+inf"},
+		{zero, "zero"}, {secondNaN, "nan"}, {negInf, "-inf"},
+		{boundary, "rounded boundary"}, {adjacentInt, "exact integer"}, {one, "first one"},
+		{starlark.Float(1), "one"}, {fraction, "fraction"},
+	} {
+		err := dict.SetKey(tc.key, starlark.String(tc.value))
+		require(err == nil, fmt.Sprint(err))
+	}
+	for _, tc := range []struct {
+		key  starlark.Value
+		want string
+	}{
+		{fromBits(0), "zero"}, {negZero, "zero"}, {starlark.False, "bool"},
+		{firstNaN, "nan"}, {secondNaN, "nan"}, {posInf, "+inf"}, {negInf, "-inf"},
+		{starlark.MakeInt64(1 << 53), "rounded boundary"}, {adjacentInt, "exact integer"}, {one, "one"},
+		{fraction, "fraction"},
+	} {
+		checkDictionaryLookup(dict, tc.key, tc.want)
+	}
+	iter := dict.Iterate()
+	defer iter.Done()
+	var got starlark.Value
+	for _, want := range []starlark.Value{negZero, starlark.False, firstNaN, posInf, negInf, boundary, adjacentInt, one, fraction} {
+		require(iter.Next(&got), "dictionary lost an original key")
+		checkOriginalScalarKey(got, want)
+	}
+	require(!iter.Next(&got), "numeric replacement added another key")
+
+	outer := starlark.Tuple{starlark.String("pair"), starlark.Tuple{negZero, firstNaN}}
+	alternate := starlark.Tuple{starlark.String("pair"), starlark.Tuple{zero, secondNaN}}
+	nested := starlark.NewDict(0)
+	require(nested.SetKey(outer, starlark.String("first")) == nil, "nested tuple insertion failed")
+	require(nested.SetKey(alternate, starlark.String("updated")) == nil, "nested tuple update failed")
+	checkDictionaryLookup(nested, alternate, "updated")
+	keys := nested.Keys()
+	require(len(keys) == 1, "equivalent nested tuples produced two keys")
+	inner := keys[0].(starlark.Tuple)[1].(starlark.Tuple)
+	checkOriginalScalarKey(inner[0], negZero)
+	checkOriginalScalarKey(inner[1], firstNaN)
+
+	_, err := starlark.Eval(&starlark.Thread{}, "numeric-keys.star", `{original: "first", duplicate: "second"}`,
+		starlark.StringDict{"original": negZero, "duplicate": zero})
+	require(err != nil && strings.Contains(err.Error(), "duplicate key"), fmt.Sprintf("want duplicate key, got %v", err))
+
+	var deepOriginal, deepAlternate starlark.Value = negZero, zero
+	for range starlark.CompareLimit {
+		deepOriginal, deepAlternate = starlark.Tuple{deepOriginal}, starlark.Tuple{deepAlternate}
+	}
+	deep := starlark.NewDict(0)
+	require(deep.SetKey(deepOriginal, starlark.True) == nil, "deep tuple insertion failed")
+	_, _, err = deep.Get(deepAlternate)
+	require(err != nil && strings.Contains(err.Error(), "comparison exceeded maximum recursion depth"),
+		fmt.Sprintf("want Go's tuple comparison depth error, got %v", err))
+
+	fmt.Println("PASS numeric dictionary updates, nested tuple keys, duplicate display and Go's depth limit")
+}
+
 func checkOrder(left, right starlark.Value, order int) {
 	for _, tc := range []struct {
 		op   syntax.Token
@@ -148,6 +234,7 @@ func checkConversionOverflow() {
 func main() {
 	checkUnary()
 	checkEqualityAndKeys()
+	checkNumericDictionaryUpdates()
 	checkScalarComparison()
 	checkConversionOverflow()
 }
