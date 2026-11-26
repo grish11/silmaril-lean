@@ -255,4 +255,18 @@ theorem ofEpochDay_toEpochDay? {date : CivilDate} {day : Int} (h : date.toEpochD
   have sameDay : decoded.day = date.day := by omega
   exact CivilDate.ext sameYear sameMonth sameDay
 
+/-- The day after the last day of a month is the start of its successor. -/
+theorem monthStart_add_daysInMonth (year : Int) (month : Nat)
+    (valid : 1 ≤ month ∧ month ≤ 12) :
+    yearStart year + monthStart (isLeapYear year) (month - 1) + daysInMonth year month =
+      if month = 12 then yearStart (year + 1) + monthStart (isLeapYear (year + 1)) 0
+      else yearStart year + monthStart (isLeapYear year) month := by
+  have step := monthStart_succ year (month - 1) (by omega)
+  rw [show month - 1 + 1 = month by omega] at step
+  rw [Int.add_assoc, ← step]
+  split
+  · subst month
+    rw [monthStart_end, monthStart_zero, Int.add_zero, yearStart_succ]
+  · rfl
+
 end Silmaril.Proofs.Numeric.Gregorian
