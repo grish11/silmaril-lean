@@ -1,0 +1,30 @@
+module
+
+public import Silmaril.SSA.Isotope.Institution.Relational.LetSeq.Thms
+public import Silmaril.SSA.Isotope.Institution.Relational.LetCase.Thms
+public import Silmaril.SSA.Isotope.Institution.Relational.LetIter.Thms
+
+/-! # Relational institutions for the exact sequential let family -/
+
+public section
+
+namespace Silmaril.Isotope.Institution.Relational
+
+open Silmaril.Logic.Institution Semantics
+
+universe u v w
+
+variable {τ ε : Type u} {ν : Type w} [DecidableEq ν] [TypeFormers τ]
+variable (D : τ → Type v) [ProductModel D] [UnitModel D] [CoproductModel D] (Γ : Ctx ν τ)
+
+/-- LetSeq and LetCase have the same models and reducts on the common value structure. -/
+theorem letSeq_modelFunctor_eq_letCase :
+    modelFunctor (LetSeq.institution (ε := ε) D Γ) =
+      modelFunctor (LetCase.institution (ε := ε) D Γ) := rfl
+
+/-- LetCase and LetIter have the same models and reducts. -/
+theorem letCase_modelFunctor_eq_letIter :
+    modelFunctor (LetCase.institution (ε := ε) D Γ) =
+      modelFunctor (LetIter.institution (ε := ε) D Γ) := rfl
+
+end Silmaril.Isotope.Institution.Relational

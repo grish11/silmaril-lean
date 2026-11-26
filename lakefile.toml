@@ -472,6 +472,11 @@ globs = ["tests.ssa.LetIterPackingImports.+"]
 name = "LetIterWeakTreeSoundnessTests"
 globs = ["tests.ssa.LetIterWeakTreeSoundness"]
 
+# Check the concrete sequential Isotope institutions through their public headers.
+[[lean_lib]]
+name = "IsotopeRelationalInstitutionTests"
+globs = ["tests.ssa.IsotopeRelationalInstitution", "tests.ssa.IsotopeRelationalInstitutionAxioms"]
+
 # Check the typed PEG core, the paper guard counterexample, and SIMPLE translation and reversion.
 [[lean_lib]]
 name = "PEGCoreTests"
