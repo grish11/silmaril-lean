@@ -877,3 +877,8 @@ root = "SqliteImageLean"
 name = "sqlite_write_profile_tests"
 srcDir = "tests/formats/sqlite-shell"
 root = "SqliteWriteProfile"
+
+[[lean_exe]]
+name = "arrow_ipc_metadata_tests"
+srcDir = "tests/formats/arrow-ipc"
+root = "MetadataTests"
