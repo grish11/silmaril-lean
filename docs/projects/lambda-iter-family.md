@@ -791,6 +791,15 @@ agrees with both the original mutable graph and its existing lexical SSA
 translation, with the same ordered exit, payload and selected live-outs.
 [Occurrence adapter and runner equations](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Thms.lean)
 
+Exact admission of the compiled public dispatcher and agreement between its
+selected capture slot type and the structural packet type suffice to admit
+the rebuilt graph. The generated jump elaborates over the numbered slots
+with the exact type of each occurrence and targets the same label. The
+checker reuses the admitted rows under the new capture context, preserving
+their erased code and the ordered exit profile. A well-typed initial store
+is needed to decode a runtime seed.
+[Derived occurrence admission](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Thms.lean)
+
 The existing directed verdict decides the handled-trace sentence on the
 two admitted occurrence-entry runners. Each side supplies its exact named
 admission, and each comparison uses both independently typed packets

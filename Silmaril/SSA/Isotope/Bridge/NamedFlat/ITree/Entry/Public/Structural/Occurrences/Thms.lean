@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Defs
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.NamedSSA.Thms
 import Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences
+import Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Admission
 
 @[expose] public section
 
@@ -12,6 +13,7 @@ open Silmaril.SSA.LambdaRTL (CFG)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
 open LambdaSSA (FiniteCFG)
 open LambdaSSA.Semantics.Interaction (region)
+open LetCase.LocallyNameless (Tm)
 
 variable {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
   {signature : PrimitiveSignature F} {source : CFG V K F}
@@ -20,6 +22,44 @@ variable {V K : Type 1} [DecidableEq V] [DecidableEq K] {F : Type}
 
 theorem StructuralEntry.occurrenceNames_injective : Function.Injective entry.occurrenceNames :=
   fun _ _ same => Fin.ext (congrArg ULift.down same)
+
+/-- The numbered slot has the exact type of its occurrence in packet order. -/
+theorem StructuralEntry.occurrenceContext_get (i : Fin entry.footprint.length) :
+    entry.occurrenceContext.get i = entry.footprint[i.val].2 :=
+  congrFun (BoundCtx.get_ofFin _) i
+
+/-- The actual named operand elaborates within the numbered slots and
+synthesizes the exact packet type. -/
+theorem StructuralEntry.elaborateOccurrenceOperand : letI := signature.typing
+    ∃ packet : Tm Empty F entry.footprint.length,
+      NamedFlat.value (NamedFlat.first entry.occurrenceNames) entry.occurrenceOperand = some packet ∧
+      NamedFlat.infer entry.occurrenceContext packet = some ty :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.Occurrences.Admission.compile_operand entry
+
+/-- The checked public dispatcher's selected capture slot supplies the
+structural packet type. Rebuilding the entry succeeds at its original
+destination, with the original rows and ordered exit profile. -/
+theorem StructuralEntry.elaborateOccurrences
+    (packetType : entry.entry.context.get entry.provenance.slot = ty) : letI := signature.typing
+    ∃ (code : FiniteCFG F entry.occurrenceGraph.blocks.length entry.program.exits.length entry.footprint.length)
+      (dest : Fin (entry.occurrenceGraph.blocks.length + entry.program.exits.length))
+      (packet : Tm Empty F entry.footprint.length),
+      NamedFlat.elaborate entry.occurrenceGraph entry.program.exits entry.occurrenceNames = some code ∧
+      NamedFlat.check code entry.occurrenceContext entry.entry.blocks entry.entry.exits = true ∧
+      code.entry = .br dest packet ∧ dest.val = entry.provenance.start.val ∧
+      ∀ i, (code.block i).erase = (entry.entry.target.block i).erase :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.Occurrences.Admission.reconstruct entry packetType
+
+theorem StructuralEntry.admitOccurrences_isSome_of_packetType
+    (packetType : entry.entry.context.get entry.provenance.slot = ty) :
+    entry.admitOccurrences.isSome = true :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.Occurrences.Admission.admitted entry packetType
+
+/-- Obtain the actual checker certificate from the public packet type
+compatibility, using the exact dispatcher admission already in the entry. -/
+def StructuralEntry.admittedOccurrences (packetType : entry.entry.context.get entry.provenance.slot = ty) :
+    OccurrenceAdmission entry :=
+  entry.admitOccurrences.get (entry.admitOccurrences_isSome_of_packetType packetType)
 
 /-- Each checked occurrence receives its source register's value with its
 own exact type. Repeated reads can name different slots in this context. -/

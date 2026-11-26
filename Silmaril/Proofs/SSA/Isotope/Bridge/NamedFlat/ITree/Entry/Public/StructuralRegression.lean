@@ -188,10 +188,16 @@ private def effectGraph (first second : Name) : CFG Name Name Unit :=
 
 private abbrev narrowBit : PacketType := .coprod .unit .empty
 
-private def effectLeft : StructuralEntry effectSignature (effectGraph shared shared) exits fields
-    (.product narrowBit bit) outputs :=
-  (constructStructural effectSignature (effectGraph shared shared) exits fields (.product narrowBit bit)
-    (fun _ => .product narrowBit bit) outputs).get (by decide)
+private abbrev repeatedType (wide : Bool) : PacketType :=
+  .coprod .unit (if wide then .product .unit .unit else .empty)
+
+private def repeatedEffect (wide : Bool) : StructuralEntry effectSignature (effectGraph shared shared)
+    exits fields (.product (repeatedType wide) bit) outputs :=
+  (constructStructural effectSignature (effectGraph shared shared) exits fields
+    (.product (repeatedType wide) bit) (fun _ => .product (repeatedType wide) bit) outputs).get
+    (by cases wide <;> decide)
+
+private def effectLeft := repeatedEffect false
 
 private def effectRight : StructuralEntry effectSignature (effectGraph shared rightRead) exits fields
     (.product bit bit) outputs :=
@@ -275,9 +281,36 @@ example (captureType : PacketType) :
   obtain ⟨first, second⟩ := Ty.product.inj (Option.some.inj same)
   exact (by decide : narrowBit ≠ bit) (first.symm.trans second)
 
--- Elaborate and typecheck the actual occurrence-entry graphs.
-private def leftOccurrences := effectLeft.admitOccurrences.get (by decide)
-private def rightOccurrences := effectRight.admitOccurrences.get (by decide)
+-- The only extra input is the old dispatcher's capture type. Both slots
+-- read the same register and the second slot supplies the selected live-out.
+private def repeatedAdmission (wide : Bool) : OccurrenceAdmission (repeatedEffect wide) :=
+  (repeatedEffect wide).admittedOccurrences (by cases wide <;> decide)
+
+private def leftOccurrences := repeatedAdmission false
+private def rightOccurrences := effectRight.admittedOccurrences (by decide)
+
+private def repeatedPacket (wide : Bool) : Denote (.product (repeatedType wide) bit) :=
+  (.inl ⟨⟩, .inl ⟨⟩)
+
+example (wide : Bool) :
+    (repeatedEffect wide).footprint = [(shared, repeatedType wide), (shared, bit)] ∧
+    repeatedType wide ≠ bit := by
+  cases wide <;> decide
+
+private noncomputable def repeatedObservation (wide : Bool) :=
+  LambdaSSA.Semantics.Interaction.region effectSignature.primitive
+    (fun i => (repeatedEffect wide).occurrenceStore (repeatedPacket wide) ⟨i⟩)
+      (repeatedAdmission wide).code.erase >>= fun out => pure (LambdaSSA.FiniteCFG.packedTreeOutput out)
+
+private theorem repeatedRun (wide : Bool) :
+    LiveOut.observeRaw effectSignature.primitive exits fields (effectGraph shared shared) original =
+      repeatedObservation wide :=
+  ((repeatedEffect wide).observeRaw_eq_occurrences original (repeatedPacket wide)
+    (by cases wide <;> decide)).trans
+    ((repeatedAdmission wide).observe_eq_elaborated (repeatedEffect wide) (repeatedPacket wide))
+
+example (leftWide rightWide : Bool) : repeatedObservation leftWide = repeatedObservation rightWide :=
+  (repeatedRun leftWide).symm.trans (repeatedRun rightWide)
 
 example : effectLeft.occurrenceContext.toList = [narrowBit, bit] := by decide
 example : effectLeft.occurrenceOperand =
@@ -330,8 +363,8 @@ private theorem effectAccepts : effectLeft.refinementFromStore? effectRight orig
   [some true, some false]
 
 -- Reuse a nonempty successful aggregate with the same two occurrence types.
-private def overlappingOccurrences := overlapping.admitOccurrences.get (by decide)
-private def matchingOccurrences := matching.admitOccurrences.get (by decide)
+private def overlappingOccurrences := overlapping.admittedOccurrences (by decide)
+private def matchingOccurrences := matching.admittedOccurrences (by decide)
 
 example (policy : Model.{0, 0} signature.traceSignature.toSignature) :
     TraceInstitution.Sat policy (overlappingOccurrences.refinementSentence matchingOccurrences overlapPacket rightPacket) :=
