@@ -17,6 +17,16 @@ variable {Name : Type*} [DecidableEq Name]
 variable {db : Packed Name Csv.Field Cell} {name : Name} {schema : Scan.Schema String Unit}
 variable {csvLimits : CsvLimits} {parquetLimits : FlatInt32Writer.Limits} {wire : Csv.Bytes}
 
+/-- Recover the checked CSV rows and writer result for downstream adapters. -/
+theorem convert_written {result : Result Name}
+    (converted : convert db name schema csvLimits parquetLimits wire = .ok result) :
+    db name = none ∧
+      ∃ (rows : Csv.Typed.Table (csvSchema schema) Cell) (output : FlatInt32Writer.Encoded),
+        Csv.Typed.Utf8.decode (csvSchema schema) codecs wire = .ok rows ∧
+        FlatInt32Writer.emit parquetLimits (writerInput schema rows) = .ok output ∧
+        result = ⟨Function.update db name (some ⟨csvSchema schema, rows⟩), output.bytes⟩ :=
+  Proofs.Formats.Parquet.FlatInt32Writer.FromCsv.convert_written converted
+
 /-- Success identifies the exact named update and independently readable file.
 The scanner observes the declared fields and all nullable slots in order. -/
 theorem convert_readback {result : Result Name}

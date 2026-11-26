@@ -57,19 +57,13 @@ theorem convert_parquet_error (vacant : db name = none)
   rw [show _ from install_ok vacant rows]
   rw [written]
 
-theorem convert_readback {result : Result Name}
+private theorem convert_stages {result : Result Name}
     (converted : convert db name schema csvLimits parquetLimits wire = .ok result) :
-    db name = none ∧ wire.length ≤ csvLimits.maxBytes ∧ schema.width ≤ csvLimits.maxColumns ∧
-      result.bytes.length ≤ parquetLimits.maxFileBytes ∧
-      ∃ (rows : Csv.Typed.Table (csvSchema schema) Cell) (batch : FlatScan.Batch),
-        rows.length ≤ csvLimits.maxRows ∧
-        Csv.Typed.Utf8.decode (csvSchema schema) codecs wire = .ok rows ∧
-        result.db = Function.update db name (some ⟨csvSchema schema, rows⟩) ∧
-        FlatScan.scanFileRowGroup (parquetLimits.scanLimits (writerInput schema rows))
-          (FlatScan.decodeInt32Page parquetLimits.page.scalar) result.bytes 0 = .ok batch ∧
-        batch.rowCount = rows.length ∧
-        batch.columns.map (fun (field, values) => (field, values.cells.toList)) =
-          List.ofFn (fun i => (⟨(schema.kind i).1, .optional⟩, rows.map (· i))) := by
+    db name = none ∧
+      ∃ (rows : Csv.Typed.Table (csvSchema schema) Cell) (output : FlatInt32Writer.Encoded),
+        readCsv csvLimits schema wire = .ok rows ∧
+        FlatInt32Writer.emit parquetLimits (writerInput schema rows) = .ok output ∧
+        result = ⟨Function.update db name (some ⟨csvSchema schema, rows⟩), output.bytes⟩ := by
   cases existing : db name with
   | some table => simp [convert, existing] at converted
   | none =>
@@ -86,12 +80,38 @@ theorem convert_readback {result : Result Name}
           { db := Function.update db name (some ⟨csvSchema schema, rows⟩), bytes := encoded.bytes } =
           .ok result at converted
         cases converted
-        obtain ⟨bytesBound, widthBound, rowBound, decoded⟩ := readCsv_ok read
-        obtain ⟨batch, scanned, rowCount, columns, _⟩ := FlatInt32Writer.emit_scanFileRowGroup written
-        have fileBound := (FlatInt32Writer.emit_layout written).2.1.1
-        refine ⟨rfl, bytesBound, widthBound, fileBound, rows, batch, rowBound, decoded, rfl, scanned, rowCount, ?_⟩
-        rw [columns]
-        simp [writerInput, List.map_ofFn, Function.comp_def, FlatInt32Writer.Column.scanObservation,
-          FlatInt32Writer.Column.scanField, PlainV1Writer.Input.slots, csvSchema]
+        exact ⟨rfl, rows, encoded, rfl, written, rfl⟩
+
+theorem convert_written {result : Result Name}
+    (converted : convert db name schema csvLimits parquetLimits wire = .ok result) :
+    db name = none ∧
+      ∃ (rows : Csv.Typed.Table (csvSchema schema) Cell) (output : FlatInt32Writer.Encoded),
+        Csv.Typed.Utf8.decode (csvSchema schema) codecs wire = .ok rows ∧
+        FlatInt32Writer.emit parquetLimits (writerInput schema rows) = .ok output ∧
+        result = ⟨Function.update db name (some ⟨csvSchema schema, rows⟩), output.bytes⟩ := by
+  obtain ⟨vacant, rows, output, read, written, resultEq⟩ := convert_stages converted
+  exact ⟨vacant, rows, output, (readCsv_ok read).2.2.2, written, resultEq⟩
+
+theorem convert_readback {result : Result Name}
+    (converted : convert db name schema csvLimits parquetLimits wire = .ok result) :
+    db name = none ∧ wire.length ≤ csvLimits.maxBytes ∧ schema.width ≤ csvLimits.maxColumns ∧
+      result.bytes.length ≤ parquetLimits.maxFileBytes ∧
+      ∃ (rows : Csv.Typed.Table (csvSchema schema) Cell) (batch : FlatScan.Batch),
+        rows.length ≤ csvLimits.maxRows ∧
+        Csv.Typed.Utf8.decode (csvSchema schema) codecs wire = .ok rows ∧
+        result.db = Function.update db name (some ⟨csvSchema schema, rows⟩) ∧
+        FlatScan.scanFileRowGroup (parquetLimits.scanLimits (writerInput schema rows))
+          (FlatScan.decodeInt32Page parquetLimits.page.scalar) result.bytes 0 = .ok batch ∧
+        batch.rowCount = rows.length ∧
+        batch.columns.map (fun (field, values) => (field, values.cells.toList)) =
+          List.ofFn (fun i => (⟨(schema.kind i).1, .optional⟩, rows.map (· i))) := by
+  obtain ⟨vacant, rows, output, read, written, rfl⟩ := convert_stages converted
+  obtain ⟨bytesBound, widthBound, rowBound, decoded⟩ := readCsv_ok read
+  obtain ⟨batch, scanned, rowCount, columns, _⟩ := FlatInt32Writer.emit_scanFileRowGroup written
+  have fileBound := (FlatInt32Writer.emit_layout written).2.1.1
+  refine ⟨vacant, bytesBound, widthBound, fileBound, rows, batch, rowBound, decoded, rfl, scanned, rowCount, ?_⟩
+  rw [columns]
+  simp [writerInput, List.map_ofFn, Function.comp_def, FlatInt32Writer.Column.scanObservation,
+    FlatInt32Writer.Column.scanField, PlainV1Writer.Input.slots, csvSchema]
 
 end Silmaril.Proofs.Formats.Parquet.FlatInt32Writer.FromCsv
