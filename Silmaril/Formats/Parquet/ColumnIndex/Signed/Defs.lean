@@ -51,7 +51,7 @@ structure Limits where
     ⟨16 * 1024 * 1024, 16 * 1024 * 1024, ⟨1024 * 1024, 16 * 1024 * 1024⟩, 0⟩
   index : ColumnIndex.Limits := {}
 
-def Limits.indexFraming (limits : Limits) : ColumnIndex.Limits :=
+@[expose] def Limits.indexFraming (limits : Limits) : ColumnIndex.Limits :=
   { limits.index with offsetIndex := { limits.index.offsetIndex with page := limits.column.framing } }
 
 private def readStruct (reader : Reader) (start : Nat) : Except OrderError (List Field × Nat) :=
@@ -109,7 +109,7 @@ def checkOrder (limits : Footer.Limits) (snapshot : Snapshot.Checked)
 
 /-- The selected leaf has neither annotation field. Its ColumnOrder is the
 singleton TYPE_ORDER arm with an exactly consumed empty struct. -/
-def SignedOrder (limits : Footer.Limits) (snapshot : Snapshot.Checked)
+@[expose] def SignedOrder (limits : Footer.Limits) (snapshot : Snapshot.Checked)
     {name : String} {layout : FlatColumn.Layout}
     (binding : FlatColumn.Binding snapshot ⟨name, .int32, layout⟩) : Prop :=
   ∃ fields member,
@@ -151,7 +151,7 @@ def checkPage (claim : Claim) (count : Option Int) (slots : Slots) : Except Page
 
 /-- Bounds, if any, have the original decoded words and contain every
 present value. Missing null counts assert nothing about the number of nulls. -/
-def PageValid (claim : Claim) (count : Option Int) (slots : Slots) (result : Option Bounds) : Prop :=
+@[expose] def PageValid (claim : Claim) (count : Option Int) (slots : Slots) (result : Option Bounds) : Prop :=
   (claim.allNull = true ↔ ∀ slot ∈ slots, slot = none) ∧
   (∀ n, count = some n → n = (slots.countP Option.isNone : Int)) ∧
   match result with
@@ -187,13 +187,13 @@ def ordered (order : BoundaryOrder) (values : List Int) : Bool :=
   | .ascending => nondecreasing values
   | .descending => nondecreasing (values.map Neg.neg)
 
-def Ordered (order : BoundaryOrder) (values : List Int) : Prop :=
+@[expose] def Ordered (order : BoundaryOrder) (values : List Int) : Prop :=
   match order with
   | .unordered => True
   | .ascending => values.Pairwise (· ≤ ·)
   | .descending => values.Pairwise (· ≥ ·)
 
-def endpoint (project : Bounds → Int32) (bounds : List (Option Bounds)) : List Int :=
+@[expose] def endpoint (project : Bounds → Int32) (bounds : List (Option Bounds)) : List Int :=
   (bounds.filterMap id).map (Int32.toInt ∘ project)
 
 def declaredCount (index : Index) : Nat → Option Int :=
@@ -206,7 +206,7 @@ def check (index : Index) (pages : List Slots) : Except Error (List (Option Boun
   if !ordered index.raw.order (endpoint Bounds.upper bounds) then throw .upperOrder
   pure bounds
 
-def Verified (index : Index) (pages : List Slots) (bounds : List (Option Bounds)) : Prop :=
+@[expose] def Verified (index : Index) (pages : List Slots) (bounds : List (Option Bounds)) : Prop :=
   PagesValid (declaredCount index) 0 index.raw.claims pages bounds ∧
     Ordered index.raw.order (endpoint Bounds.lower bounds) ∧
     Ordered index.raw.order (endpoint Bounds.upper bounds)

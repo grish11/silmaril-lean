@@ -32,7 +32,7 @@ lower and upper sequences separately in original page order. Checks use
 nonstrict comparisons, including across all-null gaps. Ordered intervals
 can overlap. UNORDERED imposes no sequence constraint and uses the same
 per-page containment checks.
-[Pinned ColumnIndex IDL](https://github.com/apache/parquet-format/blob/04d56f291ff963e98bc37ab8100e2fc133ff583c/src/main/thrift/parquet.thrift#L1285-L1348) · [Pinned PageIndex spec](https://github.com/apache/parquet-format/blob/04d56f291ff963e98bc37ab8100e2fc133ff583c/PageIndex.md#technical-approach)
+[Pinned ColumnIndex IDL](https://github.com/apache/parquet-format/blob/04d56f291ff963e98bc37ab8100e2fc133ff583c/src/main/thrift/parquet.thrift#L1285-L1348) · [Pinned PageIndex spec](https://github.com/apache/parquet-format/blob/04d56f291ff963e98bc37ab8100e2fc133ff583c/PageIndex.md#technical-approach) · [Pinned PLAIN INT32 encoding](https://github.com/apache/parquet-format/blob/04d56f291ff963e98bc37ab8100e2fc133ff583c/Encodings.md#plain-plain--0)
 
 Signed interpretation has a separate admission check. The exact raw
 footer gives the selected schema entry at `binding.leafOrdinal` and the
@@ -48,7 +48,7 @@ validator continues to interpret the bound words as opaque bytes.
 
 - `read_error_iff` and `read_ok_iff` identify the exact full-reader error
   and rows and make the diagnostic conditional on read success.
-- `checkOrder_sound` witnesses the selected raw footer leaves, absence of
+- `checkOrder_sound` witnesses the selected raw footer leaf, absence of
   the annotation fields, and the exact selected `TYPE_ORDER` member.
 - `checkPage_sound`, `checkEach_sound`, and `declaredCount_eq` connect the
   checked flags, optional null counts, bound words and signed containment
