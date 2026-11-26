@@ -261,8 +261,8 @@ import Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA.Generic.Thms
   native loops (fixed i64 banks with ordered feedback rows, distinct
   from the `Loop.Graph` pipeline above) and emits both resized RTL.SSA
   and typed MLIR CF for them. `Producer.Exit.Inversion.returns_iff`,
-  `cf_returns_iff`, `returns_exists_iff`/`no_return_iff` and
-  `region_returns_iff`/`region_no_return_iff` give forward/converse
+  `cf_returns_iff`, `returns_exists_iff`/`rtl_oracle_iff`/`no_return_iff`
+  and `region_returns_iff`/`region_no_return_iff` give forward/converse
   finite-return and all-budget-absence equivalences between the two
   backends and the canonical λSSA Region, for that checked profile only.
   [Guide and decision table][guarded-feedback-rtl] · [Theorems][son-guarded-exit-inversion-thms]
