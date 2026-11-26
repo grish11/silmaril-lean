@@ -168,7 +168,7 @@ private def admitPage {ε : Type} (codec : CodecProfile) (limits : Limits) (poli
   Footer.fileBytes source frame.payload.start frame.payload.stop
 
 /-- Raw number of slots declared by a data frame. Other kinds declare no slots. -/
-def pageSlots (header : Page.Header) : Nat :=
+@[expose] def pageSlots (header : Page.Header) : Nat :=
   match header.kind with
   | .dataV1 h => h.numValues
   | .dataV2 h => h.numValues

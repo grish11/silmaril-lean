@@ -1,0 +1,15 @@
+Control columns: all-null agreement, null counts, containment, lower order, upper order
+loose upper: dae150a456ee655604ec836cbc2a9decb17c9fae5700e6877ab4d2a5244a715b (True, True, True, True, True)
+excluded value: 1148f8eacf1540a3cd91765e464bd07152ac8c40befc7ddd65570550e52b17d1 (True, True, False, True, True)
+wrong null count: a3495eef5b727e618f7cf032252d36cadd6c47b4419a8a02939fe351316055ab (True, False, True, True, True)
+descending upper inversion: 4954b9ac5cab8f6a44876a642524ff1a60b8ee4840beae976f3f25777e68b8bf (True, True, True, True, False)
+ascending lower inversion: 873a2655eae56b6f37296d8253cb228a67738cfb32447243987eb0cbec245d5e (True, True, True, False, True)
+false all-null flag: 04b216be2c4ad06dec75d723fe30f7c7aff1ba3aa6e4c00e01e975da956db727 (False, False, True, True, True)
+missing null counts: fcb094bb49f2041617e31db57d51c280c24e03d314b6393d09fb19a2d226b639 (True, True, True, True, True)
+UINT_32 annotation: ad5ae805a855faa128e787b50958eaf587776c9894e9c47c5ec5868f4318d7fe
+absent column order: 4ea6985c1437790b419fb538160178ba2a611860494b54a126086d1d63b88f5e
+late malformed definition extent: 8e735605b24ed4296cf563677f99d81a5d096b6e1e8dc744018e302d100bcec0
+column-index-v2.parquet: bc056132b17307c091698d43841db26dbffc1e8a41eba5c4a7ac1aafff74760a
+V2 group 0 ASCENDING: bounds [(-2147483648, 3), None, (0, 2147483647)], null counts [1, 4, 1]
+V2 group 1 DESCENDING: bounds [(5, 12), None, (-2147483648, 8)], null counts [1, 4, 1]
+V2 group 2 UNORDERED: bounds [(-5, 0), (8, 12), (-18, 5)], null counts [2, 1, 1]
