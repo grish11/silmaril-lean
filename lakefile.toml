@@ -472,6 +472,11 @@ globs = ["tests.ssa.LetIterPackingImports.+"]
 name = "LetIterWeakTreeSoundnessTests"
 globs = ["tests.ssa.LetIterWeakTreeSoundness"]
 
+# Check the parallel embeddings, effectful examples and axiom dependencies.
+[[lean_lib]]
+name = "LetParTests"
+globs = ["tests.ssa.LetPar"]
+
 # Check the typed PEG core, the paper guard counterexample, and SIMPLE translation and reversion.
 [[lean_lib]]
 name = "PEGCoreTests"
