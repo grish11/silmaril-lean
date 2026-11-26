@@ -29,9 +29,16 @@ The harness pins CPython 3.13.5, PyArrow 26.0.1, and the generated metadata
 hashes. It checks the presence of the producer's explicit DAY slot and the
 absence of the MILLISECOND slot, then compares the ordered Schema observation
 with PyArrow. Other fixtures cover explicit MILLISECOND, Big endian metadata,
-unknown unit and endian codes, a mixed schema, and the existing legacy
-reader's admission. The hosted Lean test includes the two-field producer
-fixture. [Fixture manifest](../../scripts/arrow-date-schema-oracle/fixtures.json)
+unknown unit, endian and type codes, and the existing legacy reader's
+admission. A mutation changes a real Int32 field's tag to DATE and checks that
+the reader rejects its two-slot Int32 payload table. The union tag selects
+the layout, and the checks validate the payload against that layout.
+
+Two pinned single-column streams use the parsed Schema date unit,
+endianness and nullability to select and call `DateValues.decodeBatch`.
+Both match PyArrow's ordered nullable civil dates. The hosted Lean test
+includes the two-field Schema and the Date32 schema-to-batch fixture.
+[Fixture manifest](../../scripts/arrow-date-schema-oracle/fixtures.json)
 
 ```sh
 targets='+Silmaril.Formats.Arrow.Metadata.Thms +Silmaril.Formats.Arrow.Metadata.Tests +Silmaril.Formats.Arrow.Writer.Thms +Silmaril.Formats.Arrow.StreamWriter.Thms arrow_ipc_metadata_tests'

@@ -1,6 +1,7 @@
 """Check the Arrow Schema reader against pinned PyArrow metadata and mutations."""
 
 import argparse
+from datetime import date
 import hashlib
 import json
 import os
@@ -18,6 +19,7 @@ LEAN_DRIVER = """\
 module
 
 meta import Silmaril.Formats.Arrow.Metadata.Defs
+meta import Silmaril.Formats.Arrow.Metadata.Tests
 
 open Silmaril Silmaril.Formats.Arrow
 
@@ -63,9 +65,13 @@ def schema_table(data):
     return target(data, slot(data, target(data, 0), 2))
 
 
-def date_payload(data, index):
+def field_table(data, index):
     fields = target(data, slot(data, schema_table(data), 1))
-    field = target(data, fields + 4 + 4 * index)
+    return target(data, fields + 4 + 4 * index)
+
+
+def date_payload(data, index):
+    field = field_table(data, index)
     require(scalar(data, slot(data, field, 2), "B") == 8, "expected Date union tag 8")
     return target(data, slot(data, field, 3))
 
@@ -73,6 +79,14 @@ def date_payload(data, index):
 def raw_unit(data, index):
     position = slot(data, date_payload(data, index), 0)
     return None if position is None else scalar(data, position, "H")
+
+
+def set_type_tag(data, index, original, replacement):
+    changed = bytearray(data)
+    position = slot(changed, field_table(changed, index), 2)
+    require(scalar(changed, position, "B") == original, "unexpected original type union tag")
+    changed[position] = replacement
+    return bytes(changed)
 
 
 def set_unit(data, index, code):
@@ -98,13 +112,17 @@ def set_endian(data, code):
     return bytes(changed)
 
 
-def messages(pa, schema, batch=None):
+def ipc_stream(pa, schema, batch=None):
     sink = pa.BufferOutputStream()
     with pa.ipc.new_stream(sink, schema) as writer:
         if batch is not None:
             writer.write_batch(batch)
+    return sink.getvalue()
+
+
+def messages(pa, schema, batch=None):
     return [message.metadata.to_pybytes()
-            for message in pa.ipc.MessageReader.open_stream(sink.getvalue())]
+            for message in pa.ipc.MessageReader.open_stream(ipc_stream(pa, schema, batch))]
 
 
 def fixtures(pa):
@@ -128,6 +146,8 @@ def fixtures(pa):
         "explicit_millisecond": explicit,
         "big_endian": set_endian(spare, 1),
         "invalid_unit": set_unit(date_bytes, 0, 2),
+        "date_tag_int_table": set_type_tag(mixed_bytes, 0, 2, 8),
+        "unknown_type_tag": set_type_tag(date_bytes, 0, 8, 255),
         "invalid_endian": set_endian(spare, 2),
         "schema_custom_metadata": spare,
         "record_message": record,
@@ -163,6 +183,8 @@ def lean_checks(pa, name, data):
     wire = bytes_term(data)
     negative = {
         "invalid_unit": "(.malformed .flatbuffer)",
+        "date_tag_int_table": "(.unsupported .unknownMetadataSlots)",
+        "unknown_type_tag": "(.unsupported (.fieldType 255))",
         "invalid_endian": "(.unsupported (.endianness 2))",
         "schema_custom_metadata": "(.unsupported .customMetadata)",
         "record_message": "(.unsupported (.messageKind 3))",
@@ -184,6 +206,37 @@ def lean_checks(pa, name, data):
         yield f"#guard agrees (SchemaReader.readMessage {{ fields := 3 }} {wire}) (.error (.limit .fields))"
 
 
+def date_batches(pa):
+    dates = [date(1969, 12, 31), None, date(2000, 2, 29), date(1970, 1, 1)]
+    for unit, arrow_type, raw in (("day", pa.date32(), 0), ("millisecond", pa.date64(), None)):
+        batch = pa.record_batch([pa.array(dates, type=arrow_type)], names=["日"])
+        ipc = ipc_stream(pa, batch.schema, batch)
+        observed = pa.ipc.open_stream(ipc).read_next_batch()
+        require(observed.schema == batch.schema and observed.column(0).to_pylist() == dates,
+                f"{unit}: PyArrow record observation differs")
+        schema, record = list(pa.ipc.MessageReader.open_stream(ipc))
+        schema_bytes = schema.metadata.to_pybytes()
+        require(raw_unit(schema_bytes, 0) == raw, f"{unit}: unexpected raw schema unit")
+        yield unit, observed.column(0).to_pylist(), {
+            "ipc": ipc.to_pybytes(),
+            "schema": schema_bytes,
+            "metadata": record.metadata.to_pybytes(),
+            "body": record.body.to_pybytes(),
+        }
+
+
+def lean_dates(values):
+    return "[" + ", ".join(
+        "none" if value is None else f"some ⟨{value.year}, {value.month}, {value.day}⟩"
+        for value in values
+    ) + "]"
+
+
+def check_hash(data, expected, label):
+    digest = hashlib.sha256(data).hexdigest()
+    require({"bytes": len(data), "sha256": digest} == expected, f"{label}: pinned bytes differ")
+    return digest
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pyarrow-path", type=Path, help="Directory containing the pinned PyArrow wheel contents")
@@ -201,11 +254,17 @@ def main():
 
     commands = [LEAN_DRIVER]
     for name, data in fixtures(pa).items():
-        digest = hashlib.sha256(data).hexdigest()
-        require({"bytes": len(data), "sha256": digest} == manifest["metadata"][name],
-                f"{name}: pinned metadata differs")
+        digest = check_hash(data, manifest["metadata"][name], name)
         commands.extend(lean_checks(pa, name, data))
         print(f"PASS {name} {digest}", flush=True)
+    for unit, observed, parts in date_batches(pa):
+        for name, data in parts.items():
+            check_hash(data, manifest["batches"][unit][name], f"{unit} {name}")
+        schema, metadata, body = (bytes_term(parts[name]) for name in ("schema", "metadata", "body"))
+        commands.append(
+            f"#guard SchemaReader.Tests.observesDateBatch {schema} {metadata} {body} .{unit} {lean_dates(observed)}"
+        )
+        print(f"PASS {unit} schema-to-batch {manifest['batches'][unit]['ipc']['sha256']}", flush=True)
     with tempfile.TemporaryDirectory(prefix="silmaril-arrow-date-schema-") as scratch:
         driver = Path(scratch) / "Fixtures.lean"
         driver.write_text("\n".join(commands) + "\n", encoding="utf-8")
@@ -214,7 +273,7 @@ def main():
             cwd=ROOT,
             check=True,
         )
-    print(f"PASS {len(commands) - 1} Lean Schema observations and compatibility checks")
+    print(f"PASS {len(commands) - 1} Lean Schema, batch and compatibility checks")
 
 
 if __name__ == "__main__":
