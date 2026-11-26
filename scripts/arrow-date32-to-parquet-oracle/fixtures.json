@@ -1,0 +1,189 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "optional": {
+      "field": "日付",
+      "nullable": true,
+      "signed_slots": [
+        -2147483648,
+        null,
+        -1,
+        0,
+        11016,
+        2147483647
+      ],
+      "pyarrow_ipc": {
+        "bytes": 312,
+        "sha256": "4fe8b48129fe544fc5170932fb27ca051d653cf8306926781631cd53715b2304"
+      },
+      "lean_parquet": {
+        "bytes": 141,
+        "sha256": "3a8f2f02db598f82509af46e4dcbd20e04abc183618103d37ce9c15969b6f815"
+      },
+      "v1_body": {
+        "bytes": 36,
+        "sha256": "1f690116a33905d14c9a284ebd2d355da930e42afab159ab0f87d4b8d20f23f4"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "required": {
+      "field": "époque",
+      "nullable": false,
+      "signed_slots": [
+        -719528,
+        -1,
+        0,
+        11016
+      ],
+      "pyarrow_ipc": {
+        "bytes": 296,
+        "sha256": "0939cfe4d8b472c2c1d716e0d5467c00d2695f3c6e5790eb5dcd3fdc640eddea"
+      },
+      "lean_parquet": {
+        "bytes": 123,
+        "sha256": "ea9751d44fbb6e31b44885d1cbbd80bec24fc92bbd5894170e7e2eccac5095aa"
+      },
+      "v1_body": {
+        "bytes": 16,
+        "sha256": "d8b70d86dc80310a6cb9a1b50233aa8d71098f3054cce1b2d25fec6ee12f1718"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 0,
+        "4": "époque",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "empty_required": {
+      "field": "empty required",
+      "nullable": false,
+      "signed_slots": [],
+      "pyarrow_ipc": {
+        "bytes": 264,
+        "sha256": "24e4865f118363501f627052d9b127fe1810fec9ac492defe3d102b004eba939"
+      },
+      "lean_parquet": {
+        "bytes": 121,
+        "sha256": "ccfd40c61446d1cea8616434c962e734955b35fcf3a50a4f503b7f4582947175"
+      },
+      "v1_body": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 0,
+        "4": "empty required",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "empty_optional": {
+      "field": "empty optional",
+      "nullable": true,
+      "signed_slots": [],
+      "pyarrow_ipc": {
+        "bytes": 264,
+        "sha256": "50ec13ec233f5fcc356d4c31c9414527494f5131b099ca8bfa3e51659e0dedaf"
+      },
+      "lean_parquet": {
+        "bytes": 125,
+        "sha256": "a9baf8b75ddddcb336e14eaddd587619343c702acfb6d81a54b02efba442f55d"
+      },
+      "v1_body": {
+        "bytes": 4,
+        "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "empty optional",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    }
+  },
+  "controls": {
+    "schema_only": {
+      "ipc": {
+        "bytes": 136,
+        "sha256": "c35aaee29c9e2b0ca8884282094880a40bdfbb0c2417c4094ab979e98eeef279"
+      },
+      "lean_error": "(.batchCount 0)"
+    },
+    "two_batches": {
+      "ipc": {
+        "bytes": 416,
+        "sha256": "bc94433ac867eb3fd20518cf24ad93132b0c9357ee335f6c39a68158ca78f720"
+      },
+      "lean_error": "(.batchCount 2)"
+    },
+    "missing_eos": {
+      "ipc": {
+        "bytes": 304,
+        "sha256": "27a3c13018ea3c74fa5e761c224835191c8d088409cca92184c656e017e17eed"
+      },
+      "lean_error": "(.reader (.batch 1 (.envelope (.malformed .truncated))))"
+    },
+    "date64": {
+      "ipc": {
+        "bytes": 304,
+        "sha256": "037bd43336d7723fa0e87b3e5f7fed439a4be6414b4ed20a6a0032a79746f7fd"
+      },
+      "lean_error": "(.wrongUnit .millisecond)"
+    },
+    "fractional_date64": {
+      "ipc": {
+        "bytes": 280,
+        "sha256": "7b83e8777b32f3d444c7632396145b6f90d89c213e872c1d0bd09c6933dc05dd"
+      },
+      "lean_error": "(.reader (.batch 0 (.values (.nonWholeDay 0))))"
+    },
+    "two_fields": {
+      "ipc": {
+        "bytes": 176,
+        "sha256": "75c360f68df2de1920e9eb62e40cf64f48c4951ad9a4bc6ee8b1530e12d01b3e"
+      },
+      "lean_error": "(.reader (.fieldCount 2))"
+    },
+    "required_null": {
+      "ipc": {
+        "bytes": 296,
+        "sha256": "2fa545220f979c290d3edc1b1bc0cbd6d6966892dbed9ad475e5e659ac982400"
+      },
+      "lean_error": "(.reader (.batch 0 (.values (.ipc (.malformed .validityBitmap)))))"
+    }
+  }
+}

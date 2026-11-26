@@ -91,7 +91,8 @@ def emitChunks (limits : PlainV1Writer.Limits) : Nat → List Column → Except 
 
 /-- Bounds cover the data and trailer before page assembly. The remaining file
 budget also caps the incremental footer encoder. -/
-def assemble (limits : Limits) (input : Input) : Except Error Encoded := do
+def assembleAnnotated (annotation : Compact.LeafAnnotation) (limits : Limits) (input : Input) :
+    Except Error Encoded := do
   let sizes ← input.columns.mapM (fun col => measuredPage limits.page col.values)
   let footerStart := 4 + sizes.sum
   let fileLimit := min limits.maxFileBytes (2 ^ 63 - 1)
@@ -99,11 +100,14 @@ def assemble (limits : Limits) (input : Input) : Except Error Encoded := do
   let chunks ← emitChunks limits.page 4 input.columns
   let indexes := chunks.map Chunk.index
   let footerLimit := min (min limits.footer.maxFooterBytes (2 ^ 32 - 1)) (fileLimit - footerStart - 8)
-  let footer ← (Compact.encode footerLimit input.rowCount indexes).mapError Error.compact
+  let footer ← (Compact.encodeAnnotated annotation footerLimit input.rowCount indexes).mapError Error.compact
   let data := Bytes.ofList (chunks.flatMap (fun chunk => chunk.page.wire.toList))
   let bytes := (Footer.magic.append data).append footer
   let bytes := (bytes.append (Bytes.ofList (KBytes.unpack 4 footer.length))).append Footer.magic
   return ⟨bytes, ⟨footerStart, footerStart + footer.length⟩, Compact.metadata input.rowCount indexes, chunks⟩
+
+def assemble (limits : Limits) (input : Input) : Except Error Encoded :=
+  assembleAnnotated .unannotated limits input
 
 /-- Check the recovered absolute interval, single page and exact body slice. -/
 def Chunk.Checked (limits : Limits) (file : Bytes) (footerStart rows : Nat) (chunk : Chunk) : Prop :=
@@ -127,12 +131,18 @@ instance (limits : Limits) (rows : Nat) (output : Encoded) : Decidable (output.C
   unfold Encoded.Checked
   infer_instance
 
-/-- Return a complete file after checked recovery of its footer and chunk index. -/
-def emit (limits : Limits) (input : Input) : Except Error Encoded :=
+/-- Check the file's physical footer and chunk index. Callers using an
+annotation check its logical round trip with the corresponding reader. -/
+def emitAnnotated (annotation : Compact.LeafAnnotation) (limits : Limits) (input : Input) :
+    Except Error Encoded :=
   if input.Valid limits then do
-    let output ← assemble limits input
+    let output ← assembleAnnotated annotation limits input
     if output.Checked limits input.rowCount then return output else throw .invariant
   else .error .schemaOrCount
+
+/-- Return a complete file after checked recovery of its footer and chunk index. -/
+def emit (limits : Limits) (input : Input) : Except Error Encoded :=
+  emitAnnotated .unannotated limits input
 
 /-- A layout covers the data area in schema order with adjacent page extents. -/
 def Contiguous (start : Nat) : List Chunk → Nat → Prop

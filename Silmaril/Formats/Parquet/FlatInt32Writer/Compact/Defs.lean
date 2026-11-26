@@ -75,14 +75,31 @@ def root (width : Nat) : Write Unit := do
   integer .i32 width
   octet 0
 
-def leaf (column : ColumnIndex) : Write Unit := do
+inductive LeafAnnotation where
+  | unannotated
+  | date
+
+def leafAnnotated (annotation : LeafAnnotation) (column : ColumnIndex) : Write Unit := do
   field 1 5
   integer .i32 1
   field 2 5
   integer .i32 (if column.optional then 1 else 0)
   field 1 8
   text column.name
+  match annotation with
+  | .unannotated => pure ()
+  | .date =>
+    -- From SchemaElement.name (4) to ConvertedType.DATE (6).
+    field 2 5
+    integer .i32 6
+    -- LogicalType (10) contains only DATE (6) with an empty DateType struct.
+    field 4 12
+    field 6 12
+    octet 0
+    octet 0
   octet 0
+
+def leaf (column : ColumnIndex) : Write Unit := leafAnnotated .unannotated column
 
 def chunk (rows : Nat) (column : ColumnIndex) : Write Unit := do
   field 2 6
@@ -120,13 +137,14 @@ def group (rows : Nat) (columns : List ColumnIndex) : Write Unit := do
   integer .i64 rows
   octet 0
 
-def footer (rows : Nat) (columns : List ColumnIndex) : Write Unit := do
+def footerAnnotated (annotation : LeafAnnotation) (rows : Nat) (columns : List ColumnIndex) :
+    Write Unit := do
   field 1 5
   integer .i32 1
   field 1 9
   listHeader 12 (columns.length + 1)
   root columns.length
-  for column in columns do leaf column
+  for column in columns do leafAnnotated annotation column
   field 1 6
   integer .i64 rows
   field 1 9
@@ -134,8 +152,15 @@ def footer (rows : Nat) (columns : List ColumnIndex) : Write Unit := do
   group rows columns
   octet 0
 
+def footer (rows : Nat) (columns : List ColumnIndex) : Write Unit :=
+  footerAnnotated .unannotated rows columns
+
 /-- Each write consumes part of the caller's exact Compact byte budget. -/
+def encodeAnnotated (annotation : LeafAnnotation) (limit rows : Nat) (columns : List ColumnIndex) :
+    Except Error Bytes :=
+  ((footerAnnotated annotation rows columns).run ⟨limit, .empty⟩).map (·.2.bytes)
+
 def encode (limit rows : Nat) (columns : List ColumnIndex) : Except Error Bytes :=
-  ((footer rows columns).run ⟨limit, .empty⟩).map (·.2.bytes)
+  encodeAnnotated .unannotated limit rows columns
 
 end Silmaril.Formats.Parquet.FlatInt32Writer.Compact
