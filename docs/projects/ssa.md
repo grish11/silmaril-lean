@@ -127,6 +127,16 @@ inputs from its packet parameter. The general renaming theorem only requires
 agreement on the entry's free inputs after renaming. The source can use a
 handwritten packet layout, as in the [non-image back-edge regression](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/RoundTrip/Regression.lean).
 
+[Named cyclic observational classes](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Comparison/Thms.lean)
+fix the register and label types, instruction alphabet, value carrier and
+lawful Elgot monad. Equivalence compares the entire exit-label and payload
+computation for every pair-lawful model and every common store on the original
+register type. Lexical entry inputs are the corresponding version-zero values,
+and every block has a singleton packet context. `classEquiv` makes versioning
+and deversioning inverse maps on these classes, including admitted handwritten
+tables. The satisfaction theorems transport equations between classes in each
+common model, with signatures held fixed.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

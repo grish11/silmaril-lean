@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.RoundTrip.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Comparison.Thms
 import Silmaril.SSA.LambdaRTL.Thms
 import Silmaril.Semantics.Elgot.Thms
 import Mathlib.Data.Nat.Pairing
@@ -117,14 +117,14 @@ private theorem lexicalEntryZero : ∀ reg ∈ lexicalLoop.entry.toRegion.fv, re
   simp only [Finset.mem_insert, Finset.mem_singleton] at member
   rcases member with rfl | rfl | rfl <;> rfl
 
-private theorem lexicalClosed : PacketClosed lexicalLoop := by
-  intro item member
+private theorem lexicalBlocksSSA (item : Nat × Block (Nat × Nat) Nat Unit)
+    (member : item ∈ lexicalLoop.blocks) : item.2.body.toRegion.IsSSA {item.2.param} := by
   simp only [lexicalLoop, List.mem_cons, List.not_mem_nil, or_false] at member
-  rcases member with rfl | rfl
-  · apply Region.fv_subset_of_isSSA
-    simp [lexicalHeader, Body.toRegion, Term.toRegion, Region.IsSSA, Op.fv, Val.fv]
-  · apply Region.fv_subset_of_isSSA
-    simp [lexicalSwap, Body.toRegion, Term.toRegion, Region.IsSSA, Op.fv, Val.fv]
+  rcases member with rfl | rfl <;>
+    simp [lexicalHeader, lexicalSwap, Body.toRegion, Term.toRegion, Region.IsSSA, Op.fv, Val.fv]
+
+private theorem lexicalClosed : PacketClosed lexicalLoop :=
+  fun item member => Region.fv_subset_of_isSSA (lexicalBlocksSSA item member)
 
 -- Every compiled block has a version-zero parameter, even if its body never reads it.
 example : ¬ ∃ source : CFG Nat Nat Unit, Versioning.compile source = lexicalLoop := by
@@ -161,5 +161,20 @@ private theorem lexicalReturns :
 example : Cyclic.runSSA model (Versioning.compile (deversionGraph lexicalLoop)) lexicalInput =
     Part.some (99, Nat.pair 7 3) := by
   rw [runSSA_deversion_reversion model pairs lexicalLoop lexicalClosed lexicalEntryZero, lexicalReturns]
+
+private def admittedLexicalLoop : Comparison.LexicalGraph Nat Nat Unit :=
+  ⟨lexicalLoop, ⟨_, by simp +contextual, lexicalEntrySSA⟩, lexicalBlocksSSA⟩
+
+private noncomputable def lexicalClass : Comparison.SSAClass Nat Nat Unit Part Nat :=
+  Quotient.mk _ admittedLexicalLoop
+
+-- The quotient's inverse accepts the handwritten graph and preserves its observed swap.
+example : Comparison.rtlClassObserve ⟨model, pairs⟩
+    (Comparison.classEquiv.symm lexicalClass) initial = Part.some (99, Nat.pair 7 3) := by
+  change Comparison.rtlClassObserve ⟨model, pairs⟩ (Comparison.deversionClass lexicalClass) initial = _
+  rw [Comparison.classObserve_deversion]
+  change Comparison.ssaObserve ⟨model, pairs⟩ admittedLexicalLoop initial = _
+  rw [← Comparison.observe_deversion]
+  exact (Comparison.observe_deversion_runSSA ⟨model, pairs⟩ admittedLexicalLoop lexicalInput).trans lexicalReturns
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.RoundTrip
