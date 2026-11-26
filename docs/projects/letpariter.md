@@ -61,8 +61,10 @@ naturality for ordinary functions via functor map, symmetry, associativity,
 and the right unitor at monadic `pure ()`. The left unitor and compatibility
 of pairing with one or two pure values follow from those fields. The record
 has no law about Kleisli bind, iteration, scheduler fairness, or an effect
-observation model. `LetParIter.sound` gives equality of denotations for every
-generated equation and every ambient valuation.
+observation model. Use `LetParIter.interpret` to run the common tier evaluator
+with this model. `interpret_eq_denote` relates that evaluator to the direct
+native-model denotation. `interpret_sound` preserves the common evaluator
+under every generated equation and every ambient valuation.
 
 The model regression uses a partial writer whose bind adds counters and
 whose parallel operation takes their maximum. The two sequential orders for
@@ -78,7 +80,9 @@ its own pairing and proves the record's fields for its chosen observations.
 ## Native compatibility
 
 `embed` is constructor-preserving and `toLetIter?` is its left inverse.
-`derivation` preserves native exact typing, and `denote_embed` preserves
+`derivation` preserves native exact typing. The embedding commutes with type-preserving
+renaming, simultaneous bound substitution and the native inclusion from
+LetCase. `denote_embed` preserves
 native denotation in every model supplied with a pairing. The native
 denotation on these terms is therefore independent of the chosen pairing
 on that same model. This gives syntactic injectivity and conservativity of
@@ -86,4 +90,4 @@ the interpretation on native programs. Reflection of the extended
 equational theory into native syntactic equality would require a separate
 argument.
 
-Run `make check CHECK_TARGETS=LetParIterTests` for the focused checks.
+Run `make check CHECK_TARGETS="LetParTests LetParIterTests"` for the focused checks.

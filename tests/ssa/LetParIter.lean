@@ -32,6 +32,15 @@ example : LetParIter.toLetIter? (LetParIter.embed native) = some native :=
 example : Derivation Instr Γ .nil (LetParIter.embed native) U :=
   LetParIter.derivation nativeTyped
 
+def nativeWithEta : LetIter.LocallyNameless.Derivation Instr Γ .nil
+    (.let₁ native (.bv 0)) U :=
+  .let₁ nativeTyped .bv
+
+-- A native equation survives at its original exact typing endpoints.
+example : LetParIter.Equiv (⊥ : Bool × Bool) Γ
+    (LetParIter.derivation nativeWithEta) (LetParIter.derivation nativeTyped) :=
+  .native nativeWithEta nativeTyped ⟨.letEta (LetParIter.nativeTyping nativeTyped)⟩
+
 def unitBranch : Derivation Instr Γ (.snoc .nil U) (.bv 0 : LetParIter.Tm Empty Instr 1) U :=
   .bv
 
@@ -66,11 +75,22 @@ def substituteUnit :
 
 example := LetParIter.Equiv.bsubst substituteUnit (fun _ => .unit) swapOpen
 
+def openLoop : LetParIter.Tm Empty Instr 2 :=
+  .iter rfl (.bv 0) (.inl LetParIter.hasCase (.par (.bv 0) (.par (.bv 1) (.bv 2))))
+
+def replaceAmbient : Fin 2 → LetParIter.Tm Empty Instr 1 :=
+  Fin.cases .unit (fun _ => .bv 0)
+
+-- The loop variable stays at zero, while the replacement mentioning an ambient
+-- variable is lifted past the binder.
+example : openLoop.bsubst replaceAmbient =
+    .iter rfl .unit (.inl LetParIter.hasCase (.par (.bv 0) (.par .unit (.bv 1)))) := rfl
+
 variable [TypeModel.{0, 0} Obj]
 variable {m : Type → Type} [Monad m] [LawfulMonad m] [Elgot.Iterate m] [Elgot.LawfulElgotMonad m]
 variable [InstructionModel Instr Obj (Bool × Bool) m]
 
 example (P : Elgot.ParallelPairing m) (γ : CtxDen Γ) (ρ : BoundDen (.nil : BoundCtx Obj 0)) :=
-  LetParIter.sound P loopSwap γ ρ
+  LetParIter.interpret_sound P loopSwap γ ρ
 
 end LetParIterTests

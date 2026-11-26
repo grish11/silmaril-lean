@@ -77,6 +77,25 @@ def derivation : {n : Nat} → {β : BoundCtx τ n} →
   | _, _, _, _, .abort ha => .abort (derivation ha)
   | _, _, _, _, .iter ha hb => .iter (derivation ha) (derivation hb)
 
+/-- Widen case-tier typing, preserving its parallel computations. -/
+def ofLetParCaseDerivation : {n : Nat} → {β : BoundCtx τ n} →
+    {t : LetParCase.Tm ν Φ n} → {A : τ} →
+    Derivation Φ Γ β t A → Derivation Φ Γ β (ofLetParCase t) A
+  | _, _, _, _, .fv h => .fv h
+  | _, _, _, _, .bv => .bv
+  | _, _, _, _, .op ha => .op (ofLetParCaseDerivation ha)
+  | _, _, _, _, .let₁ ha hb => .let₁ (ofLetParCaseDerivation ha) (ofLetParCaseDerivation hb)
+  | _, _, _, _, .unit => .unit
+  | _, _, _, _, .pair ha hb => .pair (ofLetParCaseDerivation ha) (ofLetParCaseDerivation hb)
+  | _, _, _, _, .let₂ ha hb => .let₂ (ofLetParCaseDerivation ha) (ofLetParCaseDerivation hb)
+  | _, _, _, _, .inl ha => .inl (ofLetParCaseDerivation ha)
+  | _, _, _, _, .inr ha => .inr (ofLetParCaseDerivation ha)
+  | _, _, _, _, .case he hl hr => .case (ofLetParCaseDerivation he)
+      (ofLetParCaseDerivation hl) (ofLetParCaseDerivation hr)
+  | _, _, _, _, .abort ha => .abort (ofLetParCaseDerivation ha)
+  | _, _, .iter h _ _, _, _ => nomatch h
+  | _, _, _, _, .par ha hb => .par (ofLetParCaseDerivation ha) (ofLetParCaseDerivation hb)
+
 variable [Subtyping τ]
 
 /-- Regard exact native typing as proof-relevant typing without coercions. -/
