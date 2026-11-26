@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
@@ -105,6 +105,16 @@ private def trace : Trace (Silmaril.Elgot.ITree.Finite.Event sig.Request sig.Rep
   .exchange (.ask pollKey) loopReply
     (.exchange (.ask pingKey) pingReply
       (.exchange (.ask pollKey) lastReply (.result (Program.renderResult exitSecond))))
+
+-- A handler that denies every reply cannot replay this distinguishing
+-- exchange path, even though it is present in the unrestricted weak tree.
+private def denyReplies : Silmaril.Logic.ITree.Model.{0, 0} sig.traceSignature.toSignature where
+  State := Unit
+  initial _ := True
+  step _ _ _ _ := False
+
+example : ¬ Silmaril.Elgot.ITree.Replay denyReplies.step () trace := by
+  simp [trace, Silmaril.Elgot.ITree.Replay, denyReplies]
 
 private theorem leftTrace : HasTrace (left.observe 0 packet) trace := by
   unfold trace

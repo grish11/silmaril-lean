@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Thms
 import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
@@ -99,6 +99,13 @@ example : explanation.direction.distinguishes
     ((packed true mismatch.1).observe ambient (record mismatch.1 mismatch.2))
     (explanation.trace.map FiniteCFG.packedTreeOutput) :=
   left.explainMismatch?_sound_packed explained _ _ _ _ _ _ (agrees false _ _) (agrees true _ _)
+
+example : ¬ Silmaril.Logic.ITree.TraceInstitution.institution.{0, 1, 0}.Sat signature.traceSignature
+    ⟨signature.traceModel⟩
+    ((packed false mismatch.1).refinementSentence (packed true mismatch.1)
+      explanation.direction ambient ambient (record mismatch.1 mismatch.2) (record mismatch.1 mismatch.2)) :=
+  left.explainMismatch?_refutes_traceSat explained (packed false mismatch.1) (packed true mismatch.1)
+    ambient ambient _ _ (agrees false _ _) (agrees true _ _)
 
 example : ¬ (∀ input packet, (packed false input).observe ambient (record input packet) =
     (packed true input).observe ambient (record input packet)) := by
