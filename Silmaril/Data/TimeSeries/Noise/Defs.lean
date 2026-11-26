@@ -9,7 +9,9 @@ public import Mathlib.Probability.Kernel.Composition.MeasureComp
 The sampling interface uses finite indexed vectors. A noise measure describes the entire
 vector of errors, so errors at different indices may be dependent. For a random function,
 the caller supplies a measurable family, a law on its parameters and a noise kernel.
-Probability inputs, with a Markov kernel in the random model, give probability laws.
+For a probabilistic model, use a probability measure as the prior and a Markov kernel
+for the conditional noise. The joint, mixed noise, and random observation laws are
+then probability measures.
 -/
 
 @[expose] public section
@@ -52,12 +54,17 @@ theorem MeasurableFamily.measurable_sample (family : MeasurableFamily F V) (time
     Measurable (fun a => sample (family.eval a) times) :=
   Measurable.of_eval fun i => family.measurable_eval (times i)
 
-/-- The joint law of the family parameter and its conditional noise vector. -/
+/-- The joint law of the family parameter and its conditional noise vector.
+Mathlib's composition-product gives the zero measure if the prior or kernel lacks
+s-finiteness. A probability prior and a Markov kernel are both s-finite. -/
 noncomputable def jointNoiseLaw (prior : Measure F) (noise : Kernel F (Samples n V)) :
     Measure (F × Samples n V) :=
   prior ⊗ₘ noise
 
-/-- The unconditional noise law, obtained by mixing the kernel against the prior. -/
+/-- The unconditional noise law, obtained by mixing the kernel against the prior.
+It is the second marginal of `jointNoiseLaw` when both inputs are s-finite.
+With a Markov kernel this mix has the same total mass as the prior, even for a
+prior that lacks s-finiteness. -/
 noncomputable def noiseLaw (prior : Measure F) (noise : Kernel F (Samples n V)) :
     Measure (Samples n V) :=
   noise ∘ₘ prior
@@ -72,7 +79,8 @@ theorem measurable_observe [Add V] [MeasurableAdd₂ V]
   ((family.measurable_sample times).comp measurable_fst).add measurable_snd
 
 /-- Push the joint law forward to the observation vector, retaining the dependence of the
-noise on the chosen function parameter. -/
+noise on the chosen function parameter. This law also gives the zero measure when
+the prior or kernel lacks s-finiteness, by the fallback in `jointNoiseLaw`. -/
 noncomputable def randomObservationLaw [Add V] [MeasurableAdd₂ V] (family : MeasurableFamily F V)
     (times : Schedule n) (prior : Measure F) (noise : Kernel F (Samples n V)) :
     Measure (Samples n V) :=

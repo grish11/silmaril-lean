@@ -38,9 +38,9 @@ instance [Add V] [MeasurableAdd₂ V] (family : MeasurableFamily F V) (times : S
   unfold randomObservationLaw
   infer_instance
 
-/-- The mixed noise law is the second marginal of the joint law. -/
-theorem jointNoiseLaw_snd (prior : Measure F) [IsProbabilityMeasure prior]
-    (noise : Kernel F (Samples n V)) [IsMarkovKernel noise] :
+/-- For s-finite inputs, the mixed noise law is the second marginal of the joint law. -/
+theorem jointNoiseLaw_snd (prior : Measure F) [SFinite prior]
+    (noise : Kernel F (Samples n V)) [IsSFiniteKernel noise] :
     (jointNoiseLaw prior noise).snd = noiseLaw prior noise :=
   Measure.snd_compProd prior noise
 
