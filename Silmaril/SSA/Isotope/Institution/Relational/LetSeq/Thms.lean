@@ -11,55 +11,25 @@ namespace Silmaril.Isotope.Institution.Relational.LetSeq
 open CategoryTheory Semantics Theory Silmaril.Logic.Institution
 open Silmaril.Isotope.LetSeq.LocallyNameless
 
-universe u v w
+universe u v
 
-variable {τ ε : Type u} {ν : Type w} [DecidableEq ν] [HasProduct τ] [HasUnit τ]
-variable {Γ : Ctx ν τ} {P Q R : InstrSig τ ε}
+variable {τ ε ν : Type u} [DecidableEq ν] [HasProduct τ] [HasUnit τ]
+variable {Γ : Ctx ν τ} {P Q : InstrSig τ ε}
 variable {D : τ → Type v} [ProductModel D] [UnitModel D]
 
-/-- The exact derivation map preserves identity. `HEq` accounts for the native term index. -/
-theorem mapDerivation_id {n : Nat} {β : BoundCtx τ n} {t : Tm ν P.Instr n} {A : τ}
-    (d : Derivation P.Instr Γ β t A) : HEq (mapDerivation (𝟙 P) d) d :=
-  mapDerivation_id_proof d
-
-/-- The exact derivation map composes along the native term map. -/
-theorem mapDerivation_comp (f : P ⟶ Q) (g : Q ⟶ R)
-    {n : Nat} {β : BoundCtx τ n} {t : Tm ν P.Instr n} {A : τ}
-    (d : Derivation P.Instr Γ β t A) :
-    HEq (mapDerivation (f ≫ g) d) (mapDerivation g (mapDerivation f d)) :=
-  mapDerivation_comp_proof f g d
-
-@[simp] theorem Program.translate_id {i : TypingIndex τ} (p : Program P Γ i) :
-    Program.translate (𝟙 P) p = p :=
-  Sigma.ext (Tm.mapInstr_id p.1) (mapDerivation_id p.2)
-
-@[simp] theorem Program.translate_comp (f : P ⟶ Q) (g : Q ⟶ R)
-    {i : TypingIndex τ} (p : Program P Γ i) :
-    Program.translate (f ≫ g) p = Program.translate g (Program.translate f p) :=
-  Sigma.ext (Tm.mapInstr_comp f.instr g.instr p.1).symm (mapDerivation_comp f g p.2)
-
-/-- Evaluating a relabelled derivation agrees with evaluation in the reduct. -/
+/-- The existing sentence translation commutes with native relational evaluation. -/
 theorem denoteRelation_translate (g : P ⟶ Q) (M : Model D Q)
-    {n : Nat} {β : BoundCtx τ n} {t : Tm ν P.Instr n} {A : τ}
-    (d : Derivation P.Instr Γ β t A) (γ : FreeEnv D Γ) (ρ : BoundEnv D β) (b : D A) :
-    (mapDerivation g d).denoteRelation D M γ ρ b ↔
-      d.denoteRelation D (M.reduct g) γ ρ b :=
-  denoteRelation_translate_proof g M d γ ρ b
-
-@[simp] theorem Sentence.translate_id (e : Sentence P Γ) :
-    Sentence.translate (𝟙 P) e = e := by
-  cases e
-  simp [Sentence.translate, Equation.map]
-
-@[simp] theorem Sentence.translate_comp (f : P ⟶ Q) (g : Q ⟶ R) (e : Sentence P Γ) :
-    Sentence.translate (f ≫ g) e = Sentence.translate g (Sentence.translate f e) := by
-  cases e
-  simp [Sentence.translate, Equation.map]
+    {i : TypingIndex τ} (p : Program P Γ i)
+    (γ : FreeEnv D Γ) (ρ : BoundEnv D i.bound) (b : D i.result) :
+    (Program.translate g p).2.denoteRelation D M γ ρ b ↔
+      p.2.denoteRelation D (M.reduct g) γ ρ b :=
+  denoteRelation_translate_proof g M p γ ρ b
 
 theorem Sentence.satisfaction (g : P ⟶ Q) (M : Model D Q) (e : Sentence P Γ) :
-    Sentence.Satisfies M (Sentence.translate g e) ↔ Sentence.Satisfies (M.reduct g) e := by
-  simp only [Sentence.Satisfies, Sentence.translate, Equation.map, Program.translate,
-    denoteRelation_translate]
+    Sentence.Satisfies M (Sentence.translate g e) ↔ Sentence.Satisfies (M.reduct g) e :=
+  forall_congr' fun γ => forall_congr' fun ρ => forall_congr' fun b =>
+    iff_congr (denoteRelation_translate g M e.2.1 γ ρ b)
+      (denoteRelation_translate g M e.2.2 γ ρ b)
 
 /-- The relational LetSeq institution in one free context and one value interpretation. -/
 @[expose] def institution (D : τ → Type v) (Γ : Ctx ν τ)
@@ -67,8 +37,17 @@ theorem Sentence.satisfaction (g : P ⟶ Q) (M : Model D Q) (e : Sentence P Γ) 
     InstrSig τ ε ⥤ Room where
   obj P := ⟨Sentence P Γ, Cat.of (Model D P), Sentence.Satisfies⟩
   map g := ⟨Sentence.translate g, Model.reductFunctor D g, Sentence.satisfaction g⟩
-  map_id _ := Room.hom_ext (funext Sentence.translate_id) (Model.reductFunctor_id D)
-  map_comp f g :=
-    Room.hom_ext (funext (Sentence.translate_comp f g)) (Model.reductFunctor_comp D f g)
+  map_id P := by
+    have h := congrArg Corridor.sen ((Silmaril.Isotope.Institution.LetSeq.inst Γ).map_id P)
+    exact Room.hom_ext h (Model.reductFunctor_id D)
+  map_comp f g := by
+    have h := congrArg Corridor.sen ((Silmaril.Isotope.Institution.LetSeq.inst Γ).map_comp f g)
+    exact Room.hom_ext h (Model.reductFunctor_comp D f g)
+
+/-- The relational interpretation uses the existing exact institution's sentence functor. -/
+theorem sentenceFunctor_eq (D : τ → Type v) (Γ : Ctx ν τ)
+    [ProductModel D] [UnitModel D] :
+    sentenceFunctor (institution (ε := ε) D Γ) =
+      sentenceFunctor (Silmaril.Isotope.Institution.LetSeq.inst (ε := ε) Γ) := rfl
 
 end Silmaril.Isotope.Institution.Relational.LetSeq

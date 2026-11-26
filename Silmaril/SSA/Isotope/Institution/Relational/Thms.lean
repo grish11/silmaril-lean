@@ -12,9 +12,9 @@ namespace Silmaril.Isotope.Institution.Relational
 
 open Silmaril.Logic.Institution Semantics
 
-universe u v w
+universe u v
 
-variable {τ ε : Type u} {ν : Type w} [DecidableEq ν] [TypeFormers τ]
+variable {τ ε ν : Type u} [DecidableEq ν] [TypeFormers τ]
 variable (D : τ → Type v) [ProductModel D] [UnitModel D] [CoproductModel D] (Γ : Ctx ν τ)
 
 /-- LetSeq and LetCase have the same models and reducts on the common value structure. -/

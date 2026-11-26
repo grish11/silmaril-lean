@@ -3,7 +3,6 @@ module
 public import Silmaril.Logic.Institution.Basic
 public import Silmaril.Raw.SSA.Isotope.Institution.InstrSig
 public import Silmaril.Raw.SSA.Isotope.Semantics.Relation
-public import Silmaril.Raw.SSA.Isotope.Theory.Contexts
 
 /-! # Shared relational models and indexed equations for the Isotope institutions -/
 
@@ -13,7 +12,7 @@ namespace Silmaril.Isotope.Institution.Relational
 
 open CategoryTheory Semantics
 
-universe u v i p q
+universe u v
 
 variable {τ ε : Type u} {P Q : InstrSig τ ε} {D : τ → Type v}
 
@@ -51,16 +50,5 @@ def reductFunctor (D : τ → Type v) (g : P ⟶ Q) : Model D Q ⥤ Model D P wh
   map_comp _ _ := rfl
 
 end Model
-
-/-- Two typed endpoints at a common judgment index. -/
-structure Equation {I : Type i} (Program : I → Type p) where
-  index : I
-  lhs : Program index
-  rhs : Program index
-
-/-- Apply an index-preserving program map to both endpoints. -/
-def Equation.map {I : Type i} {F : I → Type p} {G : I → Type q}
-    (f : ∀ j, F j → G j) (e : Equation F) : Equation G :=
-  ⟨e.index, f _ e.lhs, f _ e.rhs⟩
 
 end Silmaril.Isotope.Institution.Relational

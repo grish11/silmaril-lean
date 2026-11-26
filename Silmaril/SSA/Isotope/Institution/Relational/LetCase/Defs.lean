@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.Institution.Relational.Model.Defs
-public import Silmaril.Raw.SSA.Isotope.Morphism.Instructions.LetCase
+public import Silmaril.SSA.Isotope.Institution.LetCase.Thms
 public import Silmaril.Raw.SSA.Isotope.LetCase.Semantics.Relation
 
 /-! # Typed LetCase equations with native relational evaluation -/
@@ -13,46 +13,32 @@ namespace Silmaril.Isotope.Institution.Relational.LetCase
 open CategoryTheory Semantics Theory
 open Silmaril.Isotope.LetCase.LocallyNameless
 
-universe u v w
+universe u v
 
-variable {τ ε : Type u} {ν : Type w} [DecidableEq ν] [TypeFormers τ]
-variable {Γ : Ctx ν τ} {P Q R : InstrSig τ ε}
+variable {τ ε ν : Type u} [DecidableEq ν] [TypeFormers τ]
+variable {Γ : Ctx ν τ} {P Q : InstrSig τ ε}
 variable {D : τ → Type v} [ProductModel D] [UnitModel D] [CoproductModel D]
 
-/-- An exactly typed locally nameless program at the given bound context and result. -/
+/-- The exact program carrier of the existing presented syntax. -/
 abbrev Program (P : InstrSig τ ε) (Γ : Ctx ν τ) (i : TypingIndex τ) :=
-  Σ t : Tm ν P.Instr i.depth, Derivation P.Instr Γ i.bound t i.result
+  Models.Carrier P.Instr Γ i
 
-abbrev Sentence (P : InstrSig τ ε) (Γ : Ctx ν τ) := Equation (Program P Γ)
+/-- The existing exact equational institution's sentences, interpreted relationally. -/
+abbrev Sentence (P : InstrSig τ ε) (Γ : Ctx ν τ) :=
+  ((Silmaril.Isotope.Institution.LetCase.inst (ε := ε) Γ).obj P).Sen
 
-/-- Relabel the exact typing data along the native term map. -/
-def mapDerivation (g : P ⟶ Q) : {n : Nat} → {β : BoundCtx τ n} → {t : Tm ν P.Instr n} →
-    {A : τ} → Derivation P.Instr Γ β t A → Derivation Q.Instr Γ β (t.mapInstr g.instr) A
-  | _, _, _, _, .fv h => .fv h
-  | _, _, _, _, .bv => .bv
-  | _, _, _, _, .op (f := f) a =>
-      g.target f ▸ .op (f := g.instr f) ((g.source f).symm ▸ mapDerivation g a)
-  | _, _, _, _, .let₁ a b => .let₁ (mapDerivation g a) (mapDerivation g b)
-  | _, _, _, _, .unit => .unit
-  | _, _, _, _, .pair a b => .pair (mapDerivation g a) (mapDerivation g b)
-  | _, _, _, _, .let₂ a b => .let₂ (mapDerivation g a) (mapDerivation g b)
-  | _, _, _, _, .inl a => .inl (mapDerivation g a)
-  | _, _, _, _, .inr b => .inr (mapDerivation g b)
-  | _, _, _, _, .case e l r => .case (mapDerivation g e) (mapDerivation g l) (mapDerivation g r)
-  | _, _, _, _, .abort a => .abort (mapDerivation g a)
-
-/-- Relabel a program's primitive instructions without changing its judgment. -/
-def Program.translate (g : P ⟶ Q) {i : TypingIndex τ} (p : Program P Γ i) :
+/-- The existing exact syntax fold, at a fixed judgment index. -/
+abbrev Program.translate (g : P ⟶ Q) {i : TypingIndex τ} (p : Program P Γ i) :
     Program Q Γ i :=
-  ⟨p.1.mapInstr g.instr, mapDerivation g p.2⟩
+  (PresSig.translate ((Silmaril.Isotope.Institution.LetCase.pres Γ).map g)).map p
 
-/-- Translate both sides of an equation along the signature arrow. -/
-def Sentence.translate (g : P ⟶ Q) (e : Sentence P Γ) : Sentence Q Γ :=
-  e.map (fun _ => Program.translate g)
+/-- The existing exact equational institution's forward sentence map. -/
+abbrev Sentence.translate (g : P ⟶ Q) (e : Sentence P Γ) : Sentence Q Γ :=
+  ((Silmaril.Isotope.Institution.LetCase.inst Γ).map g).sen e
 
 /-- The two programs have the same successful results in every environment. -/
 def Sentence.Satisfies (M : Model D P) (e : Sentence P Γ) : Prop :=
-  ∀ (γ : FreeEnv D Γ) (ρ : BoundEnv D e.index.bound) (b : D e.index.result),
-    e.lhs.2.denoteRelation D M γ ρ b ↔ e.rhs.2.denoteRelation D M γ ρ b
+  ∀ (γ : FreeEnv D Γ) (ρ : BoundEnv D e.1.bound) (b : D e.1.result),
+    e.2.1.2.denoteRelation D M γ ρ b ↔ e.2.2.2.denoteRelation D M γ ρ b
 
 end Silmaril.Isotope.Institution.Relational.LetCase

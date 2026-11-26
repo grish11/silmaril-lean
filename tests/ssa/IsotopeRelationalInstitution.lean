@@ -143,7 +143,7 @@ theorem case_false_in_reduct : ¬ LetCase.Sentence.Satisfies (M.reduct swap) cas
   exact Bool.noConfusion hout
 
 theorem case_translated_false : ¬ LetCase.Sentence.Satisfies M
-    ((sentenceFunctor (LetCase.institution (ε := Unit) D Γ)).map swap caseEquation) :=
+    (((Silmaril.Isotope.Institution.LetCase.inst (ε := Unit) Γ).map swap).sen caseEquation) :=
   fun h => case_false_in_reduct ((LetCase.Sentence.satisfaction swap M caseEquation).mp h)
 
 def iterEquation : LetIter.Sentence S Γ :=
