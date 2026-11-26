@@ -47,13 +47,14 @@ nonoverlap properties. `Index.readBlock_exact` proves that a successful
 indexed read recovers the declared metadata and exact body octets.
 `readRows_indexed` proves that materialization and indexed reads agree,
 including batch order, empty batches, and out-of-range lookups.
-[Theorem header](../../Silmaril/Formats/Arrow/FileReader/Thms.lean)
+[Theorem header](../../Silmaril/Formats/Arrow/FileReader/Thms.lean) ·
+[Axiom audit](../../Silmaril/Formats/Arrow/FileReader/Axioms.lean)
 
 The pinned PyArrow 26.0.1 producer uses `pa.ipc.new_file`. Its independent
 `pa.ipc.open_file` readback checks schema, batch lengths and ordered rows.
 The fixtures include mixed nulls and multiple batches, an empty batch,
 a schema-only file, and positive-row zero-column data. Dictionary and Int64
-files are pinned rejection cases. Native Lean tests both indexing and
+files are pinned rejection cases. The native Lean target runs the pinned SHA-256 checker against the tracked fixture inputs. It tests indexing and
 materialization and mutates footer lengths, offsets, schemas and block
 extents.
 [Fixture hashes](../../tests/formats/arrow-ipc/file-fixtures.json) ·
@@ -61,8 +62,8 @@ extents.
 [Hash-pinned requirements](../../tests/formats/arrow-ipc/requirements.txt)
 
 ```sh
-lake build --wfail +Silmaril.Formats.Arrow.FileReader.Thms arrow_ipc_metadata_tests
-make check CHECK_TARGETS='+Silmaril.Formats.Arrow.FileReader.Thms arrow_ipc_metadata_tests'
+lake build --wfail +Silmaril.Formats.Arrow.FileReader.Axioms arrow_ipc_metadata_tests
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.FileReader.Axioms arrow_ipc_metadata_tests'
 python3 -I tests/formats/arrow-ipc/file_fixture.py --regenerate
 ```
 

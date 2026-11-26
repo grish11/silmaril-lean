@@ -1,5 +1,6 @@
 module
 
+import Silmaril.Data.IncludeBytes
 import Silmaril.Formats.Arrow.Body.Defs
 import Silmaril.Formats.Arrow.StreamWriter.Defs
 import Silmaril.Formats.Arrow.FileReader.Defs
@@ -224,8 +225,32 @@ def runStreams (directory : Option System.FilePath) : IO Unit := do
 
 end PhysicalWriterTests
 
+private def fileFixtures : List (String × ByteArray) :=
+  [("file-mixed.arrow", include_bytes "file-mixed.arrow"),
+   ("file-schema-only.arrow", include_bytes "file-schema-only.arrow"),
+   ("file-zero-columns.arrow", include_bytes "file-zero-columns.arrow"),
+   ("file-dictionary.arrow", include_bytes "file-dictionary.arrow"),
+   ("file-int64.arrow", include_bytes "file-int64.arrow")]
+
 private def fileFixture (name : String) : IO ByteArray :=
-  IO.FS.readBinFile (System.FilePath.mk "tests/formats/arrow-ipc" / name)
+  match fileFixtures.lookup name with
+  | some bytes => pure bytes
+  | none => throw (IO.userError s!"unknown file fixture {name}")
+
+private def checkFileHashes : IO Unit := do
+  let directory := System.FilePath.mk "tests/formats/arrow-ipc"
+  let manifest ← IO.FS.readFile (directory / "file-fixtures.json")
+  check "file manifest agrees with the embedded test input" (manifest == include_str "file-fixtures.json")
+  for (name, bytes) in fileFixtures do
+    let actual ← IO.FS.readBinFile (directory / name)
+    check s!"{name}: embedded fixture differs from disk" (actual.data == bytes.data)
+  let verifier := directory / "file_fixture.py"
+  let script ← IO.FS.readFile verifier
+  check "file hash checker agrees with the embedded test input" (script == include_str "file_fixture.py")
+  let python := (← IO.getEnv "PYTHON").getD "python3"
+  let checked ← IO.Process.output { cmd := python, args := #["-I", verifier.toString] }
+  check s!"file fixture SHA-256 check failed:\n{checked.stdout}{checked.stderr}" (checked.exitCode == 0)
+  IO.print checked.stdout
 
 private def expectFileFailure (label : String) (input : KBytes) (expected : Error)
     (limits : ObservationLimits := {}) : IO Unit := do
@@ -234,6 +259,7 @@ private def expectFileFailure (label : String) (input : KBytes) (expected : Erro
   | .error error => check s!"{label}: {repr error}" (error == expected)
 
 private def fileRegressions : IO Unit := do
+  checkFileHashes
   let bytes ← fileFixture "file-mixed.arrow"
   let source := packed bytes
   let index ← match FileReader.readIndex {} source with
