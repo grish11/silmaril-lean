@@ -684,6 +684,37 @@ reruns admission of the renamed reply-carrying graph at the same
 profile.
 [Checked relabelling fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOutExamples.lean)
 
+### Structural captures under event relabelling
+
+The typed-entry room uses one `Interface` for both members of an RTL
+sentence. It supplies the same record of type `packedInputType I.context.toList`
+to both runners. Its primitive signature maps also preserve that interface.
+A structural capture comparison starts from a common named store, but its two
+public dispatchers can have different packet types and receive different
+decoded packets. Feeding those dispatchers directly to the typed-entry room
+would require changing its common-record interface. It would also require
+expressing the joint store restriction and exposing the selected live-outs
+in the result type.
+[Typed-entry sentences](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Institution/Defs.lean)
+
+The handled-trace institution compares the actual executions at the two
+independent checked packets, over a common primitive event signature and
+ordered output profile. Its existing signature arrows inject the complete
+typed request key and bijectively transport each key's replies. The packed
+execution square gives satisfaction in each target policy exactly when the
+original named comparison satisfies its reduct at the same store. The
+aggregate verdict decides validity across all target policies at every
+jointly typed store. The comparison fixes the exit list, payload types and
+ordered selected live-outs. Label and register renaming belongs to a
+different signature action.
+[Structural satisfaction and witness transport](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Refinement/Institution/Thms.lean)
+
+The regression repeats a capture at two compatible types. A completed
+request leads to the same ordered exit on both sides, with distinct
+selected live-outs. The extracted directed witness still separates the
+actual packed runs after embedding the request key in a larger signature.
+[Repeated-capture fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
+
 ### Reverse lowering of open flat SSA to mutable RTL
 
 `NamedFlat.Entry.Reverse.lowerChecked` generates an ordinary named mutable CFG

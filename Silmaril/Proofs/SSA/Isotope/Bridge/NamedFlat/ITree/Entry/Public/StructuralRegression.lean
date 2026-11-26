@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Institution.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
@@ -171,5 +171,78 @@ example :
       {graph shared leftRead with
         entry := .let1 ⟨8⟩ (.inl .unit) (.term (.br ⟨12⟩ (.pair (.var ⟨8⟩) (.var leftRead))))}
       exits fields (.product bit bit) (fun _ => .product bit bit) outputs).isNone = true := by decide
+
+/-! A repeated capture controls the live-out after a completed request. -/
+
+open CategoryTheory
+open Silmaril.Elgot.ITree (HasTrace TraceSignature)
+open Silmaril.Logic.ITree
+
+private def effectSignature : PrimitiveSignature Unit := ⟨fun _ => .unit, fun _ => bit⟩
+
+private def effectGraph (first second : Name) : CFG Name Name Unit :=
+  { graph first second with
+    blocks := [(⟨12⟩, ⟨⟨7⟩, .let2 ⟨8⟩ liveOut (.val (.var ⟨7⟩))
+      (.let1 ⟨10⟩ (.app () .unit) (.term (.br ⟨11⟩ .unit)))⟩)] }
+
+private abbrev narrowBit : PacketType := .coprod .unit .empty
+
+private def effectLeft : StructuralEntry effectSignature (effectGraph shared shared) exits fields
+    (.product narrowBit bit) outputs :=
+  (constructStructural effectSignature (effectGraph shared shared) exits fields (.product narrowBit bit)
+    (fun _ => .product narrowBit bit) outputs).get (by decide)
+
+private def effectRight : StructuralEntry effectSignature (effectGraph shared rightRead) exits fields
+    (.product bit bit) outputs :=
+  (constructStructural effectSignature (effectGraph shared rightRead) exits fields (.product bit bit)
+    (fun _ => .product bit bit) outputs).get (by decide)
+
+set_option maxHeartbeats 1000000 in
+private theorem effectRejects : effectLeft.refinementFromStore? effectRight mismatchingStore = some false := by
+  have leftSeed : effectLeft.seed? mismatchingStore = some overlapPacket := by decide
+  have rightSeed : effectRight.seed? mismatchingStore = some mismatchingPacket := by decide
+  change ((effectLeft.seed? mismatchingStore).bind fun a => (effectRight.seed? mismatchingStore).bind fun b =>
+    some (effectLeft.program.refinementBetween? effectRight.program 0 a 0 b)) = some false
+  rw [leftSeed, rightSeed]
+  cbv
+
+private def effectWitness :=
+  (effectLeft.refinementCounterexample? effectRight).get (by
+    apply (effectLeft.refinementCounterexample?_isSome_iff effectRight).mpr
+    have spec := (effectLeft.refinementFromStore?_eq_some_iff effectRight mismatchingStore false).mp effectRejects
+    apply (effectLeft.refinementOverCaptures_eq_some_iff effectRight false).mpr
+    exact ⟨fun impossible => Bool.noConfusion impossible,
+      fun all => spec.2.2.mpr (all mismatchingStore spec.1 spec.2.1)⟩)
+
+-- The extractor keeps the completed opcode exchange and identifies the
+-- second ordered exit with the left selected live-out.
+#guard match effectWitness.val.trace with
+  | .exchange (.ask _) _ (.result packet) =>
+    decide (effectWitness.val.initial shared = Value.inl .unit ∧
+      effectWitness.val.initial rightRead = Value.inr .unit ∧
+      packet = (0, Value.inr (.inl (.pair .unit (.pair (.inl .unit) .unit)))))
+  | _ => false
+
+private def enlarged : TraceSignature :=
+  ⟨effectSignature.traceSignature.toSignature.sum effectSignature.traceSignature.toSignature⟩
+
+private def relabel : effectSignature.traceSignature ⟶ enlarged :=
+  TraceSignature.inr effectSignature.traceSignature.toSignature effectSignature.traceSignature.toSignature
+
+-- The right injection changes the complete event key. The same directed
+-- certificate still separates the actual packed starts at the extracted store.
+example :
+    ∃ (a : Denote (.product narrowBit bit)) (b : Denote (.product bit bit)),
+      effectLeft.evalSeed effectWitness.val.initial = PacketType.encode _ a ∧
+      effectRight.evalSeed effectWitness.val.initial = PacketType.encode _ b ∧
+      HasTrace (effectLeft.entry.observeReindexed relabel (fun _ => .unit) (packetRecord a))
+        (relabel.trace effectWitness.val.trace) ∧
+      ¬ TraceInstitution.Sat (TraceInstitution.allRepliesModel enlarged)
+        (effectLeft.packedRefinementSentenceReindexed effectRight relabel (fun _ => .unit) a b) := by
+  obtain ⟨⟨a, ha⟩, ⟨b, hb⟩⟩ := effectLeft.jointStores_typed effectRight effectWitness.property.1
+  have distinguished := effectWitness.val.distinguishes_reindexed effectLeft effectRight relabel (fun _ => .unit)
+    effectWitness.property a b ha hb
+  refine ⟨a, b, ha, hb, distinguished.1, fun accepted => distinguished.2 ?_⟩
+  exact accepted () trivial _ ⟨distinguished.1, Silmaril.Elgot.ITree.Replay.allReplies _⟩
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
