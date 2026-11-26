@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.Parquet.ScalarPage.Defs
 import Silmaril.Proofs.Formats.Parquet.ScalarPage.Prepare
 import Silmaril.Formats.Parquet.Plain.Thms
+import Silmaril.Formats.Parquet.Plain.ByteArray.Thms
 import Silmaril.Formats.Parquet.FlatPage.Thms
 import Init.Omega
 
@@ -29,7 +30,7 @@ private theorem fixed_size {α : Type} {width count : Nat} {one : List UInt8 →
 
 public theorem readPlain_size {kind : Kind} {count : Nat} {source : Bytes}
     {values : List kind.Value} (h : kind.readPlain count source = .ok values) :
-    source.length = kind.plainByteCount count := by
+    source.length = kind.plainByteCount count values := by
   cases kind with
   | int32 => exact fixed_size h
   | int64 => exact fixed_size h
@@ -42,6 +43,7 @@ public theorem readPlain_size {kind : Kind} {count : Nat} {source : Bytes}
     split at h
     · exact fixed_size h
     · contradiction
+  | byteArray => exact Plain.ByteArray.decode_size h
 
 public theorem decode_sound {kind : Kind} {params : Parameters} {limits : Limits} {source : Bytes}
     {output : List (Option kind.Value)} (h : decode kind params limits source = .ok output) :
@@ -49,7 +51,7 @@ public theorem decode_sound {kind : Kind} {params : Parameters} {limits : Limits
       kind.readPlain (page.mask.count true) page.scalars = .ok values ∧
       output.map Option.isSome = page.mask ∧ output.filterMap id = values ∧
       values.length = page.mask.count true ∧
-      page.scalars.length = kind.plainByteCount (page.mask.count true) := by
+      page.scalars.length = kind.plainByteCount (page.mask.count true) values := by
   obtain ⟨page, hp, h⟩ := bind_ok h
   obtain ⟨values, hv, h⟩ := bind_ok h
   have plain := mapError_ok hv

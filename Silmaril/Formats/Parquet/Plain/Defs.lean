@@ -18,6 +18,8 @@ inductive Error where
   | invalidWidth
   | elementWidthMismatch
   | integerOverflow
+  | totalByteLimit
+  | valueByteLimit
   deriving DecidableEq, Repr
 
 /-- Read consecutive fixed-width words into a reversed accumulator. -/

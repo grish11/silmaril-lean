@@ -28,8 +28,9 @@ use Lean `Nat`, so counts and products cannot wrap. The readers check size
 before allocating decoded values. A page reader can enforce any lower
 resource cap before calling this codec.
 
-Variable `BYTE_ARRAY` uses a four-byte little-endian length per value and
-remains outside this slice. Deprecated `INT96` uses twelve little-endian
+Variable `BYTE_ARRAY` uses a four-byte little-endian length per value. Its
+separate [bounded codec](parquet-plain-byte-array.md) reads and writes opaque
+byte strings. Deprecated `INT96` uses twelve little-endian
 octets and has no codec entry point here. The slice leaves timestamp
 interpretation, pages and footers, dictionary and RLE encodings, definition
 and repetition levels, compression, and logical annotations to their

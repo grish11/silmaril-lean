@@ -2,7 +2,7 @@ module
 
 public import Silmaril.Formats.Parquet.FlatPage.Defs
 public import Silmaril.Formats.Parquet.Payload.Defs
-public import Silmaril.Formats.Parquet.Plain.Defs
+public import Silmaril.Formats.Parquet.Plain.ByteArray.Defs
 
 /-! A checked adapter from explicit Parquet data-page parameters and an exact
 body slice to a typed list of nullable scalar slots. -/
@@ -42,6 +42,7 @@ structure Parameters where
 /-- Physical values supported by the existing PLAIN codec. -/
 inductive Kind where
   | int32 | int64 | boolean | floatBits | doubleBits | fixedLenBytes (width : Nat)
+  | byteArray (limits : Plain.ByteArray.Limits)
   deriving DecidableEq, Repr
 
 abbrev Kind.Value : Kind → Type
@@ -51,6 +52,7 @@ abbrev Kind.Value : Kind → Type
   | .floatBits => UInt32
   | .doubleBits => UInt64
   | .fixedLenBytes _ => Bytes
+  | .byteArray _ => Bytes
 
 def Kind.readPlain : (kind : Kind) → Nat → Bytes → Except Plain.Error (List kind.Value)
   | .int32 => Plain.decodeInt32
@@ -59,6 +61,7 @@ def Kind.readPlain : (kind : Kind) → Nat → Bytes → Except Plain.Error (Lis
   | .floatBits => Plain.decodeFloatBits
   | .doubleBits => Plain.decodeDoubleBits
   | .fixedLenBytes width => Plain.decodeFixedLenBytes width
+  | .byteArray limits => Plain.ByteArray.decode limits
 
 inductive Error where
   | unsupportedEncoding (id : Int)
@@ -190,12 +193,13 @@ def PreparedWire (params : Parameters) (limits : Limits) (layout : FlatPage.Layo
           (params.sizes.uncompressed - definitionBytes) (v2Codec params.codec isCompressed)
           encoded page.scalars.toList
 
-/-- The exact size of an admitted PLAIN scalar sequence. -/
-def Kind.plainByteCount (kind : Kind) (count : Nat) : Nat :=
-  match kind with
-  | .int32 | .floatBits => count * 4
-  | .int64 | .doubleBits => count * 8
-  | .boolean => Plain.booleanByteCount count
-  | .fixedLenBytes width => count * width
+/-- Fixed-width sizes depend on the expected count. BYTE_ARRAY sizes also
+include the four-octet length and actual payload of each returned value. -/
+def Kind.plainByteCount : (kind : Kind) → Nat → List kind.Value → Nat
+  | .int32, count, _ | .floatBits, count, _ => count * 4
+  | .int64, count, _ | .doubleBits, count, _ => count * 8
+  | .boolean, count, _ => Plain.booleanByteCount count
+  | .fixedLenBytes width, count, _ => count * width
+  | .byteArray _, _, values => Plain.ByteArray.encodedSize values
 
 end Silmaril.Formats.Parquet.ScalarPage

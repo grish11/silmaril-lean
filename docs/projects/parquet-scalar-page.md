@@ -55,7 +55,9 @@ The checked profile accepts maximum repetition level zero and maximum
 definition level zero or one. V1 requires both level encoding IDs to be RLE
 (`3`), including when a level stream is omitted. V2 uses its implicit RLE
 level format. PLAIN (`0`) covers signed INT32 and INT64, LSB-first Boolean,
-raw 32/64-bit float words, and fixed length byte arrays. The float results
+raw 32/64-bit float words, fixed length byte arrays, and
+[length-prefixed byte arrays](parquet-plain-byte-array.md). The latter use
+`Kind.byteArray` with separate scalar-slice and per-value byte caps. The float results
 preserve every bit, including NaN payloads and signed zero. Unused high bits
 in the final PLAIN Boolean byte are ignored. Hybrid ignores the bits of at
 most seven surplus values in the final bit-packed run and rejects extra
@@ -64,7 +66,7 @@ Selected compression follows the existing payload codec profile, which
 supports UNCOMPRESSED, SNAPPY, bounded single-member GZIP, and LZ4_RAW.
 
 Thrift header parsing, span discovery, CRC verification, dictionary pages and
-encodings, BYTE_ARRAY, INT96, repeated or nested columns, logical types,
+encodings, INT96, repeated or nested columns, logical types,
 and table reconstruction are outside this adapter.
 
 ## Public proofs

@@ -51,7 +51,7 @@ theorem prepared_mask_length {params : Parameters} {limits : Limits} {source : B
 
 theorem readPlain_size {kind : Kind} {count : Nat} {source : Bytes}
     {values : List kind.Value} (h : kind.readPlain count source = .ok values) :
-    source.length = kind.plainByteCount count :=
+    source.length = kind.plainByteCount count values :=
   Proofs.Formats.Parquet.ScalarPage.readPlain_size h
 
 /-- The output reconstructs the checked definition mask and the PLAIN values in wire order. -/
@@ -61,7 +61,7 @@ theorem decode_sound {kind : Kind} {params : Parameters} {limits : Limits} {sour
       kind.readPlain (page.mask.count true) page.scalars = .ok values ∧
       output.map Option.isSome = page.mask ∧ output.filterMap id = values ∧
       values.length = page.mask.count true ∧
-      page.scalars.length = kind.plainByteCount (page.mask.count true) :=
+      page.scalars.length = kind.plainByteCount (page.mask.count true) values :=
   Proofs.Formats.Parquet.ScalarPage.decode_sound h
 
 theorem decode_counts {kind : Kind} {params : Parameters} {limits : Limits} {source : Bytes}
