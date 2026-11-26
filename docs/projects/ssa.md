@@ -174,6 +174,17 @@ the resulting ordinary named CFG agrees with staged exit plugging.
 Observational classes of these graphs form a category with the wire identity
 and linker composition, which is monotone for terminating-result inclusion.
 
+[The named refinement interpretation](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Link/Institution/Thms.lean)
+widens private addresses to naturals and keeps public ports tagged. It maps
+each packet arrow to one named program class per input port, with the packet
+in the designated register. Refinement of the arrow agrees with named
+refinement at every port. Primitive renaming commutes with the executable
+linker and wire identity and acts by monotone functors on classes. The named
+interpretations commute with this action. Versioning and deversioning
+compare the images on classes. The ordinary versioner wraps internal
+transfers in a carry tuple, including version-zero live-in slots at entry,
+so the resulting syntax can have a wider entry interface than a single wire.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

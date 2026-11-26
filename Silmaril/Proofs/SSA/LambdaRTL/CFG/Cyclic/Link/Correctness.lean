@@ -63,6 +63,39 @@ private theorem evalJump_relabel {K K' : Type} [DecidableEq K]
   rw [Body.evalJump, Body.exec_relabel, Body.evalJump]
   simp only [Body.exec_eq_evalRTL, map_bind, map_pure, Prod.map_apply, id_eq]
 
+private theorem lookup_relabel {K K' D E : Type} [DecidableEq K] [DecidableEq K']
+    (rename : K → K') (injective : Function.Injective rename) (mapBlock : D → E)
+    (table : List (K × D)) (label : K) :
+    (table.map fun (key, block) => (rename key, mapBlock block)).lookup (rename label) =
+      (table.lookup label).map mapBlock := by
+  induction table with
+  | nil => rfl
+  | cons item rest ih =>
+    rcases item with ⟨key, block⟩
+    by_cases same : label = key
+    · subst key
+      simp only [List.map_cons, List.lookup_cons, beq_self_eq_true, Option.map_some]
+    · have miss : rename label ≠ rename key := fun equal => same (injective equal)
+      simp only [List.map_cons, List.lookup_cons, beq_false_of_ne same, beq_false_of_ne miss, ih]
+
+theorem runSSA_relabel {K K' : Type} [DecidableEq K] [DecidableEq K']
+    (model : Model F Part α) (rename : K → K') (injective : Function.Injective rename)
+    (graph : CFG V K F) (store : V → α) :
+    Prod.map rename id <$> Cyclic.runSSA model graph store =
+      Cyclic.runSSA model (graph.relabel rename) store := by
+  let encode : K × α → K' × α := Prod.map rename id
+  have square (transfer : K × α) :
+      Sum.map encode encode <$> Cyclic.stepSSA model graph.blocks store transfer =
+        Cyclic.stepSSA model (graph.relabel rename).blocks store (encode transfer) := by
+    rcases transfer with ⟨label, packet⟩
+    simp only [Cyclic.stepSSA, CFG.relabel, encode, Prod.map_apply, id_eq]
+    rw [lookup_relabel rename injective]
+    cases graph.blocks.lookup label <;> simp [Block.relabel, evalJump_relabel, Part.map_map, Function.comp_def]
+  have run := iter_simulation (Cyclic.stepSSA model graph.blocks store)
+    (Cyclic.stepSSA model (graph.relabel rename).blocks store) encode encode square
+  simp only [Cyclic.runSSA, CFG.relabel, evalJump_relabel, map_bind, bind_map_left]
+  exact bind_congr run
+
 private theorem lookup_private {p q : Nat} {D : Type} (value : Fin p → D)
     (keys : List (Fin p)) (i : Fin p) (member : i ∈ keys) :
     @List.lookup (Label p q) D instBEqOfDecidableEq (Sum.inl i)

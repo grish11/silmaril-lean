@@ -33,6 +33,13 @@ theorem Body.toRegion_mapOp (h : F → F') (body : Body V K F) :
     (body.mapOp h).toRegion = body.toRegion.mapOp h :=
   Silmaril.Proofs.SSA.LambdaRTL.CFG.Body.toRegion_mapOp h body
 
+theorem Body.mapOp_id (body : Body V K F) : body.mapOp id = body :=
+  Silmaril.Proofs.SSA.LambdaRTL.CFG.Body.mapOp_id body
+
+theorem Body.mapOp_comp (h : F → F') (k : F' → F'') (body : Body V K F) :
+    body.mapOp (k ∘ h) = (body.mapOp h).mapOp k :=
+  Silmaril.Proofs.SSA.LambdaRTL.CFG.Body.mapOp_comp h k body
+
 theorem mapOp_id (graph : CFG V K F) : graph.mapOp id = graph :=
   Silmaril.Proofs.SSA.LambdaRTL.CFG.mapOp_id graph
 

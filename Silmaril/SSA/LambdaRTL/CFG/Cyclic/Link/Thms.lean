@@ -32,6 +32,17 @@ theorem Graph.denote_eq_runSSA [Inhabited V] (model : Model F Part α) (graph : 
   rw [graph.denote_eq_resume model (upd external default packet) (port, packet)]
   simp [Graph.toCFG, Cyclic.runSSA, resumeSSA, Body.evalJump, Body.exec, Term.exec, Val.eval, upd]
 
+/-- Injective label changes preserve the tagged public result of a packet CFG. -/
+theorem Graph.denote_eq_runSSA_relabel [Inhabited V] {K : Type} [DecidableEq K]
+    (model : Model F Part α) (graph : Graph V F a b)
+    (rename : Label graph.locals b → K) (injective : Function.Injective rename)
+    (external : V → α) (port : Fin a) (packet : α) :
+    Prod.map (rename ∘ Sum.inr) id <$> graph.denote model (port, packet) =
+      Cyclic.runSSA model ((graph.toCFG port).relabel rename) (upd external default packet) := by
+  rw [← Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.runSSA_relabel model rename injective,
+    ← graph.denote_eq_runSSA model external port packet, Functor.map_map]
+  rfl
+
 @[simp] theorem Graph.denote_identity (model : Model F Part α) (input : Fin a × α) :
     (Graph.identity (V := V) (F := F) a).denote model input = pure input :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.denote_identity model input

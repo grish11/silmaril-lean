@@ -76,7 +76,7 @@ private theorem term_fv_relabel {K K' : Type} (rename : K → K') (term : Term V
     (term.relabel rename).toRegion.fv = term.toRegion.fv := by
   induction term <;> simp_all [Term.relabel, Term.toRegion, Region.fv]
 
-private theorem body_fv_relabel {K K' : Type} (rename : K → K') (body : Body V K F) :
+theorem body_fv_relabel {K K' : Type} (rename : K → K') (body : Body V K F) :
     (body.relabel rename).toRegion.fv = body.toRegion.fv := by
   induction body <;> simp_all [Body.relabel, Body.toRegion, Region.fv, term_fv_relabel]
 

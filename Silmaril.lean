@@ -69,6 +69,7 @@ public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Comparison.Thms
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Institution.Refinement.Plugging.Thms
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Institution.Refinement.Thms
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Institution.Thms
+public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Institution.Thms
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Thms
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.RoundTrip.Thms
 public import Silmaril.SSA.LambdaRTL.CFG.Thms
