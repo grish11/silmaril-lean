@@ -41,14 +41,16 @@ structure Bucket (physical : Scan.Schema String Kind) (Value : Kind → Type*) w
   directory : String
   rows : Scan.Table physical Value
 
+def encodeEntry (encode : Encode Value Failure) (field : Field Kind) (cell : Option (Value field.kind)) :
+    Except (RowError Failure) PartitionPath.Entry :=
+  match cell with
+  | none => .ok (field.name, none)
+  | some value => ((encode field value).mapError (RowError.encode field.name)).map
+      (fun text => (field.name, some text))
+
 def encodeEntries (encode : Encode Value Failure) (cells : Scan.Row schema.toScan Value) :
     Except (RowError Failure) PartitionPath.Partition :=
-  (List.finRange schema.fields.size).mapM fun i =>
-    let field := schema.fields[i]
-    match cells i with
-    | none => .ok (field.name, none)
-    | some value => ((encode field value).mapError (RowError.encode field.name)).map
-        (fun text => (field.name, some text))
+  (List.finRange schema.fields.size).mapM fun i => encodeEntry encode schema.fields[i] (cells i)
 
 /-- Use the existing render and parse policies for a directory, after
 encoding all present virtual cells in declared field order. -/

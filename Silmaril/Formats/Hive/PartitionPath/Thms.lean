@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Hive.PartitionPath.Defs
 import Silmaril.Proofs.Formats.Hive.PartitionPath.Correctness
+import Silmaril.Proofs.Formats.Hive.PartitionPath.Render
 
 public section
 
@@ -35,5 +36,11 @@ theorem parse_lookup {options : Options} {path : String} {entries : Partition}
     (entries.map Prod.fst).Nodup ∧
       ∀ key ∈ options.requiredKeys, ∃ value, lookup key entries = some value :=
   Proofs.Formats.Hive.PartitionPath.parse_lookup h
+
+/-- A successfully rendered directory parses back to the exact ordered entries
+under the same path options, including explicit nulls and empty text. -/
+theorem parse_render_of_ok {options : Options} {entries : Partition} {directory : String}
+    (rendered : render options entries = .ok directory) : parse options directory = .ok entries :=
+  Proofs.Formats.Hive.PartitionPath.parse_render_of_ok rendered
 
 end Silmaril.Formats.Hive.PartitionPath

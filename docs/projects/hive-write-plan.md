@@ -50,6 +50,47 @@ a row error. The schema check succeeds, the index equals the length of an
 all-successful input prefix, and classification of the next row gives the
 same typed reason.
 
+## Typed reconstruction
+
+[`WritePlan.restore`](../../Silmaril/Formats/Hive/WritePlan/Restore/Defs.lean)
+checks the supplied schema and parses and binds each bucket's directory
+in order. It attaches the resulting typed partition tuple to every
+physical row of the bucket using the existing typed materializer.
+A path or binding error carries the bucket's literal directory and
+the original error. The operation also accepts caller-supplied buckets.
+
+[`restore_plan_eq_groupedRows`](../../Silmaril/Formats/Hive/WritePlan/Restore/Thms.lean)
+states the result for a successful plan. Planning and restoration use
+the same physical schema, partition schema, and path options. The only
+codec premise is a left inverse for successful present-cell encodings.
+
+```text
+For each declared field and each present value and text,
+  encode(field, value) = ok(text) implies decode(field, text) = ok(value).
+```
+
+Nulls are explicit in the partition entries and bypass both callbacks.
+Successful planning supplies render admission, including the configured
+nonempty null marker, required keys, and rejection of literal sentinel
+collisions. [`PartitionPath.parse_render_of_ok`](../../Silmaril/Formats/Hive/PartitionPath/Thms.lean)
+proves exact entry recovery under those same options. The left inverse
+then ensures that a shared directory reconstructs the original tuple
+for every row routed there. Successful planning by itself permits a
+lossy caller encoder. A Lean regression demonstrates this by encoding
+the original text as `fixed` and recovering that replacement.
+
+The theorem equates restoration to grouping the *full original rows*
+by their admitted directories. It preserves first-seen directory order,
+within-directory row order, duplicates, and nullable typed cells.
+Grouping changes the order of interleaved directories.
+
+The [reconstruction checks](../../Silmaril/Formats/Hive/WritePlan/Restore/Checks.lean)
+read the five [pinned PyArrow files](../../tools/parquet-flat-scan/fixtures/hive-write-plan)
+in explicit first-seen directory order with the existing flat Int32
+reader. They compare the parsed and typed result to the grouped input.
+The same fixture generator and hashes below verify membership and
+bytes independently. Lean alone asserts reconstruction order.
+
 ## Pinned checks
 
 [PyArrow membership oracle](../../scripts/hive-write-plan-oracle/Oracle.py) ·
@@ -78,5 +119,6 @@ docker run --rm --network host -v "$PWD/scripts/hive-write-plan-oracle/Oracle.py
           python -m pip install --only-binary=:all: --require-hashes -r /tmp/oracle-requirements.txt
           python -I /Oracle.py /out/fixtures'
 (cd "$tmp/fixtures" && sha256sum -c "$OLDPWD/scripts/hive-write-plan-oracle/fixtures.sha256")
-lake build --wfail +Silmaril.Formats.Hive.WritePlan.Checks
+diff -r tools/parquet-flat-scan/fixtures/hive-write-plan "$tmp/fixtures/data"
+lake build --wfail +Silmaril.Formats.Hive.WritePlan.Checks +Silmaril.Formats.Hive.WritePlan.Restore.Checks
 ```
