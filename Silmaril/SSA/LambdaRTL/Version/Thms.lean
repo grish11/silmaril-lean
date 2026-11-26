@@ -17,7 +17,7 @@ import Silmaril.Proofs.SSA.LambdaRTL.Version
 * `Version.versionTop_evalObs`: the same for the λRTL reading of the translation (via the
   agreement theorem on SSA programs).
 
-Not claimed: that versioning an SSA program gives an α-equivalent program, or any round trip.
+`RoundTrip.Thms` gives the observable round trip back to the original name type.
 -/
 
 @[expose] public section

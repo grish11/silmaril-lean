@@ -105,6 +105,14 @@ dominance-scoped SSA), `versionTop_evalSSA` and `versionTop_evalObs`
 (`(versionTop r).evalSSA m ρ = r.evalObs m σ` when `ρ (y, 0) = σ y`), assuming the
 model is pair-lawful (`unpair (pair a b) = pure (a, b)`).
 
+Deversioning (`RoundTrip.Thms`): `roundTrip_evalObs` compares acyclic λRTL with
+its versioned region renamed back to the original register type. Both runs use
+the same initial store and have equal computations of the exit label and
+payload. The theorem assumes a lawful monad, a pair-lawful model, decidable
+register and label equality, and infinitely many register names. Deversioning
+fixes version-zero registers and injectively assigns the remaining versions
+used by the region to fresh names.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

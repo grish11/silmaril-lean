@@ -25,6 +25,8 @@ import Silmaril.Proofs.SSA.LambdaRTL.Rename
 * `*_mapOp`: all translations commute with instruction renaming.
 * `Region.evalObs_rename`: the λRTL store semantics is invariant under injective register
   renaming (`σ' ∘ f = σ`); bind-congruence form `Region.evalRTL_rename`.
+* `Region.evalObs_rename_on`: injectivity and store agreement on a support containing all
+  registers used or assigned in the region suffice for observational equality.
 -/
 
 @[expose] public section
@@ -213,6 +215,14 @@ theorem Region.evalRTL_rename (m : Model F M α) {f : V → W} (hf : Function.In
     (hK : ∀ l a τ τ', (∀ x, τ' (f x) = τ x) → K' (l, a, τ') = K (l, a, τ)) :
     ((r.rename f).evalRTL m σ' >>= K') = (r.evalRTL m σ >>= K) :=
   Silmaril.Proofs.SSA.LambdaRTL.Rename.Region.evalRTL_rename m hf r σ σ' h K K' hK
+
+/-- Renaming preserves the visible exit and payload if the stores agree and the
+renaming is injective on a support containing all uses and assignments. -/
+theorem Region.evalObs_rename_on (m : Model F M α) {f : V → W} {S : Set V}
+    (hf : Set.InjOn f S) (r : Region V L F) (hr : (↑r.vars : Set V) ⊆ S)
+    {σ : V → α} {σ' : W → α} (h : ∀ x ∈ S, σ' (f x) = σ x) :
+    (r.rename f).evalObs m σ' = r.evalObs m σ :=
+  Silmaril.Proofs.SSA.LambdaRTL.Rename.Region.evalObs_rename_on m hf r hr h
 
 /-- Observable λRTL semantics is invariant under injective register renaming. -/
 theorem Region.evalObs_rename (m : Model F M α) {f : V → W} (hf : Function.Injective f)

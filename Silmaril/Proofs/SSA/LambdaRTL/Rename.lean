@@ -18,66 +18,105 @@ universe v w
 
 variable {V W L : Type w} {F : Type v} {M : Type w → Type w} {α : Type w}
 
-theorem Val.eval_rename (m : Model F M α) (f : V → W) {σ : V → α} {σ' : W → α}
-    (h : ∀ x, σ' (f x) = σ x) : ∀ a : Val V, (a.rename f).eval m σ' = a.eval m σ
-  | .var x => h x
-  | .unit => rfl
-  | .pair a b => by
-      simp only [Val.rename, Val.eval, Val.eval_rename m f h a, Val.eval_rename m f h b]
+variable [DecidableEq V] [DecidableEq W]
 
-theorem Op.eval_rename [Monad M] (m : Model F M α) (f : V → W) {σ : V → α} {σ' : W → α}
-    (h : ∀ x, σ' (f x) = σ x) (o : Op V F) : (o.rename f).eval m σ' = o.eval m σ := by
-  cases o <;> simp only [Op.rename, Op.eval, Val.eval_rename m f h]
+omit [DecidableEq W] in
+theorem Val.eval_rename_on (m : Model F M α) (g : V → W) {S : Set V} {σ : V → α}
+    {σ' : W → α} (h : ∀ x ∈ S, σ' (g x) = σ x) :
+    ∀ a : Val V, (↑a.fv : Set V) ⊆ S → (a.rename g).eval m σ' = a.eval m σ
+  | .var x, ha => h x (ha (by simp [Val.fv]))
+  | .unit, _ => rfl
+  | .pair a b, ha => by
+      simp only [Val.rename, Val.eval,
+        Val.eval_rename_on m g h a (fun z hz => ha (by simp [Val.fv, hz])),
+        Val.eval_rename_on m g h b (fun z hz => ha (by simp [Val.fv, hz]))]
 
-theorem upd_rename [DecidableEq V] [DecidableEq W] {f : V → W} (hf : Function.Injective f)
-    {σ : V → α} {σ' : W → α} (h : ∀ x, σ' (f x) = σ x) (x : V) (a : α) :
-    ∀ y, upd σ' (f x) a (f y) = upd σ x a y := by
-  intro y
-  simp only [upd, hf.eq_iff]
-  split <;> simp [h]
+omit [DecidableEq W] in
+theorem Op.eval_rename_on [Monad M] (m : Model F M α) (g : V → W) {S : Set V} {σ : V → α}
+    {σ' : W → α} (h : ∀ x ∈ S, σ' (g x) = σ x) (o : Op V F) (ho : (↑o.fv : Set V) ⊆ S) :
+    (o.rename g).eval m σ' = o.eval m σ := by
+  cases o <;> simp only [Op.rename, Op.eval, Op.fv] at ho ⊢ <;>
+    rw [Val.eval_rename_on m g h _ ho]
 
-variable [Monad M] [LawfulMonad M] [DecidableEq V] [DecidableEq W] [DecidableEq L]
+theorem upd_rename_on {g : V → W} {S : Set V} (hg : Set.InjOn g S) {σ : V → α}
+    {σ' : W → α} (h : ∀ x ∈ S, σ' (g x) = σ x) {x : V} (hx : x ∈ S) (a : α) :
+    ∀ y ∈ S, upd σ' (g x) a (g y) = upd σ x a y := by
+  intro y hy
+  by_cases hyx : y = x
+  · subst hyx; simp [upd]
+  · have hne : g y ≠ g x := fun e => hyx (hg hy hx e)
+    simp only [upd, hne, hyx, ite_false]
+    exact h y hy
 
-/-- **Register renaming invariance** (bind-congruence form): renaming registers injectively does
-not change the store semantics, up to the renaming of the final store. -/
-theorem Region.evalRTL_rename (m : Model F M α) {f : V → W} (hf : Function.Injective f)
-    {β : Type w} :
-    ∀ (r : Region V L F) (σ : V → α) (σ' : W → α), (∀ x, σ' (f x) = σ x) →
+variable [Monad M] [LawfulMonad M] [DecidableEq L]
+
+/-- Register renaming that is injective on a set `S` of names containing every name the region
+uses preserves the store semantics, up to the renaming of the final store on `S`. -/
+theorem Region.evalRTL_rename_on (m : Model F M α) {g : V → W} {S : Set V}
+    (hg : Set.InjOn g S) {β : Type w} :
+    ∀ (r : Region V L F), (↑r.vars : Set V) ⊆ S → ∀ (σ : V → α) (σ' : W → α), (∀ x ∈ S, σ' (g x) = σ x) →
       ∀ (K : L × α × (V → α) → M β) (K' : L × α × (W → α) → M β),
-      (∀ l a τ τ', (∀ x, τ' (f x) = τ x) → K' (l, a, τ') = K (l, a, τ)) →
-      ((r.rename f).evalRTL m σ' >>= K') = (r.evalRTL m σ >>= K)
-  | .br ℓ a, σ, σ', h, K, K', hK => by
-      simp only [Region.rename, Region.evalRTL, pure_bind, Val.eval_rename m f h]
+      (∀ l a τ τ', (∀ x ∈ S, τ' (g x) = τ x) → K' (l, a, τ') = K (l, a, τ)) →
+      ((r.rename g).evalRTL m σ' >>= K') = (r.evalRTL m σ >>= K)
+  | .br ℓ a, hS, σ, σ', h, K, K', hK => by
+      simp only [Region.rename, Region.evalRTL, pure_bind,
+        Val.eval_rename_on m g h a (by simpa [Region.vars] using hS)]
       exact hK _ _ _ _ h
-  | .let1 x o r, σ, σ', h, K, K', hK => by
-      simp only [Region.rename, Region.evalRTL, bind_assoc, Op.eval_rename m f h]
+  | .let1 x o r, hS, σ, σ', h, K, K', hK => by
+      have hx : x ∈ S := hS (by simp [Region.vars])
+      simp only [Region.rename, Region.evalRTL, bind_assoc,
+        Op.eval_rename_on m g h o (fun z hz => hS (by simp [Region.vars, hz]))]
       congr 1; funext a
-      exact Region.evalRTL_rename m hf r _ _ (upd_rename hf h x a) K K' hK
-  | .let2 x y o r, σ, σ', h, K, K', hK => by
-      simp only [Region.rename, Region.evalRTL, bind_assoc, Op.eval_rename m f h]
+      exact Region.evalRTL_rename_on m hg r (fun z hz => hS (by simp [Region.vars, hz])) _ _
+        (upd_rename_on hg h hx a) K K' hK
+  | .let2 x y o r, hS, σ, σ', h, K, K', hK => by
+      have hx : x ∈ S := hS (by simp [Region.vars])
+      have hy : y ∈ S := hS (by simp [Region.vars])
+      simp only [Region.rename, Region.evalRTL, bind_assoc,
+        Op.eval_rename_on m g h o (fun z hz => hS (by simp [Region.vars, hz]))]
       congr 1; funext a; congr 1; funext p
-      exact Region.evalRTL_rename m hf r _ _
-        (upd_rename hf (upd_rename hf h x p.1) y p.2) K K' hK
-  | .case o x r y s, σ, σ', h, K, K', hK => by
-      simp only [Region.rename, Region.evalRTL, bind_assoc, Op.eval_rename m f h]
+      exact Region.evalRTL_rename_on m hg r (fun z hz => hS (by simp [Region.vars, hz])) _ _
+        (upd_rename_on hg (upd_rename_on hg h hx p.1) hy p.2) K K' hK
+  | .case o x r y s, hS, σ, σ', h, K, K', hK => by
+      have hx : x ∈ S := hS (by simp [Region.vars])
+      have hy : y ∈ S := hS (by simp [Region.vars])
+      simp only [Region.rename, Region.evalRTL, bind_assoc,
+        Op.eval_rename_on m g h o (fun z hz => hS (by simp [Region.vars, hz]))]
       congr 1; funext a; congr 1; funext c
+      have hr : (↑r.vars : Set V) ⊆ S := fun z hz => hS (by simp [Region.vars, hz])
+      have hs : (↑s.vars : Set V) ⊆ S := fun z hz => hS (by simp [Region.vars, hz])
       cases c with
-      | inl b => exact Region.evalRTL_rename m hf r _ _ (upd_rename hf h x b) K K' hK
-      | inr b => exact Region.evalRTL_rename m hf s _ _ (upd_rename hf h y b) K K' hK
-  | .join r ℓ x t, σ, σ', h, K, K', hK => by
+      | inl b => exact Region.evalRTL_rename_on m hg r hr _ _ (upd_rename_on hg h hx b) K K' hK
+      | inr b => exact Region.evalRTL_rename_on m hg s hs _ _ (upd_rename_on hg h hy b) K K' hK
+  | .join r ℓ x t, hS, σ, σ', h, K, K', hK => by
+      have hx : x ∈ S := hS (by simp [Region.vars])
       simp only [Region.rename, Region.evalRTL, bind_assoc]
-      apply Region.evalRTL_rename m hf r σ σ' h
+      apply Region.evalRTL_rename_on m hg r (fun z hz => hS (by simp [Region.vars, hz])) σ σ' h
       intro l a τ τ' hτ
       dsimp only
       split
-      · exact Region.evalRTL_rename m hf t _ _ (upd_rename hf hτ x a) K K' hK
+      · exact Region.evalRTL_rename_on m hg t (fun z hz => hS (by simp [Region.vars, hz])) _ _
+          (upd_rename_on hg hτ hx a) K K' hK
       · simp only [pure_bind]; exact hK _ _ _ _ hτ
 
-/-- Observable λRTL semantics is invariant under injective register renaming. -/
+theorem Region.evalObs_rename_on (m : Model F M α) {g : V → W} {S : Set V}
+    (hg : Set.InjOn g S) (r : Region V L F) (hS : (↑r.vars : Set V) ⊆ S) {σ : V → α} {σ' : W → α}
+    (h : ∀ x ∈ S, σ' (g x) = σ x) : (r.rename g).evalObs m σ' = r.evalObs m σ := by
+  simp only [Region.evalObs, map_eq_pure_bind]
+  exact Region.evalRTL_rename_on m hg r hS σ σ' h _ _ (fun _ _ _ _ _ => rfl)
+
+/-- Global injectivity is the instance with every register in the support. -/
+theorem Region.evalRTL_rename (m : Model F M α) {f : V → W} (hf : Function.Injective f)
+    {β : Type w} (r : Region V L F) (σ : V → α) (σ' : W → α) (h : ∀ x, σ' (f x) = σ x)
+    (K : L × α × (V → α) → M β) (K' : L × α × (W → α) → M β)
+    (hK : ∀ l a τ τ', (∀ x, τ' (f x) = τ x) → K' (l, a, τ') = K (l, a, τ)) :
+    ((r.rename f).evalRTL m σ' >>= K') = (r.evalRTL m σ >>= K) :=
+  Region.evalRTL_rename_on m hf.injOn r (Set.subset_univ _) σ σ' (fun x _ => h x)
+    K K' (fun l a τ τ' hτ => hK l a τ τ' (fun x => hτ x (Set.mem_univ x)))
+
 theorem Region.evalObs_rename (m : Model F M α) {f : V → W} (hf : Function.Injective f)
     (r : Region V L F) {σ : V → α} {σ' : W → α} (h : ∀ x, σ' (f x) = σ x) :
-    (r.rename f).evalObs m σ' = r.evalObs m σ := by
-  simp only [Region.evalObs, map_eq_pure_bind]
-  exact Region.evalRTL_rename m hf r σ σ' h _ _ (fun _ _ _ _ _ => rfl)
+    (r.rename f).evalObs m σ' = r.evalObs m σ :=
+  Region.evalObs_rename_on m hf.injOn r (Set.subset_univ _) (fun x _ => h x)
 
 end Silmaril.Proofs.SSA.LambdaRTL.Rename

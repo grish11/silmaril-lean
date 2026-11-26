@@ -73,6 +73,7 @@ public import Silmaril.SSA.LambdaRTL.Loop.Thms
 public import Silmaril.SSA.LambdaRTL.Nameless.Institution.Thms
 public import Silmaril.SSA.LambdaRTL.Nameless.Thms
 public import Silmaril.SSA.LambdaRTL.Quotient.Defs
+public import Silmaril.SSA.LambdaRTL.RoundTrip.Thms
 public import Silmaril.SSA.LambdaRTL.Thms
 public import Silmaril.SSA.LambdaRTL.Version.Institution.Defs
 public import Silmaril.SSA.LambdaRTL.Version.Thms
