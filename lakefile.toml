@@ -877,3 +877,13 @@ root = "SqliteImageLean"
 name = "sqlite_write_profile_tests"
 srcDir = "tests/formats/sqlite-shell"
 root = "SqliteWriteProfile"
+
+[[lean_exe]]
+name = "parquet-footer-regression"
+srcDir = "tools/parquet-footer"
+root = "ParquetFooterRegression"
+needs = ["parquetFooterFixture"]
+
+[[input_file]]
+name = "parquetFooterFixture"
+path = "tools/parquet-footer/fixtures/alltypes_plain.parquet"
