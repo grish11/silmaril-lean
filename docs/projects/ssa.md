@@ -79,6 +79,10 @@ bridge relates the two.
 
 ## Main results
 
+See the [pinned LambdaSSA theorem crosswalk](lambdassa-theorem-crosswalk.md)
+for the scope of the paper and Lean results and the conventional φ-node
+to block-argument port plan.
+
 λRTL and λSSA (acyclic), in `Silmaril.SSA.LambdaRTL.Thms`:
 
 - `Region.evalSSA_congr`: the lexical semantics reads only free variables.
