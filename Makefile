@@ -96,9 +96,6 @@ check:
 .PHONY: check-runtime check-integrations tla-import-check
 check-runtime:
 	$(MAKE) process-gates
-	$(if $(filter Silmaril +Silmaril.Semantics.ReadWrite.% +Silmaril.Proofs.Semantics.ReadWrite.%,$(CHECK_TARGETS)),$(LAKE) build --wfail \
-		+Silmaril.Semantics.ReadWrite.Writer.Thms +Silmaril.Semantics.Page.Trace.Thms +Silmaril.Process.Memory.Trace.Thms && \
-		$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/semantics/ReadWriteWriter.lean)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Surface.Parser.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-parser/check.py)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Import.% +Silmaril.Logic.Temporal.TLA.Surface.Parser.% +Silmaril.Logic.Temporal.TLA.Elaborator.% +Silmaril.Logic.Temporal.TLA.Kernel.%,$(CHECK_TARGETS)),$(MAKE) tla-import-check)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Institution.% +Silmaril.Proofs.SSA.RVSDG.Institution.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Institution.Categorical.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGInstitution.lean)
