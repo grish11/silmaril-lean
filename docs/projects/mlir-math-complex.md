@@ -46,43 +46,43 @@ attribute verification, `fastmath`, vector and tensor lifting, other floating
 formats, target behavior and integration with the SSA graph are outside the
 profile. Its NaN and signed-zero bit examples describe the local evaluator.
 
-## Libm and WebAssembly attachment
+## Libm and WebAssembly adapter
 
-Place the adapter in `Silmaril/Wasm/SSA/MLIRMath/Defs.lean` and `Thms.lean`.
-The Wasm region can import SSA and Numeric under the existing region map,
-and the existing Lake globs cover this path. The SSA contract stays
-backend-independent. Keep the adapter a leaf so the existing Libm and Wasm
-APIs can be composed without an import cycle. [Region map](../../regions.toml)
+`Silmaril.Wasm.SSA.MLIRMath` combines the SSA contract with Numeric.Libm using
+Wasm's existing region dependencies. `ofF64_toF64` and `toF64_ofF64` prove
+both bit reinterpretation round trips. `absf_fabs_bits` and `conj_neg_bits`
+identify the scalar bit operations with `Double.Ref.fabs` and `F64.neg` on
+every encoding. `complex_create_realizes` instantiates the exact component
+observation with the finite rational decoder `F64.toRat?` followed by the
+cast to `ℝ`. [Region map](../../regions.toml) ·
+[Adapter definitions](../../Silmaril/Wasm/SSA/MLIRMath/Defs.lean) ·
+[Adapter theorems](../../Silmaril/Wasm/SSA/MLIRMath/Thms.lean)
 
-1. Import `SSA.MLIR.Math.Defs` and `Numeric.Libm.Catalogue.Defs` in the
-   adapter and convert codes with `F64.ofBits bits.toUInt64` and
-   `x.bits.toBitVec`. Decode finite inputs by mapping the rational from
-   `F64.toRat?` to `ℝ`. Show that
-   `Numeric.Libm.Double.log.exact` gives the same result graph as the Math
-   reference on decoded positive inputs. The existing log spec comes from
-   `Numeric.Libm.Elementary.Defs`.
-2. For an attached implementation, relate encoded inputs to the encoded
-   `.value` of `Libm.Outcome F64`. Choose the observation for the theorem,
-   for example `LibmFloat.CR` for nearest ties to even or `LibmFloat.Close k`
-   for a stated ULP bound. Discharge it with `Spec.CorrectlyRounded` or
-   `Spec.ErrorOn` evidence on the admitted domain. `Double.level` in the
-   catalogue chooses a required accuracy node for a named profile.
-3. For a Wasm export, import `Numeric.Libm.Wasm.Thms`. Use
-   `WasmExport.exportFunc?`, `WasmExport.Returns` and `WasmExport.f64v` to
-   instantiate the result relation for a chosen numerics profile. A matching
-   `WasmExport.Exports` hypothesis supplies `FuncImplements`, whose clauses
-   establish existence of a return, constrain stopped runs, and require the
-   selected value property for each possible implementation. The adapter must
-   transfer that property to each returned value in the admitted domain.
-
-These are proof obligations for an attachment. The local semantics requires no
-numerical bound for logarithm. Libm's special values, flags, and `errno` and
-Wasm's terminal behavior have separate contracts. In particular, encoded zero
-can have a libm special value and still be outside this reference domain.
-Scalar libm accuracy also supplies no bound for arbitrary complex formulas.
+`log_exact_iff` identifies the exact result graph of `Double.log` with the
+MLIR reference on decoded inputs. `log_one_exact` checks that result on the
+binary64 encoding of one. `log_in_catalogue` checks membership, and
+`log_node_of_catalogue` derives the MLIR rounding observation from a
+`Double.ValidLibmDouble .correctlyRounded` hypothesis. `log_exports_of_valid`
+transfers the corresponding Wasm value contract to `LogNode`, using
+`LibmFloat.CR` for nearest ties to even. These implications require rounding
+evidence for the candidate. Signed zeros and nonfinite encodings fall outside
+the admitted logarithm domain. Libm flags and `errno`, and complex arithmetic
+accuracy, are outside the adapter's value observation.
 [Libm catalogue](../../Silmaril/Numeric/Libm/Catalogue/Defs.lean) ·
 [Elementary specs](../../Silmaril/Numeric/Libm/Elementary/Defs.lean) ·
 [Wasm exports](../../Silmaril/Numeric/Libm/Wasm/Defs.lean)
+
+`absf_build_exports` lifts the existing unary instruction checker to equality
+with the MLIR bit model. `fabs_fixture_checked` kernel-checks a 39-byte
+original module exporting `local.get 0; f64.abs`. `fabs_fixture_exports`
+applies the bridge at every deterministic Wasm numerics profile. The checked
+property is bit equality with the MLIR evaluator, including signed zeros and
+NaN encodings. The adapter and its hand-encoded fixture are original Silmaril
+contributions under the repository's MIT license. The fixture uses encodings
+from the pinned WebAssembly specification. Its SHA-256 is
+`a9ce443286440e88df3d6e8df25a1592e55010e7320418f2e57473cf49436185`.
+[Fixture](../../Silmaril/Wasm/SSA/MLIRMath/Examples/Thms.lean) ·
+[Wasm pin](../../specs/wasm/core-3.0.json) · [Silmaril license](../../LICENSE)
 
 ## Upstream inventory
 
@@ -124,4 +124,6 @@ Apache-2.0 with the LLVM exception. [Math docs](https://mlir.llvm.org/docs/Diale
 scripts/check-layout.sh
 lake build --wfail +Silmaril.SSA.MLIR.Math.Thms +Silmaril.SSA.MLIR.Complex.Thms
 make check CHECK_TARGETS='+Silmaril.SSA.MLIR.Math.Thms +Silmaril.SSA.MLIR.Complex.Thms'
+lake build --wfail +Silmaril.Wasm.SSA.MLIRMath.Examples.Thms
+make check CHECK_TARGETS='+Silmaril.Wasm.SSA.MLIRMath.Examples.Thms'
 ```
