@@ -86,9 +86,6 @@ def Fragment.classify (op : TwoBlock.Instruction Φ A (Silmaril.coprod E D)) :
   entry := .choose op (.jump (externalSite _ _ 0)) (.jump (externalSite _ _ 1))
   blocks i := .jump (localSite _ _ i)
 
-/-- Add an outer header while preserving the body's local blocks. The body's
-first exit returns; its second exit re-enters the header with its payload.
-The second external label of the resulting fragment is unreachable. -/
 def Fragment.feedbackTypes (p : Fragment Φ A E A) : Fin (p.count + 1) → τ :=
   Fin.cons A p.localTypes
 
@@ -99,6 +96,9 @@ def Fragment.feedbackSite (p : Fragment Φ A E A) (site : Site p.Labels X) :
       (externalSite p.feedbackTypes [E,D] 0)
       (Fin.cases (localSite p.feedbackTypes [E,D] 0) (fun i => i.elim0))) site
 
+/-- Add an outer header while preserving the body's local blocks. The body's
+first exit returns; its second exit re-enters the header with its payload.
+The second external label of the resulting fragment is unreachable. -/
 def Fragment.feedback (p : Fragment Φ A E A) : Fragment Φ A E D where
   extra := p.count
   localTypes := p.feedbackTypes

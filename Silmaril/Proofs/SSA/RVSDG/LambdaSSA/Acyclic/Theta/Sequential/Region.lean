@@ -553,6 +553,8 @@ private def feedbackEncode (i : FiniteLabelDen p.feedbackTypes) : FeedbackState 
 private def feedbackExit : LabelDen [E,A] → LabelDen [E,D] ⊕ TyDen A :=
   (⟨.first, .consumer⟩ : ExitRouting E A A E D).select
 
+/-- Local branches stay in the inner iterator. A body exit completes the
+inner iterator and either returns or restarts at the outer header. -/
 private def feedbackGroup : LabelDen [E,A] ⊕ BodyState p →
     (LabelDen [E,D] ⊕ FeedbackState p) ⊕ FeedbackState p :=
   Sum.elim (Sum.inl ∘ Sum.map id Sum.inl ∘ feedbackExit) (Sum.inr ∘ Sum.inr)
