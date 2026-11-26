@@ -15,6 +15,9 @@ theorem decode_encode (ty : PacketType) (value : Denote ty) :
     decode ty (encode ty value) = some value :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.decode_encode ty value
 
+theorem mem_enumerate (ty : PacketType) (value : Denote ty) : value ∈ ty.enumerate :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.mem_enumerate ty value
+
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.PacketType
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program

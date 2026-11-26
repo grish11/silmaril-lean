@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Stores.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Stores.Footprint.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
 namespace Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
@@ -214,5 +214,38 @@ example : (seedBuilt true).refinementOverStores? (branchBuilt false) mixedStores
   simp only [Seeded.refinementOverStores?, List.ofFn_succ, List.ofFn_zero, mixedStores,
     Fin.cases_zero, Fin.cases_succ, firstStorePasses, laterStoreFails, malformedStore]
   rfl
+
+private theorem branchCaptures : (branchBuilt false).initialCaptures = {capture} := by decide
+
+-- Register six is a selected live-out. Both branches bind it from the
+-- incoming packet, so its value in the initial store can vary.
+private def changedLiveOut : Name → Value Atom := upd seedStore ⟨6⟩ (.pair .unit .unit)
+
+example :
+    LiveOut.observeRaw signature.primitive exits seedFields (branchSeedGraph false) seedStore =
+      LiveOut.observeRaw signature.primitive exits seedFields (branchSeedGraph false) changedLiveOut := by
+  apply (branchBuilt false).observe_eq_of_capture_agree _ (by decide)
+  intro v mem
+  have same : v = capture := by simpa only [branchCaptures, Finset.mem_singleton] using mem
+  subst v
+  decide
+
+-- A live-out with no definition or incoming packet slot is rejected by
+-- packet closure after attachment.
+example :
+    (constructSeeded signature constantSeed exits (fun _ => [⟨99⟩]) capture .unit
+      (fun _ => .unit) seedExits).isNone = true := by decide
+
+-- Two occurrences of one capture must have the same value in a shared store.
+example : ((branchBuilt false).footprintStores (branchBuilt false)).length = 2 := by decide
+example : ((branchBuilt false).footprintStores (branchBuilt true)).length = 4 := by decide
+
+example : (seedBuilt true).refinementOverCaptures? (branchBuilt false) = some false := by
+  apply ((seedBuilt true).refinementOverCaptures?_eq_some_iff (branchBuilt false) false).mpr
+  refine ⟨by decide, by decide, ?_⟩
+  refine ⟨fun impossible => Bool.noConfusion impossible, fun holds => ?_⟩
+  have atLater := holds laterStore (by decide) (by decide)
+  exact (((seedBuilt true).refinementFromStore?_eq_some_iff (branchBuilt false) laterStore false).mp
+    laterStoreFails).2.2.mpr atLater
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Public
