@@ -60,13 +60,15 @@ theorem SameWith.let₂ {Γ : VCtx (Ty α)} {t : Tm Φ} {A B : Ty α} {r s : Reg
     (ht : Tm.HasType Γ t (.product A B)) (h : Same (B :: A :: Γ) r s) :
     Same Γ (.let₂ t r) (.let₂ t s) := by
   intro env he
-  cases eq : evalTerm t env with
-  | none => simp [evalRegionWith, eq]
-  | some v =>
-    have hv := evalTerm_typed ht he eq
-    cases hv with
-    | pair ha hb =>
-      simpa only [evalRegionWith, eq] using h _ ((he.extend ha).extend hb)
+  by_cases marked : (observation.computedRegionLet₂ && computes t) = true
+  · simp [evalRegionWith, marked]
+  · cases eq : evalTerm t env with
+    | none => simp [evalRegionWith, marked, eq]
+    | some v =>
+      have hv := evalTerm_typed ht he eq
+      cases hv with
+      | pair ha hb =>
+        simpa only [evalRegionWith, marked, Bool.false_eq_true, ite_false, eq] using h _ ((he.extend ha).extend hb)
 
 theorem SameWith.case {Γ : VCtx (Ty α)} {t : Tm Φ} {A B : Ty α} {l l' r r' : Region Φ}
     (ht : Tm.HasType Γ t (.coprod A B)) (hl : Same (A :: Γ) l l') (hr : Same (B :: Γ) r r') :
@@ -133,7 +135,7 @@ theorem rewriteEquiv_same {Γ L : List (Ty α)} {r s : Region Φ}
   | letBr ht hb hi =>
     intro env henv
     obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) ht henv
-    simp only [evalRegionWith, eq, evalTerm_subst _ (RealizesWith.single eq (value_startsLet ht))]
+    simp only [evalRegionWith, eq, evalTerm_subst _ (RealizesWith.single eq (value_not_computed ht))]
   | @caseInl _ t _ _ _ _ _ ha hl hr =>
     intro env he
     cases eq : evalTerm t env <;> simp [evalRegionWith, evalTermWith, eq]
@@ -177,11 +179,11 @@ theorem substitutionEquiv_same {Γ L : List (Ty α)} {r s : Region Φ}
   | letValue ht hr =>
     intro env he
     obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) ht he
-    simp only [evalRegionWith, eq, evalRegion_subst _ (RealizesWith.single eq (value_startsLet ht))]
+    simp only [evalRegionWith, eq, evalRegion_subst _ (RealizesWith.single eq (value_not_computed ht))]
   | @caseValue Δ t A B r K ht hr =>
     intro env he
     obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) ht he
-    rw [evalRegion_subst r (RealizesWith.single eq (value_startsLet ht))]
+    rw [evalRegion_subst r (RealizesWith.single eq (value_not_computed ht))]
     cases hv with
     | inl hv =>
       simp only [evalRegionWith, eq]

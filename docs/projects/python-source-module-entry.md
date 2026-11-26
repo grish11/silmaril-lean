@@ -63,6 +63,18 @@ This path uses the existing explicit seed that already supplies `len`.
 Run the CPython 3.13.5 controls and the fixed original inputs with
 `python3.13 -I scripts/check-python-sequence-length.py --upstream /path/to/pinned/rigorous`.
 
+The same integer-result assertion path accepts `ord` with one positional
+text literal containing exactly one Unicode code point. The checker
+certifies the code point, including surrogate code points, before lowering.
+The independent `legacyOrdSeed` supplies the stock descriptor. The live
+module-first lookup precedes comparison against the right operand. A scalar
+mask raises the defined noncallable error and a different callable falls
+outside the profile. The call receipt records the integer result before a
+right-operand failure, and both heaps keep their incoming contents.
+Text arguments of other lengths fail the source check. Run the unchanged
+`testord.py` and CPython 3.13.5 controls with
+`python3.13 -I scripts/check-python-ordinal.py --upstream /path/to/pinned/rigorous`.
+
 A message-free assertion can use `bool()` or `bool(scalar)` on the left
 of a single `is` or `is not` link. The checker certifies the optional
 positional operand in the shared scalar profile and the right operand in

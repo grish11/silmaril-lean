@@ -47,6 +47,21 @@ def Group.ref {members : List (Function V S)} (group : Group m members)
     (slot : Fin members.length) : m.Val members[slot].port :=
   .member group.values group.definitions slot
 
+/-- Related members share the ordered group signatures and capture types. -/
+abbrev GroupKey (V S : Type u) := List (Function V S) × Ports (Ty V S)
+
+def Group.key {members : List (Function V S)} (group : Group m members) : GroupKey V S :=
+  (members, group.context)
+
+def memberKey {port : Ty V S} : m.Val port → Option (GroupKey V S)
+  | .member (members := members) (context := context) _ _ _ => some (members, context)
+  | _ => none
+
+/-- Extend a checked family with the actual member values of one group. -/
+inductive WithGroup (earlier : Family m) {members : List (Function V S)} (group : Group m members) : Family m where
+  | inherited {port : Ty V S} {value : m.Val port} (known : earlier value) : WithGroup earlier group value
+  | member (slot : Fin members.length) : WithGroup earlier group (group.ref slot)
+
 inductive Group.In {members : List (Function V S)} (group : Group m members) : Family m where
   | ordinary {port : Ty V S} (value : m.Val port) (plain : ordinaryPort port = true) : Group.In group value
   | member (slot : Fin members.length) : Group.In group (group.ref slot)
@@ -265,11 +280,26 @@ structure LambdaKeys (V S : Type u) (Key : Type v) (Capture : Type w) where
   left : List (LambdaKey V S Key Capture)
   right : List (LambdaKey V S Key Capture)
 
-/-- A checked finite prefix, indexed by the encoder used throughout its
-λ keys. Fixed φ members do not have λ keys. -/
+structure DispatchKeys (V S : Type u) (Key : Type v) (Capture : Type w) extends LambdaKeys V S Key Capture where
+  groupsL : List (GroupKey V S)
+  groupsR : List (GroupKey V S)
+
+def DispatchKeys.seed {Key : Type v} {Capture : Type w} (left right : GroupKey V S) :
+    DispatchKeys V S Key Capture :=
+  ⟨⟨[], []⟩, [left], [right]⟩
+
+def DispatchKeys.addLambda {Key : Type v} {Capture : Type w} (prior : DispatchKeys V S Key Capture)
+    (left right : LambdaKey V S Key Capture) : DispatchKeys V S Key Capture :=
+  { prior with left := left :: prior.left, right := right :: prior.right }
+
+def DispatchKeys.addGroup {Key : Type v} {Capture : Type w} (prior : DispatchKeys V S Key Capture)
+    (left right : GroupKey V S) : DispatchKeys V S Key Capture :=
+  { prior with groupsL := left :: prior.groupsL, groupsR := right :: prior.groupsR }
+
+/-- A checked finite prefix with separate dispatch keys for λs and φ groups. -/
 structure LinkedFamily (primitives : Primitives m σ) (ids : GlobalRel)
     (code : OpcodeCode (Instruction Op)) (captureCode : CaptureCode m) (left right : Family m)
-    (keys : LambdaKeys V S code.Key captureCode.Key) : Prop where
+    (keys : DispatchKeys V S code.Key captureCode.Key) : Prop where
   checked : CheckedFamily primitives ids left right
   ordinaryL : ∀ {port : Ty V S} (value : m.Val port), ordinaryPort port = true → left value
   ordinaryR : ∀ {port : Ty V S} (value : m.Val port), ordinaryPort port = true → right value
@@ -277,6 +307,10 @@ structure LinkedFamily (primitives : Primitives m σ) (ids : GlobalRel)
     left value → lambdaKey code captureCode value = some key → key ∈ keys.left.map LambdaKey.summary
   keysR : ∀ {port : Ty V S} {value : m.Val port} {key : LambdaSummary V S code.Key captureCode.Key},
     right value → lambdaKey code captureCode value = some key → key ∈ keys.right.map LambdaKey.summary
+  groupsL : ∀ {port : Ty V S} {value : m.Val port} {key : GroupKey V S},
+    left value → memberKey value = some key → key ∈ keys.groupsL
+  groupsR : ∀ {port : Ty V S} {value : m.Val port} {key : GroupKey V S},
+    right value → memberKey value = some key → key ∈ keys.groupsR
 
 variable {imports : Ports (Ty V S)} {past : List (Ports (Ty V S))}
 
@@ -305,21 +339,24 @@ abbrev linkedLambda {fn : Function V S} (definition : Lambda Op imports past fn)
 
 variable [DecidableEq (Ty V S)]
 
-/-- Check all slots, including members that are reachable by recursion but
-are absent from the module's export list. Each body comes from resolving
-a real linked value with its actual captures. -/
+/-- Check all slots using the resolved bodies with actual captures. -/
+def checkGroupBodies (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
+    {members : List (Function V S)} (left right : Group m members) : Bool :=
+  (List.ofFn (fun slot : Fin members.length =>
+    (inferResolved keys (resolve m (left.ref slot)) (resolve m (right.ref slot))).isSome)).all id
+
 def checkGroups (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
     {members : List (Function V S)} (left right : Group m members) : Bool :=
-  ordinaryPorts left.context && ordinaryPorts right.context &&
-    (List.ofFn (fun slot : Fin members.length =>
-      (inferResolved keys (resolve m (left.ref slot)) (resolve m (right.ref slot))).isSome)).all id
+  ordinaryPorts left.context && ordinaryPorts right.context && checkGroupBodies keys left right
+
+def decideFunction (a b : Function V S) : Decidable (a = b) :=
+  decidable_of_iff (a.args = b.args ∧ a.results = b.results) (by cases a; cases b; simp)
 
 /-- Compare the exact member signatures in slot order before using the
 common table-indexed checker. -/
 def checkGroupPair (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
     {membersL membersR : List (Function V S)} (left : Group m membersL) (right : Group m membersR) : Bool :=
-  letI : DecidableEq (Function V S) := fun a b =>
-    decidable_of_iff (a.args = b.args ∧ a.results = b.results) (by cases a; cases b; simp)
+  letI : DecidableEq (Function V S) := decideFunction
   if same : membersL = membersR then checkGroups keys left (same.symm ▸ right) else false
 
 def checkCapturedGroups (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]

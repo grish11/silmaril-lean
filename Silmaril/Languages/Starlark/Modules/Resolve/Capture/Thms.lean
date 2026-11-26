@@ -35,6 +35,12 @@ theorem required_parameter_binders (parameters : List String) :
     ParameterBinders (.required parameters) parameters :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.required_binders parameters
 
+/-- Independently selected captures are outside the owned frame. -/
+theorem selected_outside_owned {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
+    (selected : Selects block reads free) (entry : FreeName) (member : entry ∈ free)
+    (name : String) (owned : name ∈ block.owned) : entry.target ≠ fileSlot name :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.selected_outside_owned selected entry member name owned
+
 /-- In a load-free module the immediate parent's local names are precisely
 its own parameters and local declarations. -/
 theorem parent_layout (commands : List Command) (globals : List String)

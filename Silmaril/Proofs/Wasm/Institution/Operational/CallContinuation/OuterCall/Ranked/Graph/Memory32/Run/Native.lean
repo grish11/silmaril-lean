@@ -243,6 +243,26 @@ theorem function_branch_exit {H : Type} {s : Store H} {caller callee : Frame}
         (.labelBranch results.length [] extra payload bodyTail arity)) results.length caller) saved callerTail
   · exact .context (.pure _ _ (.frameDone _ callee payload arity)) saved callerTail
 
+theorem br_table_select_iff {H : Type} {s : Store H} {f : Frame} {saved : List Value}
+    {selector : BitVec 32} {depths : List LabelIdx} {fallback : LabelIdx} {tail : List Admin} {dst : Config H} :
+    Step CallFrame.v1NoHost
+      ⟨s, f, values (saved ++ [Value.int .i32 selector]) ++ .source (.brTable depths fallback) :: tail⟩ dst ↔
+    dst = ⟨s, f, values saved ++ .source (.br (depths[selector.toNat]?.getD fallback)) :: tail⟩ := by
+  constructor
+  · intro move
+    have projected := move.toLime (target := CallFrame.limeNoHost) (fun _ _ _ _ h => h)
+    have mapped := (Computed.lime_br_table_iff (depths := depths) (fallback := fallback)
+      (selector := selector) (saved := saved) (rest := codeToLime tail)).mp
+      (by simpa only [Config.toLime, codeToLime_append, map_values, codeToLime_cons,
+        Execution.Runtime.AdminInstr.map, Wasm.V1.Instr.toLime] using projected)
+    apply CallContinuation.config_toLime_injective H
+    simpa only [Config.toLime, codeToLime_append, map_values, codeToLime_cons,
+      Execution.Runtime.AdminInstr.map, Wasm.V1.Instr.toLime] using mapped
+  · rintro rfl
+    rw [values_append, List.append_assoc]
+    simpa only [values, List.map_cons, List.map_nil, List.append_assoc, List.cons_append, List.nil_append] using
+      Step.context (Step.pure (host := CallFrame.v1NoHost) s f (.brTable depths fallback selector)) saved tail
+
 theorem if_select_iff {H : Type} {s : Store H} {f : Frame} {saved : List Value}
     {condition : BitVec 32} {result : Option NumType} {left right : Wasm.V1.Expr}
     {tail : List Admin} {dst : Config H} :

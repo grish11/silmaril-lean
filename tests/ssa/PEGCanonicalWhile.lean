@@ -2,10 +2,12 @@ module
 
 import Silmaril.SSA.PEG.Simple.Revert.While.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Thms
+import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Thms
 import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Thms
 import Silmaril.SSA.PEG.Simple.Thms
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Pair.Defs
+meta import Silmaril.SSA.PEG.Simple.Revert.While.Nested.Defs
 meta import Silmaril.SSA.PEG.Simple.Revert.While.Region.Automatic.Defs
 
 namespace Silmaril.SSA.PEG.Simple.Revert.While.Tests
@@ -463,3 +465,127 @@ private def runInferred (fuel n a b : Nat) : Option Nat := do
     (Automatic.extract cyclic).isNone)
 
 end Silmaril.SSA.PEG.Simple.Revert.While.Region.Tests
+
+namespace Silmaril.SSA.PEG.Simple.Revert.While.Nested.Tests
+
+open RVSDG (Tuple)
+
+private abbrev Outer : List (Ty Unit) := [.count, .count]
+private abbrev Inner : List (Ty Unit) := [.count, .count, .count]
+
+private inductive Op : InstructionSet Unit where
+  | positive : Op [.count] .bool
+  | pred : Op [.count] .count
+  | add : Op [.count, .count] .count
+  | not : Op [.bool] .bool
+  deriving DecidableEq
+
+private def model : Interpretation Op where
+  carrier _ := Unit
+  run
+    | .positive, .cons x .nil => some ⟨x.down != 0⟩
+    | .pred, .cons x .nil => some ⟨x.down - 1⟩
+    | .add, .cons x (.cons y .nil) => some ⟨x.down + y.down⟩
+    | .not, .cons b .nil => some ⟨!b.down⟩
+
+-- Outer store is (counter, accumulator). The child captures these two
+-- values and a second copy of the old outer counter for the final commit.
+private def form : Form Op Outer Inner .count where
+  outerGuard := .op .positive (.cons (.var .head) .nil)
+  captures := .cons .head (.cons (.tail .head) (.cons .head .nil))
+  innerGuard := .op .positive (.cons (.var .head) .nil)
+  innerStep :=
+    .seq (.assign (.op .pred (.cons (.var .head) .nil))) <|
+    .seq (.assign (.op .add (.cons (.var (.tail .head)) (.cons (.var (.tail (.tail .head))) .nil)))) <|
+    .project (.cons (.tail .head) (.cons .head (.cons (.tail (.tail (.tail (.tail .head)))) .nil)))
+  commit :=
+    .seq (.assign (.op .pred (.cons (.var (.tail (.tail .head))) .nil))) <|
+    .project (.cons .head (.cons (.tail (.tail .head)) .nil))
+  returnSlot := .tail .head
+  negate := .not
+
+private def outerStore (n acc : Nat) : Tuple model.Value Outer := .cons ⟨n⟩ (.cons ⟨acc⟩ .nil)
+private def innerStore (n acc saved : Nat) : Tuple model.Value Inner :=
+  .cons ⟨n⟩ (.cons ⟨acc⟩ (.cons ⟨saved⟩ .nil))
+
+private def run (outerFuel innerFuel n acc : Nat) : Option Nat := do
+  let _ ← check form form.compile
+  (form.runFuel model outerFuel innerFuel (outerStore n acc)).map ULift.down
+
+-- The first inner invocation takes three steps, then two, then one.
+-- The sum of their contributions is 6 + 3 + 1.
+set_option interpreter.prefer_native false in
+/-- info: (some 10, some 7, none, none) -/
+#guard_msgs in
+#eval (run 3 3 3 0, run 0 0 0 7, run 2 3 3 0, run 3 2 3 0)
+
+-- The modified graph remains sorted and has the same number of rows.
+-- Its child counter reads the old accumulator instead of the old counter.
+private def wrongCapture : Form Op Outer Inner .count :=
+  { form with captures := .cons (.tail .head) (.cons (.tail .head) (.cons .head .nil)) }
+
+private def wrongParent : Graph Op Outer [.count] form.size form.size :=
+  { form.compile with forest := ⟨fun _ => none⟩ }
+
+set_option interpreter.prefer_native false in
+/-- info: (true, true) -/
+#guard_msgs in
+#eval ((check form wrongCapture.compile).isNone, (check form wrongParent).isNone)
+
+private def childResult (acc : Nat) : Nat → Nat
+  | 0 => acc
+  | n + 1 => childResult (n + 1 + acc) n
+
+private theorem childExec (n acc saved : Nat) :
+    Exec model form.child (innerStore n acc saved) (some (innerStore 0 (childResult acc n) saved)) := by
+  induction n generalizing acc with
+  | zero => exact .whileStop rfl
+  | succ n ih =>
+    exact .whileStep (next := innerStore n (n + 1 + acc) saved) rfl
+      (form.innerStep.runLoopFree_enableWhile (innerStore (n + 1) acc saved)) (ih _)
+
+private def outerResult (acc : Nat) : Nat → Nat
+  | 0 => acc
+  | n + 1 => outerResult (childResult acc (n + 1)) n
+
+private theorem outerExec (n acc : Nat) :
+    Exec model form.source.body (outerStore n acc) (some (outerStore 0 (outerResult acc n))) := by
+  induction n generalizing acc with
+  | zero => exact .whileStop rfl
+  | succ n ih =>
+    refine .whileStep (next := outerStore n (childResult acc (n + 1))) rfl ?_ (ih _)
+    exact .seq (next := innerStore (n + 1) acc (n + 1)) .project
+      (.seq (childExec (n + 1) acc (n + 1))
+        (form.commit.runLoopFree_enableWhile (innerStore 0 (childResult acc (n + 1)) (n + 1))))
+
+private theorem total : form.Total model where
+  guard old := ⟨(old.get .head).down != 0, rfl⟩
+  child old _ := by
+    cases old with | cons n tail =>
+    cases tail with | cons acc tail =>
+    cases tail
+    exact ⟨_, childExec n.down acc.down n.down⟩
+  commit {old final} _ := by
+    cases final with | cons _ tail =>
+    cases tail with | cons _ tail =>
+    cases tail with | cons _ tail =>
+    cases tail
+    exact ⟨_, rfl⟩
+
+private def cert : Certificate form form.compile := ⟨rfl⟩
+
+private theorem returnsTen : form.source.Returns model (outerStore 3 0) ⟨10⟩ :=
+  ⟨outerStore 0 (outerResult 0 3), outerExec 3 0, rfl⟩
+
+private theorem observedTen (i : Index form.size) :
+    form.compile.observe model
+      (form.compile.denote model (outerStore 3 0) cert.demandWellFounded) i =
+      .cons (some ⟨10⟩) .nil :=
+  (cert.returns_iff_observe model (outerStore 3 0) total (fun _ => rfl) i ⟨10⟩).mp returnsTen
+
+example (i : Index form.size) : ∃ k final,
+    WhileTrace model form.outerGuard form.body k (outerStore 3 0) final ∧
+      final.get form.returnSlot = ⟨10⟩ :=
+  cert.trace_of_defined model (outerStore 3 0) total (fun _ => rfl) i (observedTen i)
+
+end Silmaril.SSA.PEG.Simple.Revert.While.Nested.Tests

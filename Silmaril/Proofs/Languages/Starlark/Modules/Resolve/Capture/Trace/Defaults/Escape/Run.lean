@@ -18,7 +18,7 @@ open Silmaril.Languages.Starlark.Functions
 open Silmaril.Languages.Starlark.Lists (State Cell Outcome Value Slot)
 open Silmaril.Languages.Starlark.Lists.Iteration (Flow finishState)
 
-theorem frame_layout (wrapper : Spec) (admitted : Admitted wrapper) (childId : Nat)
+theorem frame_layout_with (wrapper : Spec) (admitted : WrapperNames wrapper) (childId : Nat)
     (caller : State) (argument : Value) :
     let frame := activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)]
     frame.slots (fileSlot wrapper.parameter) = some (.owned caller.heap.size) ∧
@@ -35,6 +35,15 @@ theorem frame_layout (wrapper : Spec) (admitted : Admitted wrapper) (childId : N
   · omega
   · let blank : Cell := ⟨.binding none, false⟩
     simpa only [Array.size_push, blank] using Array.getElem_push_eq (xs := caller.heap.push blank) (x := blank)
+
+theorem frame_layout (wrapper : Spec) (admitted : Admitted wrapper) (childId : Nat)
+    (caller : State) (argument : Value) :
+    let frame := activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)]
+    frame.slots (fileSlot wrapper.parameter) = some (.owned caller.heap.size) ∧
+    frame.heap[caller.heap.size]? = some ⟨.binding (some argument), false⟩ ∧
+    frame.slots (fileSlot wrapper.childName) = some (.owned (caller.heap.size + 1)) ∧
+    frame.heap[caller.heap.size + 1]? = some ⟨.binding none, false⟩ :=
+  frame_layout_with wrapper admitted.wrapperNames childId caller argument
 
 private abbrev EvalOperand (program : Program) (available : List DeclarationId)
     (state : State) (code : Lowering.Expr) (out : Outcome Value) :=
@@ -158,12 +167,13 @@ theorem failed_child_unbound (wrapper : Spec) (admitted : Admitted wrapper) (chi
     exact ⟨kept.cells _ _ parameter trivial, kept.cells _ _ child trivial, rfl, rfl⟩
 
 private theorem reached_defaults (program : Program) (available : List DeclarationId) (wrapper : Spec)
-    (childId : Nat) (found : program[childId]? = some (wrapper.child.emitted wrapper.codes))
+    (childId : Nat) (declaration : Declaration) (found : program[childId]? = some declaration)
+    (signature : declaration.signature = wrapper.child.parameters.signature wrapper.codes)
     {state : State} {out : Outcome (List Value)}
     (ran : DefaultsIn wrapper.parameter state (wrapper.defaults.map Prod.snd) out) :
     ExecExprs program available state (defaultOperands program childId) out := by
   have ordered : defaultOperands program childId = wrapper.codes := by
-    simp [defaultOperands, found, Defaults.default_slots, List.map_snd_zip, code_length]
+    simp [defaultOperands, found, signature, Defaults.signature_defaults, List.map_snd_zip, code_length]
   rw [ordered]
   simpa [Spec.codes, List.map_map, Function.comp_def] using defaults_sound program available ran
 
@@ -174,27 +184,33 @@ private theorem kept_write (state : State) (target : Binding) (value : Value) (a
 
 /-- The independent wrapper execution supplies both the operational body
 and the escaped closure record after the local write and caller restore. -/
-theorem returns_total (program : Program) (available : List DeclarationId) (wrapper : Spec)
-    (admitted : Admitted wrapper) (childId : Nat) (found : program[childId]? = some (wrapper.child.emitted wrapper.codes))
-    (caller : State) (argument : Value) :
-    ∃ out bodyOut, Returns wrapper childId caller argument out ∧
+theorem returns_with_total (program : Program) (available : List DeclarationId) (wrapper : Spec)
+    (admitted : WrapperNames wrapper) (childId : Nat) (declaration : Declaration)
+    (found : program[childId]? = some declaration)
+    (signature : declaration.signature = wrapper.child.parameters.signature wrapper.codes)
+    (caller : State) (argument : Value) (captures : List Silmaril.Languages.Starlark.Lists.Capture)
+    (capturesHere : ∀ state : State,
+      state.slots (fileSlot wrapper.parameter) = some (.owned caller.heap.size) →
+      Installs state declaration.free captures) :
+    ∃ out bodyOut, ReturnsWith wrapper childId declaration.free caller argument out ∧
       Exec program available
         (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
         (wrapper.frame childId).code bodyOut ∧ Leaf.returnTo caller bodyOut = out ∧
       (∀ value next, out = .ok value next → ∃ address values,
         value = .function address ∧ values.length = wrapper.child.parameters.optional.length ∧
-        next.heap[address]? = some ⟨.function ⟨childId, [], wrapper.saved values⟩, false⟩ ∧
+        next.heap[address]? = some ⟨.function ⟨childId, captures, wrapper.saved values⟩, false⟩ ∧
         next.heap[caller.heap.size]? = some ⟨.binding (some (.scalar (.int wrapper.rebound))), false⟩ ∧
-        Bindings.Preserves caller next) := by
+        Bindings.Preserves caller next ∧ (∃ owner, Installs owner declaration.free captures)) := by
   let active := activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)]
-  obtain ⟨paramOwn, paramCell, childOwn, childCell⟩ := frame_layout wrapper admitted childId caller argument
+  obtain ⟨paramOwn, paramCell, childOwn, childCell⟩ := frame_layout_with wrapper admitted childId caller argument
   obtain ⟨out, ran, kept, count⟩ := defaults_total wrapper.parameter active (wrapper.defaults.map Prod.snd)
-  have native := reached_defaults program available wrapper childId found ran
+  have native := reached_defaults program available wrapper childId declaration found signature ran
   cases out with
   | error error final =>
     exact ⟨_, _, .failed ran, .seqError (.define native), rfl, fun _ _ impossible => nomatch impossible⟩
   | ok values final =>
-    let cell : Cell := ⟨.function ⟨childId, [], wrapper.saved values⟩, false⟩
+    have installs := capturesHere final (kept.slots ▸ paramOwn)
+    let cell : Cell := ⟨.function ⟨childId, captures, wrapper.saved values⟩, false⟩
     let grown : State := { final with heap := final.heap.push cell }
     let child := fileSlot wrapper.childName
     let parameter := fileSlot wrapper.parameter
@@ -215,8 +231,8 @@ theorem returns_total (program : Program) (available : List DeclarationId) (wrap
       simpa only [State.bindingValue, rebound, slots_write, childAfter, Slot.address, saved] using installedRead
     have childCode : Exec program available active (.define child childId) (.ok .next installed) := by
       have actual := Exec.define (target := child) native
-      have free : (wrapper.child.emitted wrapper.codes).free = [] := rfl
-      simpa [Outcome.resume, define, found, free, pure, Except.pure, Defaults.default_slots, Spec.saved,
+      have loaded := Capture.installs_lookup final installs
+      simpa [Outcome.resume, define, found, loaded, signature, Defaults.signature_defaults, Spec.saved,
         List.map_fst_zip, code_length, installed, grown, cell] using actual
     have assignCode : Exec program available installed (.assignExpr parameter (.atom (.scalar (.int wrapper.rebound))))
         (.ok .next rebound) :=
@@ -229,7 +245,7 @@ theorem returns_total (program : Program) (available : List DeclarationId) (wrap
     have body : Exec program available active (wrapper.frame childId).code
         (.ok (.returned (.function final.heap.size)) rebound) :=
       .seq childCode (.seq assignCode (.returnExpr expression))
-    refine ⟨_, _, .child ran, body, rfl, ?_⟩
+    refine ⟨_, _, .child ran installs, body, rfl, ?_⟩
     intro result next same
     cases same
     have length : values.length = wrapper.child.parameters.optional.length := by
@@ -244,7 +260,7 @@ theorem returns_total (program : Program) (available : List DeclarationId) (wrap
       have within := (Array.getElem?_eq_some_iff.mp parameterRetained).choose
       simp only [rebound, State.write, paramAt, parameterRetained]
       exact Array.getElem?_setIfInBounds_self_of_lt within
-    refine ⟨final.heap.size, values, rfl, length, recordAfter, parameterRebound, ⟨rfl, ?_⟩⟩
+    refine ⟨final.heap.size, values, rfl, length, recordAfter, parameterRebound, ⟨rfl, ?_⟩, ⟨final, installs⟩⟩
     intro index stored existing kind
     have low := (Array.getElem?_eq_some_iff.mp existing).choose
     have inFrame := Wrapper.activation_preserves caller (wrapper.frame childId).declaration []
@@ -253,6 +269,65 @@ theorem returns_total (program : Program) (available : List DeclarationId) (wrap
     have afterChild := kept_write grown child (.function final.heap.size) _ childAt index (by omega)
     have afterRebound := kept_write installed parameter value _ paramAt index (by omega)
     exact afterRebound.trans (afterChild.trans inGrown)
+
+theorem returns_total (program : Program) (available : List DeclarationId) (wrapper : Spec)
+    (admitted : Admitted wrapper) (childId : Nat) (found : program[childId]? = some (wrapper.child.emitted wrapper.codes))
+    (caller : State) (argument : Value) :
+    ∃ out bodyOut, Returns wrapper childId caller argument out ∧
+      Exec program available
+        (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
+        (wrapper.frame childId).code bodyOut ∧ Leaf.returnTo caller bodyOut = out ∧
+      (∀ value next, out = .ok value next → ∃ address values,
+        value = .function address ∧ values.length = wrapper.child.parameters.optional.length ∧
+        next.heap[address]? = some ⟨.function ⟨childId, [], wrapper.saved values⟩, false⟩ ∧
+        next.heap[caller.heap.size]? = some ⟨.binding (some (.scalar (.int wrapper.rebound))), false⟩ ∧
+        Bindings.Preserves caller next) := by
+  obtain ⟨out, bodyOut, source, ran, restored, result⟩ := returns_with_total program available wrapper
+    admitted.wrapperNames childId (wrapper.child.emitted wrapper.codes) found rfl caller argument []
+    (fun _ _ => .nil)
+  refine ⟨out, bodyOut, ?_, ran, restored, ?_⟩
+  · cases source with
+    | failed failed => exact .failed failed
+    | child evaluated installed =>
+      cases installed
+      exact .child evaluated
+  · intro value state equality
+    obtain ⟨address, values, returned, length, cell, rebound, kept, _⟩ := result value state equality
+    exact ⟨address, values, returned, length, cell, rebound, kept⟩
+
+theorem returns_with_unique {wrapper : Spec} {childId : Nat} {free : List FreeName}
+    {caller : State} {argument : Value} {first second : Outcome Value}
+    (a : ReturnsWith wrapper childId free caller argument first)
+    (b : ReturnsWith wrapper childId free caller argument second) : first = second := by
+  cases a with
+  | failed earlier =>
+    cases b with
+    | failed later => cases defaults_unique earlier later; rfl
+    | child later _ => cases defaults_unique earlier later
+  | child earlier installed =>
+    cases b with
+    | failed later => cases defaults_unique earlier later
+    | child later installed' =>
+      cases defaults_unique earlier later
+      have same := Except.ok.inj ((Capture.installs_lookup _ installed).symm.trans (Capture.installs_lookup _ installed'))
+      cases same
+      rfl
+
+theorem returns_with_sound (program : Program) (available : List DeclarationId) (wrapper : Spec)
+    (admitted : WrapperNames wrapper) (childId : Nat) (declaration : Declaration)
+    (found : program[childId]? = some declaration)
+    (signature : declaration.signature = wrapper.child.parameters.signature wrapper.codes)
+    (caller : State) (argument : Value) (captures : List Silmaril.Languages.Starlark.Lists.Capture)
+    (capturesHere : ∀ state : State,
+      state.slots (fileSlot wrapper.parameter) = some (.owned caller.heap.size) →
+      Installs state declaration.free captures)
+    {out : Outcome Value} (source : ReturnsWith wrapper childId declaration.free caller argument out) :
+    ∃ bodyOut, Exec program available
+        (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
+        (wrapper.frame childId).code bodyOut ∧ Leaf.returnTo caller bodyOut = out := by
+  obtain ⟨_, bodyOut, result, ran, returned, _⟩ := returns_with_total program available wrapper admitted childId
+    declaration found signature caller argument captures capturesHere
+  exact ⟨bodyOut, ran, returned.trans (returns_with_unique result source)⟩
 
 theorem returns_sound (program : Program) (available : List DeclarationId) (wrapper : Spec)
     (admitted : Admitted wrapper) (childId : Nat) (found : program[childId]? = some (wrapper.child.emitted wrapper.codes))

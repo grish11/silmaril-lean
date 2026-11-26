@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Proofs.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Continuation.Observation
+public import Silmaril.Proofs.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Continuation.Values
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.ProductBeta.Defs
 import Silmaril.Proofs.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Continuation.Substitution
 
@@ -16,41 +16,41 @@ universe u v w x
 
 variable {Φ : Type u} {α : Type w} {σ : Type x} {O : Ops Φ α σ} {env : Env α}
 
-private theorem let₂_pure {a b : Tm Φ} {l r : Value α} (ha : PureValue O env a l) (hb : PureValue O env b r)
-    (p : Region Φ) : RegionAt O env (.let₂ (.pair a b) p) (extend (extend env l) r) p where
+theorem let₂_pure {a : Tm Φ} {l r : Value α} (pure : PureValue O env a (.pair l r))
+    (p : Region Φ) : RegionAt O env (.let₂ a p) (extend (extend env l) r) p where
   eval := by
     intro s j a t
     constructor
     · intro run
       cases run with
       | let₂ arg body =>
-        obtain ⟨eq, rfl⟩ := (ha.pair hb).unique arg
+        obtain ⟨eq, rfl⟩ := pure.unique arg
         cases eq
         exact body
-    · exact fun run => .let₂ ((ha.pair hb).eval _) run
+    · exact fun run => .let₂ (pure.eval _) run
   fault := by
     intro s t
     constructor
     · intro run
       cases run with
-      | let₂_arg arg => exact ((ha.pair hb).noFault arg).elim
+      | let₂_arg arg => exact (pure.noFault arg).elim
       | let₂_body arg body =>
-        obtain ⟨eq, rfl⟩ := (ha.pair hb).unique arg
+        obtain ⟨eq, rfl⟩ := pure.unique arg
         cases eq
         exact body
-    · exact fun run => .let₂_body ((ha.pair hb).eval _) run
+    · exact fun run => .let₂_body (pure.eval _) run
   div := by
     intro s
     constructor
     · intro run
       cases run.unfold with
-      | let₂_arg arg => exact ((ha.pair hb).noDiv arg).elim
+      | let₂_arg arg => exact (pure.noDiv arg).elim
       | core step => cases step with
         | let₂ arg body =>
-          obtain ⟨eq, rfl⟩ := (ha.pair hb).unique arg
+          obtain ⟨eq, rfl⟩ := pure.unique arg
           cases eq
           exact body
-    · exact fun run => .fold_core (.let₂ ((ha.pair hb).eval _) run)
+    · exact fun run => .fold_core (.let₂ (pure.eval _) run)
 
 private theorem realize_pair {a b : Tm Φ} {l r : Value α}
     (left : PureValue O env a l) (right : PureValue O env b r) :
@@ -67,6 +67,6 @@ theorem productBeta {κ : Type v} [HasTy Φ (Ty κ)] {Γ L : List (Ty κ)} {r t 
   | let₂Beta ha hb _ =>
     obtain ⟨_, left⟩ := PureValue.ofBranchValue (O := O) (env := env) ha
     obtain ⟨_, right⟩ := PureValue.ofBranchValue (O := O) (env := env) hb
-    exact (let₂_pure left right _).trans (((realize_pair left right).region _).symm)
+    exact (let₂_pure (left.pair right) _).trans (((realize_pair left right).region _).symm)
 
 end Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Paper.Descent

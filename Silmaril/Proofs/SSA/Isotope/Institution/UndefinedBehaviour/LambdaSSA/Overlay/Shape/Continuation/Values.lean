@@ -106,6 +106,80 @@ theorem ofBranchValue {τ : Type v} [TypeFormers τ] {Γ : VCtx τ} {A : τ}
 
 end PureValue
 
+section Case
+
+variable {O : Ops Φ α σ} {env : Env α}
+  {a : Tm Φ} {l r : LambdaSSA.Region Φ} {v : Value α}
+
+theorem case_pure_inl (h : PureValue O env a (.inl v)) :
+    RegionAt O env (.case a l r) (extend env v) l where
+  eval := by
+    intro s i out t
+    constructor
+    · intro run; cases run with
+      | case_inl head body =>
+        obtain ⟨same, rfl⟩ := h.unique head
+        cases same; exact body
+      | case_inr head _ => cases (h.unique head).1
+    · exact fun run => .case_inl (h.eval _) run
+  fault := by
+    intro s t
+    constructor
+    · intro run; cases run with
+      | case_arg head => exact (h.noFault head).elim
+      | case_inl head body =>
+        obtain ⟨same, rfl⟩ := h.unique head
+        cases same; exact body
+      | case_inr head _ => cases (h.unique head).1
+    · exact fun run => .case_inl (h.eval _) run
+  div := by
+    intro s
+    constructor
+    · intro run; cases run.unfold with
+      | case_arg head => exact (h.noDiv head).elim
+      | core step => cases step with
+        | case_inl head body =>
+          obtain ⟨same, rfl⟩ := h.unique head
+          cases same; exact body
+        | case_inr head _ => cases (h.unique head).1
+    · exact fun run => .fold_core (.case_inl (h.eval _) run)
+
+theorem case_pure_inr (h : PureValue O env a (.inr v)) :
+    RegionAt O env (.case a l r) (extend env v) r where
+  eval := by
+    intro s i out t
+    constructor
+    · intro run; cases run with
+      | case_inl head _ => cases (h.unique head).1
+      | case_inr head body =>
+        obtain ⟨same, rfl⟩ := h.unique head
+        cases same; exact body
+    · exact fun run => .case_inr (h.eval _) run
+  fault := by
+    intro s t
+    constructor
+    · intro run; cases run with
+      | case_arg head => exact (h.noFault head).elim
+      | case_inl head _ => cases (h.unique head).1
+      | case_inr head body =>
+        obtain ⟨same, rfl⟩ := h.unique head
+        cases same; exact body
+    · exact fun run => .case_inr (h.eval _) run
+  div := by
+    intro s
+    constructor
+    · intro run; cases run.unfold with
+      | case_arg head => exact (h.noDiv head).elim
+      | core step => cases step with
+        | case_inl head _ => cases (h.unique head).1
+        | case_inr head body =>
+          obtain ⟨same, rfl⟩ := h.unique head
+          cases same; exact body
+    · exact fun run => .fold_core (.case_inr (h.eval _) run)
+
+end Case
+
+
 @[expose] def Realizes (O : Ops Φ α σ) (env : Env α) (θ : Nat → Tm Φ) (source : Env α) : Prop :=
   ∀ i, PureValue O env (θ i) (source i)
 

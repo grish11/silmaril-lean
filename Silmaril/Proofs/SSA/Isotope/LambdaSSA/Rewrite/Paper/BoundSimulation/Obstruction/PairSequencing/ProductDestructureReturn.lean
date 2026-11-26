@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithProductDestructureReturns.Example.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithComputedCallReturns.Defs
+public import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.PairSequencing.CfgEta
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithPairReturns.Generation.Defs
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.PairSequencing.CaseReturns
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.PairSequencing.ConstructorSoundness
@@ -40,17 +41,17 @@ private theorem computedStep_same {Γ L : List (Ty α)} {r s : Region Φ}
 
 variable {ε : Type w} [HasEff Φ ε]
 
-private theorem computedJoin_same (pe : ε) {Γ L : List (Ty α)} {r s : Region Φ}
-    (eq : Paper.Extension.Eqv (Paper.WithComputedCallReturns.JoinedStep pe) Γ r s L) :
-    SameWith observation Γ r s := by
-  apply extension_same (observation := observation) _ eq
-  intro Γ L r s step
+theorem computedCallSeed_same {obs : TermObservation (α := α) Φ}
+    (caseUnmarked : obs.caseTerm = false) (pairUnmarked : obs.pairLet = false)
+    (callSame : ∀ {Γ L r s}, Paper.WithComputedCallReturns.Step Γ r s L → SameWith obs Γ r s)
+    {pe : ε} {Γ L : List (Ty α)} {r s : Region Φ}
+    (step : Paper.WithComputedCallReturns.JoinedStep pe Γ r s L) : SameWith obs Γ r s := by
   rcases step with (((base | returned) | pair) | call)
   · exact projectionUnitSeed_same base
-  · exact returned.elim unary_fusion_same (caseReturnSeed_same rfl)
+  · exact returned.elim unary_fusion_same (caseReturnSeed_same caseUnmarked)
   · cases pair with
-    | seq ha hb => exact fun env _ => sequence_pair rfl _ _ env
-  · exact computedStep_same call
+    | seq ha hb => exact fun env _ => sequence_pair pairUnmarked _ _ env
+  · exact callSame call
 
 private theorem env_typed : EnvTy [product (U α) (U α)] (fun _ => .pair .unit .unit) := by
   intro i A hi
@@ -62,7 +63,8 @@ theorem product_destructure_return_fails (pe : ε) :
     ¬ Paper.Extension.Eqv (Paper.WithComputedCallReturns.JoinedStep pe) [product (U α) (U α)]
       (unpackBody (returnRegion (body : Tm Φ))) (returnRegion (unpackTerm body)) [product (U α) (U α)] := by
   intro h
-  have seen := computedJoin_same pe h (fun _ => .pair .unit .unit) env_typed
+  have same := extension_same (computedCallSeed_same rfl rfl (fun step => computedStep_same step)) h
+  have seen := same (fun _ => .pair .unit .unit) env_typed
   rw [evalReturnRegion (unpackTerm_typed body_typed) env_typed] at seen
   change Result.jump 0 (.pair .unit .unit) = .fault at seen
   cases seen

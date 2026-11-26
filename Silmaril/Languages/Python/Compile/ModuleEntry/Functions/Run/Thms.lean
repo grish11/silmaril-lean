@@ -78,13 +78,28 @@ theorem advance_adjacentKeywordDiscard {scope : Source.Scope} (table : Core.Clos
     advance table (.ready session (.adjacentKeywordDiscard name value :: remaining)) =
       ([], .calling (session.prepareCall .discard (.readGlobal name) [.literal (.int value)]) remaining) := rfl
 
+theorem lowerInstructions_assertIntegerBuiltin {scope : Source.Scope} (tree : Source.ScopeTree) (key : Nat)
+    (test : IntegerBuiltinTest scope) (rest : List (Functions.Action scope)) :
+    lowerInstructions tree key (.assertIntegerBuiltin test :: rest) =
+      (lowerInstructions tree key rest).map fun (instructions, rows) =>
+        (.assertIntegerBuiltin test :: instructions, rows) := by
+  rw [lowerInstructions]
+  cases lowerInstructions tree key rest with | error _ => rfl | ok result => cases result; rfl
+
 theorem lowerInstructions_assertSequenceLength {scope : Source.Scope} (tree : Source.ScopeTree) (key : Nat)
     (test : SequenceLengthTest scope) (rest : List (Functions.Action scope)) :
     lowerInstructions tree key (.assertSequenceLength test :: rest) =
       (lowerInstructions tree key rest).map fun (instructions, rows) =>
-        (.assertSequenceLength test :: instructions, rows) := by
-  rw [lowerInstructions]
-  cases lowerInstructions tree key rest with | error _ => rfl | ok result => cases result; rfl
+        (.assertSequenceLength test :: instructions, rows) :=
+  lowerInstructions_assertIntegerBuiltin tree key test.toIntegerBuiltin rest
+
+theorem advance_assertIntegerBuiltin {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
+    (session : Core.Module.Functions.Session) (test : IntegerBuiltinTest scope) (rest : List (Instruction scope)) :
+    advance table (.ready session (.assertIntegerBuiltin test :: rest)) =
+      ([], .finished session (match session.globals test.argument.name with
+        | none => .raised (.nameError test.argument.name)
+        | some (.function _) => .scalarProfile
+        | some _ => .raised .notCallable)) := rfl
 
 theorem advance_assertSequenceLength {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
     (session : Core.Module.Functions.Session) (test : SequenceLengthTest scope) (rest : List (Instruction scope)) :

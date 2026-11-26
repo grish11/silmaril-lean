@@ -21,7 +21,7 @@ open Silmaril.MLIR.CF.SwitchAssert (Outcome)
 
 variable {Γ carried : List Width} {result : Width} {entrySigs headerSigs : List (List (Diamond.Ty Width))}
 
-private theorem opcode_correct {ins : List (ValueSort Width)} {out : ValueSort Width}
+theorem opcode_correct {ins : List (ValueSort Width)} {out : ValueSort Width}
     (op : Op ins out) (input : Tuple (Val Word) (dataPorts ins)) :
     evalOp (opcode op) (encodeValues input) = valueBits (model.run op input) := by
   cases op with

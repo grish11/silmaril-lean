@@ -106,6 +106,7 @@ private def sound (entry : Tuple (Val model.value) args) : ConstantFold.AddRewri
   record op operands agree := record_agrees agree op operands
   replaceAdd agree accepted := by
     obtain ⟨offset, found, rfl⟩ := Option.map_eq_some_iff.mp accepted
+    rw [ConstantFold.AddRewrite.Edit.splice_eval]
     exact combine_sound agree found
 
 variable {inputs : List (ValueSort Unit)} {program : Program SubZero.Opcode inputs out}

@@ -88,6 +88,7 @@ private theorem op_source {p : Program} {m : MemAddr} (checked : p.checkV1 m = t
     | tee idx => exact .tee idx
     | br depth _ => exact .br depth
     | brIf depth _ => exact .brIf depth
+    | brTable depths fallback _ => exact .brTable depths fallback
     | unreachable => exact .unreachable
     | return_ => exact .return_
     | call target =>
@@ -137,9 +138,8 @@ theorem pure_allowed {p : Program} {m : MemAddr} {rank : Nat} {mod : ModuleInst}
     cases h with | if_ left _ => exact single_allowed.mpr (.source (.block left))
   | brIfNonzero depth _ _ =>
     exact single_allowed.mpr (.source (.br depth))
-  | brTable =>
-    have h := source_allowed (guard _ (List.Mem.tail _ (List.Mem.head _)))
-    cases h
+  | brTable depths fallback selector =>
+    exact single_allowed.mpr (.source (.br (depths[selector.toNat]?.getD fallback)))
   | labelBranch n cont extra vs tail arity =>
     cases (single_allowed.mp guard) with
     | label _ _ => exact append_allowed.mpr ⟨values_allowed vs, values_allowed []⟩

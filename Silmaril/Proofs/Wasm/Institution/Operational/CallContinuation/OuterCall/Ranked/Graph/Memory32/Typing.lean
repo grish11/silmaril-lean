@@ -109,6 +109,23 @@ theorem br_if_typed {fn : Function} {stack : List Value} {depth : LabelIdx} {res
   obtain ⟨target, payload⟩ := of_decide_eq_true branch
   exact ⟨saved, condition, rfl, target, payload, tail⟩
 
+theorem br_table_typed {fn : Function} {stack : List Value} {depths : List LabelIdx} {fallback : LabelIdx}
+    {result fallthrough : List NumType} {rest : List Op} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough
+      (.ranked (.brTable depths fallback result) :: rest) labels = true) :
+    ∃ (saved : List Value) (selector : BitVec 32), stack = saved ++ [Value.int .i32 selector] ∧
+      Graph.SuffixTyped result saved ∧ ∀ depth ∈ fallback :: depths, labels[depth.toNat]? = some result := by
+  change Graph.checkCondition (Prefix.stackTypes stack) (fun saved =>
+    Graph.checkBranch labels saved fallback result &&
+      depths.all (fun depth => Graph.checkBranch labels saved depth result)) = true at checked
+  obtain ⟨saved, selector, rfl, checks⟩ := split_i32 checked
+  obtain ⟨fallbackOK, entriesOK⟩ := Bool.and_eq_true_iff.mp checks
+  obtain ⟨target, payload⟩ := of_decide_eq_true fallbackOK
+  refine ⟨saved, selector, rfl, payload, fun depth used => ?_⟩
+  rcases List.mem_cons.mp used with rfl | used
+  · exact target
+  · exact (of_decide_eq_true (List.all_eq_true.mp entriesOK depth used)).1
+
 theorem lookup_table (program : Program) (address : FuncAddr) :
     program.table.lookup address = (program.lookup address).map Function.entry := by
   unfold Table.lookup Program.table Program.lookup

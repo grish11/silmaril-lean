@@ -338,7 +338,7 @@ theorem activate_capture (state : State) (declaration : Declaration)
   rw [write_arguments_keep_slots, allocateSlots _ _ disjoint]
   simp [capturedSlots, found]
 
-private theorem selected_outside_owned {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
+theorem selected_outside_owned {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
     (selected : Selects block reads free) (entry : FreeName) (present : entry ∈ free)
     (name : String) (owned : name ∈ block.owned) : entry.target ≠ fileSlot name := by
   induction selected with

@@ -14,8 +14,17 @@ public section
 namespace Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF
 
 open SeaOfNodes.MLIR (Word sourceInputs)
+open SeaOfNodes.MLIR.Lowering (encodeValues valueBits)
+open Diamond (Val ValueSort dataPorts)
+open RVSDG (Tuple)
 open Silmaril.MLIR.Arith (Env Width)
 open Silmaril.MLIR.CF.SwitchAssert (Outcome)
+
+/-- The CF emitter's scalar opcode map implements the source word operations. -/
+theorem opcode_eval {ins : List (ValueSort Width)} {out : ValueSort Width}
+    (op : Op ins out) (input : Tuple (Val Word) (dataPorts ins)) :
+    evalOp (opcode op) (encodeValues input) = valueBits (model.run op input) :=
+  Proofs.opcode_correct op input
 
 namespace Bank
 

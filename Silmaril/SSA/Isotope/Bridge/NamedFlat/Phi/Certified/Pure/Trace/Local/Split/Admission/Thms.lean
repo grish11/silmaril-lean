@@ -22,7 +22,7 @@ variable {V W K J Base : Type u} {n : Nat}
   {plan : Plan V W K J} {names : Fin n → Option V} {β : BoundCtx (Ty Base) n}
 
 /-- Every old capture position has the same type in the extended context. -/
-def originalSlots (β : BoundCtx (Ty Base) n) (extra : List (Option W × Ty Base)) :
+@[expose] def originalSlots (β : BoundCtx (Ty Base) n) (extra : List (Option W × Ty Base)) :
     BoundCtx.Renaming β (extendedTypes β extra) :=
   ⟨Fin.castAdd extra.length, fun i => by simp [extendedTypes]⟩
 
@@ -120,6 +120,14 @@ variable {V W K J Base α : Type (u + 1)} {E : Type u → Type u} {F : Type v} {
   {blocks : Fin (blockCount source) → Ty Base} {exits : Fin 1 → Ty Base}
   {original : Certified.Admission source inputs names β blocks exits}
 
+/-- The shared source observation law for a generated split, independent
+of how the two admitted tables receive their capture records. -/
+theorem Generated.sourceObservation_eq (result : Generated plan source inputs names β exits)
+    (instr : Primitive E F α) (store : V → Value α) :
+    sourceObservation instr source store =
+      sourceObservation instr (plan.rewrite source) (plan.renameStore store) :=
+  source_eq result.checked instr store
+
 /-- A successful generation result gives equal packed executions even when
 the forwarding block requires additional capture slots. The target reads the
 same source store through the register equivalence. -/
@@ -128,7 +136,7 @@ theorem Generated.packed_eq (result : Generated plan source inputs names β exit
     packedObservation leftClosed instr store =
       packedObservation result.closed instr (plan.renameStore store) := by
   rw [packedObservation_eq_sourceObservation, packedObservation_eq_sourceObservation]
-  exact source_eq result.checked instr store
+  exact result.sourceObservation_eq instr store
 
 end Execution
 

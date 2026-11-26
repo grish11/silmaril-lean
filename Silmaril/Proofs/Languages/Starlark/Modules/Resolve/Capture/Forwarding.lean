@@ -331,7 +331,7 @@ private theorem receipt_reference {state : State} {entry : FreeName}
     entry = reference capture.binding := by
   cases receipt <;> rfl
 
-private theorem find_receipt {state : State} {free : List FreeName}
+theorem find_receipt {state : State} {free : List FreeName}
     {captures : List Silmaril.Languages.Starlark.Lists.Capture} (installed : Installs state free captures)
     (binding : Binding) (present : reference binding ∈ free) :
     ∃ capture, captures.find? (fun entry => entry.binding == binding) = some capture ∧

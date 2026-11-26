@@ -809,19 +809,37 @@ that takes its callable from a formal input.
 ### Synthesizing direct call resolution
 
 `Plan.lambdaDirect` and `Plan.finishDirect` construct the existing local
-`ResolvedWith` proofs for straight-line bodies. The checker projects the
-typed call operand and capture witnesses through the λ's capture wiring.
+`ResolvedWith` proofs for direct captured calls. The checker projects the
+typed call operand and capture witnesses through the λ's capture wiring
+and composes that partial map through nested γ boundaries.
 It compares their linker addresses with the stored sources for the
 specified slot and checks callable membership at the actual position
 in both runs. Matching typed addresses imply equality of the wires.
-Primitive bindings and returns use the usual shared syntax.
+At each γ, the checker follows the actual argument wires and certifies
+every arm and the suffix. The number of arms is the `Code` layer's
+`extra + 2`. The certificate covers every prior local tuple. Untracked
+child ports can still carry ordinary inputs and results.
 
 The φ seed can describe member capture witnesses that project directly
 through its outer context. The checker rejects missing source descriptions,
-formal callees, local outputs, inline closure descriptions, and γ or θ
-forwarding. The explicit plan constructors remain available for bodies
-with supplied resolution proofs. Invocation uses the same linked runner.
+formal callees, and local outputs as origins for callees or capture
+witnesses, including callable values produced by a branch join. Inline
+closure descriptions and θ use the explicit plan constructors with
+supplied resolution proofs. Invocation uses the same linked runner.
 [Direct resolution API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Direct/Thms.lean)
+
+`synthesize_complete` proves success for a direct forwarding derivation
+whose call sites match the supplied slot sources and paired checked
+membership. The whole-prefix fold also checks each binding's admission.
+[Completeness theorem](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Direct/Completeness/Thms.lean)
+
+The linked fixture reorders captures through a ternary γ and then through
+a binary γ in its first arm. The runner checks every branch choice,
+including typed probes and resumption through both nested suffixes. The
+spare formal stays dead. Substituting a same-signature φ target from the
+wrong linker position rejects admission even when the affected inner arm
+would be unselected.
+[Linked γ fixture](../../../../Silmaril/Proofs/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Family/Regression.lean)
 
 ### Single-call admission
 

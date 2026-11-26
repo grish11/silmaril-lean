@@ -8,7 +8,7 @@ public import Silmaril.Languages.Python.Core.Module.SeededCall.Thms
 public import Silmaril.Languages.Python.Core.Module.SeededCall.Observation.Thms
 import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded
 import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Identity
-import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.SequenceLength
+import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.IntegerBuiltin
 import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.ListConstruction
 import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.BoolIdentity
 
@@ -241,12 +241,30 @@ theorem run_literalArmBoolean {scope : Source.Scope} (space : Namespace) (contex
 theorem readSequenceLength_ok_iff (space : Namespace) (length : Nat) (value : Int) :
     readSequenceLength space length = .ok value ↔
       space.lookupGlobal "len" = some (.builtin .len) ∧ value = Int.ofNat length :=
-  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.SequenceLength.readSequenceLength_ok_iff space length value
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.IntegerBuiltin.readSequenceLength_ok_iff space length value
 
 theorem readSequenceLength_shadow (space : Namespace) (length : Nat) (value : Value)
     (found : Core.Module.SeededCall.lookupBinding space.moduleGlobals "len" = some value) :
     readSequenceLength space length = readSequenceLength { space with builtins := [] } length := by
   simp [readSequenceLength, Core.Module.SeededCall.Namespace.lookupGlobal, found]
+
+theorem readOrdinal_ok_iff (space : Namespace) (point : UInt32) (valid : point.toNat < 0x110000) (value : Int) :
+    readIntegerBuiltin space (.ordinal point valid) = .ok value ↔
+      space.lookupGlobal "ord" = some (.builtin .ord) ∧ value = Int.ofNat point.toNat :=
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.IntegerBuiltin.readOrdinal_ok_iff space point valid value
+
+theorem run_assertIntegerBuiltin {scope : Source.Scope} (space : Namespace) (context : CallContext)
+    (lists : ListHeap) (test : IntegerBuiltinTest scope) (rest : List (Instruction scope)) :
+    runInstructionsIn space context (.assertIntegerBuiltin test :: rest) lists =
+      let result := readIntegerBuiltin space test.argument
+      let receipt : CallEvent := ⟨test.argument.name, ⟨result.map .int, none⟩⟩
+      match result.bind (checkIntegerBuiltinResult space test) with
+      | .error error => ⟨space, .error (.ofCall error), [receipt], context.heap, lists⟩
+      | .ok () =>
+        let tail := runInstructionsIn space context rest lists
+        { tail with calls := receipt :: tail.calls } :=
+  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.IntegerBuiltin.run_assertIntegerBuiltin
+    space context lists test rest
 
 theorem run_assertSequenceLength {scope : Source.Scope} (space : Namespace) (context : CallContext)
     (test : SequenceLengthTest scope) (rest : List (Instruction scope)) :
@@ -258,7 +276,7 @@ theorem run_assertSequenceLength {scope : Source.Scope} (space : Namespace) (con
       | .ok () =>
         let tail := runInstructionsIn space context rest
         { tail with calls := receipt :: tail.calls } :=
-  Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.SequenceLength.run_assertSequenceLength space context test rest
+  run_assertIntegerBuiltin space context .empty test.toIntegerBuiltin rest
 
 theorem constructList_ok_iff (space : Namespace) (heap : ListHeap) (argument : ListConstructorArgument)
     (object : ListObject) (updated : ListHeap) :

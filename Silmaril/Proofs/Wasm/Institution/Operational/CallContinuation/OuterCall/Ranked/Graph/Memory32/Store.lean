@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.R
 import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Typing
 import Silmaril.Wasm.Institution.Operational.MemoryQuery.Native.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryWrite.Native.Thms
+import Silmaril.Wasm.Institution.Operational.MemoryGrow.Thms
 import Silmaril.Wasm.Institution.Operational.CallContinuation.Nested.Native.Thms
 import Silmaril.Wasm.V1.Execution.Inversion
 import Silmaril.Wasm.Versions.Lime1.Execution.Thms
@@ -22,6 +23,42 @@ theorem initial_shared {H : Type} {program : Program} {base : Store H} {a : MemA
   change base = setMemory base a initial
   unfold setMemory
   rw [← present, List.set_getElem_self]
+
+theorem layout_with_bytes {H : Type} {program : Program} {base : Store H} {a : MemAddr} {initial : MemInst}
+    (layout : Layout program base a initial) (bytes : ByteArray) :
+    Layout program (storeWithBytes base a initial bytes) a { initial with data := bytes } := by
+  have bound := (List.getElem?_eq_some_iff.mp layout.memory).1
+  refine ⟨?_, layout.functions⟩
+  simp [storeWithBytes, setMemory, bound]
+
+theorem growth_extent {initial : MemInst} {bytes grown : ByteArray} {delta : BitVec 32}
+    (extent : GrowthExtent initial bytes)
+    (edge : MemoryGrow.Edge { initial with data := bytes } (.request delta) (.grown grown)) :
+    GrowthExtent initial grown := by
+  have pages : Execution.Memory.size grown = Execution.Memory.size bytes + delta.toNat := MemoryGrow.grown_pages edge
+  cases MemoryGrow.invert edge with
+  | grow _ _ grew =>
+    have ⟨⟨aligned, bound, limit⟩, _⟩ :=
+      (MemoryGrow.grow_eq_some_iff (m := { initial with data := bytes })).mp grew
+    have extentEq := Execution.Memory.grow_size _ _ _ _ grew
+    change grown.size = bytes.size + delta.toNat * Execution.Memory.pageSize at extentEq
+    have increased : bytes.size ≤ grown.size := by rw [extentEq]; exact Nat.le_add_right _ _
+    refine ⟨extent.1.trans increased, ?_⟩
+    change grown.size % Execution.Memory.pageSize = 0 ∧
+      Execution.Memory.size grown + 0 ≤ Execution.Memory.maxPages ∧
+      (initial.max.isNone ∨ Execution.Memory.size grown + 0 ≤ initial.max.getD 0)
+    simp only [pages, Nat.add_zero, extentEq, Nat.add_mul_mod_self_right]
+    exact ⟨aligned, bound, limit⟩
+
+theorem growth_write {H : Type} {base : Store H} {a : MemAddr} {initial : MemInst}
+    {bytes written : ByteArray} {offset : Nat} {address word : BitVec 32}
+    (extent : GrowthExtent initial bytes)
+    (edge : MemoryWrite.EdgeAt bytes offset (.store address word) (.written written)) :
+    GrowingStore base a initial (setMemory (storeWithBytes base a initial bytes) a
+      { initial with data := written }) := by
+  refine ⟨written, ?_, by simp [storeWithBytes, setMemory, List.set_set]⟩
+  have sizeEq : written.size = bytes.size := MemoryWrite.closed_at edge
+  simpa only [GrowthExtent, MemoryGrow.SizeAllows, Execution.Memory.size, sizeEq] using extent
 
 theorem frame_memory {H : Type} {program : Program} {base : Store H} {a : MemAddr} {initial : MemInst}
     (checked : program.checkV1 a = true) (layout : Layout program base a initial)

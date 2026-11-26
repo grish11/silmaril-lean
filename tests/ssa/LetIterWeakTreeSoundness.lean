@@ -2,7 +2,7 @@ module
 
 import Silmaril.Semantics.ITree.Thms
 import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Cover.Thms
-import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.Thms
+import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous.Terminal.Thms
 import Silmaril.Semantics.ITree.VisiblePrefix.Thms
 import Silmaril.SSA.Isotope.LetIter.RequestFeedback.Thms
 import Silmaril.SSA.Isotope.LetIter.Categorical.Syntactic.AbortSequence.Category.Model.Thms
@@ -4041,7 +4041,7 @@ private def delayed : Table family Bit .unit
   | .inr _ => .ret PUnit.unit
 
 -- Weak observations forget the distinction between these two reply modes.
-example : direct.run PUnit.unit = delayed.run off ∧ ¬ Nonempty (Cover direct delayed PUnit.unit off) := by
+private theorem direct_delayed : direct.run PUnit.unit = delayed.run off ∧ ¬ Nonempty (Cover direct delayed PUnit.unit off) := by
   constructor
   · have l := Table.run_unfold direct (PUnit.unit : Code.Value .unit)
     have r := Table.run_unfold delayed off
@@ -4053,6 +4053,41 @@ example : direct.run PUnit.unit = delayed.run off ∧ ¬ Nonempty (Cover direct 
   · rintro ⟨cover⟩
     have conflict := cover.aligned PairedReach.initial (f := read) (x := PUnit.unit) rfl rfl off
     cases conflict
+
+-- The two replies that used to re-enter the terminal row now return directly.
+example : delayed.contract off = .call read PUnit.unit (fun _ => .inl PUnit.unit) := rfl
+
+-- Replay the original endpoints, even though their uncontracted tables
+-- admit no commuting cover. The comparison uses the actual rendered loops.
+example :
+    ∃ (a a' : Tm Empty Ops 0) (b b' : Tm Empty Ops 1)
+      (da : Derivation Ops Γ₀ .nil a Ty.unit)
+      (db : Derivation Ops Γ₀ (.snoc .nil Ty.unit) b (Code.sum .unit .unit).ty)
+      (da' : Derivation Ops Γ₀ .nil a' Bit.ty)
+      (db' : Derivation Ops Γ₀ (.snoc .nil Bit.ty) b' (Code.sum .unit Bit).ty),
+      ((Code.unit).literal PUnit.unit).toLetIter 0 = some a ∧ (Bit.literal off).toLetIter 0 = some a' ∧
+      direct.source.toLetIter 1 = some b ∧ delayed.source.toLetIter 1 = some b' ∧
+      HasTypeEffect Γ₀ .nil (.iter a b) Ty.unit strict ∧ HasTypeEffect Γ₀ .nil (.iter a' b') Ty.unit strict ∧
+      repairedDenoteInSyntax (⊥ : Fx) (da.iter db) = repairedDenoteInSyntax (⊥ : Fx) (da'.iter db') ∧
+      AbortEquiv (⊥ : Fx) Γ₀ .nil (.iter a b) (.iter a' b') Ty.unit := by
+  have hf (f : Ops) : instrEff f ≤ strict := le_rfl
+  have wl : Wf ([] : EffectCtx (Ty Unit) Fx) (.unit : Expr Ops) Ty.unit strict := .unit _ _
+  have wr : Wf ([] : EffectCtx (Ty Unit) Fx) (Bit.literal off : Expr Ops) Bit.ty strict :=
+    literal_wf _ _
+  obtain ⟨a, ha, ta⟩ := wl.toLetIter
+  obtain ⟨a', ha', ta'⟩ := wr.toLetIter
+  obtain ⟨b, hb, tb⟩ := (direct.step_wf hf).toLetIter
+  obtain ⟨b', hb', tb'⟩ := (delayed.step_wf hf).toLetIter
+  obtain ⟨da⟩ := Derivation.ofHasType ta.1
+  obtain ⟨db⟩ := Derivation.ofHasType tb.1
+  obtain ⟨da'⟩ := Derivation.ofHasType ta'.1
+  obtain ⟨db'⟩ := Derivation.ofHasType tb'.1
+  have actual := (loop_denote noPure visible direct hf PUnit.unit ha hb da db).trans
+    (direct_delayed.1.trans (loop_denote noPure visible delayed hf off ha' hb' da' db').symm)
+  have packed := (Terminal.packed_eq_iff_rendered_denote_eq (L := direct) (R := delayed)
+    (s := PUnit.unit) (t := off) ha hb ha' hb' da db da' db' noPure visible hf (by rfl)).mpr actual
+  exact ⟨a, a', b, b', da, db, da', db', ha, ha', hb, hb', .iter (by rfl) ta tb, .iter (by rfl) ta' tb',
+    packed, (repairedDenoteInSyntax_eq_iff (⊥ : Fx) _ _).mp packed⟩
 
 example : strict < (⊤ : Fx) :=
   lt_of_le_of_ne le_top (fun h => Bool.noConfusion (congrArg Prod.snd h))

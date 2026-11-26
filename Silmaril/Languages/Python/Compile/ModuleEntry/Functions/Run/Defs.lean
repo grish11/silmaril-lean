@@ -26,7 +26,7 @@ inductive Argument where
 inductive Instruction (scope : Scope) where
   | scalar (action : ModuleEntry.Action scope)
   | assertNot (condition : Operand scope)
-  | assertSequenceLength (test : SequenceLengthTest scope)
+  | assertIntegerBuiltin (test : IntegerBuiltinTest scope)
   | assertBoolIdentity (test : BoolIdentityTest scope)
   | assertListConstruction (test : ListConstructionTest scope)
   | assertTupleChain (test : TupleChainTest scope)
@@ -36,6 +36,9 @@ inductive Instruction (scope : Scope) where
   /-- The source plan places this call immediately after the matching publication. -/
   | adjacentKeywordDiscard (name : String) (value : Int)
   | nestedCall (destination : Core.Module.Functions.Destination) (name : String) (arguments : List Argument)
+
+abbrev Instruction.assertSequenceLength {scope : Scope} (test : SequenceLengthTest scope) : Instruction scope :=
+  .assertIntegerBuiltin test.toIntegerBuiltin
 
 inductive CompileError where
   | source (error : Functions.Error)
@@ -75,9 +78,9 @@ def lowerInstructions {scope : Scope} (tree : Source.ScopeTree) (next : Nat) : L
   | .assertNot condition :: rest => do
     let (instructions, blocks) ← lowerInstructions tree next rest
     return (.assertNot condition :: instructions, blocks)
-  | .assertSequenceLength test :: rest => do
+  | .assertIntegerBuiltin test :: rest => do
     let (instructions, blocks) ← lowerInstructions tree next rest
-    return (.assertSequenceLength test :: instructions, blocks)
+    return (.assertIntegerBuiltin test :: instructions, blocks)
   | .assertBoolIdentity test :: rest => do
     let (instructions, blocks) ← lowerInstructions tree next rest
     return (.assertBoolIdentity test :: instructions, blocks)
@@ -278,8 +281,8 @@ def advance {scope : Scope} (table : CodeTable) : State scope → List Event × 
       | .error error => .finished session error)
     | .scalar (.assertion operand) => ([], assertOperand session operand true rest)
     | .assertNot operand => ([], assertOperand session operand false rest)
-    | .assertSequenceLength _ => ([], .finished session (match session.globals "len" with
-      | none => .raised (.nameError "len")
+    | .assertIntegerBuiltin test => ([], .finished session (match session.globals test.argument.name with
+      | none => .raised (.nameError test.argument.name)
       | some (.function _) => .scalarProfile
       | some _ => .raised .notCallable))
     | .assertBoolIdentity test => ([], .finished session (boolIdentityCompletion session test))

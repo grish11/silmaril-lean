@@ -1,6 +1,8 @@
 module
 
 public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Defaults.Escape
+public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Defaults.Body
+public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Defaults.Scoped
 public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Leaf.Publication
 
 public section
@@ -43,6 +45,16 @@ private theorem static {globals : List String} {entries : Entries} {commands : L
       exact ⟨.cons (.define _ _ _) ih.1, .emitPair ⟨wrapper.child.emitted wrapper.codes,
         (fun id => (wrapper.frame id).declaration), Defaults.Escape.emission wrapper admitted globals⟩ ih.2.1,
         cons_legal visible.2 ih.2.2⟩
+    | sequenced definition =>
+      obtain ⟨plan, codes, emitted, _, _⟩ := Defaults.Body.emission admitted
+      exact ⟨.cons (.define _ _ _) ih.1, .emit ⟨plan.declaration codes, emitted⟩ ih.2.1,
+        cons_legal visible.2 ih.2.2⟩
+    | nestedBody spec =>
+      obtain ⟨plan⟩ := admitted.plan
+      exact ⟨.cons (.define _ _ _) ih.1,
+        .emitPair ⟨plan.body.declaration spec.wrapper.codes, (fun id => (spec.wrapper.frame id).declaration),
+          Defaults.Escape.Scoped.emission spec globals admitted.names plan⟩ ih.2.1,
+        cons_legal visible.2 ih.2.2⟩
   | setup visible _ _ ih | copy _ visible _ _ ih | invoke _ visible _ _ _ ih =>
     exact ⟨.cons (.assign _ _) ih.1, .assign _ _ ih.2.1, cons_legal visible.2 ih.2.2⟩
 
@@ -81,6 +93,16 @@ private theorem schedule_trace {globals : List String} {entries : Entries} {comm
       exact update layout pool written (fun code same => by cases same; exact live)
     | escaping wrapper =>
       obtain ⟨next, step, written, live⟩ := define_wrapper declared checked admitted suffix visible layout
+      exact ⟨_, step, fun _ success => by
+        cases success
+        exact update layout pool written (fun _ same => by cases same; exact live)⟩
+    | sequenced definition =>
+      obtain ⟨out, step, progress⟩ := define_body declared checked admitted suffix visible layout
+      exact ⟨out, step, fun next success => by
+        obtain ⟨written, live⟩ := progress next success
+        exact update layout pool written (fun _ same => by cases same; exact live)⟩
+    | nestedBody spec =>
+      obtain ⟨next, step, written, live⟩ := define_scoped declared checked admitted suffix visible layout
       exact ⟨_, step, fun _ success => by
         cases success
         exact update layout pool written (fun _ same => by cases same; exact live)⟩
@@ -124,6 +146,18 @@ private theorem schedule_trace {globals : List String} {entries : Entries} {comm
       exact ⟨_, step, fun _ success => by
         cases success
         exact update layout pool written (fun _ same => by cases same; exact live)⟩
+    | sequenced definition =>
+      obtain ⟨_, ⟨saved⟩⟩ := pool source (.sequenced definition) selected
+      obtain ⟨next, step, written, live⟩ := alias_body declared checked src dst saved layout
+      exact ⟨_, step, fun _ success => by
+        cases success
+        exact update layout pool written (fun _ same => by cases same; exact live)⟩
+    | nestedBody spec =>
+      obtain ⟨_, ⟨root⟩⟩ := pool source (.nestedBody spec) selected
+      obtain ⟨next, step, written, live⟩ := alias_scoped declared checked src dst root layout
+      exact ⟨_, step, fun _ success => by
+        cases success
+        exact update layout pool written (fun _ same => by cases same; exact live)⟩
   | @invoke entries callee destination body arguments rest src dst selected args tail ih =>
     apply Bindings.advanceWith (steps := Step resolved globals)
       (invariant := fun next => ModuleSlots globals next ∧ LiveBindings globals resolved.program (entries.write destination body.returned) next)
@@ -150,6 +184,17 @@ private theorem schedule_trace {globals : List String} {entries : Entries} {comm
     | escaping wrapper =>
       obtain ⟨_, ⟨root⟩⟩ := pool callee (.escaping wrapper) selected
       obtain ⟨out, step, progress⟩ := call_wrapper declared checked src dst args root layout
+      exact ⟨out, step, fun next success => by
+        obtain ⟨written, live⟩ := progress next success
+        exact update layout pool written (fun _ same => by cases same; exact live)⟩
+    | sequenced definition =>
+      obtain ⟨_, ⟨saved⟩⟩ := pool callee (.sequenced definition) selected
+      obtain ⟨out, step, progress⟩ := call_body declared checked src args saved
+      exact ⟨out, step, fun next success =>
+        update layout pool (progress next success) (fun _ impossible => nomatch impossible)⟩
+    | nestedBody spec =>
+      obtain ⟨_, ⟨root⟩⟩ := pool callee (.nestedBody spec) selected
+      obtain ⟨out, step, progress⟩ := call_scoped declared checked src dst args root layout
       exact ⟨out, step, fun next success => by
         obtain ⟨written, live⟩ := progress next success
         exact update layout pool written (fun _ same => by cases same; exact live)⟩

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Thms
+public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.FIFO.Defs
 public import Mathlib.Logic.Function.Basic
 
 /-! Typed destination jobs for the Φ equation of the cyclic SCCP worklist. -/
@@ -76,8 +77,8 @@ instance (job : Job carried) : DecidableEq (Watched m.value carried job) :=
 
 /-- Append only changed destinations that are absent from the pending queue. -/
 def wake (old new : State m.value carried out) (pending : List (Job carried)) : List (Job carried) :=
-  pending ++ (List.finRange (dataPorts carried).length).filter (fun job =>
-    decide (job ∉ pending ∧ dependencies m g input new job ≠ dependencies m g input old job))
+  FIFO.wake (List.finRange (dataPorts carried).length)
+    (fun job => decide (dependencies m g input new job ≠ dependencies m g input old job)) pending
 
 /-- Pop one typed Φ job. Control and result jobs belong to the enclosing scheduler. -/
 def step (job : Job carried) (state : State m.value carried out) (pending : List (Job carried)) :

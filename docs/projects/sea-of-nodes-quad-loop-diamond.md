@@ -69,3 +69,5 @@ lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.Unequ
 make check CHECK_TARGETS='+Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.UnequalRegression +Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Quads.Join.Finite.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.Chain.Regression'
 lake env leanchecker Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.Thms
 ```
+
+[Run the unequal-arm profile in typed MLIR CF](sea-of-nodes-quad-diamond-mlir-cf.md).

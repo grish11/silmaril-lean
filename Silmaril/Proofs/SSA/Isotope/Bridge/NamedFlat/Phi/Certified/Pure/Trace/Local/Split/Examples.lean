@@ -1,23 +1,37 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Pure.Trace.Local.Split.Admission.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Split.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Split.Extended.Thms
 
-/-! A visible loop swaps two live values on the split self-edge. -/
+/-! A visible loop swaps two live values on the split edge. The distinct
+latch fixture also compares the admitted entry tables at a supplied record. -/
 
 namespace Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.PureCapture.Local.Split.Examples
 
 open Silmaril.SSA.LambdaRTL
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi (Graph Block Pending assign br ret)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Split (Plan Checked)
-open Silmaril.Elgot.ITree (Tree Trace HasTrace vis vis_bind resume resume_body
+open Silmaril.Elgot.ITree (Tree Trace TraceLE HasTrace vis vis_bind resume resume_body
   hasTrace_vis_exchange_iff hasTrace_vis_request)
-open LambdaSSA.Semantics.Interaction (Primitive Transfer)
+open LambdaSSA (Region)
+open LambdaSSA.Semantics (Env extend)
+open LambdaSSA.Semantics.Interaction (Primitive Transfer region)
+open Silmaril.Isotope.Semantics (encodeValue)
+open LambdaSSA.Semantics.Interaction.Typed (AtomValues ModelTree Compatible)
+open LambdaSSA.Semantics.Interaction.Typed.Ordered
+open Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.Entry
+open CategoryTheory (Discrete)
+open NamedFlat.Entry.Record (Input)
+
+attribute [local instance] LambdaSSA.Semantics.Interaction.Typed.typeModel
 
 private abbrev Reg := ULift.{1} Nat
 private abbrev Key := ULift.{1} Nat
 private abbrev Atom := ULift.{1} Nat
 private abbrev SortName := ULift.{1} Unit
-private abbrev Store := Reg → Value Atom
+private instance : AtomValues SortName := ⟨fun _ => Atom⟩
+private abbrev Runtime := Sigma (AtomValues.carrier (κ := SortName))
+private abbrev Store := Reg → Value Runtime
 
 private inductive Opcode
   | tick
@@ -26,15 +40,15 @@ private inductive Opcode
 private inductive Event : Type → Type
   | tick (left right : Nat) : Event (Nat ⊕ Unit)
 
-private def atom (n : Nat) : Value Atom := .atom ⟨n⟩
-private def num : Ty SortName := .base ⟨()⟩
+private def atom (n : Nat) : Value Runtime := .atom ⟨⟨()⟩, ⟨n⟩⟩
+private abbrev num : Ty SortName := .base ⟨()⟩
 
 private instance : HasTy Opcode (Ty SortName) where
   src _ := .product num num
   trg _ := .coprod num .unit
 
-private def instr : Primitive Event Opcode Atom
-  | .tick, .pair (.atom left) (.atom right) => vis (.tick left.down right.down) fun
+private def instr : Primitive Event Opcode Runtime
+  | .tick, .pair (.atom left) (.atom right) => vis (.tick left.2.down right.2.down) fun
       | .inl result => pure (.inl (atom result))
       | .inr _ => pure (.inr .unit)
   | _, _ => Silmaril.Elgot.ITree.diverge
@@ -85,10 +99,18 @@ private def pairPacket : Ty SortName := .product num (.product num .unit)
 private def originalProfile (_ : Fin (blockCount source)) : Ty SortName :=
   .product pairPacket pairPacket
 
-private abbrev State := Pending Reg Key (Value Atom)
+private abbrev State := Pending Reg Key (Value Runtime)
 
-private def originalStore : Store := fun name =>
-  if name = seedX then atom 2 else if name = seedY then atom 5 else atom 0
+private def entryCaptures : Captures Reg profile where
+  names := captures
+  distinct _ _ eq := Fin.ext (congrArg (fun name : Option Reg => (name.getD ⟨0⟩).down) eq)
+  privateUnit i eq := by nomatch eq
+
+private def supplied : Ty.denote (AtomValues.carrier (κ := SortName))
+    (Region.packedInputType profile.toList) :=
+  ((((PUnit.unit, ⟨0⟩), ⟨0⟩), ⟨5⟩), ⟨2⟩)
+
+private def originalStore : Store := entryCaptures.store supplied
 
 private def writePair (store : Store) (a b : Nat) : Store := upd (upd store x (atom a)) y (atom b)
 
@@ -120,7 +142,7 @@ private theorem resume_transfer {source : Graph Reg Key Opcode} (p : State) :
   rw [resume_body]
   simp [resume]
 
-private def swappedTrace : Trace Event (Transfer Atom) :=
+private def swappedTrace : Trace Event (Transfer Runtime) :=
   .exchange (.tick 2 5) (.inr ()) (.request (.tick 5 2))
 
 private theorem source_swap :
@@ -269,6 +291,115 @@ private theorem distinct_packed_swap :
     HasTrace (packedObservation distinctGenerated.closed instr (distinctPlan.renameStore originalStore)) swappedTrace := by
   rw [← distinctGenerated.packed_eq distinctClosedLeft instr originalStore, packedObservation_eq_sourceObservation]
   exact distinct_source_swap
+
+private instance : HasEff Opcode Bool := ⟨fun _ => true⟩
+
+private def typed : Silmaril.Isotope.Semantics.InstructionModel
+    (Ty.denote (AtomValues.carrier (κ := SortName))) Opcode (ModelTree Event) where
+  eval
+    | .tick, (left, right) => vis (.tick left.down right.down) fun
+      | .inl result => pure (.inl ⟨result⟩)
+      | .inr _ => pure (.inr PUnit.unit)
+
+private theorem compatible : Compatible (κ' := SortName) typed instr := by
+  intro op arg
+  cases op
+  obtain ⟨left, right⟩ := arg
+  change instr .tick (.pair (atom left.down) (atom right.down)) =
+    (typed.eval .tick (left, right) >>= fun reply =>
+      pure (Silmaril.Isotope.Semantics.encodeValue _ (.coprod num .unit) reply))
+  simp only [instr, atom, typed, vis_bind]
+  congr 1
+  funext reply
+  cases reply <;> erw [pure_bind] <;> rfl
+
+private def signature : FlatInstitution.Signature.{0, 0} SortName where
+  Instr := Opcode
+
+private def model : Model (κ := SortName) Event signature.Instr where
+  instructions :=
+    { denote := typed.eval
+      denotePure := fun _ hf => Bool.noConfusion hf
+      denote_pure := fun _ hf => Bool.noConfusion hf }
+  raw := instr
+  compatible := compatible
+
+private def entryOriginal : Admitted signature entryCaptures Key exits :=
+  .ofAdmission distinctAdmittedLeft
+
+private def entrySplit : Admitted signature (entryCaptures.rename distinctPlan.register) (Option Key) exits :=
+  .ofGenerated distinctPlan distinctGenerated (by decide)
+
+-- The translated table observes the same reply-driven swap at the same
+-- supplied record, even after the register and block relabeling.
+theorem supplied_split_swap : HasTrace (entrySplit.toSSA.observe model supplied) swappedTrace := by
+  rw [entrySplit.observe_toSSA,
+    ← split_observe_eq distinctPlan entryOriginal entrySplit distinctGenerated.checked model supplied]
+  exact distinct_source_swap
+
+theorem supplied_split_packed_swap (ambient : Env Runtime) :
+    HasTrace (region model.raw (extend ambient (encodeValue _ _ supplied))
+      (EntryInstitution.packSentence (toFlat (entryOriginal, entrySplit))).right.code) swappedTrace := by
+  change HasTrace (region model.raw (extend ambient (encodeValue _ _ supplied))
+    (Program.ofCFGEntry entrySplit.toSSA.table.typed).code) _
+  rw [← entrySplit.observe_toFlat model supplied ambient, ← entrySplit.observe_toSSA]
+  exact supplied_split_swap
+
+private theorem entryComparisons :
+    EntryInstitution.Satisfies Event model (toFlat (entryOriginal, entrySplit)) ∧
+      EntryInstitution.Satisfies Event model (toFlat (entrySplit, entryOriginal)) :=
+  split_satisfies distinctPlan entryOriginal entrySplit distinctGenerated.checked model
+
+theorem supplied_split_packing :
+    (PackedInstitution.room Event signature (Region.packedInputType profile.toList)).Sat
+      (Discrete.mk model) (EntryInstitution.packSentence (toFlat (entryOriginal, entrySplit))) ∧
+    (PackedInstitution.room Event signature (Region.packedInputType profile.toList)).Sat
+      (Discrete.mk model) (EntryInstitution.packSentence (toFlat (entrySplit, entryOriginal))) :=
+  ⟨(EntryInstitution.packing_satisfaction Event model _).mpr entryComparisons.1,
+    (EntryInstitution.packing_satisfaction Event model _).mpr entryComparisons.2⟩
+
+private def seedLayout : Captures Reg seedTypes where
+  names := seedCaptures
+  distinct _ _ eq := Fin.ext (congrArg (fun name : Option Reg => (name.getD ⟨0⟩).down) eq)
+  privateUnit _ eq := by nomatch eq
+
+private def seedOriginal : Admitted signature seedLayout Key exits :=
+  .ofAdmission seedAdmission
+
+private theorem extendedLayout : ExtendedLayout plan seedLayout generated.extra := by decide
+
+private def seedSplit : Admitted signature extendedLayout.captures (Option Key) exits :=
+  seedOriginal.ofExtended plan generated extendedLayout
+
+private def seedRecord : Input seedTypes := ((PUnit.unit, ⟨5⟩), ⟨2⟩)
+
+-- The old record has only 2 and 5. The extra fields are supplied
+-- independently, at values different from either seed or swapped operand.
+private def extendedRecord : Input (extendedTypes seedTypes generated.extra) :=
+  ((((PUnit.unit, ⟨89⟩), ⟨97⟩), ⟨5⟩), ⟨2⟩)
+
+private theorem extended_retains_seed :
+    retainedRecord seedTypes generated.extra extendedRecord = seedRecord := rfl
+
+theorem appended_split_satisfies (ambient : Env Runtime) :
+    (TraceLE (seedOriginal.toSSA.observe model seedRecord) (seedSplit.toSSA.observe model extendedRecord) ∧
+      TraceLE (seedSplit.toSSA.observe model extendedRecord) (seedOriginal.toSSA.observe model seedRecord)) ∧
+    (TraceLE (seedOriginal.observePacked model seedRecord ambient) (seedSplit.observePacked model extendedRecord ambient) ∧
+      TraceLE (seedSplit.observePacked model extendedRecord ambient) (seedOriginal.observePacked model seedRecord ambient)) :=
+  split_related_satisfies seedOriginal plan generated extendedLayout model
+    seedRecord extendedRecord extended_retains_seed ambient
+
+theorem appended_split_swap (ambient : Env Runtime) :
+    HasTrace (seedSplit.observePacked model extendedRecord ambient) swappedTrace := by
+  have shared := seedOriginal.observe_toFlat_of_capture model seedRecord ambient originalStore
+    (fun i => Fin.cases rfl (Fin.cases rfl (fun j => j.elim0)) i)
+  unfold seedSplit
+  rw [← split_packed_reindex seedOriginal plan generated extendedLayout model extendedRecord ambient,
+    extended_retains_seed]
+  change HasTrace (region model.raw (extend ambient (encodeValue _ _ seedRecord))
+    (Program.ofCFGEntry seedOriginal.toSSA.table.typed).code) _
+  rw [← shared]
+  exact source_swap
 
 private def entryCandidate := (profileCandidate entryPlan source seedCaptures originalProfile).get (by decide)
 

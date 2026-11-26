@@ -14,7 +14,7 @@ open LinearChain (Site localSite externalSite)
 
 universe u
 variable {τ Φ : Type u} [TypeFormers τ] [HasTy Φ τ]
-variable {A M E D X : τ} {L R : List τ}
+variable {A M E D X P Q : τ} {L R : List τ}
 
 /-- A local block reads its own payload. Case arms receive only the selected
 payload as their current value. Every leaf branches to a typed label. -/
@@ -96,7 +96,23 @@ theorem Fragment.guarded_region {I B K : τ} (s : Conditional.Guarded Φ A I B K
   congrArg (fun blocks => Region.cfg (Conditional.entry s) (bodyCount s.loop + 2) blocks)
     (funext fun i => Block.ofAcyclic_region (Theta.blockAt s.loop i))
 
-variable (p : Fragment Φ A M M) (q : Fragment Φ M E D)
+/-- A producer exit can enter the consumer or return to either external
+label. The chosen destination determines the payload type. -/
+inductive ExitTarget (M E D : τ) : τ → Type u where
+  | consumer : ExitTarget M E D M
+  | first : ExitTarget M E D E
+  | second : ExitTarget M E D D
+
+structure ExitRouting (P Q M E D : τ) where
+  first : ExitTarget M E D P
+  second : ExitTarget M E D Q
+
+def ExitRouting.target (routing : ExitRouting P Q M E D) :
+    (i : Fin [P,Q].length) → ExitTarget M E D ([P,Q].get i) :=
+  Fin.cases (motive := fun i => ExitTarget M E D ([P,Q].get i)) routing.first
+    (Fin.cases routing.second (fun i => i.elim0))
+
+variable (p : Fragment Φ A P Q) (q : Fragment Φ M E D)
 
 /-- Keep all original block positions within each phase and allocate a fresh
 block for the consumer entry. -/
@@ -123,10 +139,14 @@ def rightLocal (i : Fin (q.count + 1)) : Site (LinkedLabels p q) (rightTypes q i
 
 def handoff : Site (LinkedLabels p q) M := rightLocal p q 0
 
-def leftSite (site : Site p.Labels X) : Site (LinkedLabels p q) X :=
-  redirect (L := [M,M]) (leftLocal p q)
-    (Fin.cases (motive := fun i => Site (LinkedLabels p q) ([M,M].get i))
-      (handoff p q) (Fin.cases (handoff p q) (fun i => i.elim0))) site
+def targetSite : {X : τ} → ExitTarget M E D X → Site (LinkedLabels p q) X
+  | _, .consumer => handoff p q
+  | _, .first => externalSite (linkedTypes p q) [E,D] 0
+  | _, .second => externalSite (linkedTypes p q) [E,D] 1
+
+def leftSiteBy (routing : ExitRouting P Q M E D)
+    (site : Site p.Labels X) : Site (LinkedLabels p q) X :=
+  redirect (L := [P,Q]) (leftLocal p q) (fun i => targetSite p q (routing.target i)) site
 
 def rightSite (site : Site q.Labels X) : Site (LinkedLabels p q) X :=
   redirect (R := q.localTypes) (fun i => rightLocal p q i.succ) (externalSite (linkedTypes p q) [E,D]) site
@@ -135,14 +155,23 @@ def rightBlock (i : Fin (q.count + 1)) : Block Φ (LinkedLabels p q) (rightTypes
   Fin.cases (motive := fun j => Block Φ (LinkedLabels p q) (rightTypes q j))
     (q.entry.rename (rightSite p q)) (fun j => (q.blocks j).rename (rightSite p q)) i
 
-/-- Relabel both block tables into a single flat CFG. Every producer exit
-branches to the consumer entry carrying its original typed payload. -/
-def link : Fragment Φ A E D where
+/-- Relocate both block tables into a single flat CFG. Each producer exit
+routes according to its own typed destination. -/
+def linkBy (routing : ExitRouting P Q M E D) : Fragment Φ A E D where
   extra := p.count + q.count
   localTypes := linkedTypes p q
-  entry := p.entry.rename (leftSite p q)
+  entry := p.entry.rename (leftSiteBy p q routing)
   blocks i := Fin.addCases (motive := fun j => Block Φ (LinkedLabels p q) (linkedTypes p q j))
-    (fun j => (left_type p q j).symm ▸ (p.blocks j).rename (leftSite p q))
+    (fun j => (left_type p q j).symm ▸ (p.blocks j).rename (leftSiteBy p q routing))
     (fun j => (right_type p q j).symm ▸ rightBlock p q j) i
+
+/-- The ordinary serial link sends both same-sort producer exits to the
+consumer entry. -/
+def link (p : Fragment Φ A M M) (q : Fragment Φ M E D) : Fragment Φ A E D :=
+  linkBy p q ⟨.consumer, .consumer⟩
+
+def leftSite (p : Fragment Φ A M M) (q : Fragment Φ M E D)
+    (site : Site p.Labels X) : Site (LinkedLabels p q) X :=
+  leftSiteBy p q ⟨.consumer, .consumer⟩ site
 
 end Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat

@@ -58,6 +58,7 @@ inductive Builtin where
   | bool
   | callable
   | len
+  | ord
   | list
   | tuple
   | isinstance

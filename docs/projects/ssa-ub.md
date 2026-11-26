@@ -457,9 +457,60 @@ sum cocone is colimiting. The binary and initial proofs give the Mathlib
 `PreservesFiniteCoproducts` property. The stateful regression takes the
 installed Paper copair of two effectful arrows, checks distinct final
 states and faults, and verifies that the right arm's fault and divergence
-are absent from the left-tagged execution. Product coherence and iteration
-preservation remain separate.
+are absent from the left-tagged execution.
 [Preservation][ssa-ub-paper-exact-sum] [Regression][ssa-ub-paper-exact-sum-regression]
+
+### Product values and fixed-factor actions
+
+The shaped singleton target identifies a product payload with a pair
+of typed payloads. Building and splitting the pair are inverse. For
+state-preserving value maps, pairing is pointwise and the two projections
+determine it uniquely. The guarded singleton interpretation maps the
+installed projections and diagonal to these value maps. It also maps
+each constructor return to a value map and sends the installed
+`pairArrows` to pointwise pairing whenever both interpreted legs are
+certified to be value maps. The shaped model constrains successful
+primitive reply types. An effect annotation alone supplies no operational
+purity law. The regression gives a syntactically pure return whose
+primitive changes the state in an admissible shaped model.
+[Value laws][ssa-ub-shaped-product] [Preservation][ssa-ub-paper-product]
+
+Both installed fixed-factor actions interpret over arbitrary guarded
+singleton arrows. The active component starts at the incoming state.
+Literal substitution repackages successful returns with the fixed
+component and preserves their final state. Faults and may-divergence
+pass through. The stateful regression checks that increment then double
+returns state four from state one, and double then increment returns
+state three, with the original tagged payload pair in both results.
+It also checks pairing the projections in reverse order.
+The product universal property here is for typed value maps.
+[Regression][ssa-ub-paper-product-regression]
+
+### Bind-first exact-sum iteration
+
+The installed guarded singleton `iterateSum` for a step `A → B ⊕ A`
+interprets as repeated observations of that step. The left tag returns
+the payload and its final machine state. The right tag transfers that
+payload and final state to the next invocation. The comparison uses the
+one-label native CFG, guarded literal substitution, and the typed
+payload invariant at reachable blocks. The one-step unfolding composes
+the interpreted step with the exact-sum copair of identity and the
+interpreted iterator.
+
+Finite returns and faults agree in both directions. May-divergence is
+either divergence in a finitely reached step or an infinite chain of
+ordinary repeat observations. This uses the native CFG agreement theorem,
+including its coinductive divergence proof. The interpreted native
+arrows yield ordinary observations. The target closure retains its
+reachable-top rule for general observation arrows. The comparison is
+at the installed empty-capture exact-sum iterator. Its one-step law
+follows from the guarded source law and exact-sum preservation.
+
+The regression makes a state-changing request before a tag-producing
+request. From state zero it repeats once before returning at state two,
+faulting at state twelve, or diverging in the second step. From state
+two it has an infinite chain of repeats.
+[Preservation][ssa-ub-paper-iteration] [Regression][ssa-ub-paper-iteration-regression]
 
 ## Coverage and gaps
 
@@ -496,6 +547,8 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Uniformity.Regression
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Regression
 lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.ExactSum.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Product.Regression
+lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Iteration.Regression
 ```
 
 [ordered]: ../../Silmaril/Raw/SSA/Isotope/Institution/Refinement/Ordered.lean
@@ -567,5 +620,10 @@ lake build --wfail +Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSS
 [ssa-ub-shaped-exact-sum]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/ExactSum/Thms.lean
 [ssa-ub-paper-exact-sum]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/ExactSum/Thms.lean
 [ssa-ub-paper-exact-sum-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/ExactSum/Regression.lean
+[ssa-ub-shaped-product]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Category/Product/Thms.lean
+[ssa-ub-paper-product]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Product/Thms.lean
+[ssa-ub-paper-product-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Product/Regression.lean
 [ssa-ub-paper-uniformity-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Uniformity/Regression.lean
 [ssa-ub-paper-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Regression.lean
+[ssa-ub-paper-iteration]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Thms.lean
+[ssa-ub-paper-iteration-regression]: ../../Silmaril/SSA/Isotope/Institution/UndefinedBehaviour/LambdaSSA/Overlay/Shape/Paper/Category/Iteration/Regression.lean

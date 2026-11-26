@@ -56,17 +56,20 @@ private theorem member_prefix (family : Family m) (members : List (Function V S)
     | zero => trivial
     | succ n => exact ⟨⟨known 0, trivial⟩, ih n _ (fun _ => known _)⟩
 
+private theorem member_captures {family : Family m} (group : Group m members)
+    (outer : TupleIn family group.values) (known : ∀ i, family (group.ref i)) (slot : Fin members.length) :
+    TupleIn family (resolve m (group.ref slot)).values :=
+  TupleIn.read (group.definitions slot).captures
+    (TupleIn.prepend (member_values family members group.ref known) outer)
+    (member_prefix family members slot.val group.ref known)
+
 private theorem closed (ordinary : OrdinaryOutputs Op) (group : Group m members)
     (outer : ordinaryPorts group.context = true) : Closed primitives group.In := by
   apply closed_with_captures ordinary Group.In.ordinary
   intro args outs callee admitted
   cases admitted with
   | ordinary _ plain => cases plain
-  | member slot =>
-    have refs := member_values group.In members group.ref (fun i => .member i)
-    have earlier := member_prefix group.In members slot.val group.ref (fun i => .member i)
-    exact TupleIn.read (group.definitions slot).captures
-      (TupleIn.prepend refs (ordinary_tuple Group.In.ordinary group.values outer)) earlier
+  | member slot => exact member_captures group (ordinary_tuple Group.In.ordinary group.values outer) .member slot
 
 private theorem member_origin {group : Group m members} {port : Ty V S} {value : m.Val port}
     (known : group.In value) (callable : ordinaryPort port = false) :
@@ -111,13 +114,12 @@ private theorem captured_in {group : Group m members}
   | member known plain => exact ⟨known, ordinary_tuple Group.In.ordinary _ plain⟩
   | ordinary plain _ ih => exact ⟨.ordinary _ plain, ih⟩
 
-private theorem inherited_tuple {args outs : Ports (Ty V S)}
-    {root : m.Val (.value (.function args outs))} {earlier : Family m}
-    {ports : Ports (Ty V S)} {values : Tuple m.Val ports} (known : TupleIn earlier values) :
-    TupleIn (WithExport earlier root) values := by
+private theorem tuple_in_mono {earlier later : Family m}
+    (includeValue : ∀ {port : Ty V S} {value : m.Val port}, earlier value → later value)
+    {ports : Ports (Ty V S)} {values : Tuple m.Val ports} (known : TupleIn earlier values) : TupleIn later values := by
   induction values with
   | nil => trivial
-  | cons _ _ ih => exact ⟨.inherited known.1, ih known.2⟩
+  | cons _ _ ih => exact ⟨includeValue known.1, ih known.2⟩
 
 private theorem closed_export (ordinary : OrdinaryOutputs Op) {args outs : Ports (Ty V S)}
     (root : m.Val (.value (.function args outs))) {earlier : Family m}
@@ -126,8 +128,8 @@ private theorem closed_export (ordinary : OrdinaryOutputs Op) {args outs : Ports
   apply closed_with_captures ordinary (fun value plain => .inherited (admits value plain))
   intro _ _ _ known
   cases known with
-  | inherited known => exact inherited_tuple (closed.captures known)
-  | exported => exact inherited_tuple rootCaptures
+  | inherited known => exact tuple_in_mono WithExport.inherited (closed.captures known)
+  | exported => exact tuple_in_mono WithExport.inherited rootCaptures
 
 private theorem member_is_not_lambda {args outs : Ports (Ty V S)}
     {callee : m.Val (.value (.function args outs))} {group : Group m members} (known : group.In callee) :
@@ -171,18 +173,41 @@ private theorem group_has_no_key (code : OpcodeCode (Instruction Op)) (captureCo
   | ordinary _ plain => cases value <;> first | rfl | cases plain
   | member => rfl
 
+private theorem group_key_of_known {group : Group m members}
+    {port : Ty V S} {value : m.Val port} {key : GroupKey V S}
+    (known : group.In value) (found : memberKey value = some key) : key = group.key := by
+  cases known with
+  | ordinary _ plain =>
+    cases value with
+    | member => cases plain
+    | _ => cases found
+  | member => exact (Option.some.inj found).symm
+
+private theorem memberKey_of_callable {group : Group m members} {args outs : Ports (Ty V S)}
+    {value : m.Val (.value (.function args outs))} (known : group.In value) : memberKey value = some group.key := by
+  cases known with
+  | ordinary _ plain => cases plain
+  | member => rfl
+
+private theorem related_memberKey {port : Ty V S} {left right : m.Val port}
+    (related : ValueRelated m ids left right) : memberKey left = memberKey right := by
+  cases related <;> rfl
+
+private theorem lambda_has_no_memberKey {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m}
+    {port : Ty V S} {value : m.Val port} {key : LambdaSummary V S code.Key captureCode.Key}
+    (found : lambdaKey code captureCode value = some key) : memberKey value = none := by
+  cases value <;> first | rfl | cases found
+
 variable [DecidableEq (Ty V S)] {keys : OpcodeCode (Instruction Op)} [DecidableEq keys.Key]
 
-private theorem checked_groups (ordinary : OrdinaryOutputs Op) (left right : Group m members)
-    (accepted : checkGroups keys left right = true) :
-    CheckedFamily primitives ids left.In right.In := by
-  obtain ⟨plain, scanned⟩ := Bool.and_eq_true_iff.mp accepted
-  obtain ⟨plainL, plainR⟩ := Bool.and_eq_true_iff.mp plain
-  refine ⟨closed ordinary left plainL, closed ordinary right plainR, ?_⟩
+private theorem checked_member_bodies (left right : Group m members)
+    (scanned : checkGroupBodies keys left right = true)
+    {args outs : Ports (Ty V S)} {calleeL calleeR : m.Val (.value (.function args outs))}
+    (knownL : left.In calleeL) (knownR : right.In calleeR) (related : ValueRelated m ids calleeL calleeR) :
+    Resolved m ⟨args, outs⟩ (resolve m calleeL) (resolve m calleeR) := by
   have bodies (slot : Fin members.length) :
       (inferResolved keys (resolve m (left.ref slot)) (resolve m (right.ref slot))).isSome = true :=
     List.all_eq_true.mp scanned _ (List.mem_ofFn.mpr ⟨slot, rfl⟩)
-  intro args outs calleeL calleeR knownL knownR related
   cases knownL with
   | ordinary _ plain => cases plain
   | member slotL =>
@@ -193,6 +218,12 @@ private theorem checked_groups (ordinary : OrdinaryOutputs Op) (left right : Gro
     have exactRef : calleeR = right.ref slotL := eq_of_heq (Sigma.mk.inj_iff.mp origin).2
     subst calleeR
     exact inferResolved_sound (bodies slotL)
+
+private theorem checked_groups (ordinary : OrdinaryOutputs Op) (left right : Group m members)
+    (accepted : checkGroups keys left right = true) : CheckedFamily primitives ids left.In right.In := by
+  obtain ⟨plain, scanned⟩ := Bool.and_eq_true_iff.mp accepted
+  obtain ⟨plainL, plainR⟩ := Bool.and_eq_true_iff.mp plain
+  exact ⟨closed ordinary left plainL, closed ordinary right plainR, checked_member_bodies left right scanned⟩
 
 private theorem checked_group_pair (ordinary : OrdinaryOutputs Op)
     {membersL membersR : List (Function V S)} (left : Group m membersL) (right : Group m membersR)
@@ -247,12 +278,72 @@ theorem checkExport_sound (ordinary : OrdinaryOutputs Op) {args outs : Ports (Ty
 
 theorem linked_groups (captureCode : CaptureCode m) (ordinary : OrdinaryOutputs Op) {membersL membersR : List (Function V S)}
     (left : Group m membersL) (right : Group m membersR)
-    (accepted : checkGroupPair keys left right = true) : LinkedFamily primitives ids keys captureCode left.In right.In ⟨[], []⟩ where
+    (accepted : checkGroupPair keys left right = true) : LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed left.key right.key) where
   checked := checked_group_pair ordinary left right accepted
   ordinaryL := Group.In.ordinary
   ordinaryR := Group.In.ordinary
   keysL known key := by rw [group_has_no_key keys captureCode known] at key; cases key
   keysR known key := by rw [group_has_no_key keys captureCode known] at key; cases key
+
+  groupsL known found := by rw [group_key_of_known known found]; exact List.mem_cons_self
+  groupsR known found := by rw [group_key_of_known known found]; exact List.mem_cons_self
+
+omit [DecidableEq (Ty V S)] in
+private theorem closed_with_group (ordinary : OrdinaryOutputs Op) {family : Family m} (group : Group m members)
+    (admits : HasOrdinary family) (closed : Closed primitives family) (outer : TupleIn family group.values) :
+    Closed primitives (WithGroup family group) := by
+  apply closed_with_captures ordinary (fun value plain => .inherited (admits value plain))
+  intro _ _ _ known
+  cases known with
+  | inherited fromEarlier => exact tuple_in_mono WithGroup.inherited (closed.captures fromEarlier)
+  | member slot =>
+    exact member_captures group (tuple_in_mono WithGroup.inherited outer) WithGroup.member slot
+
+theorem linked_group_extension (ordinary : OrdinaryOutputs Op) {captureCode : CaptureCode m}
+    {familyL familyR : Family m} {prior : DispatchKeys V S keys.Key captureCode.Key}
+    (earlier : LinkedFamily primitives ids keys captureCode familyL familyR prior) (left right : Group m members)
+    (fresh : left.key ∉ prior.groupsR ∧ right.key ∉ prior.groupsL)
+    (outerL : TupleIn familyL left.values) (outerR : TupleIn familyR right.values)
+    (bodies : checkGroupBodies keys left right = true) :
+    LinkedFamily primitives ids keys captureCode (WithGroup familyL left) (WithGroup familyR right)
+      (prior.addGroup left.key right.key) where
+  checked :=
+    { closedL := closed_with_group ordinary left earlier.ordinaryL earlier.checked.closedL outerL
+      closedR := closed_with_group ordinary right earlier.ordinaryR earlier.checked.closedR outerR
+      graphs := by
+        intro _ _ calleeL calleeR knownL knownR related
+        have leftCases : familyL calleeL ∨ left.In calleeL := by
+          cases knownL with
+          | inherited known => exact .inl known
+          | member slot => exact .inr (.member slot)
+        have rightCases : familyR calleeR ∨ right.In calleeR := by
+          cases knownR with
+          | inherited known => exact .inl known
+          | member slot => exact .inr (.member slot)
+        have same := related_memberKey related
+        rcases leftCases with oldL | newL <;> rcases rightCases with oldR | newR
+        · exact earlier.checked.graphs oldL oldR related
+        · exact (fresh.2 (earlier.groupsL oldL (same.trans (memberKey_of_callable newR)))).elim
+        · exact (fresh.1 (earlier.groupsR oldR (same.symm.trans (memberKey_of_callable newL)))).elim
+        · exact checked_member_bodies left right bodies newL newR related }
+  ordinaryL value plain := .inherited (earlier.ordinaryL value plain)
+  ordinaryR value plain := .inherited (earlier.ordinaryR value plain)
+  keysL known found := by
+    cases known with
+    | inherited old => exact earlier.keysL old found
+    | member => cases found
+  keysR known found := by
+    cases known with
+    | inherited old => exact earlier.keysR old found
+    | member => cases found
+  groupsL known found := by
+    cases known with
+    | inherited old => exact List.mem_cons_of_mem _ (earlier.groupsL old found)
+    | member => cases found; exact List.mem_cons_self
+  groupsR known found := by
+    cases known with
+    | inherited old => exact List.mem_cons_of_mem _ (earlier.groupsR old found)
+    | member => cases found; exact List.mem_cons_self
 
 private theorem ofFn_equiv {α : Type*} {n k : Nat} (vertices : Fin n ≃ Fin k) (labels : Fin k → α) :
     (List.ofFn (labels ∘ vertices)).Perm (List.ofFn labels) := by
@@ -318,14 +409,14 @@ private theorem extend_keys {code : OpcodeCode (Instruction Op)} {captureCode : 
 
 omit [DecidableEq (Ty V S)] in
 theorem linked_extension (ordinary : OrdinaryOutputs Op)
-    {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : LambdaKeys V S code.Key captureCode.Key}
+    {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : DispatchKeys V S code.Key captureCode.Key}
     (earlier : LinkedFamily primitives ids code captureCode familyL familyR prior)
     {args outs : Ports (Ty V S)} {left right : m.Val (.value (.function args outs))}
     {newL newR : LambdaKey V S code.Key captureCode.Key} (fresh : newL.Fresh prior.right ∧ newR.Fresh prior.left)
     (keyL : lambdaKey code captureCode left = some newL.summary) (keyR : lambdaKey code captureCode right = some newR.summary)
     (capturesL : TupleIn familyL (resolve m left).values) (capturesR : TupleIn familyR (resolve m right).values)
     (body : Resolved m ⟨args, outs⟩ (resolve m left) (resolve m right)) :
-    LinkedFamily primitives ids code captureCode (WithExport familyL left) (WithExport familyR right) ⟨newL :: prior.left, newR :: prior.right⟩ where
+    LinkedFamily primitives ids code captureCode (WithExport familyL left) (WithExport familyR right) (prior.addLambda newL newR) where
   checked :=
     { closedL := closed_export ordinary left earlier.ordinaryL earlier.checked.closedL capturesL
       closedR := closed_export ordinary right earlier.ordinaryR earlier.checked.closedR capturesR
@@ -345,9 +436,17 @@ theorem linked_extension (ordinary : OrdinaryOutputs Op)
   ordinaryR value plain := .inherited (earlier.ordinaryR value plain)
   keysL := extend_keys earlier.keysL keyL
   keysR := extend_keys earlier.keysR keyR
+  groupsL known found := by
+    cases known with
+    | inherited old => exact earlier.groupsL old found
+    | exported => cases (lambda_has_no_memberKey keyL).symm.trans found
+  groupsR known found := by
+    cases known with
+    | inherited old => exact earlier.groupsR old found
+    | exported => cases (lambda_has_no_memberKey keyR).symm.trans found
 
 omit [DecidableEq (Ty V S)] in
-theorem linked_exports {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : LambdaKeys V S code.Key captureCode.Key}
+theorem linked_exports {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : DispatchKeys V S code.Key captureCode.Key}
     (family : LinkedFamily primitives ids code captureCode familyL familyR prior)
     {args outs : Ports (Ty V S)} {left right : m.Val (.value (.function args outs))}
     (knownL : familyL left) (knownR : familyR right) : ExportAdmission primitives ids left right :=

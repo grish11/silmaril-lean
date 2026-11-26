@@ -10,7 +10,7 @@ namespace Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.Doubling
 
 open Diamond (Ty ValueSort dataPorts)
 open GVN.Elimination (Rewrite)
-open SubZero (model wordPort)
+open SubZero (wordPort)
 open RVSDG (Origin)
 
 variable {args : List (Ty Unit)} {past : List (List (Ty Unit))}
@@ -25,9 +25,8 @@ def matchAdd? (known : Literals args past) (lhs rhs : Origin args past wordPort)
   else none
 
 def rules : AddRewrite.Rules args (Literals args) where
-  record known op operands :=
-    Scan.Literals.push known ((literal? known op operands).map fun literal => model.run literal .nil)
-  matchAdd? := Doubling.matchAdd?
+  record known op operands := (arithmeticRules op).record known operands
+  matchAdd? known lhs rhs := (Doubling.matchAdd? known lhs rhs).map AddRewrite.Edit.splice
 
 /-- Rewrite the first addition admitted by the doubling rule. -/
 def step? (program : Program SubZero.Opcode inputs out) : Option (Rewrite SubZero.Opcode (dataPorts inputs) [] program.sigs) :=

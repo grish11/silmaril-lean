@@ -28,8 +28,8 @@ private theorem encode_injective (model : PairModel F Part α) :
     refine Fin.cases (congrArg Prod.fst products) (fun j => ?_) i
     exact congrFun (ih (congrArg Prod.snd products)) j
 
-theorem separates (model : PairModel F Part α) (values : ∃ x y : α, x ≠ y) :
-    Separates n model := by
+theorem separates_widths (model : PairModel F Part α) (target : Nat) (values : ∃ x y : α, x ≠ y) :
+    SeparatesWidths n target model := by
   obtain ⟨x, y, distinct⟩ := values
   intro left right same
   funext i
@@ -37,6 +37,10 @@ theorem separates (model : PairModel F Part α) (values : ∃ x y : α, x ≠ y)
   let packet : Fin n → α := fun j => if j = left i then x else y
   have observed := congrFun (encode_injective model (same packet)) i
   exact distinct (by simpa [packet, Function.comp_def, Ne.symm different] using observed)
+
+theorem separates (model : PairModel F Part α) (values : ∃ x y : α, x ≠ y) :
+    Separates n model :=
+  separates_widths model n values
 
 variable [DecidableEq V]
 

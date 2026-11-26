@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Native.Defs
 public import Silmaril.Wasm.Institution.Operational.MemoryWrite.Native.Defs
+public import Silmaril.Wasm.Institution.Operational.MemoryGrow.Defs
 
 /-!
 # Ranked V1 source with one shared Memory32
@@ -40,6 +41,8 @@ def Op.supportedIn : Op → List (List NumType) → Bool
   | .ranked (.call _), _ | .ranked .return_, _ | .ranked .unreachable, _ => true
   | .ranked (.br depth result), labels | .ranked (.brIf depth result), labels =>
     decide (labels[depth.toNat]? = some result)
+  | .ranked (.brTable depths fallback result), labels =>
+    (fallback :: depths).all fun depth => decide (labels[depth.toNat]? = some result)
   | .ranked _, _ => false
   | .block result body, labels => supportedCode body (result.toList :: labels)
   | .loop _ body, labels => supportedCode body ([] :: labels)
@@ -178,5 +181,16 @@ The memory's extent and metadata stay fixed. -/
 def SharedStore {H : Type} (base : Wasm.V1.Execution.Store H) (address : MemAddr)
     (initial : MemInst) (live : Wasm.V1.Execution.Store H) : Prop :=
   ∃ bytes, bytes.size = initial.data.size ∧ live = storeWithBytes base address initial bytes
+
+/-- The live bytes remain page-aligned, within the fixed limits, and at least
+as large as the initial extent. -/
+def GrowthExtent (initial : MemInst) (bytes : ByteArray) : Prop :=
+  initial.data.size ≤ bytes.size ∧ MemoryGrow.SizeAllows { initial with data := bytes } 0
+
+/-- The selected byte array can grow while the rest of the store and the
+selected memory's limit remain fixed. -/
+def GrowingStore {H : Type} (base : Wasm.V1.Execution.Store H) (address : MemAddr)
+    (initial : MemInst) (live : Wasm.V1.Execution.Store H) : Prop :=
+  ∃ bytes, GrowthExtent initial bytes ∧ live = storeWithBytes base address initial bytes
 
 end Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32

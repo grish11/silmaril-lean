@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Phi.Defs
+import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.FIFO.Thms
 
 public section
 
@@ -52,16 +53,11 @@ theorem evaluate_eq (job : Job carried) (state : State m.value carried out) :
 theorem mem_wake_iff (old new : State m.value carried out) (pending : List (Job carried)) (job : Job carried) :
     job ∈ wake m g input old new pending ↔
       job ∈ pending ∨ dependencies m g input new job ≠ dependencies m g input old job := by
-  by_cases present : job ∈ pending <;> simp [wake, present]
+  simp [wake, FIFO.mem_wake_iff]
 
 theorem wake_nodup (old new : State m.value carried out) {pending : List (Job carried)}
     (nodup : pending.Nodup) : (wake m g input old new pending).Nodup := by
-  unfold wake
-  rw [List.nodup_append]
-  refine ⟨nodup, (List.nodup_finRange _).filter _, ?_⟩
-  intro oldJob oldMem newJob newMem equal
-  subst newJob
-  exact (of_decide_eq_true (List.mem_filter.mp newMem).2).1 oldMem
+  exact FIFO.wake_nodup _ (List.nodup_finRange _) nodup
 
 /-- The pending invariant needed by the enclosing loop worklist. -/
 theorem step_stable (job : Job carried) (state : State m.value carried out) (pending : List (Job carried))

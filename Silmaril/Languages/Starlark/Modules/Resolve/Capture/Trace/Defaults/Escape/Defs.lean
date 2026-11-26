@@ -61,13 +61,17 @@ structure Spec where
 @[expose] def Spec.childBody (wrapper : Spec) : Statement :=
   .ret (some (.scalar (.read wrapper.returned)))
 
-@[expose] def Spec.body (wrapper : Spec) : Statement :=
-  .seq (.define wrapper.childName wrapper.child.parameters.source wrapper.childBody)
+@[expose] def Spec.bodyWith (wrapper : Spec) (childBody : Statement) : Statement :=
+  .seq (.define wrapper.childName wrapper.child.parameters.source childBody)
     (.seq (.assign wrapper.parameter (.scalar (.int wrapper.rebound)))
       (.ret (some (.scalar (.read wrapper.childName)))))
 
-@[expose] def Spec.command (wrapper : Spec) : Command :=
-  .define wrapper.name (.required [wrapper.parameter]) wrapper.body
+@[expose] def Spec.body (wrapper : Spec) : Statement := wrapper.bodyWith wrapper.childBody
+
+@[expose] def Spec.commandWith (wrapper : Spec) (childBody : Statement) : Command :=
+  .define wrapper.name (.required [wrapper.parameter]) (wrapper.bodyWith childBody)
+
+@[expose] def Spec.command (wrapper : Spec) : Command := wrapper.commandWith wrapper.childBody
 
 @[expose] def Spec.frame (wrapper : Spec) (childId : Nat) : Forwarding.Frame :=
   ⟨[wrapper.parameter], [wrapper.childName], [],
@@ -75,11 +79,19 @@ structure Spec where
       (.seq (.assignExpr (fileSlot wrapper.parameter) (.atom (.scalar (.int wrapper.rebound))))
         (.returnExpr (Leaf.readOperand (fileSlot wrapper.childName))))⟩
 
+structure WrapperNames (wrapper : Spec) : Prop where
+  distinct : wrapper.parameter ≠ wrapper.childName
+  parameterLegal : wrapper.parameter.toList.head? ≠ some '$'
+  childLegal : wrapper.childName.toList.head? ≠ some '$'
+
 structure Admitted (wrapper : Spec) : Prop where
   distinct : wrapper.parameter ≠ wrapper.childName
   parameterLegal : wrapper.parameter.toList.head? ≠ some '$'
   childLegal : wrapper.childName.toList.head? ≠ some '$'
   returned : Visible wrapper.child.parameters.names wrapper.returned
+
+theorem Admitted.wrapperNames {wrapper : Spec} (admitted : Admitted wrapper) : WrapperNames wrapper :=
+  ⟨admitted.distinct, admitted.parameterLegal, admitted.childLegal⟩
 
 @[expose] def Spec.saved (wrapper : Spec) (values : List Value) : List (Binding × Value) :=
   (wrapper.child.parameters.optional.map (fileSlot ∘ Prod.fst)).zip values
@@ -103,6 +115,24 @@ inductive DefaultsIn (parameter : String) : State → List Operand → Outcome (
   | failed {state final : State} {first : Operand} {tail : List Operand} {error : Lists.Error} :
       Evaluates parameter state first (.error error final) →
       DefaultsIn parameter state (first :: tail) (.error error final)
+
+/-- The shared wrapper rules install captures in the reached defining
+frame. A failed default cannot reach installation or the rebinding. -/
+inductive ReturnsWith (wrapper : Spec) (childId : Nat) (free : List FreeName)
+    (caller : State) (argument : Value) : Outcome Value → Prop where
+  | failed {error : Lists.Error} {final : State} :
+      DefaultsIn wrapper.parameter
+        (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
+        (wrapper.defaults.map Prod.snd) (.error error final) →
+      ReturnsWith wrapper childId free caller argument (.error error (restoreCaller caller final))
+  | child {values : List Value} {final : State} {captures : List Lists.Capture} :
+      DefaultsIn wrapper.parameter
+        (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
+        (wrapper.defaults.map Prod.snd) (.ok values final) →
+      Installs final free captures →
+      ReturnsWith wrapper childId free caller argument (.ok (.function final.heap.size)
+        (restoreCaller caller ((Defaults.install (fileSlot wrapper.childName) childId captures (wrapper.saved values) final).write
+          (fileSlot wrapper.parameter) (.scalar (.int wrapper.rebound)))))
 
 /-- Success installs the saved values before rebinding the wrapper's
 parameter. Failure restores the caller immediately with the heap from

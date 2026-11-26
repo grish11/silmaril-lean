@@ -37,6 +37,19 @@ theorem sequenceLengthTest_tagged {scope : Source.Scope} {source right : Source.
     global_reference reference, operand_complete expected, Except.toOption, bind, Option.bind, scalar, dite_true]
   split <;> simp_all
 
+theorem integerBuiltinTest_ordinal_tagged {scope : Source.Scope} {right : Source.Expr}
+    {comparison : Source.Comparison} {point : UInt32} {operand : Operand scope} {equal : Bool}
+    (reference : GlobalReference scope "ord") (valid : point.toNat < 0x110000)
+    (identified : integerEquality? comparison = some equal)
+    (checked : OperandTranslation scope right operand) (scalar : operand.comparable = true) :
+    (integerBuiltinTest? scope
+      (.assert_ (.comparison (.callWith (.name "ord") [(.positional, .text [point])]) [(comparison, right)]) none)).map
+        Subtype.val = some ⟨.ordinal point valid, reference, operand, equal⟩ := by
+  simp only [integerBuiltinTest?, sequenceLengthTest?, ordinalTest?, callExpression?, global_reference reference,
+    operand_complete checked, Except.toOption, bind, Option.bind, valid, scalar, dite_true]
+  split <;> simp_all
+  split <;> simp_all
+
 theorem listConstructorArguments_complete {arguments : List (Source.ArgumentKind × Source.Expr)}
     {argument : ListConstructorArgument} (checked : ListConstructorArguments arguments argument) :
     (listConstructorArguments? arguments).map Subtype.val = some argument := by

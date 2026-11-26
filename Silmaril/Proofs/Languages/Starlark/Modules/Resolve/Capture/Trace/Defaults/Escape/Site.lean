@@ -34,7 +34,7 @@ private theorem local_read (context : Context) (name : String) (owned : name ∈
     resolveTracked context (.scalar (.read name)) = .ok (Leaf.readOperand (fileSlot name), [fileSlot name]) := by
   simp [resolveTracked, local_read_at context name owned legal, Except.map]
 
-private theorem default_read (context : Context) (parameter : String) (owned : parameter ∈ context.locals)
+theorem default_read (context : Context) (parameter : String) (owned : parameter ∈ context.locals)
     (legal : parameter.toList.head? ≠ some '$') (operand : Operand) :
     resolveTracked context (operand.source parameter) = .ok (operand.code parameter, operand.reads parameter) := by
   cases operand with
@@ -50,11 +50,11 @@ private theorem default_read (context : Context) (parameter : String) (owned : p
     rw [resolveTracked, resolveExpr.eq_def]
     simp [int_at, Operand.code, Operand.reads, bind, StateT.bind, Except.bind, pure, StateT.pure,
       Except.pure, Except.map]
-private def planned (wrapper : Spec) : List PlainPositionalDefault :=
+@[expose] def planned (wrapper : Spec) : List PlainPositionalDefault :=
   wrapper.defaults.map fun (name, operand) =>
     ⟨name, operand.source wrapper.parameter, operand.code wrapper.parameter, operand.reads wrapper.parameter⟩
 
-private theorem only_parameter (wrapper : Spec) {binding : Binding}
+theorem only_parameter (wrapper : Spec) {binding : Binding}
     (present : binding ∈ (planned wrapper).flatMap PlainPositionalDefault.reads) :
     binding = fileSlot wrapper.parameter := by
   simp only [planned, List.flatMap_map, List.mem_flatMap] at present
@@ -64,14 +64,61 @@ private theorem only_parameter (wrapper : Spec) {binding : Binding}
 theorem code_length (wrapper : Spec) : wrapper.codes.length = wrapper.child.parameters.optional.length := by
   simp [Spec.codes, Spec.child]
 
+/-- Compile the existing wrapper around any child declaration whose
+definition-time reads belong to the wrapper parameter. -/
+theorem wrap_emission (wrapper : Spec) (admitted : WrapperNames wrapper) (globals : List String)
+    (childBody : Statement) (child : Declaration) (reads : List Binding)
+    (owned : ∀ binding ∈ reads, binding = fileSlot wrapper.parameter)
+    (childStep : ∀ program, compileBody ⟨⟨[wrapper.parameter, wrapper.childName], globals⟩, .local⟩
+        (.define wrapper.childName wrapper.child.parameters.source childBody) program =
+      .ok (⟨.define (fileSlot wrapper.childName) program.size, reads⟩, program.push child))
+    (program : Program) :
+    elaborateCommand ⟨⟨[], globals⟩, .global⟩ (wrapper.commandWith childBody) program =
+      .ok (.exec (.define wrapper.name (program.size + 1)),
+        (program.push child).push (wrapper.frame program.size).declaration) := by
+  let outer : BlockContext := ⟨⟨[], globals⟩, .global⟩
+  let context : BlockContext := ⟨⟨[wrapper.parameter, wrapper.childName], globals⟩, .local⟩
+  let parentLayout : FunctionLayout := ⟨[wrapper.childName], context⟩
+  have parentCollected : collectFunctionLayout outer.reads (.required [wrapper.parameter]) (wrapper.bodyWith childBody) =
+      .ok parentLayout := by
+    simp [collectFunctionLayout, Statement.localNames, Spec.bodyWith, functionLayout,
+      SourceSignature.required, SourceSignature.parameterNames, parentLayout, outer, context,
+      List.eraseDups_cons, Ne.symm admitted.distinct, Except.map, bind, Except.bind, pure, Except.pure]
+  let grown := program.push child
+  have rebound := compileBody_plainAssign context wrapper.parameter (.scalar (.int wrapper.rebound)) _ _ grown
+    (default_read context.reads wrapper.parameter (by simp [context]) admitted.parameterLegal (.integer wrapper.rebound))
+  have tail := compileBody_seqReturn context (.assign wrapper.parameter (.scalar (.int wrapper.rebound)))
+    (.scalar (.read wrapper.childName)) grown grown _ _ _ rebound
+    (local_read context.reads wrapper.childName (by simp [context]) admitted.childLegal)
+  have body := compileBody_plainSeq context _ _ program grown grown _ _ (childStep program) tail
+  have captures : captureNames [wrapper.parameter, wrapper.childName]
+      (reads ++ [fileSlot wrapper.childName]) = [] := by
+    unfold captureNames
+    suffices removed : ((reads ++ [fileSlot wrapper.childName]).eraseDups.filter
+        fun binding => binding.scope == .global || ![wrapper.parameter, wrapper.childName].contains binding.name) = [] by
+      rw [removed]
+      rfl
+    apply List.filter_eq_nil_iff.mpr
+    intro binding mem
+    have present := List.mem_eraseDups.mp mem
+    rcases List.mem_append.mp present with earlier | returned
+    · rw [owned binding earlier]
+      simp [fileSlot]
+    · have same : binding = fileSlot wrapper.childName := by simpa using returned
+      simp [same, fileSlot]
+  have compiled := compileBody_requiredDefinition outer wrapper.name [wrapper.parameter] (wrapper.bodyWith childBody) program grown
+      parentLayout _ parentCollected body
+  have root := elaborateCommand_requiredDefinition outer .global wrapper.name [wrapper.parameter] (wrapper.bodyWith childBody) program _ _ _ compiled
+  simpa [Spec.commandWith, Spec.frame, Forwarding.Frame.declaration, outer, parentLayout, grown,
+    Operand.code, Operand.reads, List.nil_append, captures] using root
+
+
 theorem emission (wrapper : Spec) (admitted : Admitted wrapper) (globals : List String) (program : Program) :
     elaborateCommand ⟨⟨[], globals⟩, .global⟩ wrapper.command program =
       .ok (.exec (.define wrapper.name (program.size + 1)),
         (program.push (wrapper.child.emitted wrapper.codes)).push (wrapper.frame program.size).declaration) := by
-  let outer : BlockContext := ⟨⟨[], globals⟩, .global⟩
   let context : BlockContext := ⟨⟨[wrapper.parameter, wrapper.childName], globals⟩, .local⟩
   let inner : BlockContext := ⟨⟨wrapper.child.parameters.names ++ context.reads.locals, globals⟩, .local⟩
-  let parentLayout : FunctionLayout := ⟨[wrapper.childName], context⟩
   let childLayout : FunctionLayout := ⟨[], inner⟩
   let defaults := planned wrapper
   have signature : wrapper.child.parameters.source = {
@@ -81,18 +128,12 @@ theorem emission (wrapper : Spec) (admitted : Admitted wrapper) (globals : List 
   have paramNames : wrapper.child.parameters.source.parameterNames = wrapper.child.parameters.names := by
     simp [Defaults.Parameters.source, Defaults.Parameters.names, SourceSignature.parameterNames,
       List.map_append, List.map_map, Function.comp_def]
-  have parentCollected : collectFunctionLayout outer.reads (.required [wrapper.parameter]) wrapper.body =
-      .ok parentLayout := by
-    simp [collectFunctionLayout, Statement.localNames, Spec.body, Spec.childBody, functionLayout,
-      SourceSignature.required, SourceSignature.parameterNames, parentLayout, outer, context,
-      List.eraseDups_cons, Ne.symm admitted.distinct, Except.map, bind, Except.bind, pure, Except.pure]
   have childCollected : collectFunctionLayout context.reads wrapper.child.parameters.source wrapper.childBody =
       .ok childLayout := by
     simp [collectFunctionLayout, Statement.localNames, functionLayout, Spec.childBody, paramNames,
       context, inner, childLayout, Except.map, pure, Except.pure]
   have childRead := local_read inner.reads wrapper.returned
     (by simp [inner, admitted.returned.1]) admitted.returned.2
-  have childCompiled := compileBody_plainReturn inner (.scalar (.read wrapper.returned)) _ _ program childRead
   have defaultsRead : ∀ item ∈ defaults, resolveTracked context.reads item.source = .ok (item.value, item.reads) := by
     intro item member
     obtain ⟨⟨name, operand⟩, _, rfl⟩ := List.mem_map.mp member
@@ -100,47 +141,20 @@ theorem emission (wrapper : Spec) (admitted : Admitted wrapper) (globals : List 
   have childCaptures : captureNames wrapper.child.parameters.names [fileSlot wrapper.returned] = [] := by
     simp [captureNames, fileSlot, admitted.returned.1]
   rw [signature] at childCollected paramNames
-  have definition := compileBody_plainPositionalDefinition context wrapper.childName wrapper.required defaults
-    wrapper.childBody program program childLayout _ defaultsRead childCollected childCompiled
   have optionalCodes : defaults.map PlainPositionalDefault.resolved =
       ((wrapper.child.parameters.optional.map (fileSlot ∘ Prod.fst)).zip wrapper.codes).map
         (fun (slot, code) => (⟨slot, some code⟩ : Parameter)) := by
     simp [defaults, planned, Spec.child, Spec.codes, List.map_map, Function.comp_def,
       List.zip_map', PlainPositionalDefault.resolved]
   let child := wrapper.child.emitted wrapper.codes
-  have childStep : compileBody context (.define wrapper.childName wrapper.child.parameters.source wrapper.childBody) program =
-      .ok (⟨.define (fileSlot wrapper.childName) program.size, defaults.flatMap PlainPositionalDefault.reads⟩,
-        program.push child) := by
-    rw [signature, definition, optionalCodes]
-    simp only [childLayout, List.map_nil, List.append_nil, paramNames, childCaptures]
-    rfl
-  let grown := program.push child
-  have rebound := compileBody_plainAssign context wrapper.parameter (.scalar (.int wrapper.rebound)) _ _ grown
-    (default_read context.reads wrapper.parameter (by simp [context]) admitted.parameterLegal (.integer wrapper.rebound))
-  have tail := compileBody_seqReturn context (.assign wrapper.parameter (.scalar (.int wrapper.rebound)))
-    (.scalar (.read wrapper.childName)) grown grown _ _ _ rebound
-    (local_read context.reads wrapper.childName (by simp [context]) admitted.childLegal)
-  have body := compileBody_plainSeq context _ _ program grown grown _ _ childStep tail
-  have captures : captureNames [wrapper.parameter, wrapper.childName]
-      (defaults.flatMap PlainPositionalDefault.reads ++ [fileSlot wrapper.childName]) = [] := by
-    unfold captureNames
-    suffices removed : ((defaults.flatMap PlainPositionalDefault.reads ++ [fileSlot wrapper.childName]).eraseDups.filter
-        fun binding => binding.scope == .global || ![wrapper.parameter, wrapper.childName].contains binding.name) = [] by
-      rw [removed]
-      rfl
-    apply List.filter_eq_nil_iff.mpr
-    intro binding mem
-    have present := List.mem_eraseDups.mp mem
-    rcases List.mem_append.mp present with earlier | returned
-    · rw [only_parameter wrapper earlier]
-      simp [fileSlot]
-    · have same : binding = fileSlot wrapper.childName := by simpa using returned
-      simp [same, fileSlot]
-  have compiled := compileBody_requiredDefinition outer wrapper.name [wrapper.parameter] wrapper.body program grown
-      parentLayout _ parentCollected body
-  have root := elaborateCommand_requiredDefinition outer .global wrapper.name [wrapper.parameter] wrapper.body program _ _ _ compiled
-  simpa [Spec.command, Spec.frame, Forwarding.Frame.declaration, outer, parentLayout, grown,
-    Operand.code, Operand.reads, List.nil_append, captures] using root
+  exact wrap_emission wrapper admitted.wrapperNames globals wrapper.childBody child
+    (defaults.flatMap PlainPositionalDefault.reads) (fun _ member => only_parameter wrapper member) (fun seed => by
+      have compiled := compileBody_plainReturn inner (.scalar (.read wrapper.returned)) _ _ seed childRead
+      have definition := compileBody_plainPositionalDefinition context wrapper.childName wrapper.required defaults
+        wrapper.childBody seed seed childLayout _ defaultsRead childCollected compiled
+      rw [signature, definition, optionalCodes]
+      simp only [childLayout, List.map_nil, List.append_nil, paramNames, childCaptures]
+      rfl) program
 
 theorem checked_site {before after : List Command} {globals : List String} {wrapper : Spec}
     {linked : Program} {resolved : ResolvedModule} (admitted : Admitted wrapper)

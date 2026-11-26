@@ -194,10 +194,12 @@ structure DefinitionTranslation (tree : ScopeTree) (index : Nat) (declaration : 
     declaration.map Source.Parameter.name
   functionBody : Compile.Closure.Body.Translation child 0 body code
 
-def lengthEquality? : Source.Comparison → Option Bool
+def integerEquality? : Source.Comparison → Option Bool
   | .eq => some true
   | .ne => some false
   | _ => none
+
+abbrev lengthEquality? := integerEquality?
 
 structure SequenceLengthTest (scope : Scope) where
   reference : GlobalReference scope "len"
@@ -230,6 +232,57 @@ def sequenceLengthTest? (scope : Scope) : (statement : Source.Stmt) →
       | none => none
     else none
   | _ => none
+
+inductive IntegerBuiltinArgument where
+  | sequenceLength (length : Nat)
+  | ordinal (point : UInt32) (valid : point.toNat < 0x110000)
+
+def IntegerBuiltinArgument.name : IntegerBuiltinArgument → Name
+  | .sequenceLength _ => "len"
+  | .ordinal .. => "ord"
+
+structure IntegerBuiltinTest (scope : Scope) where
+  argument : IntegerBuiltinArgument
+  reference : GlobalReference scope argument.name
+  right : Operand scope
+  expectedEqual : Bool
+
+def SequenceLengthTest.toIntegerBuiltin {scope : Scope} (test : SequenceLengthTest scope) :
+    IntegerBuiltinTest scope :=
+  ⟨.sequenceLength test.length, test.reference, test.right, test.expectedEqual⟩
+
+inductive IntegerBuiltinTranslation (scope : Scope) : Source.Stmt → IntegerBuiltinTest scope → Prop where
+  | sequenceLength {statement test} (checked : SequenceLengthTranslation scope statement test) :
+      IntegerBuiltinTranslation scope statement test.toIntegerBuiltin
+  | ordinal {left right comparison point operand equal}
+      (call : CallExpression left "ord" [(.positional, .text [point])])
+      (reference : GlobalReference scope "ord")
+      (valid : point.toNat < 0x110000) (identified : integerEquality? comparison = some equal)
+      (checked : OperandTranslation scope right operand) (scalar : operand.comparable = true) :
+      IntegerBuiltinTranslation scope (.assert_ (.comparison left [(comparison, right)]) none)
+        ⟨.ordinal point valid, reference, operand, equal⟩
+
+def ordinalTest? (scope : Scope) : (statement : Source.Stmt) →
+    Option {test // IntegerBuiltinTranslation scope statement test}
+  | .assert_ (.comparison left [(comparison, right)]) none => do
+    let ⟨("ord", [(.positional, .text [point])]), call⟩ ← callExpression? left | none
+    let reference ← globalReference? scope "ord"
+    let operand ← (lowerOperand scope right).toOption
+    if valid : point.toNat < 0x110000 then
+      if scalar : operand.val.comparable = true then
+        match identified : integerEquality? comparison with
+        | some equal => some ⟨⟨.ordinal point valid, reference, operand.val, equal⟩,
+            .ordinal call reference valid identified operand.property scalar⟩
+        | none => none
+      else none
+    else none
+  | _ => none
+
+def integerBuiltinTest? (scope : Scope) (statement : Source.Stmt) :
+    Option {test // IntegerBuiltinTranslation scope statement test} :=
+  match sequenceLengthTest? scope statement with
+  | some length => some ⟨length.val.toIntegerBuiltin, .sequenceLength length.property⟩
+  | none => ordinalTest? scope statement
 
 inductive BoolCallArguments (scope : Scope) :
     List (Source.ArgumentKind × Source.Expr) → Option (Operand scope) → Prop where
@@ -351,7 +404,7 @@ def listConstructionTest? (scope : Scope) : (statement : Source.Stmt) →
 inductive Action (scope : Scope) where
   | scalar (action : ModuleEntry.Action scope)
   | assertNot (condition : Operand scope)
-  | assertSequenceLength (test : SequenceLengthTest scope)
+  | assertIntegerBuiltin (test : IntegerBuiltinTest scope)
   | assertBoolIdentity (test : BoolIdentityTest scope)
   | assertListConstruction (test : ListConstructionTest scope)
   | assertTupleChain (test : TupleChainTest scope)
@@ -366,6 +419,9 @@ inductive Action (scope : Scope) where
   | nestedCall (destination : Destination scope) (name : Name) (reference : GlobalReference scope name)
       (arguments : List (CallArgument scope))
 
+abbrev Action.assertSequenceLength {scope : Scope} (test : SequenceLengthTest scope) : Action scope :=
+  .assertIntegerBuiltin test.toIntegerBuiltin
+
 inductive Translation (tree : ScopeTree) : Nat → List Source.Stmt → List (Action tree.scope) → Prop where
   | done {index} (covered : index = tree.children.length) : Translation tree index [] []
   | scalar {index statement rest actions tail}
@@ -375,10 +431,10 @@ inductive Translation (tree : ScopeTree) : Nat → List Source.Stmt → List (Ac
       (translated : TestTranslation tree.scope condition operand)
       (remaining : Translation tree index rest tail) :
       Translation tree index (.assert_ (.unary .not_ condition) none :: rest) (.assertNot operand :: tail)
-  | assertSequenceLength {index statement test rest tail}
-      (checked : SequenceLengthTranslation tree.scope statement test)
+  | assertIntegerBuiltin {index statement test rest tail}
+      (checked : IntegerBuiltinTranslation tree.scope statement test)
       (remaining : Translation tree index rest tail) :
-      Translation tree index (statement :: rest) (.assertSequenceLength test :: tail)
+      Translation tree index (statement :: rest) (.assertIntegerBuiltin test :: tail)
   | assertBoolIdentity {index statement test rest tail}
       (checked : BoolIdentityTranslation tree.scope statement test)
       (remaining : Translation tree index rest tail) :
@@ -481,9 +537,9 @@ def lowerPlan (tree : ScopeTree) (index : Nat) : (source : List Source.Stmt) →
     let tail ← lowerPlan tree index rest
     return ⟨.assertNot operand.val :: tail.val, .assertNot operand.property tail.property⟩
   | statement :: rest => do
-    if let some test := sequenceLengthTest? tree.scope statement then
+    if let some test := integerBuiltinTest? tree.scope statement then
       let tail ← lowerPlan tree index rest
-      return ⟨.assertSequenceLength test.val :: tail.val, .assertSequenceLength test.property tail.property⟩
+      return ⟨.assertIntegerBuiltin test.val :: tail.val, .assertIntegerBuiltin test.property tail.property⟩
     else if let some test := boolIdentityTest? tree.scope statement then
       let tail ← lowerPlan tree index rest
       return ⟨.assertBoolIdentity test.val :: tail.val, .assertBoolIdentity test.property tail.property⟩

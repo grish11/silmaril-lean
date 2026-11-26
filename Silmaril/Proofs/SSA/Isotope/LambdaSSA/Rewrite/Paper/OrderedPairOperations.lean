@@ -30,39 +30,62 @@ local notation "G" => ofType (Φ := Φ) Join
 
 variable {A B D : τ}
 
-theorem normalize_whiskerLeftRep (X : τ) (r : Rep (Φ := Φ) A B) :
-    normalizeHom pe (Quotient.mk _ (whiskerLeftRep X r)) =
-      Extension.Singleton.whiskerLeft Join (G X) (normalizeHom pe (Quotient.mk _ r)) := by
-  change normalizeHom pe (rawClass pe (whiskerLeftRegion_typed X r.property.bindBranchArguments).hasType) =
-    Extension.Singleton.whiskerLeft Join (G X) (ofRegion Join r.property.bindBranchArguments)
-  rw [normalize_guarded]
-  change _ = (Extension.Singleton.whiskerLeftFunctor Join (G X)).map
-    ((Extension.Singleton.projection Join).map (Paper.TypeCategory.ofRegion r.property.bindBranchArguments))
+section
+
+variable (Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+
+theorem ofRegion_bind_whiskerLeftRep (X : τ) (r : Rep (Φ := Φ) A B) :
+    ofRegion Seed (whiskerLeftRep X r).property.bindBranchArguments =
+      Extension.Singleton.whiskerLeft Seed (ofType Seed X) (ofRegion Seed r.property.bindBranchArguments) := by
+  have hr := whiskerLeftRegion_typed X r.property.bindBranchArguments
+  have h := (Extension.Singleton.ofRegion_eq_iff Seed hr.hasType.bindBranchArguments hr).mpr
+    (.paper (.cfgEta (.native hr.bindBranchArguments_equiv.symm)))
+  change ofRegion Seed hr.hasType.bindBranchArguments = _
+  rw [h]
+  change _ = (Extension.Singleton.whiskerLeftFunctor Seed (ofType Seed X)).map
+    ((Extension.Singleton.projection Seed).map (Paper.TypeCategory.ofRegion r.property.bindBranchArguments))
   rw [Extension.Singleton.whiskerLeft_map, Paper.TypeCategory.whiskerLeft_ofRegion]
   rfl
 
-theorem normalize_whiskerRightRep (X : τ) (r : Rep (Φ := Φ) A B) :
-    normalizeHom pe (Quotient.mk _ (whiskerRightRep X r)) =
-      Extension.Singleton.whiskerRight Join (normalizeHom pe (Quotient.mk _ r)) (G X) := by
-  change normalizeHom pe (rawClass pe (whiskerRightRegion_typed X r.property.bindBranchArguments).hasType) =
-    Extension.Singleton.whiskerRight Join (ofRegion Join r.property.bindBranchArguments) (G X)
-  rw [normalize_guarded]
-  change _ = (Extension.Singleton.whiskerRightFunctor Join (G X)).map
-    ((Extension.Singleton.projection Join).map (Paper.TypeCategory.ofRegion r.property.bindBranchArguments))
+theorem ofRegion_bind_whiskerRightRep (X : τ) (r : Rep (Φ := Φ) A B) :
+    ofRegion Seed (whiskerRightRep X r).property.bindBranchArguments =
+      Extension.Singleton.whiskerRight Seed (ofRegion Seed r.property.bindBranchArguments) (ofType Seed X) := by
+  have hr := whiskerRightRegion_typed X r.property.bindBranchArguments
+  have h := (Extension.Singleton.ofRegion_eq_iff Seed hr.hasType.bindBranchArguments hr).mpr
+    (.paper (.cfgEta (.native hr.bindBranchArguments_equiv.symm)))
+  change ofRegion Seed hr.hasType.bindBranchArguments = _
+  rw [h]
+  change _ = (Extension.Singleton.whiskerRightFunctor Seed (ofType Seed X)).map
+    ((Extension.Singleton.projection Seed).map (Paper.TypeCategory.ofRegion r.property.bindBranchArguments))
   rw [Extension.Singleton.whiskerRight_map, Paper.TypeCategory.whiskerRight_ofRegion]
   rfl
+
+theorem ofRegion_bind_copairRep (r : Rep (Φ := Φ) A D) (s : Rep (Φ := Φ) B D) :
+    ofRegion Seed (copairRep r s).property.bindBranchArguments =
+      Extension.Singleton.ValueCoproducts.exactCopair Seed
+        (ofRegion Seed r.property.bindBranchArguments) (ofRegion Seed s.property.bindBranchArguments) := by
+  rw [Extension.Singleton.Generation.exactCopair_ofRegion]
+  apply (Extension.Singleton.ofRegion_eq_iff Seed _ _).mpr
+  have h := Extension.Eqv.refl (Seed := Seed)
+    (caseValueBranches r.property.bindBranchArguments s.property.bindBranchArguments).hasType
+  simpa only [copairRep, bindBranchArguments, renameVars_eq_substVars, bindBranchArguments_substVars] using h
+
+end
+
+theorem normalize_whiskerLeftRep (X : τ) (r : Rep (Φ := Φ) A B) :
+    normalizeHom pe (Quotient.mk _ (whiskerLeftRep X r)) =
+      Extension.Singleton.whiskerLeft Join (G X) (normalizeHom pe (Quotient.mk _ r)) :=
+  ofRegion_bind_whiskerLeftRep Join X r
+
+theorem normalize_whiskerRightRep (X : τ) (r : Rep (Φ := Φ) A B) :
+    normalizeHom pe (Quotient.mk _ (whiskerRightRep X r)) =
+      Extension.Singleton.whiskerRight Join (normalizeHom pe (Quotient.mk _ r)) (G X) :=
+  ofRegion_bind_whiskerRightRep Join X r
 
 theorem normalize_copairRep (r : Rep (Φ := Φ) A D) (s : Rep (Φ := Φ) B D) :
     normalizeHom pe (Quotient.mk _ (copairRep r s)) =
       Extension.Singleton.ValueCoproducts.exactCopair Join
-        (normalizeHom pe (Quotient.mk _ r)) (normalizeHom pe (Quotient.mk _ s)) := by
-  change ofRegion Join (copairRep r s).property.bindBranchArguments =
-    Extension.Singleton.ValueCoproducts.exactCopair Join
-      (ofRegion Join r.property.bindBranchArguments) (ofRegion Join s.property.bindBranchArguments)
-  rw [Extension.Singleton.Generation.exactCopair_ofRegion]
-  apply (Extension.Singleton.ofRegion_eq_iff Join _ _).mpr
-  have h := Extension.Eqv.refl (Seed := Join)
-    (caseValueBranches r.property.bindBranchArguments s.property.bindBranchArguments).hasType
-  simpa only [copairRep, bindBranchArguments, renameVars_eq_substVars, bindBranchArguments_substVars] using h
+        (normalizeHom pe (Quotient.mk _ r)) (normalizeHom pe (Quotient.mk _ s)) :=
+  ofRegion_bind_copairRep Join r s
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.OrderedPairOperations

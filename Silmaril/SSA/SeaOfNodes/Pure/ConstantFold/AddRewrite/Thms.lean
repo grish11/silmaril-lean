@@ -16,6 +16,12 @@ variable {args : List (Ty Unit)} {past sigs : List (List (Ty Unit))}
 variable {Facts : List (List (Ty Unit)) → Type} {rules : Rules args Facts} {facts : Facts past}
 variable {entry : Tuple (Val model.value) args} {locals : Locals (Val model.value) past}
 
+/-- The generalized insertion interprets a right-literal edit as before. -/
+theorem Edit.splice_eval (edit : Edit args past) (entry : Tuple (Val model.value) args)
+    (locals : Locals (Val model.value) past) :
+    edit.splice.eval entry locals = edit.eval entry locals :=
+  Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.AddRewrite.splice_eval edit entry locals
+
 /-- A checked add rewrite preserves every original read through its typed map. -/
 theorem scan_agrees (sound : Sound rules entry) (flow : Dataflow SubZero.Opcode args past sigs)
     (agree : sound.Agrees facts locals) {rewrite : Rewrite SubZero.Opcode args past sigs}

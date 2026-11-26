@@ -78,10 +78,10 @@ def portEq : {ps : List (Ty Data)} → {out : Ty Data} →
     | isFalse h => isFalse (by intro eq; cases eq; exact h rfl)
 termination_by structural _ _ a _ => a
 
-variable [∀ ins out, DecidableEq (P ins out)]
+variable {l : Nat} [∀ ins out, DecidableEq (P ins out)]
 
 def labelEq {ins : List (Ty Data)} {out : Ty Data}
-    (a b : Label P params (Fin 1) ins out) : Decidable (a = b) := by
+    (a b : Label P params (Fin l) ins out) : Decidable (a = b) := by
   cases a <;> cases b
   case param.param a b =>
     letI := portEq a b
@@ -93,13 +93,13 @@ def labelEq {ins : List (Ty Data)} {out : Ty Data}
       cases eq
       exact h rfl)
   case phi.phi => exact isTrue rfl
-  case theta.theta a b => exact isTrue (congrArg Label.theta (Subsingleton.elim a b))
-  case eval.eval a b => exact isTrue (congrArg Label.eval (Subsingleton.elim a b))
-  case pass.pass a b => exact isTrue (congrArg Label.pass (Subsingleton.elim a b))
+  case theta.theta a b => exact decidable_of_iff (a = b) (by simp)
+  case eval.eval a b => exact decidable_of_iff (a = b) (by simp)
+  case pass.pass a b => exact decidable_of_iff (a = b) (by simp)
   all_goals exact isFalse (by intro h; cases h)
 
 def rowEq [DecidableEq Data] {out : Ty Data}
-    (a b : RawNode P params 1 out) : Decidable (a = b) := by
+    (a b : RawNode P params l out) : Decidable (a = b) := by
   obtain ⟨ins, label, args⟩ := a
   obtain ⟨ins', label', args'⟩ := b
   if hi : ins = ins' then
@@ -111,8 +111,8 @@ def rowEq [DecidableEq Data] {out : Ty Data}
     else exact isFalse (by intro h; cases h; exact hl rfl)
   else exact isFalse (fun h => hi (congrArg RawNode.inputs h))
 
-/-- Exact serialized equality for a numbered single-loop table. -/
-def tableEq [DecidableEq Data] (a b : RawGraph P params results n 1) : Decidable (a = b) := by
+/-- Exact serialized equality for a numbered table, including loop IDs and parents. -/
+def tableEq [DecidableEq Data] (a b : RawGraph P params results n l) : Decidable (a = b) := by
   obtain ⟨⟨forest⟩, sort, node, roots⟩ := a
   obtain ⟨⟨forest'⟩, sort', node', roots'⟩ := b
   if hf : ∀ i, forest i = forest' i then

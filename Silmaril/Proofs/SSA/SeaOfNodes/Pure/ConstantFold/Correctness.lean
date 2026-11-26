@@ -85,6 +85,15 @@ theorem replacement_sound (agree : known.Agrees entry locals) {op : Op ins out}
         · exact ih _ found
   | commuteLeftLiteral opcode read_swapped fallback ih => exact ih operands found
 
+theorem record_agrees (agree : known.Agrees entry locals) {op : Op ins out}
+    (rule : Rule m op) (operands : Wires args past (dataPorts ins)) :
+    Literals.Agrees (rule.record known operands) entry
+      (locals.snoc (.cons (m.run op (operands.read entry locals)) .nil)) := by
+  apply push_agrees agree
+  intro value found
+  obtain ⟨literal, computed, rfl⟩ := Option.map_eq_some_iff.mp found
+  exact replacement_sound agree rule operands computed
+
 private theorem orderOperands_sound {op : Op ins out}
     (rule : Rule m op) (operands : Wires args past (dataPorts ins)) :
     m.run op ((rule.orderOperands known operands).read entry locals) =

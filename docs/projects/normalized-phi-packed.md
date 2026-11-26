@@ -318,3 +318,64 @@ arrival table from a newly live old slot with an incompatible type and
 derive the target closures for both packed swap traces.
 [Diagnostics](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Admission/Defs.lean)
 · [Fixtures](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+## Comparisons at a supplied typed entry record
+
+The [admitted named entry institution](https://github.com/hiloopai/silmaril-lean/pull/3717)
+can consume the actual checked elaboration retained by a normalized φ
+admission. The translation selects distinct version-zero names at the
+supplied record positions. The private `none` name, if selected, has
+unit type, as required by the φ input store. The sole external exit is
+the explicit return `none`, numbered zero, with a common payload type.
+
+`Admitted.observe_toSSA` and `Admitted.observe_toFlat` identify the weak
+trees at each supplied typed record. The source evaluates its φ rows
+independently. The target uses the admitted lexical table and existing
+entry packer. Both use the raw primitive trees of the same typed
+institution model, whose compatibility field relates those trees to the
+typed instruction interpretation. The comparison preserves and reflects
+satisfaction in the named room for a common named interface, and in the
+flat entry and packed rooms when the two sides use different register
+or label types but share the typed record and exit profile.
+[Translation and satisfaction](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Thms.lean)
+
+`Admitted.ofGenerated` reuses the generated target admission, including
+its transported arrival proof. It requires an empty list of extra
+capture slots, so renaming leaves the supplied record type fixed.
+`split_observe_eq` and `split_satisfies` give pointwise tree equality and
+both directions of the admitted comparison. The distinct-latch fixture
+uses the same supplied record to see `tick 2 5` followed by `tick 5 2`
+after a continuing reply, including in the packed institution's
+translated program.
+[Split corollaries](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Split/Thms.lean)
+· [Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)
+
+### Splits that append capture fields
+
+The generated target keeps its larger typed entry context.
+`Admitted.ofExtended` reuses its actual admission after checking that the
+target names are distinct and that any private `none` slot has unit type.
+`retainedRecord` pulls a supplied large record back to the original
+context along the checked slot embedding. That reindexing preserves the
+input decoder's value at every retained slot.
+
+The minimal additional data to extend a given original input are
+values of the appended field types. The typing and arrival certificates
+specify these types without supplying inhabitants. The comparison
+takes a larger record and relates it to its projection. It uses the
+larger record's store, pulled back along the register equivalence, for
+both independent φ runs. The original admission shows that the run
+depends only on the retained slots. Both the older `Generated.packed_eq`
+and the projected comparison use the same generated source-observation
+equality.
+[Record reindexing](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Record/Thms.lean)
+
+`split_named_reindex` and `split_packed_reindex` give pointwise weak tree
+equality at the related records, with the same singleton return type.
+`split_related_satisfies` gives both directions of trace inclusion in
+the named and packed observations. The generated self-edge fixture
+starts from the two seed fields and supplies distinct nonzero values
+for the two appended fields. It checks both directions and observes
+`tick 2 5` followed by `tick 5 2` through the packed program.
+[Split comparison](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Entry/Split/Extended/Thms.lean)
+· [Regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/Certified/Pure/Trace/Local/Split/Examples.lean)

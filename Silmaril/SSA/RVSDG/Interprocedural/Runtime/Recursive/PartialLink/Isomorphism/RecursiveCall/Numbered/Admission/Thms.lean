@@ -33,7 +33,7 @@ when using the resulting family to compare runs. -/
 theorem LinkedFamily.ofGroups_sound [DecidableEq (Ty V S)] {keys : OpcodeCode (Instruction Op)}
     [DecidableEq keys.Key] (captureCode : CaptureCode m) (ordinary : OrdinaryOutputs Op) {membersL membersR : List (Function V S)}
     (left : Group m membersL) (right : Group m membersR) (accepted : checkGroupPair keys left right = true) :
-    LinkedFamily primitives ids keys captureCode left.In right.In ⟨[], []⟩ :=
+    LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed left.key right.key) :=
   AdmissionProofs.linked_groups captureCode ordinary left right accepted
 
 /-- Seed ordered admission from the actual tables of two earlier linked
@@ -41,8 +41,39 @@ theorem LinkedFamily.ofGroups_sound [DecidableEq (Ty V S)] {keys : OpcodeCode (I
 @[expose] def LinkedFamily.ofGroups [DecidableEq (Ty V S)] (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
     (primitives : Primitives m σ) (ids : GlobalRel) (captureCode : CaptureCode m) (ordinary : OrdinaryOutputs Op)
     {membersL membersR : List (Function V S)} (left : Group m membersL) (right : Group m membersR) :
-    Option (PLift (LinkedFamily primitives ids keys captureCode left.In right.In ⟨[], []⟩)) :=
+    Option (PLift (LinkedFamily primitives ids keys captureCode left.In right.In (DispatchKeys.seed left.key right.key))) :=
   if accepted : checkGroupPair keys left right = true then some ⟨ofGroups_sound captureCode ordinary left right accepted⟩ else none
+
+theorem LinkedFamily.extendGroup [DecidableEq (Ty V S)] {keys : OpcodeCode (Instruction Op)}
+    [DecidableEq keys.Key] {captureCode : CaptureCode m} (ordinary : OrdinaryOutputs Op)
+    {familyL familyR : Family m} {prior : DispatchKeys V S keys.Key captureCode.Key}
+    (earlier : LinkedFamily primitives ids keys captureCode familyL familyR prior)
+    {members : List (Function V S)} (left right : Group m members)
+    (fresh : left.key ∉ prior.groupsR ∧ right.key ∉ prior.groupsL)
+    (outerL : TupleIn familyL left.values) (outerR : TupleIn familyR right.values)
+    (bodies : checkGroupBodies keys left right = true) :
+    LinkedFamily primitives ids keys captureCode (WithGroup familyL left) (WithGroup familyR right)
+      (prior.addGroup left.key right.key) :=
+  AdmissionProofs.linked_group_extension ordinary earlier left right fresh outerL outerR bodies
+
+/-- Admit a new group with checked earlier captures and one matched body per
+slot. Distinct cross-side group signatures or capture types exclude dispatch
+between an earlier group and the new one. -/
+@[expose] def LinkedFamily.addGroup [DecidableEq (Ty V S)] (keys : OpcodeCode (Instruction Op))
+    [DecidableEq keys.Key] {captureCode : CaptureCode m} (ordinary : OrdinaryOutputs Op)
+    {familyL familyR : Family m} {prior : DispatchKeys V S keys.Key captureCode.Key}
+    (earlier : LinkedFamily primitives ids keys captureCode familyL familyR prior)
+    {members : List (Function V S)} (left right : Group m members)
+    (outerL : TupleIn familyL left.values) (outerR : TupleIn familyR right.values) :
+    Option (PLift (LinkedFamily primitives ids keys captureCode (WithGroup familyL left) (WithGroup familyR right)
+      (prior.addGroup left.key right.key))) :=
+  letI : DecidableEq (Function V S) := decideFunction
+  letI : DecidableEq (GroupKey V S) := inferInstance
+  if fresh : left.key ∉ prior.groupsR ∧ right.key ∉ prior.groupsL then
+    if bodies : checkGroupBodies keys left right = true then
+      some ⟨earlier.extendGroup ordinary left right fresh outerL outerR bodies⟩
+    else none
+  else none
 
 /-- A typed graph renumbering preserves the multiset of its outer labels. -/
 theorem outerProfile_eq (code : OpcodeCode (Instruction Op))
@@ -65,14 +96,14 @@ theorem lambdaKey_eq (code : OpcodeCode (Instruction Op)) (captureCode : Capture
   AdmissionProofs.related_key code captureCode related
 
 theorem LinkedFamily.extend (ordinary : OrdinaryOutputs Op)
-    {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : LambdaKeys V S code.Key captureCode.Key}
+    {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : DispatchKeys V S code.Key captureCode.Key}
     (earlier : LinkedFamily primitives ids code captureCode familyL familyR prior)
     {left right : m.Val (.value (.function args outs))}
     {newL newR : LambdaKey V S code.Key captureCode.Key} (fresh : newL.Fresh prior.right ∧ newR.Fresh prior.left)
     (keyL : lambdaKey code captureCode left = some newL.summary) (keyR : lambdaKey code captureCode right = some newR.summary)
     (capturesL : TupleIn familyL (resolve m left).values) (capturesR : TupleIn familyR (resolve m right).values)
     (body : Resolved m ⟨args, outs⟩ (resolve m left) (resolve m right)) :
-    LinkedFamily primitives ids code captureCode (WithExport familyL left) (WithExport familyR right) ⟨newL :: prior.left, newR :: prior.right⟩ :=
+    LinkedFamily primitives ids code captureCode (WithExport familyL left) (WithExport familyR right) (prior.addLambda newL newR) :=
   AdmissionProofs.linked_extension ordinary earlier fresh keyL keyR capturesL capturesR body
 
 theorem Resolved.context_eq {fn : Function V S} {left right : Closure Op m.Val fn}
@@ -87,7 +118,7 @@ capture observations and outer label multiset. Matching observations
 fall back to the body profile. Exact duplicates still collide. -/
 @[expose] def LinkedFamily.addLambda [DecidableEq (Ty V S)]
     (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] {captureCode : CaptureCode m}
-    (ordinary : OrdinaryOutputs Op) {familyL familyR : Family m} {prior : LambdaKeys V S keys.Key captureCode.Key}
+    (ordinary : OrdinaryOutputs Op) {familyL familyR : Family m} {prior : DispatchKeys V S keys.Key captureCode.Key}
     (earlier : LinkedFamily primitives ids keys captureCode familyL familyR prior)
     {importsL importsR : Ports (Ty V S)} {pastL pastR : List (Ports (Ty V S))} {fn : Function V S}
     {entryL : Tuple m.Val importsL} {entryR : Tuple m.Val importsR}
@@ -96,8 +127,8 @@ fall back to the body profile. Exact duplicates still collide. -/
     (left : Lambda Op importsL pastL fn) (right : Lambda Op importsR pastR fn) :
     Option (PLift (LinkedFamily primitives ids keys captureCode (WithExport familyL (linkedLambda left entryL localsL))
       (WithExport familyR (linkedLambda right entryR localsR))
-      ⟨lambdaBodyKey keys captureCode left entryL localsL :: prior.left,
-        lambdaBodyKey keys captureCode right entryR localsR :: prior.right⟩)) :=
+      (prior.addLambda (lambdaBodyKey keys captureCode left entryL localsL)
+        (lambdaBodyKey keys captureCode right entryR localsR)))) :=
   letI := captureCode.decideKey
   if fresh : (lambdaBodyKey keys captureCode left entryL localsL).Fresh prior.right ∧
       (lambdaBodyKey keys captureCode right entryR localsR).Fresh prior.left then do
@@ -110,7 +141,7 @@ fall back to the body profile. Exact duplicates still collide. -/
 
 theorem LinkedFamily.addLambda_accepts [DecidableEq (Ty V S)]
     (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] {captureCode : CaptureCode m}
-    (ordinary : OrdinaryOutputs Op) {familyL familyR : Family m} {prior : LambdaKeys V S keys.Key captureCode.Key}
+    (ordinary : OrdinaryOutputs Op) {familyL familyR : Family m} {prior : DispatchKeys V S keys.Key captureCode.Key}
     (earlier : LinkedFamily primitives ids keys captureCode familyL familyR prior)
     {importsL importsR : Ports (Ty V S)} {pastL pastR : List (Ports (Ty V S))} {fn : Function V S}
     {entryL : Tuple m.Val importsL} {entryR : Tuple m.Val importsR}
@@ -129,7 +160,7 @@ theorem LinkedFamily.addLambda_accepts [DecidableEq (Ty V S)]
   obtain ⟨_, inferred⟩ := Option.isSome_iff_exists.mp body
   simp [addLambda, fresh, capL, capR, inferred]
 
-theorem LinkedFamily.forExports {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : LambdaKeys V S code.Key captureCode.Key}
+theorem LinkedFamily.forExports {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : DispatchKeys V S code.Key captureCode.Key}
     (family : LinkedFamily primitives ids code captureCode familyL familyR prior)
     {left right : m.Val (.value (.function args outs))}
     (knownL : familyL left) (knownR : familyR right) : ExportAdmission primitives ids left right :=

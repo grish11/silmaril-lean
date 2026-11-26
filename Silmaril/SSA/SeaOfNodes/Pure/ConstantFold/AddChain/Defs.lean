@@ -65,7 +65,8 @@ def Prefix.combine? (known : Prefix args past) (lhs rhs : WordWire args past) :
 
 def rules : AddRewrite.Rules args (Prefix args) where
   record := Prefix.record
-  matchAdd? known lhs rhs := (known.combine? lhs rhs).map fun offset => ⟨.add, offset.base, offset.value⟩
+  matchAdd? known lhs rhs := (known.combine? lhs rhs).map fun offset =>
+    (AddRewrite.Edit.mk .add offset.base offset.value).splice
 
 /-- Insert the combined literal before the replacement add. -/
 abbrev insertCombined (offset : Offset args past) (rest : Dataflow SubZero.Opcode args (past ++ [[wordPort]]) sigs) :

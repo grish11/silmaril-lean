@@ -56,6 +56,8 @@ inductive SourceAllowed (program : Program) (memory : MemAddr) (rank : Nat) (mod
       SourceAllowed program memory rank module (.loop result body)
   | br (depth : LabelIdx) : SourceAllowed program memory rank module (.br depth)
   | brIf (depth : LabelIdx) : SourceAllowed program memory rank module (.brIf depth)
+  | brTable (depths : List LabelIdx) (fallback : LabelIdx) :
+      SourceAllowed program memory rank module (.brTable depths fallback)
   | unreachable : SourceAllowed program memory rank module .unreachable
   | return_ : SourceAllowed program memory rank module .return_
 

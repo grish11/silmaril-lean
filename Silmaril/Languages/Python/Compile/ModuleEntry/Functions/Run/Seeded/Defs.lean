@@ -71,6 +71,11 @@ def legacyTupleSeed (placement : SeedPlacement) : Namespace :=
   let seed := legacySeed placement
   { seed with builtins := ("tuple", .builtin .tuple) :: seed.builtins }
 
+/-- The ordinal profile opts into the stock descriptor in either placement. -/
+def legacyOrdSeed (placement : SeedPlacement) : Namespace :=
+  let seed := legacySeed placement
+  { seed with builtins := ("ord", .builtin .ord) :: seed.builtins }
+
 def lowerCallOperand : Core.Module.Functions.Operand → Core.Module.SeededCall.Operand 0
   | .readGlobal name => .global name
   | .literal (.int value) => .literal (.int value)
@@ -502,16 +507,34 @@ def readSequenceLength (space : Namespace) (length : Nat) : Except Failure Int :
     .error (.raised (.runtime .notCallable))
   | some _ => .error .unsupported
 
-def checkSequenceLengthResult {scope : Scope} (space : Namespace) (test : SequenceLengthTest scope)
-    (length : Int) : Except Failure Unit := do
+def readIntegerBuiltin (space : Namespace) : IntegerBuiltinArgument → Except Failure Int
+  | .sequenceLength length => readSequenceLength space length
+  | .ordinal point _ =>
+    match space.lookupGlobal "ord" with
+    | none => .error (.raised (.runtime (.nameError "ord")))
+    | some (.builtin .ord) => .ok (Int.ofNat point.toNat)
+    | some other =>
+      match Core.Module.SeededCall.Request.decode other [] with
+      | .nonCallable => .error (.raised (.runtime .notCallable))
+      | _ => .error .unsupported
+
+def checkIntegerBuiltinResult {scope : Scope} (space : Namespace) (test : IntegerBuiltinTest scope)
+    (value : Int) : Except Failure Unit := do
   let actual ← evaluateScalar space true test.right
   let some right := scalar? actual | throw .unsupported
-  assertTruthAs test.expectedEqual (.bool ((.int length : Core.Module.Value).equal right))
+  assertTruthAs test.expectedEqual (.bool ((.int value : Core.Module.Value).equal right))
 
-def assertSequenceLength {scope : Scope} (space : Namespace) (test : SequenceLengthTest scope) : Effect :=
-  let result := readSequenceLength space test.length
-  let checked := result.bind (checkSequenceLengthResult space test)
-  ⟨(checked.map fun _ => none).mapError ModuleFailure.ofCall, [⟨"len", ⟨result.map .int, none⟩⟩]⟩
+def assertIntegerBuiltin {scope : Scope} (space : Namespace) (test : IntegerBuiltinTest scope) : Effect :=
+  let result := readIntegerBuiltin space test.argument
+  let checked := result.bind (checkIntegerBuiltinResult space test)
+  ⟨(checked.map fun _ => none).mapError ModuleFailure.ofCall,
+    [⟨test.argument.name, ⟨result.map .int, none⟩⟩]⟩
+
+abbrev checkSequenceLengthResult {scope : Scope} (space : Namespace) (test : SequenceLengthTest scope) :=
+  checkIntegerBuiltinResult space test.toIntegerBuiltin
+
+abbrev assertSequenceLength {scope : Scope} (space : Namespace) (test : SequenceLengthTest scope) : Effect :=
+  assertIntegerBuiltin space test.toIntegerBuiltin
 
 def readBoolCall {scope : Scope} (space : Namespace) (argument : Option (ModuleEntry.Operand scope)) :
     Except Failure Bool :=
@@ -625,7 +648,7 @@ def effect {scope : Scope} (space : Namespace) (context : CallContext) (instruct
       []⟩, context.heap)
   | .scalar (.assertion operand) => (assertOperand space operand true, context.heap)
   | .assertNot operand => (assertOperand space operand false, context.heap)
-  | .assertSequenceLength test => (assertSequenceLength space test, context.heap)
+  | .assertIntegerBuiltin test => (assertIntegerBuiltin space test, context.heap)
   | .assertBoolIdentity test => (assertBoolIdentity space test, context.heap)
   | .assertListConstruction test => ((evaluateListConstruction space lists test).effect, context.heap)
   | .assertTupleChain test =>

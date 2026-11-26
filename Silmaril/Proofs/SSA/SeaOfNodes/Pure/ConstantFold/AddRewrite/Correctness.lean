@@ -22,34 +22,36 @@ variable {ins : List (ValueSort Unit)} {out : ValueSort Unit}
 variable {Facts : List (List (Ty Unit)) → Type} {rules : Rules args Facts} {facts : Facts past}
 variable {entry : Tuple (Val model.value) args} {locals : Locals (Val model.value) past}
 
-private theorem insert_agrees (lhs rhs : Origin args past wordPort) (edit : Edit args past)
+theorem splice_eval (edit : Edit args past) (entry : Tuple (Val model.value) args)
+    (locals : Locals (Val model.value) past) :
+    edit.splice.eval entry locals = edit.eval entry locals := by
+  let literal : Tuple (Val model.value) [wordPort] := .cons edit.right .nil
+  change model.run edit.opcode
+    (.cons (Diamond.read model (weaken [wordPort] edit.left) entry (locals.snoc literal))
+      (.cons (Diamond.read model (newest .head) entry (locals.snoc literal)) .nil)) = edit.eval entry locals
+  simp only [read_weaken, read_newest]
+  rfl
+
+private theorem insert_agrees (lhs rhs : Origin args past wordPort) (edit : Splice args past)
     (rest : Dataflow SubZero.Opcode args (past ++ [[wordPort]]) sigs)
     (equal :
       model.run .add (.cons (Diamond.read model lhs entry locals) (.cons (Diamond.read model rhs entry locals) .nil)) =
         edit.eval entry locals) :
     let original := Dataflow.cons SubZero.Opcode.add (.cons lhs (.cons rhs .nil)) rest
-    let rewritten := ConstantFold.AddRewrite.insert edit rest
+    let rewritten := insertSplice edit rest
     Routing.Agrees rewritten.route model entry (original.eval model entry locals)
       (rewritten.flow.eval model entry locals) := by
-  let literal : Tuple (Val model.value) [wordPort] := .cons edit.right .nil
+  let fresh : Tuple (Val model.value) [wordPort] := .cons (edit.privateBinding.eval entry locals) .nil
   let lifted : Routing args past (past ++ [[wordPort]]) := fun wire => weaken [wordPort] wire
-  have liftedAgrees : Routing.Agrees lifted model entry locals (locals.snoc literal) :=
-    fun _ wire => (read_weaken wire model entry locals literal).symm
+  have liftedAgrees : Routing.Agrees lifted model entry locals (locals.snoc fresh) :=
+    fun _ wire => (read_weaken wire model entry locals fresh).symm
   let originalValue := model.run .add
     (.cons (Diamond.read model lhs entry locals) (.cons (Diamond.read model rhs entry locals) .nil))
-  have replacement : model.run edit.opcode (edit.operands.read entry (locals.snoc literal)) = originalValue := by
-    change model.run edit.opcode
-      (.cons (Diamond.read model (weaken [wordPort] edit.left) entry (locals.snoc literal))
-        (.cons (Diamond.read model (newest .head) entry (locals.snoc literal)) .nil)) = originalValue
-    simp only [read_weaken, read_newest]
-    exact equal.symm
-  dsimp only [ConstantFold.AddRewrite.insert, Dataflow.eval]
   let suffix := routeSuffix rest (lifted.push [wordPort])
   change Routing.Agrees suffix.2 model entry
     (rest.eval model entry (locals.snoc (.cons originalValue .nil)))
-    (suffix.1.eval model entry ((locals.snoc literal).snoc (.cons
-      (model.run edit.opcode (edit.operands.read entry (locals.snoc literal))) .nil)))
-  rw [replacement]
+    (suffix.1.eval model entry ((locals.snoc fresh).snoc (.cons (edit.eval entry locals) .nil)))
+  rw [← equal]
   exact routeSuffix_agrees rest _ model entry _ _ (Routing.push_agrees liftedAgrees _)
 
 private theorem head_agrees (sound : Sound rules entry) (agree : sound.Agrees facts locals)

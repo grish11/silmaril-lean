@@ -22,7 +22,7 @@ private theorem exec_mapOp (rename : F → F') (model : Model F' M α) {R : Type
   simp only [Body.exec_eq_evalRTL, Body.toRegion_mapOp, Region.evalRTL_mapOp]
 
 omit [DecidableEq V] in
-private theorem lookup_mapOp (rename : F → F') (table : List (K × Block V K F)) (label : K) :
+theorem lookup_mapOp (rename : F → F') (table : List (K × Block V K F)) (label : K) :
     (table.map fun item => (item.1, item.2.mapOp rename)).lookup label =
       (table.lookup label).map (Block.mapOp rename) := by
   induction table with

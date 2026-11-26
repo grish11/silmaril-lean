@@ -41,13 +41,11 @@ private theorem mul_two (value : BitVec 64) : value + value = value * 2 := by
 
 private def sound (entry : Tuple (Val model.value) args) : AddRewrite.Sound rules entry where
   Agrees known locals := Scan.Literals.Agrees known entry locals
-  record op operands agree := by
-    apply Scan.Literals.push_agrees agree
-    intro value found
-    obtain ⟨literal, computed, rfl⟩ := Option.map_eq_some_iff.mp found
-    exact Scan.Rule.replacement_sound agree (arithmeticRules op) operands computed
+  record op operands agree := Scan.Rule.record_agrees agree (arithmeticRules op) operands
   replaceAdd agree accepted := by
-    obtain ⟨rfl, rfl⟩ := match_exact accepted
+    obtain ⟨edit, found, rfl⟩ := Option.map_eq_some_iff.mp accepted
+    obtain ⟨rfl, rfl⟩ := match_exact found
+    rw [AddRewrite.Edit.splice_eval]
     exact mul_two _
 
 variable {inputs : List (ValueSort Unit)} {out : ValueSort Unit} {program : Program SubZero.Opcode inputs out}

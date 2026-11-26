@@ -22,17 +22,47 @@ def capturePort {Ty : Type u} {params : Ports Ty} {ty : Ty} :
   | _ :: _, .head => some .head
   | _ :: rest, .tail p => (capturePort rest p).map Port.tail
 
-/-- Compose capture edges with the actual linker wires. Formals and
-outputs of local bindings have no direct source in the captures. -/
-def project {Ty : Type u} {imports context params : Ports Ty} {past localSigs : List (Ports Ty)}
-    (wires : Wires imports past context) : {users : Ports Ty} →
-      Wires (context ++ params) localSigs users → Option (Wires imports past users)
+/-- A region entry port may come from an exact typed linker origin. -/
+structure Boundary {Ty : Type u} (imports entry : Ports Ty) (past : List (Ports Ty)) where
+  get : {ty : Ty} → Port entry ty → Option (Origin imports past ty)
+
+/-- The enclosing λ's capture wires define the initial boundary map.
+Formal parameters have no tracked linker origin. -/
+def captureBoundary {Ty : Type u} {imports context params : Ports Ty} {past : List (Ports Ty)}
+    (wires : Wires imports past context) : Boundary imports (context ++ params) past :=
+  ⟨fun p => (capturePort context p).map fun q => wires.get q⟩
+
+/-- Follow the actual γ boundary wires into the enclosing entry. Outputs
+of earlier local bindings have no tracked linker origin. -/
+def Boundary.forward {Ty : Type u} {imports entry child : Ports Ty} {outer past : List (Ports Ty)}
+    (source : Boundary imports entry outer) (wires : Wires entry past child) : Boundary imports child outer :=
+  ⟨fun p => match wires.get p with
+    | .arg q => source.get q
+    | .output _ _ => none⟩
+
+/-- Project the requested operands through the boundary map. Untracked
+ports elsewhere on the boundary do not prevent projection. -/
+def Boundary.project {Ty : Type u} {imports entry : Ports Ty} {outer past : List (Ports Ty)}
+    (source : Boundary imports entry outer) : {users : Ports Ty} →
+    Wires entry past users → Option (Wires imports outer users)
   | _, .nil => some .nil
   | _, .cons (.arg p) rest => do
-    let captured ← capturePort context p
-    let tail ← project wires rest
-    pure (.cons (wires.get captured) tail)
+    let origin ← source.get p
+    let tail ← Boundary.project source rest
+    pure (.cons origin tail)
   | _, .cons (.output _ _) _ => none
+
+/-- Compose capture edges with the actual linker wires. -/
+def project {Ty : Type u} {imports context params users : Ports Ty} {past localSigs : List (Ports Ty)}
+    (wires : Wires imports past context) (requested : Wires (context ++ params) localSigs users) :
+    Option (Wires imports past users) := Boundary.project (captureBoundary wires) requested
+
+/-- Every tracked port agrees with the value read at its linker origin. -/
+def Boundary.Reads {Ty : Type u} {F : Ty → Type w} {imports entry : Ports Ty} {outer : List (Ports Ty)}
+    (source : Boundary imports entry outer) (inputs : Tuple F imports) (locals : Locals F outer)
+    (values : Tuple F entry) : Prop :=
+  ∀ {ty} (p : Port entry ty) {origin}, source.get p = some origin →
+    values.get p = (Wires.read (.cons origin .nil : Wires imports outer [ty]) inputs locals).get .head
 
 def widen {args users head : Ports (Ty V S)} {past : List (Ports (Ty V S))}
     (wires : Wires args past users) : Wires args (past ++ [head]) users :=
@@ -72,5 +102,53 @@ structure Route (inputsL inputsR : Tuple m.Val imports) (scope : Scope m)
 direct-source description of their captures. -/
 abbrev Routes (inputsL inputsR : Tuple m.Val imports) (scope : Scope m) :=
   (i : Fin scope.table.members.length) → Option (Route inputsL inputsR scope i)
+
+section Tracking
+
+open Continuation.Partial.Executable (Actions)
+
+variable {scope : Scope m} {σ : Type (max u v w)} {actions : Actions m σ}
+variable {inputsL inputsR : Tuple m.Val imports}
+
+/-- A call's typed operands project to the supplied slot's exact sources,
+and the target origin has checked membership in both links. -/
+def TrackedSite (checked : scope.Checked actions) (routes : Routes inputsL inputsR scope)
+    {entry : Ports (Ty V S)} (source : Boundary imports entry scope.past)
+    (i : Fin scope.table.members.length) (target : Port entry (scope.table.at i).fn.port)
+    (witnesses : Wires entry [] (scope.table.at i).captures) : Prop :=
+  ∃ sources route,
+    Boundary.project source (.cons (.arg target) witnesses) = some sources ∧
+    routes i = some route ∧ sources.addresses = route.wires.addresses ∧
+    (checked.state.left.available (entry := inputsL) Known.ordinary (sources.get .head)).isSome = true ∧
+    (checked.state.right.available (entry := inputsR) Known.ordinary (sources.get .head)).isSome = true
+
+/-- Direct forwarding derivations. A γ requires tracking at every arm
+under its actual composed boundary and at the suffix. -/
+inductive Tracked (checked : scope.Checked actions) (routes : Routes inputsL inputsR scope) :
+    {entry outs : Ports (Ty V S)} → {past sigs : List (Ports (Ty V S))} →
+    Boundary imports entry scope.past → Code Op entry past sigs outs true (some scope.table) → Prop where
+  | ret {entry outs : Ports (Ty V S)} {past : List (Ports (Ty V S))}
+      {source : Boundary imports entry scope.past} (wires : Wires entry past outs) :
+      Tracked checked routes source (.ret wires)
+  | primitive {entry ins results outs : Ports (Ty V S)} {past sigs : List (Ports (Ty V S))}
+      {source : Boundary imports entry scope.past} {opcode : Op ins outs} {operands : Wires entry past ins}
+      {rest : Code Op entry (past ++ [outs]) sigs results true (some scope.table)} :
+      Tracked checked routes source rest → Tracked checked routes source (.primitive opcode operands rest)
+  | call {entry outs : Ports (Ty V S)} {past sigs : List (Ports (Ty V S))}
+      {source : Boundary imports entry scope.past} {i : Fin scope.table.members.length}
+      {target : Port entry (scope.table.at i).fn.port} {witnesses : Wires entry [] (scope.table.at i).captures}
+      {args : Wires entry past (scope.table.at i).fn.args}
+      {rest : Code Op entry (past ++ [(scope.table.at i).fn.results]) sigs outs true (some scope.table)} :
+      TrackedSite checked routes source i target witnesses → Tracked checked routes source rest →
+      Tracked checked routes source (.familyCall (table := scope.table) i target witnesses args rest)
+  | gamma {entry captures outputs outs : Ports (Ty V S)} {past sigs : List (Ports (Ty V S))}
+      {source : Boundary imports entry scope.past} {extra : Nat} {armSigs : Fin (extra + 2) → List (Ports (Ty V S))}
+      {selector : Origin entry past (.control (extra + 2))} {wires : Wires entry past captures}
+      {arms : (i : Fin (extra + 2)) → Code Op captures [] (armSigs i) outputs true (some scope.table)}
+      {rest : Code Op entry (past ++ [outputs]) sigs outs true (some scope.table)} :
+      (∀ i, Tracked checked routes (Boundary.forward source wires) (arms i)) → Tracked checked routes source rest →
+      Tracked checked routes source (.gamma extra armSigs selector wires arms rest)
+
+end Tracking
 
 end Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Prefix.Direct

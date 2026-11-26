@@ -93,6 +93,15 @@ theorem v1_function_branch_exit {H : Type} {s : Store H} {caller callee : Frame}
     Step CallFrame.v1NoHost done ⟨s, caller, values saved ++ values payload ++ callerTail⟩ :=
   RunProofs.function_branch_exit typed
 
+/-- The unsigned i32 selector chooses a listed depth or the default. This
+step leaves an ordinary branch with its saved operands and continuation. -/
+theorem v1_br_table_select_iff {H : Type} {s : Store H} {f : Frame} {saved : List Value}
+    {selector : BitVec 32} {depths : List LabelIdx} {fallback : LabelIdx} {tail : List Admin} {dst : Config H} :
+    Step CallFrame.v1NoHost
+      ⟨s, f, values (saved ++ [Value.int .i32 selector]) ++ .source (.brTable depths fallback) :: tail⟩ dst ↔
+    dst = ⟨s, f, values saved ++ .source (.br (depths[selector.toNat]?.getD fallback)) :: tail⟩ :=
+  RunProofs.br_table_select_iff
+
 /-- Selection consumes the i32 condition and retains only the selected block. -/
 theorem v1_if_select_iff {H : Type} {s : Store H} {f : Frame} {saved : List Value}
     {condition : BitVec 32} {result : Option NumType} {left right : Wasm.V1.Expr}

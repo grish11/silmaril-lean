@@ -44,29 +44,60 @@ private theorem read_get {Ty : Type u} {F : Ty → Type w} {args users : Ports T
   | head => cases wires; rfl
   | tail _ ih => cases wires; exact ih _
 
+theorem capture_reads {Ty : Type u} {F : Ty → Type w} {imports context params : Ports Ty}
+    {outer : List (Ports Ty)} (wires : Wires imports outer context)
+    (inputs : Tuple F imports) (locals : Locals F outer) (args : Tuple F params) :
+    Boundary.Reads (captureBoundary wires) inputs locals (prependContext args (wires.read inputs locals)) := by
+  intro ty p origin found
+  cases selected : capturePort context p with
+  | none => simp [captureBoundary, selected] at found
+  | some captured =>
+    have same : wires.get captured = origin := by simpa [captureBoundary, selected] using found
+    rw [← same, capture_get p captured selected (wires.read inputs locals) args]
+    exact read_get wires captured inputs locals
+
+theorem forward_reads {Ty : Type u} {F : Ty → Type w} {imports entry child : Ports Ty}
+    {outer past : List (Ports Ty)} (source : Boundary imports entry outer) (wires : Wires entry past child)
+    (inputs : Tuple F imports) (locals : Locals F outer) (values : Tuple F entry)
+    (reads : Boundary.Reads source inputs locals values) (childLocals : Locals F past) :
+    Boundary.Reads (Boundary.forward source wires) inputs locals (wires.read values childLocals) := by
+  intro ty p origin found
+  rw [read_get wires p values childLocals]
+  cases wire : wires.get p with
+  | arg q => exact reads q (by simpa [Boundary.forward, wire] using found)
+  | output => simp [Boundary.forward, wire] at found
+
+theorem boundary_project_read {Ty : Type u} {F : Ty → Type w} {imports entry users : Ports Ty}
+    {outer past : List (Ports Ty)} (source : Boundary imports entry outer)
+    (requested : Wires entry past users) (sources : Wires imports outer users)
+    (found : Boundary.project source requested = some sources)
+    (inputs : Tuple F imports) (locals : Locals F outer) (values : Tuple F entry)
+    (reads : Boundary.Reads source inputs locals values) (inner : Locals F past) :
+    sources.read inputs locals = requested.read values inner := by
+  induction requested with
+  | nil => cases found; rfl
+  | cons origin rest ih =>
+    cases origin with
+    | output => simp [Boundary.project] at found
+    | arg p =>
+      cases selected : source.get p with
+      | none => simp [Boundary.project, selected] at found
+      | some q =>
+        cases more : Boundary.project source rest with
+        | none => simp [Boundary.project, selected, more] at found
+        | some tail =>
+          have same : Tuple.cons q tail = sources := by simpa [Boundary.project, selected, more] using found
+          subst sources
+          exact congrArg₂ Tuple.cons (reads p selected).symm (ih tail more)
+
 theorem project_read {Ty : Type u} {F : Ty → Type w} {imports context params users : Ports Ty}
     {past localSigs : List (Ports Ty)} (wires : Wires imports past context)
     (requested : Wires (context ++ params) localSigs users) (sources : Wires imports past users)
     (found : project wires requested = some sources)
     (inputs : Tuple F imports) (locals : Locals F past) (args : Tuple F params) (inner : Locals F localSigs) :
-    sources.read inputs locals = requested.read (prependContext args (wires.read inputs locals)) inner := by
-  induction requested with
-  | nil => cases found; rfl
-  | cons origin rest ih =>
-    cases origin with
-    | output => simp [project] at found
-    | arg p =>
-      cases selected : capturePort _ p with
-      | none => simp [project, selected] at found
-      | some q =>
-        cases more : project wires rest with
-        | none => simp [project, selected, more] at found
-        | some tail =>
-          have same : Tuple.cons (wires.get q) tail = sources := by
-            simpa [project, selected, more] using found
-          subst sources
-          exact congrArg₂ Tuple.cons ((read_get wires q inputs locals).symm.trans
-            (capture_get p q selected (wires.read inputs locals) args).symm) (ih tail more)
+    sources.read inputs locals = requested.read (prependContext args (wires.read inputs locals)) inner :=
+  boundary_project_read (captureBoundary wires) requested sources found inputs locals _
+    (capture_reads wires inputs locals args) inner
 
 theorem widen_read {args users head : Ports (Ty V S)} {past : List (Ports (Ty V S))}
     (wires : Wires args past users) (inputs : Tuple m.Val args) (locals : Locals m.Val past)
@@ -115,18 +146,18 @@ theorem new_selects (binding : Binding Op scope.table imports scope.past fn)
     (Prefix.Proofs.last_read inputs locals (binding.value inputs locals)),
     widen_read binding.captures inputs locals (.cons (binding.value inputs locals) .nil)⟩
 
-theorem projected_call {context params : Ports (Ty V S)} (captures : Wires imports scope.past context)
+theorem boundary_call {entry : Ports (Ty V S)} (source : Boundary imports entry scope.past)
     (i : Fin scope.table.members.length)
-    (target : Port (context ++ params) (scope.table.at i).fn.port)
-    (witnesses : Wires (context ++ params) [] (scope.table.at i).captures)
+    (target : Port entry (scope.table.at i).fn.port)
+    (witnesses : Wires entry [] (scope.table.at i).captures)
     (sources expected : Wires imports scope.past (CallPorts scope.table i))
-    (found : project captures (.cons (.arg target) witnesses) = some sources)
+    (found : Boundary.project source (.cons (.arg target) witnesses) = some sources)
     (same : sources.addresses = expected.addresses)
     (inputs : Tuple m.Val imports) (locals : Locals m.Val scope.past) (guard : Guard m scope.table)
-    (resolved : selects guard i (expected.read inputs locals)) (args : Tuple m.Val params) :
-    let entry := prependContext args (captures.read inputs locals)
-    guard i (entry.get target) (witnesses.read entry PUnit.unit) := by
-  have h := project_read captures _ sources found inputs locals args PUnit.unit
+    (resolved : selects guard i (expected.read inputs locals)) (values : Tuple m.Val entry)
+    (reads : Boundary.Reads source inputs locals values) :
+    guard i (values.get target) (witnesses.read values PUnit.unit) := by
+  have h := boundary_project_read source _ sources found inputs locals values reads PUnit.unit
   have eq := NestedTheta.Equality.addresses_injective sources expected same
   rw [eq] at h
   unfold selects at resolved

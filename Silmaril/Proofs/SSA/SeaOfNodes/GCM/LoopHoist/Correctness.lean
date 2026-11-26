@@ -333,7 +333,7 @@ private theorem nominated_spec (picked : pickBindingAndHoist? g tree index = som
       ∃ operands : Operands Input binding.args,
         binding.captured? = some operands ∧
         output.2 = emitHeader (lower g).entry binding.op operands (binding.rewrite Var.there .here) := by
-  unfold pickBindingAndHoist? at picked
+  unfold pickBindingAndHoist? hoistBindingWith? at picked
   obtain ⟨⟨_, binding⟩, found, ranked⟩ := Option.bind_eq_some_iff.mp picked
   obtain ⟨chosen, selected, emitted⟩ := Option.bind_eq_some_iff.mp ranked
   split at emitted

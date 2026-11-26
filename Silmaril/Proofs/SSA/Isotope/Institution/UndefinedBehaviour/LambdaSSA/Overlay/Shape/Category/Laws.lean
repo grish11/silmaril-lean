@@ -67,4 +67,16 @@ theorem compose_assoc (f : Arrow X Y) (g : Arrow Y Z) (h : Arrow Z W) :
   rw [g.total_typed j ⟨b, typed⟩ t, (compose g h).total_typed j ⟨b, typed⟩ t]
   rfl
 
+theorem repackage_typed {B C : Ty κ} {p : Behaviour 1 α σ} (shaped : ReturnsTyped atomType (L := [B]) p)
+    (pack : Value α → Value α) (typed : ∀ b, ValueTyped atomType b B → ValueTyped atomType (pack b) C) :
+    ReturnsTyped atomType (L := [C]) (p.bind fun _ b s => pureReturn 0 (pack b) s) := by
+  intro j v t reached
+  obtain ⟨i, b, s, head, tail⟩ :=
+    ((ordinary_bind reached.1 _).mp reached).resolve_left id
+  obtain ⟨rfl, rfl, rfl⟩ := Outcome.ret.inj
+    (ordinary_return_iff.mp tail)
+  have hi := Fin.eq_zero i
+  subst i
+  exact typed b (shaped head)
+
 end Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Category

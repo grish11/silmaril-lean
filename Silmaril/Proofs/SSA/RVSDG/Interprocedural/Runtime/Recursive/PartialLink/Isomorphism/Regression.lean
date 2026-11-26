@@ -327,12 +327,12 @@ private theorem memberBodyIso :
     intro arm
     exact .intro rfl rfl (Equiv.refl _) (fun i => i.elim0) (fun i => i.elim0) rfl (fun i => i.elim0)
 
-private def selfGroup (member : Function Unit Unit) {past sigs : List (Ports T)}
-    (source : Origin args past global)
-    (body : NestedTheta.Term (Instruction Op) ([global, member.port] ++ member.args) [] sigs member.results) :
+private def selfGroup (member : Function Unit Unit) {past sigs : List (Ports T)} {capture : T}
+    (source : Origin args past capture)
+    (body : NestedTheta.Term (Instruction Op) ([capture, member.port] ++ member.args) [] sigs member.results) :
     PhiTerm Op args past [member] :=
-  ⟨[global], .cons source .nil,
-    .cons ⟨[global, member.port], .cons (.arg .head) (.cons (.arg (.tail .head)) .nil), sigs, body⟩ .nil⟩
+  ⟨[capture], .cons source .nil,
+    .cons ⟨[capture, member.port], .cons (.arg .head) (.cons (.arg (.tail .head)) .nil), sigs, body⟩ .nil⟩
 
 private def groupL := selfGroup fn (.output (0 : Fin 1) .head : Origin args [[global]] global) memberBodyL
 private def groupR := selfGroup fn (.output (1 : Fin 2) .head : Origin args [[], [global]] global) memberBodyR
@@ -614,8 +614,9 @@ example : ∃ endR,
 
 private abbrev control : T := .control 2
 private abbrev branchFn : Function Unit Unit := ⟨[num, control, control], [num]⟩
-private abbrev captured : Ports T := [global, branchFn.port, num, control]
-private abbrev branchEntry : Ports T := [global, branchFn.port, num, control, control]
+private abbrev capturedWith (capture : T) : Ports T := [capture, branchFn.port, num, control]
+private abbrev branchEntryWith (capture : T) : Ports T := [capture, branchFn.port, num, control, control]
+private abbrev captured := capturedWith global
 
 private abbrev finishNode {past : List (Ports T)} : NestedTheta.Node (Instruction Op) captured past [num] :=
   RecursiveCall.simple (.primitive Op.finish)
@@ -641,13 +642,13 @@ private def addAfter {entry : Ports T} : RecursiveCall.Code Op entry [[num]] [[n
 
 -- Pass the carried exit selector to the recursive call, then use its
 -- returned tuple in a state-changing suffix.
-private def recurArm : RecursiveCall.Code Op captured [] [[num], [num]] [num] :=
+private def recurArm {capture : T} : RecursiveCall.Code Op (capturedWith capture) [] [[num], [num]] [num] :=
   let after := Origin.arg (.tail (.tail (.tail .head))) (past := [])
   .bind (RecursiveCall.simple (.apply branchFn)
     (.cons (.arg (.tail .head)) (.cons (.arg (.tail (.tail .head))) (.cons after (.cons after .nil))))
     (fun i => i.elim0)) (fun i => i.elim0) addAfter
 
-private def branchWires : Wires branchEntry [] (control :: captured) :=
+private def branchWires {capture : T} : Wires (branchEntryWith capture) [] (control :: capturedWith capture) :=
   .cons (.arg (.tail (.tail (.tail .head))))
     (.cons (.arg .head) (.cons (.arg (.tail .head))
       (.cons (.arg (.tail (.tail .head))) (.cons (.arg (.tail (.tail (.tail (.tail .head))))) .nil))))
@@ -655,14 +656,14 @@ private def branchWires : Wires branchEntry [] (control :: captured) :=
 private def branchSigs (sigs : List (Ports T)) : Fin 2 → List (Ports T) :=
   Fin.cases sigs fun _ => [[num], [num]]
 
-private def branchChildren {sigs : List (Ports T)} (base : RecursiveCall.Code Op captured [] sigs [num])
-    (tag : Fin 2) : RecursiveCall.Code Op captured [] (branchSigs sigs tag) [num] :=
-  Fin.cases (n := 1) (motive := fun i => RecursiveCall.Code Op captured [] (branchSigs sigs i) [num])
+private def branchChildren {capture : T} {sigs : List (Ports T)} (base : RecursiveCall.Code Op (capturedWith capture) [] sigs [num])
+    (tag : Fin 2) : RecursiveCall.Code Op (capturedWith capture) [] (branchSigs sigs tag) [num] :=
+  Fin.cases (n := 1) (motive := fun i => RecursiveCall.Code Op (capturedWith capture) [] (branchSigs sigs i) [num])
     base (fun _ => recurArm) tag
 
-private def branchBody {sigs : List (Ports T)} (base : RecursiveCall.Code Op captured [] sigs [num]) :
-    RecursiveCall.Code Op branchEntry [] [[num], [num]] [num] :=
-  .bind (RecursiveCall.gammaNode (extra := 0) (entry := captured) (outs := [num])
+private def branchBody {capture : T} {sigs : List (Ports T)} (base : RecursiveCall.Code Op (capturedWith capture) [] sigs [num]) :
+    RecursiveCall.Code Op (branchEntryWith capture) [] [[num], [num]] [num] :=
+  .bind (RecursiveCall.gammaNode (extra := 0) (entry := capturedWith capture) (outs := [num])
     branchWires (branchSigs sigs)) (branchChildren base) addAfter
 
 local instance : DecidableEq (Ty Unit Unit) := RecursiveCall.Numbered.decidePort
@@ -968,7 +969,7 @@ example :
 
 private def foreignGroup :=
   selfGroup branchFn (.output (1 : Fin 2) .head : Origin args [[], [global]] global)
-    (.ret (.cons (.arg (.tail (.tail .head))) .nil) : RecursiveCall.Code Op branchEntry [] [] [num])
+    (.ret (.cons (.arg (.tail (.tail .head))) .nil) : RecursiveCall.Code Op (branchEntryWith global) [] [] [num])
 
 private def foreignRef : machine.Val branchFn.port :=
   .member (.cons (globalValue 1 8) .nil) foreignGroup.toGraph.definitions 0
@@ -1232,21 +1233,30 @@ private def captureCode : RecursiveCall.Numbered.CaptureCode machine where
 
 private abbrev sameBodyInput := global :: branchFn.args
 
-private def sameBody : RecursiveCall.Code Op sameBodyInput [] [[num]] [num] :=
-  .bind (RecursiveCall.simple (.primitive Op.finish)
-    (.cons (.arg .head) (.cons (.arg (.tail .head)) .nil)) (fun i => i.elim0))
-    (fun i => i.elim0) (.ret (.cons (.output (0 : Fin 1) .head) .nil))
+private def sameBodyStep {past : List (Ports T)} :
+    NestedTheta.Node (Instruction Op) sameBodyInput past [num] :=
+  RecursiveCall.simple (.primitive Op.finish)
+    (.cons (.arg .head) (.cons (.arg (.tail .head)) .nil)) (fun i => i.elim0)
 
-private def sameBodyLambda {past : List (Ports T)} (source : Origin args past global) :
-    LambdaTerm Op args past branchFn :=
-  ⟨[global], .cons source .nil, _, sameBody⟩
+private def sameBody : RecursiveCall.Code Op sameBodyInput [] [[num]] [num] :=
+  .bind sameBodyStep (fun i => i.elim0) (.ret (.cons (.output (0 : Fin 1) .head) .nil))
+
+private def paddedSameBody : RecursiveCall.Code Op sameBodyInput [] [[], [num]] [num] :=
+  .bind (RecursiveCall.emptyGamma (extra := 0) (entry := [])
+      (.cons (.arg (.tail (.tail .head))) .nil)) (fun _ => .ret .nil)
+    (.bind sameBodyStep (fun i => i.elim0) (.ret (.cons (.output (1 : Fin 2) .head) .nil)))
+
+private def sameBodyLambda {past : List (Ports T)} (source : Origin args past global)
+    (padded : Bool := false) : LambdaTerm Op args past branchFn :=
+  if padded then ⟨[global], .cons source .nil, _, paddedSameBody⟩
+  else ⟨[global], .cons source .nil, _, sameBody⟩
 
 private abbrev captureExports := [branchFn.port, branchFn.port, branchFn.port]
 
-private def captureModule (duplicate : Bool) :
+private def captureModule (duplicate : Bool) (paddedFirst : Bool := false) :
     OmegaTerm Op args captureExports [[global], [global], [], [branchFn.port], [branchFn.port], [branchFn.port]] :=
   ⟨.bind (.delta (seedDelta [])) <| .bind (.delta finishL) <| .bind (.phi (emptyPhi Op args _)) <|
-    .bind (.lambda (sameBodyLambda (.output (0 : Fin 3) .head))) <|
+    .bind (.lambda (sameBodyLambda (.output (0 : Fin 3) .head) paddedFirst)) <|
     .bind (.lambda (sameBodyLambda (if duplicate then .output (0 : Fin 4) .head else .output (1 : Fin 4) .head))) <|
     .bind (.lambda (if duplicate then combined (.output (4 : Fin 5) .head) (.output (3 : Fin 5) .head)
       else combined (.output (3 : Fin 5) .head) (.output (4 : Fin 5) .head))) <|
@@ -1385,6 +1395,107 @@ example : (match Executable.run actions 5 73 (scanModule false).toGraph (number 
     scanCaller (branchArgs 1) 20 with
   | .ok (.suspended config) => (runFor actions 60 config).result
   | _ => none) = some (number 16, 41) := by cbv
+
+private def autoPlan (left right : Bool) :
+    Plan Op args args scanExports false (scanModule left).region (scanModule right).region :=
+  .skipL (.skipR (.skipL (.skipR (.seed (.lambdaAuto (.lambdaAuto (.lambdaAuto (.lambdaAuto .done))))))))
+
+private def automaticAlias (left right : Bool) (port : Port scanExports branchFn.port := scanCaller)
+    (observe : RecursiveCall.Numbered.CaptureCode machine := captureCode)
+    (exactCheck : RecursiveCall.Numbered.ExactValueCheck machine := exactLambdas) :=
+  admit instructionKeys actions Eq ordinaryOutputs 73 73 (number 1) (number 1)
+    (scanModule left) (scanModule right) (autoPlan left right) (fn := branchFn) port 20 20
+    observe (exactValue := exactCheck)
+
+-- All λ rows use the same plan constructor, including the older unique
+-- binding, the equal-body distinct capture, the exact duplicate and the caller.
+#guard (automaticAlias false false).isSome
+#guard (automaticAlias false false (.tail (.tail .head))).isSome
+#guard (automaticAlias true true).isSome
+#guard (automaticAlias false true).isNone
+#guard (automaticAlias false false (exactCheck := fun _ _ => none)).isNone
+#guard (automaticAlias false false (observe := .controlOnly machine)).isNone
+
+private def asymmetricPlan (automatic : Bool) :
+    Plan Op args args captureExports false (captureModule true).region (captureModule false true).region :=
+  .skipL (.skipR (.skipL (.skipR (.seed (.lambda
+    (if automatic then .lambdaAuto (.lambda .done) else .lambda (.lambda .done)))))))
+
+private def asymmetricScan (automatic : Bool) :=
+  admit instructionKeys actions Eq ordinaryOutputs 73 73 (number 1) (number 1)
+    (captureModule true) (captureModule false true) (asymmetricPlan automatic) (fn := branchFn)
+    (.tail (.tail .head)) 20 20 captureCode (exactValue := exactLambdas)
+
+-- Padding the first right body makes both cross-side freshness checks pass
+-- for the second pair. The second left value still duplicates its own first
+-- row, so the automatic policy rejects it after the bilateral alias miss.
+#guard (asymmetricScan false).isSome
+#guard (asymmetricScan true).isNone
+
+-- Base activation calls the λ from the outer capture of the later group.
+private def aliasBase : RecursiveCall.Code Op (capturedWith branchFn.port) [] [[num]] [num] :=
+  let flag := Origin.arg (.tail (.tail .head)) (past := [])
+  let after := Origin.arg (.tail (.tail (.tail .head))) (past := [])
+  .bind (RecursiveCall.simple (.apply branchFn) (.cons (.arg .head) (.cons flag (.cons after (.cons after .nil))))
+      (fun i => i.elim0)) (fun i => i.elim0) (.ret (.cons (.output (0 : Fin 1) .head) .nil))
+
+private abbrev mixedPast : List (Ports T) := [[global], [global], [branchFn.port], [branchFn.port], [branchFn.port]]
+private abbrev mixedExports := [global, global, branchFn.port]
+private abbrev mixedPort : Port mixedExports branchFn.port := .tail (.tail .head)
+
+private def mixedSeed := selfGroup branchFn (.output (0 : Fin 2) .head : Origin args [[global], [global]] global)
+  (branchBody baseL)
+
+private def mixedGroup := selfGroup branchFn (.output (4 : Fin 5) .head : Origin args mixedPast branchFn.port)
+  (branchBody aliasBase)
+
+private def mixedModule :
+    OmegaTerm Op args mixedExports (mixedPast ++ [[branchFn.port], [branchFn.port]]) :=
+  ⟨.bind (.delta (seedDelta [])) <| .bind (.delta finishL) <| .bind (.phi mixedSeed) <|
+    .bind (.lambda (sameBodyLambda (.output (1 : Fin 3) .head))) <|
+    .bind (.lambda (sameBodyLambda (.output (1 : Fin 4) .head))) <|
+    .bind (.phi mixedGroup) <| .bind (.lambda (wrapper (.output (5 : Fin 6) .head))) <|
+    .ret (.cons (.output (0 : Fin 7) .head) (.cons (.output (1 : Fin 7) .head)
+      (.cons (.output (6 : Fin 7) .head) .nil)))⟩
+
+private def mixedPlan (checkAlias : Bool) :
+    Plan Op args args mixedExports false mixedModule.region mixedModule.region :=
+  .skipL (.skipR (.skipL (.skipR (.seed (.lambda
+    (if checkAlias then .aliasFirst (.phi (.lambda .done)) else .skipL (.skipR (.phi (.lambda .done)))))))))
+
+private def mixedAdmission (flag : Nat) (checkAlias : Bool := true) :=
+  admit instructionKeys actions Eq ordinaryOutputs 73 73 (number flag) (number flag)
+    mixedModule mixedModule (mixedPlan checkAlias) (fn := branchFn) mixedPort 20 20
+    (exactValue := exactLambdas)
+
+#guard (mixedAdmission 1).isSome
+#guard (mixedAdmission 1 false).isNone
+#guard (mixedAdmission 0).isNone
+
+private def mixedLambdaRef : machine.Val branchFn.port :=
+  .closure (.cons (globalValue 1 9) .nil) sameBody.toGraph
+
+private def mixedMemberRef : machine.Val branchFn.port :=
+  .member (.cons mixedLambdaRef .nil) mixedGroup.toGraph.definitions 0
+
+-- The second initializer reads the first. Its allocated value reaches the
+-- actual λ captured by the later φ. The λ alias itself has no link effect.
+private theorem mixedLink : Executable.link actions 73 mixedModule.toGraph (number 1) 20 =
+    .linked (.cons (globalValue 0 8) (.cons (globalValue 1 9)
+      (.cons (wrapperRef mixedMemberRef) .nil))) 28 := by cbv
+
+example : (match Executable.link actions 73 mixedModule.toGraph (number 0) 20 with
+    | .undefined ⟨unitId, vertex, ⟨_, _, .finish, _, _, inputs⟩, store⟩ =>
+      some (unitId, vertex, inputs, store)
+    | _ => none) = some (73, 1, finishInputs 0 7 0, 23) := by cbv
+
+-- The caller resumes after a recursive member activation calls the alias
+-- and both recursion and the caller unwind through their saved suffixes.
+example : Executable.run actions 80 73 mixedModule.toGraph (number 1) mixedPort (branchArgs 1) 20 =
+    .ok (.returned (number 38) 45) := by
+  unfold Executable.run Executable.start
+  rw [mixedLink]
+  cbv
 
 private abbrev seedRow {past : List (Ports T)} : NestedTheta.Node (Instruction Op) [global, num] past [num] :=
   RecursiveCall.simple (.primitive Op.seed) (.cons (.arg (.tail .head)) .nil) (fun i => i.elim0)

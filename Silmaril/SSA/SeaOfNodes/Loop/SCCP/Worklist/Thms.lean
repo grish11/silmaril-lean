@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Defs
 import Silmaril.Proofs.SSA.SeaOfNodes.Loop.SCCP.Worklist.Correctness
+import Silmaril.Proofs.SSA.SeaOfNodes.Loop.SCCP.Worklist.Equations
 
 /-! Termination and exact agreement with the simultaneous loop solver. -/
 
@@ -21,6 +22,11 @@ variable {out : ValueSort Data}
 variable (m : Model.{u, v, w} Op) [BankDecidableEq m.value (dataPorts carried)]
 variable (g : Graph Op inputs carried entrySigs headerSigs out)
 variable (input : Tuple (Fact m.value) (dataPorts inputs))
+
+/-- The watched inputs suffice to evaluate the corresponding transfer equation. -/
+theorem evaluate_eq (job : Task) (state : State m.value carried out) :
+    evaluate m g input job (dependencies state job) = get (SCCP.transfer m g input state) job :=
+  Proofs.evaluate_eq job state
 
 /-- A pop from an ascending assignment strictly decreases the queue potential. -/
 theorem step_decreases (job : Task) (state : State m.value carried out) (pending : List Task)

@@ -613,3 +613,73 @@ admission checker at the same profile. The named mutable trace witnesses
 strict refinement from a silent self-loop, and the composed comorphism
 transports the comparison to packed satisfaction.
 [Cyclic regression](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Examples.lean)
+
+### Typed live-outs at mutable exits
+
+The existing `Versioning.run_commutes` observes the exit label and
+argument. `Cyclic.LiveOut.attach` makes selected final-store reads explicit
+in the original mutable CFG before invoking that versioner. For each
+branch to a missing label it pairs the old argument with an ordered,
+right-nested register record ending in unit. The same lookup determines
+internal edges, and their arguments are preserved. The transformation
+uses only variables, pairs, and unit.
+[Exit transformation](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/LiveOut/Defs.lean)
+
+`run_project` proves the whole-run equation with the projected original
+exit, including the same effects and final store in the underlying
+mutable execution. It uses a step square and lawful Elgot iteration.
+`versioned_run_project` applies the existing pair-law versioner to the
+transformed source. The new reads go through the versioner's existing
+register support and current-version calculation, including when a
+register was only written in the original CFG.
+[Mutable and lexical runner equations](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/LiveOut/Thms.lean)
+
+The typed checker admits the actual versioned table at the supplied
+block profiles and the enlarged external payload types. The original
+typed entry record supplies the same named store as before. For every
+accepted graph, `Admission.denote_tree` identifies the encoded typed
+packed result with the original mutable runner's projected exit.
+`satisfies_iff` gives both directions of pointwise trace comparison at a
+common projection interface. This adds a separate observation with
+selected fields alongside the existing forgetful institution.
+[Typed admission and comparison](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/Thms.lean)
+
+The fixture picks one of two fields from the same supplied record, writes
+it to a register, then jumps to a block that exits with unit. The old
+exit observations agree for every input. The packed observations at
+`(((), 7), 9)` return the distinct live-outs 7 and 9. The checker also
+rejects a unit declaration for the numeric live-out.
+[Checked fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOutExamples.lean)
+
+### Relabelling typed live-out comparisons
+
+`Cyclic.run_mapOp` exposes the existing cyclic runner reduct law at the
+universes of the typed weak-tree model. It preserves the final store.
+`attach_mapOp` commutes on the written syntax because opcode relabelling
+preserves lookup hits and misses. `project_reduct` uses the same pair and
+unit operations for the caller's ordered register list. Together the laws
+give `observe_mapOp`, an equality of whole weak trees at the same typed
+input record, including the tagged old argument and ordered fields.
+[Runner reduct](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/InstructionMap/Thms.lean)
+· [Attachment and projection](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/LiveOut/InstructionMap/Thms.lean)
+
+`Admission.map` transports an existing certificate through the named
+versioning and elaboration maps at its supplied block profiles. The
+live-out room fixes the input context, the ordered exits, and the typed
+field lists. It uses the same models and reduct functors as the named
+typed-entry room. The attachment comorphism composes with the existing
+named-to-packed comorphism. Both packing orders give equal typed syntax,
+and `toPacked_satisfies_map_iff` preserves and reflects pointwise
+satisfaction in the reduct. The signature maps fix types and the event
+family and preserve bottom Boolean effect. The admission law concerns
+certificate transport at those profiles.
+[Certificate transport and institution](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOut/Institution/Thms.lean)
+
+The fixture identifies two effectful opcodes. Both renamed sources can
+request the same operation with argument 7 and receive reply 11. One
+source keeps the reply and the other overwrites it with 7 before the
+internal jump. Their old unit results agree at that trace, while their
+ordered live-out records are `(11, 7)` and `(7, 7)`. The fixture also
+reruns admission of the renamed reply-carrying graph at the same
+profile.
+[Checked relabelling fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/LiveOutExamples.lean)

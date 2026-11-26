@@ -12,7 +12,9 @@ open Comparison
 variable {V K F α : Type} {n a b locals : Nat}
 
 /-- For each output slot, identify its source slot in the input packet. -/
-abbrev FieldMap (width : Nat) := Fin width → Fin width
+abbrev Route (source target : Nat) := Fin target → Fin source
+
+abbrev FieldMap (width : Nat) := Route width width
 
 /-- The named CFG packet convention uses right-nested pairs ending in unit. -/
 def packed {R : Type} : {width : Nat} → (Fin width → Val R) → Val R
@@ -31,7 +33,7 @@ def read? (env : V → Option (Val (Fin n))) : Val V → Option (Val (Fin n))
     let right ← read? env right
     return .pair left right
 
-/-- Read a fixed-width packet of symbolic input fields. A field is opaque,
+/-- Read a packet of the requested width from symbolic input fields. A field is opaque,
 even if its runtime value happens to be a pair. -/
 def fieldMap? : (width : Nat) → Val (Fin n) → Option (Fin width → Fin n)
   | 0, .unit => some Fin.elim0
@@ -42,22 +44,30 @@ variable [DecidableEq V]
 
 /-- Recognize value copies, pair construction and known-pair destructuring.
 The symbolic updates follow the actual order, including aliased destinations. -/
-def body? (env : V → Option (Val (Fin n))) : Body V K F → Option (K × FieldMap n)
+def bodyTo? (width : K → Nat) (env : V → Option (Val (Fin n))) :
+    Body V K F → Option ((target : K) × Route n (width target))
   | .let1 dst (.val value) tail => do
     let shape ← read? env value
-    body? (upd env dst (some shape)) tail
+    bodyTo? width (upd env dst (some shape)) tail
   | .let2 left right (.val value) tail =>
     match read? env value with
-    | some (.pair fst snd) => body? (upd (upd env left (some fst)) right (some snd)) tail
+    | some (.pair fst snd) => bodyTo? width (upd (upd env left (some fst)) right (some snd)) tail
     | _ => none
   | .term (.br target value) => do
     let shape ← read? env value
-    let fields ← fieldMap? n shape
-    return (target, fields)
+    let fields ← fieldMap? (width target) shape
+    return ⟨target, fields⟩
   | _ => none
 
+def blockTo? (source : Nat) (width : K → Nat) (block : Block V K F) :
+    Option ((target : K) × Route source (width target)) :=
+  bodyTo? width (upd (fun _ => none) block.param (some (packed fun i : Fin source => .var i))) block.body
+
+def body? (env : V → Option (Val (Fin n))) (body : Body V K F) : Option (K × FieldMap n) :=
+  (bodyTo? (fun _ => n) env body).map fun result => (result.1, result.2)
+
 def block? (width : Nat) (block : Block V K F) : Option (K × FieldMap width) :=
-  body? (upd (fun _ => none) block.param (some (packed fun i : Fin width => .var i))) block.body
+  (blockTo? width (fun _ => width) block).map fun result => (result.1, result.2)
 
 def next? (width : Nat) (graph : Graph V F a b) (index : Fin graph.locals) :
     Option (Label graph.locals b × FieldMap width) :=
@@ -125,9 +135,12 @@ def Sat (width : Nat) (model : PairModel F Part α) (left right : Graph V F a b)
       right.denote model.val (input, encode model.val packet)
 
 /-- Recover syntactic equality of field maps from all packed observations. -/
-def Separates (width : Nat) (model : PairModel F Part α) : Prop :=
-  ∀ (left right : FieldMap width),
-    (∀ packet : Fin width → α, encode model.val (packet ∘ left) = encode model.val (packet ∘ right)) →
+def SeparatesWidths (source target : Nat) (model : PairModel F Part α) : Prop :=
+  ∀ (left right : Route source target),
+    (∀ packet : Fin source → α, encode model.val (packet ∘ left) = encode model.val (packet ∘ right)) →
       left = right
+
+def Separates (width : Nat) (model : PairModel F Part α) : Prop :=
+  SeparatesWidths width width model
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields

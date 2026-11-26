@@ -40,6 +40,14 @@ def model : OrderedRuntime.Structured.Model (TwoBlock.TwoExit.Pure τ) (Effect �
       | .inl e => pure (pack (enter (A := M) (C := E) (D := D)
           (Sum.elim id id (TypeModel.coprodEquiv M M e))))
       | .inr _ => StateT.mk fun _ => Part.none
+    | @Effect.routeExit _ _ _ _ H E M D, .cons payload .nil =>
+      match TypeModel.coprodEquiv (ExitCode E M) H payload with
+      | .inl exit =>
+        match TypeModel.coprodEquiv E M exit with
+        | .inl e => pure (ExplicitRuntime.choiceData (.inl
+            ((TypeModel.coprodEquiv E D).symm (.inl e))))
+        | .inr input => pure (ExplicitRuntime.choiceData (.inr input))
+      | .inr _ => StateT.mk fun _ => Part.none
 
 abbrev wireModel :=
   NestedTheta.ExplicitRuntime.Partial.wireModel (model (τ := τ) (Φ := Φ) (ε := ε) (σ := σ))

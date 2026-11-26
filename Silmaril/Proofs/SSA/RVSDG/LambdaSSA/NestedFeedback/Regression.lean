@@ -1,5 +1,6 @@
 module
 
+import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Thms
 import Silmaril.SSA.RVSDG.LambdaSSA.NestedFeedback.Reverse.Thms
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.WithNestedFeedback.Reverse.Renumbered.Thms
 import Silmaril.SSA.RVSDG.NestedTheta.ExplicitRuntime.Isomorphism.Thms
@@ -57,12 +58,15 @@ local instance : TypeModel Ty where
   coe := coerceValue
 
 private inductive Op | enter | inner | finish | tailHeader | tailBody | forkGate
+  | routingHeader | routingJoin | consumeBody
   deriving DecidableEq
 
 local instance : HasTy Op Ty :=
   ⟨fun | .inner => innerPayload | _ => number,
    fun | .enter => innerPayload | .inner => .coprod number innerPayload
-       | .finish | .tailHeader => .coprod number number | .tailBody => number
+       | .finish | .tailHeader | .routingJoin => .coprod number number
+       | .tailBody | .consumeBody => number
+       | .routingHeader => .coprod .unit number
        | .forkGate => .coprod (.coprod number number) number⟩
 
 local instance : HasEff Op Bool := ⟨fun _ => true⟩
@@ -78,6 +82,12 @@ private def instruction : (op : Op) → Value (instrSrc op) → Runtime (Value (
   | .tailHeader, n => StateT.mk fun token =>
     Part.some (.inl ((show Nat from n) + token), 10 * token + 4)
   | .tailBody, n => pure n
+  | .routingHeader, n => StateT.mk fun token =>
+    Part.some (if (show Nat from n) = 0 then .inl PUnit.unit else .inr n, token + 1)
+  | .routingJoin, n => StateT.mk fun token =>
+    Part.some (if token = 1 then .inr n else .inl n, token + 1)
+  | .consumeBody, n => StateT.mk fun token =>
+    if (show Nat from n) = 99 then Part.none else Part.some ((show Nat from n) + token, token + 4)
   | .forkGate, n => pure (if (show Nat from n) = 1 then .inl (.inl (7 : Nat)) else .inr n)
 
 local instance : InstructionModel Op Ty Bool Runtime where
@@ -847,6 +857,111 @@ example : ¬ NestedTheta.Graph.Isomorphic (Wires.Op Op) staleCompiled compiledGr
 #eval show IO Unit from do
   unless (Renumbered.recover compiledGraph checkedView).isSome do
     throw (IO.userError "could not recover a mixed graph through its checked view")
+
+private def routingProducer : Acyclic.Theta.Loop Op number number number .unit number :=
+  ⟨op .routingHeader, .instruction (op .tailBody), op .routingJoin⟩
+
+private def routingConsumer : Acyclic.Theta.Loop Op number number number .unit number :=
+  ⟨op .routingHeader, .instruction (op .consumeBody), op .finish⟩
+
+private def routed : Flat.Serial.Routed.Source Op number number number number number number .unit number :=
+  ⟨routingProducer, routingConsumer⟩
+
+private def wiredRoute := Flat.Serial.Routed.lower routed
+
+private abbrev RoutedExit := LabelDen [(.unit : Ty),number]
+
+private theorem routingCase {X Y : Ty} (p : TwoBlock.Instruction Op number (Silmaril.coprod X Y))
+    (input : Nat) :
+    callCase (ε := Bool) (m := Runtime) p input = TwoBlock.call (ε := Bool) (m := Runtime) p input := by
+  unfold callCase
+  exact bind_pure _
+
+private theorem routingBypass :
+    (iter (ExplicitRuntime.round (ε := Bool) (m := Runtime) routingProducer) (0 : Nat)).run 0 =
+      Part.some ((.inl PUnit.unit : RoutedExit), 1) := by
+  rw [Elgot.StateT.run_iter, Part.eq_some_iff, Elgot.Part.mem_iter_iff]
+  apply Elgot.Part.Runs.done
+  simp [Elgot.StateT.body, ExplicitRuntime.round, routingProducer, routingCase, call_eq,
+    instruction, Elgot.StateT.distribute]
+
+private theorem routingProducerReturns (input : Nat) (nonzero : input ≠ 0) :
+    (iter (ExplicitRuntime.round (ε := Bool) (m := Runtime) routingProducer) input).run 0 =
+      Part.some ((.inr (.inl input) : RoutedExit), 4) := by
+  rw [Elgot.StateT.run_iter, Part.eq_some_iff, Elgot.Part.mem_iter_iff]
+  refine .more (a' := (input, 2)) ?_ (.done ?_)
+  all_goals
+    simp [Elgot.StateT.body, ExplicitRuntime.round, routingProducer,
+      ExplicitRuntime.bodyAction, routingCase, call_eq, instruction, Elgot.StateT.distribute, nonzero]
+
+private theorem routingConsumerReturns :
+    (iter (ExplicitRuntime.round (ε := Bool) (m := Runtime) routingConsumer) (1 : Nat)).run 4 =
+      Part.some ((.inr (.inl (9 : Nat)) : RoutedExit), 93) := by
+  rw [Elgot.StateT.run_iter, Part.eq_some_iff, Elgot.Part.mem_iter_iff]
+  apply Elgot.Part.Runs.done
+  simp [Elgot.StateT.body, ExplicitRuntime.round, routingConsumer,
+    ExplicitRuntime.bodyAction, routingCase, call_eq, instruction, Elgot.StateT.distribute]
+
+private theorem routingConsumerUndefined :
+    (iter (ExplicitRuntime.round (ε := Bool) (m := Runtime) routingConsumer) (99 : Nat)).run 4 =
+      Part.none := by
+  rw [Elgot.StateT.run_iter, Part.eq_none_iff]
+  intro result finite
+  rw [Elgot.Part.mem_iter_iff] at finite
+  have blocked : Elgot.StateT.body (ExplicitRuntime.round (ε := Bool) (m := Runtime) routingConsumer)
+      ((99 : Nat),4) = Part.none := by
+    simp [Elgot.StateT.body, ExplicitRuntime.round, routingConsumer,
+      ExplicitRuntime.bodyAction, routingCase, call_eq, instruction]
+  cases finite with
+  | done h | more h _ => rw [blocked] at h; exact Part.notMem_none _ h
+
+private theorem routed_run (coherent : Coherent) (input : Nat) :
+    Region.denote (ε := Bool) (m := Runtime) routed.source.typing (PUnit.unit,input) =
+      iter (ExplicitRuntime.round (ε := Bool) routingProducer) input >>= fun
+        | .inl result => pure (.inl result)
+        | .inr (.inl payload) => iter (ExplicitRuntime.round (ε := Bool) routingConsumer) payload
+        | .inr (.inr impossible) => nomatch impossible := by
+  rw [Flat.Serial.Routed.Source.source, Flat.denote_linkBy _ _ _ coherent]
+  simp only [Flat.Fragment.loop_denote, ExplicitRuntime.denote_rounds _ coherent]
+  congr 1
+  funext exit
+  rcases exit with result | payload | impossible
+  · rfl
+  · rfl
+  · exact impossible.elim
+
+-- The unit label skips the consumer. The numeric label enters it after
+-- feedback with the exact state returned by the producer.
+private theorem routedBypass (coherent : Coherent) :
+    (Region.denote (ε := Bool) (m := Runtime) routed.source.typing (PUnit.unit,(0 : Nat))).run 0 =
+      Part.some ((.inl PUnit.unit : RoutedExit), 1) := by
+  rw [routed_run coherent, StateT.run_bind, routingBypass]
+  simp only [Part.bind_eq_bind, Part.bind_some, StateT.run_pure, Part.pure_eq_some]
+
+private theorem routedConsumerReturns (coherent : Coherent) :
+    (Region.denote (ε := Bool) (m := Runtime) routed.source.typing (PUnit.unit,(1 : Nat))).run 0 =
+      Part.some ((.inr (.inl (9 : Nat)) : RoutedExit), 93) := by
+  rw [routed_run coherent, StateT.run_bind, routingProducerReturns 1 (by decide)]
+  exact (Part.bind_some _ _).trans routingConsumerReturns
+
+private theorem routedConsumerUndefined (coherent : Coherent) :
+    (Region.denote (ε := Bool) (m := Runtime) routed.source.typing (PUnit.unit,(99 : Nat))).run 0 =
+      Part.none := by
+  rw [routed_run coherent, StateT.run_bind, routingProducerReturns 99 (by decide)]
+  exact (Part.bind_some _ _).trans routingConsumerUndefined
+
+-- The outputs of the actual numbered graph expose both labels and their
+-- differently typed payloads. The second route observes producer feedback.
+example (coherent : Coherent) :
+    Flat.Serial.returns (ε := Bool) wiredRoute.1 (0 : Nat) 0 (.inl PUnit.unit) 1 :=
+  (wiredRoute.2.region_returns_iff coherent (PUnit.unit, (0 : Nat)) _ 0 1).mpr (routedBypass coherent)
+
+example (coherent : Coherent) :
+    Flat.Serial.returns (ε := Bool) wiredRoute.1 (1 : Nat) 0 (.inr (.inl (9 : Nat))) 93 :=
+  (wiredRoute.2.region_returns_iff coherent (PUnit.unit, (1 : Nat)) _ 0 93).mpr (routedConsumerReturns coherent)
+
+example (coherent : Coherent) : Flat.Serial.observe (ε := Bool) wiredRoute.1 (99 : Nat) 0 = Part.none :=
+  (wiredRoute.2.region_undefined_iff coherent (PUnit.unit, (99 : Nat)) 0).mpr (routedConsumerUndefined coherent)
 
 end Composition
 
