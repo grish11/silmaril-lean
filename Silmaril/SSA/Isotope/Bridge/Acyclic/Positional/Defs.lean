@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Prelude.FiniteGraph.Thms
+public import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Rank.Thms
 public import Silmaril.SSA.Isotope.Bridge.Acyclic.FiniteExit.Defs
 public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Thms
 
@@ -59,14 +59,12 @@ structure Ranking (p : Table Φ L n) where
 
 /-- Check every local block, including blocks unreachable from a given entry. -/
 def Table.checkAcyclic (p : Table Φ L n) : Bool :=
-  FiniteGraph.kahn p.localTargets (List.finRange n)
+  Rank.check p.localTargets
 
 /-- The successful check supplies the removal round of each local block. -/
 def Table.acyclicRanking (p : Table Φ L n) (ok : p.checkAcyclic = true) : Ranking p where
-  rank := FiniteGraph.krank p.localTargets (List.finRange n)
-  decreases i j edge :=
-    (FiniteGraph.kahn_sound p.localTargets (List.finRange n) ok).1
-      i (List.mem_finRange i) j edge (List.mem_finRange j)
+  rank i := ((Rank.rounds p.localTargets n).get i).getD 0
+  decreases _ _ edge := Rank.check_sound p.localTargets ok edge
 
 /-- Names in the native CFG have the local prefix followed by the ordered exits. -/
 def Table.toSSA (p : Table Φ L n) {d : Nat} {β : BoundCtx τ d} (i : Fin n)

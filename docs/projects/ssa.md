@@ -548,7 +548,7 @@ The continuation cannot jump back to its own label.
 - A positional table uses the existing typed jump and case blocks. Every
   block reads its own payload, and the entry can evaluate an arbitrary
   exact operand in its surrounding context. The executable checker uses
-  Kahn's algorithm on the local targets of **all** blocks. It accepts
+  successive sink removal on the local targets of **all** blocks. It accepts
   exactly when the local graph has no directed cycle, including cycles
   unreachable from the entry. The removal rounds rank the original
   labels, so even backward numeric edges can be unfolded. The actual
