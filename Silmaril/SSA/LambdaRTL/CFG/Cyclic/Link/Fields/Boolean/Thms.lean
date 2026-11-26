@@ -14,6 +14,9 @@ namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean
 open Comparison
 open Width (Profile)
 
+theorem mem_packets {n : Nat} (packet : Packet n) : packet ∈ packets n :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.mem_packets packet
+
 variable {V K F α : Type} [DecidableEq V] {a b n : Nat}
   {left right : Graph V F a b} {inputs : Fin a → Nat} {outputs : Fin b → Nat}
 
