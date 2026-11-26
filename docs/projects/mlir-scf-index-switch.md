@@ -63,7 +63,7 @@ each on dispatch, the selected arm, and the continuation.
   `Program.lower_not_diverges` rules out divergence by the return at budget 3.
 
 `Silmaril.SSA.MLIR.SCF.IndexSwitch.Examples` checks separate cases for
-`0`, `2^32`, and `-2^63`, a `2^33) selector that reaches the default, a
+`0`, `2^32`, and `-2^63`, a `2^33` selector that reaches the default, a
 two-value yield consumed by the continuation, insufficient fuel, a
 result-bearing zero-case switch, an empty yield, and rejection of a repeated
 bit pattern.
