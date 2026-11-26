@@ -12,6 +12,17 @@ theorem CountWire.bounds {bits : List Bool} {types : Nat} (wire : CountWire bits
     1 ≤ types ∧ types ≤ 256 ∧ 1 ≤ bits.length ∧ bits.length ≤ 11 :=
   Proofs.Formats.Compression.Brotli.BlockTypes.CountWire.bounds wire
 
+theorem CountWire.bits_of_one {bits : List Bool} (wire : CountWire bits 1) : bits = [false] :=
+  Proofs.Formats.Compression.Brotli.BlockTypes.CountWire.bits_of_one wire rfl
+
+/-- The shared count field advances to its exact following bit. -/
+theorem readCount_sound {bitLimit types : Nat} {before after : LSBReader} {input : List Bool}
+    (rep : before.Rep input) (count : before.count < 8)
+    (read : readCount bitLimit before = .ok (types, after)) :
+    ∃ used suffix, CountWire used types ∧ input = used ++ suffix ∧ after.Rep suffix ∧ after.count < 8 ∧
+      after.totalRead = before.totalRead + used.length ∧ used.length ≤ bitLimit :=
+  Proofs.Formats.Compression.Brotli.BlockTypes.readCount_sound rep count read
+
 /-- Section 6 bounds the finite count for a multi-type initial block. -/
 theorem ControlWire.bounds {bits : List Bool} {control : Control} (wire : ControlWire bits control) :
     1 ≤ control.typeCount ∧ control.typeCount ≤ 256 ∧

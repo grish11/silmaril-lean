@@ -18,7 +18,8 @@ inductive Error where
   | invalidCountCode
   deriving DecidableEq, Repr
 
-/-- The three-bit width field can be zero, yielding a count of two
+/-- The shared NBLTYPES and NTREES field from §9.2. A zero width
+    yields a count of two
     with no extra bits. -/
 inductive CountWire : List Bool → Nat → Prop where
   | one : CountWire [false] 1
@@ -132,6 +133,11 @@ def readControl (cursor : Cursor) : Except Error (Control × Cursor) := do
     pure (.multiple types typeTable countTable initial, after)
 
 end Internal
+
+/-- Read the §9.2 variable-length positive count used by NBLTYPES and NTREES. -/
+def readCount (bitLimit : Nat) (before : LSBReader) : Except Error (Nat × LSBReader) := do
+  let (count, after) ← Internal.readCount ⟨before, bitLimit⟩
+  pure (count, after.reader)
 
 /-- Read literal, insert-and-copy, then distance controls under one
     budget. No block switching or command execution is performed here. -/

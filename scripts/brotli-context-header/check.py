@@ -58,7 +58,7 @@ def trace(wire, reference, traced):
             "postfix": int(postfix), "direct": int(direct), "modes": modes}
 
 
-def inputs(reference, writer, harness, work):
+def ordinary_inputs(reference, harness, work):
     streams = {name: (wire, "PyArrow", None)
                for name, wire in PREFIX["parquet_inputs"](harness, reference, work).items()}
 
@@ -72,6 +72,11 @@ def inputs(reference, writer, harness, work):
         wire = run(reference, "-q", "11", "-w", "18", "-c", data=plain).stdout
         streams[name] = (wire, "libbrotli CLI quality 11", None)
 
+    return streams
+
+
+def inputs(reference, writer, harness, work):
+    streams = ordinary_inputs(reference, harness, work)
     text = b"".join(
         f"Reader {i % 23} checks compressed page {i} with a fixed output budget.\n".encode()
         for i in range(99))

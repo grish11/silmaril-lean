@@ -61,9 +61,9 @@ private theorem take_sound {width value : Nat} {before after : Cursor} {input : 
 
 private theorem count_sound {before after : Cursor} {types : Nat} {input : List Bool}
     (rep : before.reader.Rep input) (count : before.reader.count < 8)
-    (read : readCount before = .ok (types, after)) :
+    (read : Internal.readCount before = .ok (types, after)) :
     ∃ used suffix, CountWire used types ∧ Advance before after input used suffix := by
-  unfold readCount at read
+  unfold Internal.readCount at read
   obtain ⟨⟨lead, cursor⟩, field, next⟩ := bind_ok read
   obtain ⟨range, middle, first⟩ := take_sound rep count field
   simp only [] at next
@@ -81,6 +81,19 @@ private theorem count_sound {before after : Cursor} {types : Nat} {input : List 
     obtain ⟨widthRange, tail, second⟩ := take_sound first.rep first.count header
     obtain ⟨extraRange, suffix, third⟩ := take_sound second.rep second.count payload
     exact ⟨_, suffix, .many widthRange extraRange, first.trans (second.trans third)⟩
+
+theorem readCount_sound {bitLimit types : Nat} {before after : LSBReader} {input : List Bool}
+    (rep : before.Rep input) (count : before.count < 8)
+    (read : BlockTypes.readCount bitLimit before = .ok (types, after)) :
+    ∃ used suffix, CountWire used types ∧ input = used ++ suffix ∧ after.Rep suffix ∧ after.count < 8 ∧
+      after.totalRead = before.totalRead + used.length ∧ used.length ≤ bitLimit := by
+  unfold BlockTypes.readCount at read
+  obtain ⟨⟨value, cursor⟩, actual, done⟩ := bind_ok read
+  cases done
+  obtain ⟨used, suffix, wire, advance⟩ := count_sound rep count actual
+  have budget := advance.budget
+  dsimp at budget
+  exact ⟨used, suffix, wire, advance.split, advance.rep, advance.count, advance.offset, by omega⟩
 
 theorem CountWire.bounds {bits : List Bool} {types : Nat} (wire : CountWire bits types) :
     1 ≤ types ∧ types ≤ 256 ∧ 1 ≤ bits.length ∧ bits.length ≤ 11 := by
@@ -142,7 +155,7 @@ private theorem initial_sound {before after : Cursor} {table : Table} {value : N
     exact ⟨symbol, code, size, base, width, extra, suffix, rfl, codeWire, bound, assigned, fits,
       first.trans second⟩
 
-private theorem count_one {bits : List Bool} {types : Nat}
+theorem CountWire.bits_of_one {bits : List Bool} {types : Nat}
     (wire : CountWire bits types) (one : types = 1) : bits = [false] := by
   cases wire with
   | one => rfl
@@ -159,7 +172,7 @@ private theorem control_sound {before after : Cursor} {control : Control} {input
   split at next
   · rename_i one
     cases next
-    rw [count_one countWire one] at first
+    rw [CountWire.bits_of_one countWire one] at first
     exact ⟨_, middle, .single, first⟩
   · rename_i multiple
     obtain ⟨⟨typeTable, typeCursor⟩, readTypeTable, next⟩ := bind_ok next
