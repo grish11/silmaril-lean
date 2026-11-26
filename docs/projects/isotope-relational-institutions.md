@@ -102,6 +102,16 @@ structure by `letSeq_modelFunctor_eq_letCase` and
 for a comparison after a parallel tier chooses an observation and proves
 agreement on the sequential embedding.
 
+The lower observation-institution draft exposes the same `InstrSig` through
+`Silmaril.SSA.Isotope.Institution.InstrSig.Thms`. For the cross-tier comparison,
+take the two exact derivations from the sequential sentence and supply them
+directly to the lower `ofLetSeq` or `ofLetCase` inclusion. The lower model
+arrows use `Cslib.IsMonadHom` and preserve primitive evaluation and parallel
+pairing. Its inclusion satisfaction lemmas compare full computations at the
+supplied witnesses. Comparing those computations with sequential successful
+outcomes still requires agreement at the chosen observation.
+[Lower institution draft](https://github.com/hiloopai/silmaril-lean/pull/3752)
+
 - **LetPar and LetParCase.** `Parallel.Derivation.denote` takes
   `Semantics.InstructionModel D Φ m`, `Parallel.ParOp m`,
   `Parallel.Control tier D m`, `FreeEnv D Γ` and `BoundEnv D β`.

@@ -35,7 +35,6 @@ CERBERUS_TARGETS := CerberusTests cerb-lean ail-lean core-lean core-elab cfront 
 CCOMP_TARGETS := ccomp ccomp-legacy ccomp-verified csem decompile
 CHECK_TARGETS ?= sqlite_file_format_compatibility sqlite_lean sqlite_image_lean Silmaril SilmarilSpecTec SilmarilSpecTecMeta SilmarilWasiWit SilmarilWasmProject SilmarilLogicGraphData ProjectSelfTest wasm-pages elf-pages wasm-region-map $(WASM_TOOLS) wasm-shell-lean $(CERBERUS_TARGETS) SysVTvExample CompilesToExamples cexplorer-export $(CCOMP_TARGETS)
 CHECK_TARGETS += +Silmaril.Wasm.Execution.Core.MemoryProfile.Thms LetIterPackingImportTests LetIterWeakTreeSoundnessTests PEGCoreTests
-CHECK_TARGETS += IsotopeRelationalInstitutionTests
 CHECK_TARGETS += PEGIRBridgeTests PEGForwardCFGTests
 CHECK_TARGETS += PeggyDialectTests
 CHECK_TARGETS += PeggyEggTests PeggySimpleValidationTests
@@ -45,6 +44,7 @@ CHECK_TARGETS += PeggyInstitutionTests
 CHECK_TARGETS += PeggyEquationalTests
 CHECK_TARGETS += PEGRulesTests
 CHECK_TARGETS += PEGCanonicalWhileTests
+CHECK_TARGETS += IsotopeRelationalInstitutionTests
 
 # Files Lake never reads; only the source gates in `make check` read them.
 SCOPE_EXCLUDE := 'docs/**' '**/*.md' 'scripts/**' 'apps/**' 'problems/**' 'specs/wasm/**' \

@@ -1,6 +1,5 @@
 module
 
-public import Silmaril.SSA.Isotope.Institution.Relational.Thms
 public import Silmaril.Raw.SSA.Isotope.Institution.Borrowing
 public import Silmaril.Raw.SSA.Isotope.Institution.Refinement.Comorphism
 public import Silmaril.Raw.SSA.Isotope.Institution.Observational.Isomorphism
@@ -52,6 +51,7 @@ public import Silmaril.Raw.SSA.Isotope.Theory.Models.ProofRelevantCase
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.ProofRelevantSeq
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.RawRefinement
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.Refinement
+public import Silmaril.SSA.Isotope.Institution.Relational.Thms
 
 /-!
 # Let-family institutions and syntactic initiality
