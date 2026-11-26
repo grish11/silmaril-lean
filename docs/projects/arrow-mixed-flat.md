@@ -4,7 +4,7 @@
 bodyless little-endian Schema, RecordBatch metadata, and body. It admits
 nullable or required Int32, Utf8, BinaryView and Utf8View fields and
 returns the explicit batch row count and ordered field/column
-observations. File IPC, compression, dictionaries, nested fields and
+observations. Compression, dictionaries, nested fields and
 temporal types are outside this profile.
 [Pinned Arrow 26.0.1 Schema IDL](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/Schema.fbs) ·
 [RecordBatch IDL](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/Message.fbs)
@@ -84,4 +84,42 @@ lake build --wfail +Silmaril.Formats.Arrow.MixedFlat.Thms +Silmaril.Formats.Arro
 lake env lean -DautoImplicit=false -DwarningAsError=true scripts/arrow-mixed-flat/Axioms.lean
 python3 -I scripts/arrow-mixed-flat/fixtures.py
 python3 -I scripts/arrow-mixed-flat/stream_fixtures.py
+```
+
+## Indexed V5 files
+
+`Arrow.MixedFlat.File.readIndex` checks both `ARROW1` words, padding and the
+footer range on one immutable source. It uses the shared V5 footer parser
+and requires exact agreement with the embedded Schema. Aligned record
+blocks occupy contiguous ranges in footer order, followed by the modern
+EOS immediately before the footer. The checker validates the entire index
+before any RecordBatch is decoded. [Pinned File.fbs](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/File.fbs)
+
+`Index.readAt` validates the selected continuation prefix and Message
+lengths against the footer. It uses the same per-batch row, cell and view
+budgets as standalone decoding. An absent entry gives `none`, while a
+bad record carries its zero-based footer index. Each call decodes only
+the selected record, so errors in later records are reported when those
+records are read. The API uses a finite in-memory source and a bounded
+footer list. Stream-wide cumulative budgets apply to the stream API.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/File/Defs.lean)
+
+`readIndex_exact` recovers the checked footer, Schema and EOS. `Index.block_range`
+and `Index.block_order` prove alignment, extent and nonoverlap. `Index.readAt_exact`
+identifies the selected entry, exact source octets and the same standalone
+`MixedFlat.readBatch` result. `Index.readAt_sequential` equates lookups with
+the corresponding observations of a successful ordered traversal, including
+empty batches and absent entries. [Theorem header](../../Silmaril/Formats/Arrow/MixedFlat/File/Thms.lean)
+
+The pinned PyArrow producer emits and independently opens files with row
+counts `[4, 0, 2]` and `[]`. Their SHA-256 digests are
+`efec769981c07a0c25fbaff56dc7af79ee9facfbda14a9099a52b89b7287516a` and
+`ca999237b082b55fae3bc82d0ed7339bd66898ceaf92b90a016ee11fa404c8a8`.
+Lean compares indexed values with the independently pinned stream and
+checks malformed footer ranges, schema disagreement, missing EOS and
+indexed length mismatches. [File fixture producer](../../scripts/arrow-mixed-flat/file_fixtures.py) · [Lean file guards](../../Silmaril/Formats/Arrow/MixedFlat/File/Examples.lean)
+
+```sh
+lake build --wfail +Silmaril.Formats.Arrow.MixedFlat.File.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Axioms
+python3 -I scripts/arrow-mixed-flat/file_fixtures.py
 ```

@@ -226,6 +226,11 @@ structure FileFooter where
   blocks : List FileBlock
   deriving DecidableEq, Repr
 
+structure MixedFlat.FileFooter where
+  fields : List MixedFlat.Field
+  blocks : List FileBlock
+  deriving DecidableEq, Repr
+
 end
 
 private def check (condition : Bool) : Except Error Unit :=
@@ -512,16 +517,20 @@ private def mixedFieldKind (bytes : KBytes) (tag : Nat) (payload : Table) :
     return .view (← viewFieldKind tag payload)
   return .primitive (← primitiveFieldType bytes tag payload)
 
+private def mixedSchema (limits : Limits) (bytes : KBytes) (payload : Table) :
+    Except Error (List MixedFlat.Field) := do
+  let (_, fields) ← schemaWith limits bytes payload
+    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
+    (fun pos => fieldWith bytes pos (mixedFieldKind bytes) MixedFlat.Field.mk)
+  return fields
+
 /-- Admit the ordered fields of the bodyless little-endian mixed-flat Schema. -/
 public def MixedFlat.readSchema (limits : Limits) (bytes : KBytes) :
     Except Error (List MixedFlat.Field) := do
   let (tag, payload, bodyLength) ← messageParts limits bytes
   if tag ≠ 1 then throw (.unsupported (.messageKind tag))
   if bodyLength ≠ 0 then throw (.malformed .bodyLength)
-  let (_, fields) ← schemaWith limits bytes payload
-    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
-    (fun pos => fieldWith bytes pos (mixedFieldKind bytes) MixedFlat.Field.mk)
-  return fields
+  mixedSchema limits bytes payload
 
 /-- Bound count words and check the computed descriptor cardinality before
 enumerating the nodes and descriptors. Count positions are view ordinals. -/
@@ -571,8 +580,8 @@ public def readMessage (limits : Limits) (bytes : KBytes) : Except Error Message
     | _ => throw (.unsupported (.messageKind tag))
   return ⟨header, bodyLength⟩
 
-/-- Decode an Arrow V5 File.fbs footer from its checked file slice. -/
-public def readFileFooter (limits : Limits) (bytes : KBytes) : Except Error FileFooter := do
+private def fileFooterWith {α : Type} (limits : Limits) (bytes : KBytes)
+    (readSchemaTable : Table → Except Error (List α)) : Except Error (List α × List FileBlock) := do
   if !bytes.wf then throw (.malformed .source)
   if bytes.len > limits.metadataBytes then throw (.limit .metadataBytes)
   let value ← table bytes (← target bytes 0)
@@ -582,7 +591,7 @@ public def readFileFooter (limits : Limits) (bytes : KBytes) : Except Error File
   emptyVector bytes value 2 24 8 .dictionary
   emptyVector bytes value 4 4 4 .customMetadata
   let schemaTable ← table bytes (← require (← reference bytes value 1))
-  let fields ← schema limits bytes schemaTable
+  let fields ← readSchemaTable schemaTable
   let (first, count) ← vector bytes value 3 24 8
   if count > limits.batches then throw (.limit .batches)
   let blocks ← (List.range count).mapM fun index => do
@@ -592,6 +601,16 @@ public def readFileFooter (limits : Limits) (bytes : KBytes) : Except Error File
     check (metadataLength < 2^31)
     let bodyLength ← natural64 bytes (pos + 16)
     pure (FileBlock.mk offset metadataLength bodyLength)
+  return (fields, blocks)
+
+/-- Decode an Arrow V5 File.fbs footer for the primitive profile. -/
+public def readFileFooter (limits : Limits) (bytes : KBytes) : Except Error FileFooter := do
+  let (fields, blocks) ← fileFooterWith limits bytes (schema limits bytes)
+  return ⟨fields, blocks⟩
+
+/-- Decode a footer for the four mixed-flat field kinds. -/
+public def MixedFlat.readFileFooter (limits : Limits) (bytes : KBytes) : Except Error MixedFlat.FileFooter := do
+  let (fields, blocks) ← fileFooterWith limits bytes (mixedSchema limits bytes)
   return ⟨fields, blocks⟩
 
 end Silmaril.Formats.Arrow

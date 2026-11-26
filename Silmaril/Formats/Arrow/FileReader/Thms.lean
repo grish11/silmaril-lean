@@ -23,17 +23,29 @@ theorem FooterSpan.bytes_exact {input : KBytes} (span : FooterSpan input) :
 
 /-- Each indexed range is aligned and lies between the embedded schema and
 the footer. Its extent includes its modern prefix and the declared body. -/
+theorem BlocksFit.block_range {footerStart cursor : Nat} {blocks : List FileBlock}
+    (fits : BlocksFit footerStart cursor blocks) {block : FileBlock} (member : block ∈ blocks) :
+    cursor ≤ block.offset ∧ block.offset % 8 = 0 ∧ 8 ≤ block.metadataLength ∧
+      block.metadataLength % 8 = 0 ∧ block.bodyLength % 8 = 0 ∧
+      block.endOffset ≤ footerStart :=
+  Proofs.Formats.Arrow.FileReader.block_range fits member
+
+theorem BlocksFit.block_order {footerStart cursor : Nat} {blocks : List FileBlock}
+    (fits : BlocksFit footerStart cursor blocks) :
+    List.Pairwise (fun earlier later : FileBlock => earlier.endOffset ≤ later.offset) blocks :=
+  Proofs.Formats.Arrow.FileReader.block_order fits
+
 theorem Index.block_range {input : KBytes} (index : Index input)
     {block : FileBlock} (member : block ∈ index.footer.blocks) :
     index.schemaEnd ≤ block.offset ∧ block.offset % 8 = 0 ∧ 8 ≤ block.metadataLength ∧
       block.metadataLength % 8 = 0 ∧ block.bodyLength % 8 = 0 ∧
       block.endOffset ≤ index.span.start :=
-  Proofs.Formats.Arrow.FileReader.block_range index.fits member
+  index.fits.block_range member
 
 theorem Index.block_order {input : KBytes} (index : Index input) :
     List.Pairwise (fun earlier later : FileBlock => earlier.endOffset ≤ later.offset)
       index.footer.blocks :=
-  Proofs.Formats.Arrow.FileReader.block_order index.fits
+  index.fits.block_order
 
 /-- Reading a checked index entry selects precisely its declared body window. -/
 theorem Index.readBlock_exact {input : KBytes} (index : Index input) (limits : Limits)
