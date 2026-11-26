@@ -1,0 +1,9 @@
+signed: header [4, 21), payload [21, 35)
+  definitions 03 05 levels [1, 0, 1]; scalar suffix f9 ff ff ff 00 00 00 00 values [-7, 0]
+wide: header [35, 52), payload [52, 67)
+  definitions 03 12 00 levels [2, 0, 1]; scalar suffix 00 00 00 00 00 04 00 00 values [4398046511104]
+paired rows [{'signed': -7, 'wide': 4398046511104}, None, {'signed': 0, 'wide': None}]
+parent mismatch: levels [2, 1, 0], original scalar suffix 0000000000040000, SHA-256 b816ecadf59feaafaa4796aedfccb6deb23691cd5d0d170760782d5604f5388f
+surplus INT64: levels [1, 0, 1], original scalar suffix 0000000000040000, SHA-256 382c10ed66b85e4003fbb5ff73f4c2cd1ef9b0ee05af08b3b9551584ed1b8fd1
+impossible level: levels [3, 0, 1], original scalar suffix 0000000000040000, SHA-256 27d6cf77ecdd4eda9c49e4eb6c92fdc1b61fcfce8dbaf6f2bc7aca699704d210
+wrong codec: chunk codecs [0, 1], SHA-256 42bab709dc0c6c06deb3b1ef0635189c7bed5c246a62bfd2012d56fdc7c2b39e
