@@ -1,6 +1,7 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.RegisterRename.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Thms
+meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Comparison.Defs
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Defs
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
@@ -165,6 +166,31 @@ example : (overlapping.refinementCounterexample? matching).isSome = false :=
 
 #guard !(overlapping.refinementCounterexample? matching).isSome
 
+private def emptyComparison := (conflicting.checkOccurrenceComparison? right).get (by decide)
+
+#guard emptyComparison.overCaptures == ⟨true, some true⟩ && !emptyComparison.counterexample?.isSome
+
+-- An exact dispatcher may type an unused incoming packet differently from
+-- the structural seed. Its rows still check, but the pair is unsupported.
+private def discardGraph : CFG Name Name Unit :=
+  ⟨.term (.br ⟨12⟩ (.var shared)), [(⟨12⟩, ⟨⟨7⟩, .term (.br ⟨11⟩ .unit)⟩)]⟩
+
+private def discard := (constructStructural signature discardGraph exits (fun _ => [])
+  bit (fun _ => bit) (fun _ => .product .unit .unit)).get (by decide)
+
+private def unsupported : StructuralEntry signature discardGraph exits (fun _ => [])
+    bit (fun _ => .product .unit .unit) :=
+  { discard with entry := { discard.entry with
+      context := .snoc .nil .unit
+      blocks := fun _ => .unit
+      typed := by
+        let _ := signature.typing
+        exact NamedFlat.check_sound _ _ _ _ (by decide) } }
+
+#guard (discard.checkOccurrenceComparison? discard).isSome
+#guard (unsupported.checkOccurrenceComparison? discard).isNone
+#guard (discard.checkOccurrenceComparison? unsupported).isNone
+
 -- Existing named elaboration can express an injection as an instruction,
 -- but the structural public readback takes the operand of a direct jump.
 example :
@@ -204,6 +230,8 @@ private def effectRight : StructuralEntry effectSignature (effectGraph shared ri
   (constructStructural effectSignature (effectGraph shared rightRead) exits fields (.product bit bit)
     (fun _ => .product bit bit) outputs).get (by decide)
 
+private def effectComparison := (effectLeft.checkOccurrenceComparison? effectRight).get (by decide)
+
 set_option maxHeartbeats 1000000 in
 private theorem effectRejects : effectLeft.refinementFromStore? effectRight mismatchingStore = some false := by
   have leftSeed : effectLeft.seed? mismatchingStore = some overlapPacket := by decide
@@ -214,8 +242,8 @@ private theorem effectRejects : effectLeft.refinementFromStore? effectRight mism
   cbv
 
 private def effectWitness :=
-  (effectLeft.refinementCounterexample? effectRight).get (by
-    apply (effectLeft.refinementCounterexample?_isSome_iff effectRight).mpr
+  effectComparison.counterexample?.get (by
+    apply effectComparison.counterexample?_isSome_iff.mpr
     have spec := (effectLeft.refinementFromStore?_eq_some_iff effectRight mismatchingStore false).mp effectRejects
     apply (effectLeft.refinementOverCaptures_eq_some_iff effectRight false).mpr
     exact ⟨fun impossible => Bool.noConfusion impossible,
@@ -286,8 +314,8 @@ example (captureType : PacketType) :
 private def repeatedAdmission (wide : Bool) : OccurrenceAdmission (repeatedEffect wide) :=
   (repeatedEffect wide).admittedOccurrences (by cases wide <;> decide)
 
-private def leftOccurrences := repeatedAdmission false
-private def rightOccurrences := effectRight.admittedOccurrences (by decide)
+private def leftOccurrences := effectComparison.leftAdmission
+private def rightOccurrences := effectComparison.rightAdmission
 
 private def repeatedPacket (wide : Bool) : Denote (.product (repeatedType wide) bit) :=
   (.inl ⟨⟩, .inl ⟨⟩)
@@ -352,23 +380,22 @@ private theorem effectOccurrenceEq :
         LiveOut.observeRaw effectSignature.primitive exits fields (effectGraph shared rightRead) original from rfl).trans
       (effectRight.observeRaw_eq_occurrences original rightPacket effectRightSeed))
 
-private theorem effectAccepts : effectLeft.refinementFromStore? effectRight original = some true := by
-  apply (leftOccurrences.refinementFromStore?_eq_some_iff rightOccurrences original true).mpr
+private theorem effectAccepts : effectComparison.fromStore? original = some true := by
+  apply (effectComparison.fromStore?_eq_some_iff original true).mpr
   refine ⟨overlapPacket, rightPacket, effectLeftSeed, effectRightSeed, ?_⟩
   refine ⟨fun _ policy x hx trace seen => ?_, fun _ => rfl⟩
   change HasTrace (effectRight.observeOccurrences rightPacket) trace
   exact effectOccurrenceEq ▸ seen.1
 
-#guard (effectLeft.jointStores effectRight).map (effectLeft.refinementFromStore? effectRight) ==
+#guard (effectLeft.jointStores effectRight).map effectComparison.fromStore? ==
   [some true, some false]
 
 -- Reuse a nonempty successful aggregate with the same two occurrence types.
-private def overlappingOccurrences := overlapping.admittedOccurrences (by decide)
-private def matchingOccurrences := matching.admittedOccurrences (by decide)
+private def matchingComparison := (overlapping.checkOccurrenceComparison? matching).get (by decide)
 
 example (policy : Model.{0, 0} signature.traceSignature.toSignature) :
-    TraceInstitution.Sat policy (overlappingOccurrences.refinementSentence matchingOccurrences overlapPacket rightPacket) :=
-  (overlappingOccurrences.refinementOverCaptures_iff_valid matchingOccurrences).mp
+    TraceInstitution.Sat policy (matchingComparison.sentence overlapPacket rightPacket) :=
+  matchingComparison.overCaptures_iff_valid.mp
     matchingVerdict matchingStore overlapPacket rightPacket (by decide) (by decide) policy
 
 -- The original extracted trace still distinguishes the two admitted
@@ -379,19 +406,18 @@ example :
       effectRight.seed? effectWitness.val.initial = some b ∧
       Silmaril.Elgot.ITree.HandledTrace effectSignature.traceModel.step ()
         (effectLeft.observeOccurrences a) effectWitness.val.trace ∧
-      ¬ TraceInstitution.Sat effectSignature.traceModel (leftOccurrences.refinementSentence rightOccurrences a b) := by
+      ¬ TraceInstitution.Sat effectSignature.traceModel (effectComparison.sentence a b) := by
   obtain ⟨a, b, ha, hb, seen, _, rejected⟩ :=
-    effectWitness.val.refutes_occurrences leftOccurrences rightOccurrences effectWitness.property
+    effectComparison.refutes effectWitness.property
   exact ⟨a, b, ha, hb, seen, rejected⟩
 
-example : (effectLeft.refinementOverCaptures effectRight).verdict ≠ some true := by
+example : effectComparison.overCaptures.verdict ≠ some true := by
   intro passed
-  obtain ⟨a, b, ha, hb, _, _, rejected⟩ :=
-    effectWitness.val.refutes_occurrences leftOccurrences rightOccurrences effectWitness.property
-  exact rejected ((leftOccurrences.refinementOverCaptures_iff_valid rightOccurrences).mp passed
+  obtain ⟨a, b, ha, hb, _, _, rejected⟩ := effectComparison.refutes effectWitness.property
+  exact rejected (effectComparison.overCaptures_iff_valid.mp passed
     effectWitness.val.initial a b ha hb effectSignature.traceModel)
 
-example : effectLeft.refinementFromStore? effectRight (upd mismatchingStore shared (.inr .unit)) = none := by decide
+example : effectComparison.fromStore? (upd mismatchingStore shared (.inr .unit)) = none := by decide
 
 -- Change both the repeated source capture and the selected final register.
 private def registerNames : Name ≃ Name :=
@@ -400,10 +426,10 @@ private def registerNames : Name ≃ Name :=
 private def renamedLeft := effectLeft.rename registerNames.toEmbedding
 private def renamedRight := effectRight.rename registerNames.toEmbedding
 
--- Run the exact occurrence checker again after permuting the source capture
--- and selected live-out. The narrower slot stays before the wider slot.
-private def renamedLeftOccurrences := renamedLeft.admitOccurrences.get (by decide)
-private def renamedRightOccurrences := renamedRight.admitOccurrences.get (by decide)
+private def renamedComparison := (renamedLeft.checkOccurrenceComparison? renamedRight).get
+  ((effectLeft.checkOccurrenceComparison?_isSome_rename effectRight registerNames.toEmbedding).trans (by decide))
+
+private def renamedLeftOccurrences := renamedComparison.leftAdmission
 
 example : renamedLeft.occurrenceContext.toList = [narrowBit, bit] := by decide
 example : renamedLeft.occurrenceGraph = effectLeft.occurrenceGraph :=
@@ -432,30 +458,29 @@ example :
     ∃ (a : Denote (.product narrowBit bit)) (b : Denote (.product bit bit)),
       renamedLeft.seed? (effectWitness.val.rename registerNames).initial = some a ∧
       renamedRight.seed? (effectWitness.val.rename registerNames).initial = some b ∧
-      ¬ TraceInstitution.Sat effectSignature.traceModel
-        (renamedLeftOccurrences.refinementSentence renamedRightOccurrences a b) := by
-  obtain ⟨a, b, ha, hb, _, _, rejected⟩ := effectWitness.val.refutes_renamed_occurrences
-    leftOccurrences rightOccurrences registerNames renamedLeftOccurrences renamedRightOccurrences effectWitness.property
+      ¬ TraceInstitution.Sat effectSignature.traceModel (renamedComparison.sentence a b) := by
+  have transported := (effectWitness.val.refutes_rename_iff effectLeft effectRight registerNames).mpr effectWitness.property
+  obtain ⟨a, b, ha, hb, _, _, rejected⟩ := renamedComparison.refutes transported
   exact ⟨a, b, ha, hb, rejected⟩
 
 example : renamedLeft.footprint = [(⟨40⟩, narrowBit), (⟨40⟩, bit)] := by
   rw [show renamedLeft = effectLeft.rename registerNames.toEmbedding from rfl, effectLeft.footprint_rename]
   decide
 
-example : renamedLeft.refinementFromStore? renamedRight (renameStore registerNames mismatchingStore) = some false :=
+example : renamedComparison.fromStore? (renameStore registerNames mismatchingStore) = some false :=
   (effectLeft.refinementFromStore?_rename effectRight registerNames mismatchingStore).trans effectRejects
 
-example : renamedLeft.refinementFromStore? renamedRight (renameStore registerNames original) = some true :=
+example : renamedComparison.fromStore? (renameStore registerNames original) = some true :=
   (effectLeft.refinementFromStore?_rename effectRight registerNames original).trans effectAccepts
 
-example : renamedLeft.refinementOverCaptures renamedRight = effectLeft.refinementOverCaptures effectRight :=
+example : renamedComparison.overCaptures = effectComparison.overCaptures :=
   effectLeft.refinementOverCaptures_rename effectRight registerNames
 
 example : (effectWitness.val.rename registerNames).Refutes renamedLeft renamedRight :=
   (effectWitness.val.refutes_rename_iff effectLeft effectRight registerNames).mpr effectWitness.property
 
 -- Execute the renamed extractor as well as transporting its checked witness.
-#guard match renamedLeft.refinementCounterexample? renamedRight with
+#guard match renamedComparison.counterexample? with
   | some checked =>
     match checked.val.trace with
     | .exchange (.ask _) _ (.result packet) =>

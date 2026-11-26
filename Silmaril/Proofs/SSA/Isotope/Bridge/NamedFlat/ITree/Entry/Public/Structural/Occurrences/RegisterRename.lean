@@ -47,6 +47,20 @@ variable {K : Type 1} [DecidableEq V] [DecidableEq W] [DecidableEq K]
   (entry : StructuralEntry signature source exits fields inputType outputs)
   (right : StructuralEntry signature target exits fields rightType outputs)
 
+private theorem cast_slot {m n m' n' p q r exits : Nat} {target : FiniteCFG F p q r}
+    (blocks : m = m') (captures : n = n')
+    (data : Σ flat : FiniteCFG F m exits n, Σ proof : Provenance flat target,
+      StructuralSeed proof.seed inputType) :
+    (StructuralEntry.castReadback blocks captures data).2.1.slot = data.2.1.slot := by
+  cases blocks
+  cases captures
+  rfl
+
+theorem packet_type_rename (names : V ↪ W) :
+    (entry.rename names).entry.context.get (entry.rename names).provenance.slot =
+      entry.entry.context.get entry.provenance.slot :=
+  congrArg entry.entry.context.get (cast_slot _ _ ⟨entry.flat, entry.provenance, entry.typedSeed⟩)
+
 theorem count_rename (names : V ↪ W) :
     entry.footprint.length = (entry.rename names).footprint.length := by
   rw [entry.footprint_rename, List.length_map]

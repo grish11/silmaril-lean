@@ -809,6 +809,18 @@ its separate empty-domain flag. The extracted representative and trace
 supply a counterexample in the all-replies model.
 [Occurrence-entry satisfaction and witness](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Refinement/Thms.lean)
 
+`StructuralEntry.checkOccurrenceComparison?` takes two structural RTL
+entries and checks both dispatcher packet types. On success it derives both
+occurrence admissions and exposes the pointwise and finite-domain verdicts
+and the original named counterexample. A failed compatibility check gives no
+comparison. A failed joint decode at a supplied store gives no pointwise
+verdict. A returned `false` rejects at a jointly decoded store, and the
+finite verdict reports an empty domain separately. Each verdict concerns the
+same ordered exits and selected live-outs in the admitted occurrence runners.
+Register renaming preserves compatibility and the sentence at the
+transported seeds.
+[Checked structural comparison](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment

@@ -20,6 +20,13 @@ variable {V W K : Type 1} [DecidableEq V] [DecidableEq W] [DecidableEq K] {F : T
   {inputType rightType : PacketType}
   (entry : StructuralEntry signature source exits fields inputType outputs)
 
+/-- Register renaming keeps the checked dispatcher capture slot and its type. -/
+theorem StructuralEntry.occurrencePacketType_rename (names : V ↪ W) :
+    (entry.rename names).entry.context.get (entry.rename names).provenance.slot =
+      entry.entry.context.get entry.provenance.slot :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.Occurrences.RegisterRename.packet_type_rename
+    entry names
+
 theorem StructuralEntry.occurrenceCount_rename (names : V ↪ W) :
     entry.footprint.length = (entry.rename names).footprint.length :=
   Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.Occurrences.RegisterRename.count_rename
