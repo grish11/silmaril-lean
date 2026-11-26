@@ -261,9 +261,11 @@ This development uses the Isotope relational evaluator and model APIs.
 
 ## Regressions
 
-`IsotopeRelationalInstitutionTests` builds open Boolean equations through the
-public header. The examples exercise a nonidentity label swap, a one-label
+Run `lake build --wfail LetIterPackingImportTests` to build the sequential
+institution regressions and axiom audit alongside the packing import checks.
+The regressions build open Boolean equations through the public header and
+exercise a nonidentity label swap, a one-label
 signature inclusion, reducts on objects and arrows, case selection and a
 LetIter run with feedback before return. All three equations hold in the
-original model and fail after the swap reduct. The paired axiom audit checks transitive dependencies of
-the institution modules, proofs and regressions.
+original model and fail after the swap reduct. The axiom audit checks
+transitive dependencies of the institution modules, proofs and regressions.

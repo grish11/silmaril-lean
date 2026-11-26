@@ -1,6 +1,6 @@
 module
 
-import all tests.ssa.IsotopeRelationalInstitution
+import all tests.ssa.LetIterPackingImports.IsotopeRelationalInstitution
 import all Silmaril.SSA.Isotope.Institution.Relational.Thms
 import all Silmaril.SSA.Isotope.Institution.Relational.Inclusions.Defs
 import all Silmaril.SSA.Isotope.Institution.Relational.Inclusions.Thms
@@ -32,7 +32,7 @@ run_cmd do
     let owner := env.header.moduleNames[idx.toNat]!
     unless (`Silmaril.SSA.Isotope.Institution.Relational).isPrefixOf owner ||
         (`Silmaril.Proofs.SSA.Isotope.Institution.Relational).isPrefixOf owner ||
-        owner == `tests.ssa.IsotopeRelationalInstitution do
+        owner == `tests.ssa.LetIterPackingImports.IsotopeRelationalInstitution do
       continue
     for ax in (← collectAxioms name) do
       unless allowed.contains ax do
