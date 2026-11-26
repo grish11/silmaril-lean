@@ -44,7 +44,7 @@ private theorem prediction_exists {localWidth : Fin n → Nat} (model : BooleanM
     ∃ result, outcome.predict model = some result := by
   cases outcome with
   | returns result => exact ⟨_, rfl⟩
-  | cycle state => exact ⟨_, rfl⟩
+  | cycle state | undefined state => exact ⟨_, rfl⟩
   | unsupported state => exact supported.elim
 
 private theorem compare_prediction (model : BooleanModel F α) {l r : Nat}
@@ -54,20 +54,20 @@ private theorem compare_prediction (model : BooleanModel F α) {l r : Nat}
     left.refines? right = some true ↔ p ≤ q := by
   cases left with
   | unsupported state => simp [Outcome.predict] at predictL
-  | cycle state =>
+  | cycle state | undefined state =>
     have same : Part.none = p := Option.some.inj predictL
     subst p
     have bottom : Part.none ≤ q := fun result present => (Part.notMem_none result present).elim
     cases right with
     | unsupported j => simp [Outcome.predict] at predictR
-    | cycle j => exact ⟨fun _ => bottom, fun _ => rfl⟩
+    | cycle j | undefined j => exact ⟨fun _ => bottom, fun _ => rfl⟩
     | returns value => exact ⟨fun _ => bottom, fun _ => rfl⟩
   | returns source =>
     have same : Part.some (source.render model) = p := Option.some.inj predictL
     subst p
     cases right with
     | unsupported j => simp [Outcome.predict] at predictR
-    | cycle j =>
+    | cycle j | undefined j =>
       have same : Part.none = q := Option.some.inj predictR
       subst q
       simp only [Outcome.refines?, Option.some.injEq, Bool.false_eq_true, false_iff]
@@ -79,62 +79,73 @@ private theorem compare_prediction (model : BooleanModel F α) {l r : Nat}
       exact ⟨fun equal => key_injective equal ▸ le_rfl, fun included =>
         congrArg At.key (render_injective model (Part.mem_some_iff.mp (included _ (Part.mem_some _))))⟩
 
-theorem refinement_at (model : BooleanModel F α) (first : Profile left inputs outputs)
-    (second : Profile right inputs outputs) (input : Fin a) (packet : Packet (inputs input))
-    (typedL : (entryOutcome first input packet).supported) (typedR : (entryOutcome second input packet).supported) :
-    refinementAt? first second input packet = some true ↔
+theorem refinement_at_with (model : BooleanModel F α) (first : Profile left inputs outputs)
+    (second : Profile right inputs outputs)
+    (advanceL : Advance first) (advanceR : Advance second)
+    (soundL : StepSound model first advanceL) (soundR : StepSound model second advanceR)
+    (input : Fin a) (packet : Packet (inputs input))
+    (typedL : (entryOutcomeWith first advanceL input packet).supported) (typedR : (entryOutcomeWith second advanceR input packet).supported) :
+    refinementAtWith? first second advanceL advanceR input packet = some true ↔
       left.denote model.pairModel.val (input, encodePacket model packet) ≤
         right.denote model.pairModel.val (input, encodePacket model packet) := by
   obtain ⟨p, predictL⟩ := prediction_exists model _ typedL
   obtain ⟨q, predictR⟩ := prediction_exists model _ typedR
-  rw [entry_sound model first input packet p predictL, entry_sound model second input packet q predictR]
+  rw [entry_with_sound model first advanceL soundL input packet p predictL,
+    entry_with_sound model second advanceR soundR input packet q predictR]
   exact compare_prediction model _ _ predictL predictR
 
-theorem refinement_at_none (first : Profile left inputs outputs) (second : Profile right inputs outputs)
+theorem refinement_at_none_with (first : Profile left inputs outputs) (second : Profile right inputs outputs)
+    (advanceL : Advance first) (advanceR : Advance second)
     (input : Fin a) (packet : Packet (inputs input)) :
-    refinementAt? first second input packet = none ↔
-      ¬ ((entryOutcome first input packet).supported ∧ (entryOutcome second input packet).supported) := by
-  unfold refinementAt?
+    refinementAtWith? first second advanceL advanceR input packet = none ↔
+      ¬ ((entryOutcomeWith first advanceL input packet).supported ∧ (entryOutcomeWith second advanceR input packet).supported) := by
+  unfold refinementAtWith?
   rw [← compare_supported]
-  cases (entryOutcome first input packet).refines? (entryOutcome second input packet) <;> simp
+  cases (entryOutcomeWith first advanceL input packet).refines? (entryOutcomeWith second advanceR input packet) <;> simp
 
 private theorem all_results (first : Profile left inputs outputs) (second : Profile right inputs outputs)
+    (advanceL : Advance first) (advanceR : Advance second)
     (test : Option Bool → Bool) :
-    ((List.finRange a).flatMap fun input => (packets (inputs input)).map (refinementAt? first second input)).all test =
-      true ↔ ∀ input packet, test (refinementAt? first second input packet) = true := by
+    ((List.finRange a).flatMap fun input => (packets (inputs input)).map (refinementAtWith? first second advanceL advanceR input)).all test =
+      true ↔ ∀ input packet, test (refinementAtWith? first second advanceL advanceR input packet) = true := by
   simp [List.all_eq_true, mem_packets]
 
-private theorem supported_iff (first : Profile left inputs outputs) (second : Profile right inputs outputs) :
-    ((List.finRange a).flatMap fun input => (packets (inputs input)).map (refinementAt? first second input)).all
-      Option.isSome = true ↔ Supported first ∧ Supported second := by
-  rw [all_results]
-  simp only [refinementAt?, compare_supported, Supported, forall_and]
+private theorem supported_iff (first : Profile left inputs outputs) (second : Profile right inputs outputs)
+    (advanceL : Advance first) (advanceR : Advance second) :
+    ((List.finRange a).flatMap fun input => (packets (inputs input)).map (refinementAtWith? first second advanceL advanceR input)).all
+      Option.isSome = true ↔ SupportedWith first advanceL ∧ SupportedWith second advanceR := by
+  rw [all_results first second advanceL advanceR]
+  simp only [refinementAtWith?, compare_supported, SupportedWith, forall_and]
 
-theorem refinement_none (first : Profile left inputs outputs) (second : Profile right inputs outputs) :
-    refinement? first second = none ↔ ¬ (Supported first ∧ Supported second) := by
-  dsimp only [refinement?]
+theorem refinement_none_with (first : Profile left inputs outputs) (second : Profile right inputs outputs)
+    (advanceL : Advance first) (advanceR : Advance second) :
+    refinementWith? first second advanceL advanceR = none ↔ ¬ (SupportedWith first advanceL ∧ SupportedWith second advanceR) := by
+  dsimp only [refinementWith?]
   split
   · rename_i supported
-    simp [(supported_iff first second).mp supported]
+    simp [(supported_iff first second advanceL advanceR).mp supported]
   · rename_i unsupported
-    simp [mt (supported_iff first second).mpr unsupported]
+    simp [mt (supported_iff first second advanceL advanceR).mpr unsupported]
 
-theorem refinement_some (model : BooleanModel F α) (first : Profile left inputs outputs)
-    (second : Profile right inputs outputs) (verdict : Bool) :
-    refinement? first second = some verdict ↔ (Supported first ∧ Supported second) ∧
+theorem refinement_some_with (model : BooleanModel F α) (first : Profile left inputs outputs)
+    (second : Profile right inputs outputs)
+    (advanceL : Advance first) (advanceR : Advance second)
+    (soundL : StepSound model first advanceL) (soundR : StepSound model second advanceR)
+    (verdict : Bool) :
+    refinementWith? first second advanceL advanceR = some verdict ↔ (SupportedWith first advanceL ∧ SupportedWith second advanceR) ∧
       (verdict = true ↔ Sat inputs model left right) := by
-  dsimp only [refinement?]
+  dsimp only [refinementWith?]
   split
   · rename_i supported
-    have typed := (supported_iff first second).mp supported
-    have agrees : (∀ input packet, refinementAt? first second input packet = some true) ↔
+    have typed := (supported_iff first second advanceL advanceR).mp supported
+    have agrees : (∀ input packet, refinementAtWith? first second advanceL advanceR input packet = some true) ↔
         Sat inputs model left right :=
       forall_congr' fun input => forall_congr' fun packet =>
-        refinement_at model first second input packet (typed.1 input packet) (typed.2 input packet)
+        refinement_at_with model first second advanceL advanceR soundL soundR input packet (typed.1 input packet) (typed.2 input packet)
     simp only [Option.some.injEq, typed, true_and]
     rw [← agrees]
     cases verdict <;> simp [mem_packets]
   · rename_i unsupported
-    simp [mt (supported_iff first second).mpr unsupported]
+    simp [mt (supported_iff first second advanceL advanceR).mpr unsupported]
 
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean

@@ -15,7 +15,7 @@ open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Width (Profile)
 
 variable {V F α : Type} [DecidableEq V] {a b n : Nat}
   {graph : Graph V F a b} {inputs : Fin a → Nat} {outputs : Fin b → Nat}
-  {profile : Profile graph inputs outputs}
+  {profile : Profile graph inputs outputs} {advance : Advance profile}
 
 theorem key_injective {L : Type} {width : L → Nat} : Function.Injective (At.key (width := width)) := by
   rintro ⟨left, packet⟩ ⟨right, packet'⟩ equal
@@ -52,14 +52,14 @@ private def Seen (profile : Profile graph inputs outputs) (remaining : Finset (F
 
 /-- Every visited state has a checked edge to another visited state or to
 the state being inspected. -/
-private def LinksBack (profile : Profile graph inputs outputs) (remaining : Finset (Fin graph.locals × List Bool))
+private def LinksBack (profile : Profile graph inputs outputs) (advance : Advance profile) (remaining : Finset (Fin graph.locals × List Bool))
     (current : At profile.width) : Prop :=
-  ∀ state : At profile.localWidth, state.key ∉ remaining → ∃ next, next? profile state = some next ∧ (next = current ∨ Seen profile remaining next)
+  ∀ state : At profile.localWidth, state.key ∉ remaining → ∃ next, advance state = .next next ∧ (next = current ∨ Seen profile remaining next)
 
-private theorem advance {remaining : Finset (Fin graph.locals × List Bool)}
+private theorem visit {remaining : Finset (Fin graph.locals × List Bool)}
     {current : At profile.localWidth} {next : At profile.width}
-    (links : LinksBack profile remaining (inside profile current)) (edge : next? profile current = some next) :
-    LinksBack profile (remaining.erase current.key) next := by
+    (links : LinksBack profile advance remaining (inside profile current)) (edge : advance current = .next next) :
+    LinksBack profile advance (remaining.erase current.key) next := by
   intro state absent
   by_cases same : state.key = current.key
   · cases key_injective same
@@ -74,8 +74,8 @@ private theorem advance {remaining : Finset (Fin graph.locals × List Bool)}
       · exact fun member => visited (Finset.mem_erase.mp member).2
       · exact visited
 
-private theorem no_run (model : BooleanModel F α) {remaining : Finset (Fin graph.locals × List Bool)}
-    (closed : ∀ state : At profile.localWidth, state.key ∉ remaining → ∃ next, next? profile state = some next ∧ Seen profile remaining next)
+private theorem no_run (model : BooleanModel F α) (sound : StepSound model profile advance) {remaining : Finset (Fin graph.locals × List Bool)}
+    (closed : ∀ state : At profile.localWidth, state.key ∉ remaining → ∃ next, advance state = .next next ∧ Seen profile remaining next)
     {start : Label graph.locals b × α} {result : Fin b × α}
     (run : Silmaril.Elgot.Part.Runs (graph.step model.pairModel.val) start result)
     (visited : ∃ state : At profile.localWidth, state.key ∉ remaining ∧ start = (inside profile state).render model) :
@@ -90,44 +90,55 @@ private theorem no_run (model : BooleanModel F α) {remaining : Finset (Fin grap
     obtain ⟨target, checked, targetSeen⟩ := closed state seen
     rw [same] at advanced
     change Sum.inr next ∈ graph.step model.pairModel.val (.inl state.1, encodePacket model state.2) at advanced
-    rw [private_step model profile state checked] at advanced
+    have step := sound state (Part.some (.inr (At.render model target))) (by rw [checked]; rfl)
+    rw [step] at advanced
     have equal : next = target.render model := by simpa using advanced
     rcases target with ⟨index | port, packet⟩
     · exact ih ⟨⟨index, packet⟩, targetSeen, equal⟩
     · exact targetSeen
 
 private theorem inspect_sound (model : BooleanModel F α) (profile : Profile graph inputs outputs)
+    (advance : Advance profile) (sound : StepSound model profile advance)
     (remaining : Finset (Fin graph.locals × List Bool)) (start : At profile.width)
-    (links : LinksBack profile remaining start) (result : Part (Fin b × α))
-    (found : (inspect profile remaining start).predict model = some result) :
+    (links : LinksBack profile advance remaining start) (result : Part (Fin b × α))
+    (found : (inspectWith profile advance remaining start).predict model = some result) :
     iter (graph.step model.pairModel.val) (start.render model) = result := by
   induction remaining using Finset.strongInductionOn generalizing start with
   | _ remaining ih =>
-    rw [inspect.eq_def] at found
+    rw [inspectWith.eq_def] at found
     rcases start with ⟨index | port, packet⟩
     · by_cases fresh : At.key (⟨index, packet⟩ : At profile.localWidth) ∈ remaining
       · simp only [dite_eq_left fresh] at found
-        cases checked : next? profile ⟨index, packet⟩ with
-        | none => simp [checked, Outcome.predict] at found
-        | some next =>
-          have predicted : (inspect profile (remaining.erase (At.key (⟨index, packet⟩ : At profile.localWidth))) next).predict model = some result := by
+        cases checked : advance ⟨index, packet⟩ with
+        | unsupported => simp [checked, Outcome.predict] at found
+        | undefined =>
+          have same : Part.none = result := by simpa [checked, Outcome.predict] using found
+          let step := graph.step model.pairModel.val
+          have halted := sound ⟨index, packet⟩ Part.none (by rw [checked]; rfl)
+          have stopped := congrArg (fun action => action >>= Sum.elim pure (iter step)) halted
+          change _ = Part.none.bind _ at stopped
+          rw [Part.bind_none] at stopped
+          exact (congrFun (LawfulElgotMonad.fixpoint step) (.inl index, encodePacket model packet)).trans
+            (stopped.trans same)
+        | next next =>
+          have predicted : (inspectWith profile advance (remaining.erase (At.key (⟨index, packet⟩ : At profile.localWidth))) next).predict model = some result := by
             simpa [checked] using found
           let step := graph.step model.pairModel.val
           have advanced := congrArg (fun action => action >>= Sum.elim pure (iter step))
-            (private_step model profile ⟨index, packet⟩ checked)
+            (sound ⟨index, packet⟩ (Part.some (.inr (At.render model next))) (by rw [checked]; rfl))
           rw [← Part.pure_eq_some, pure_bind] at advanced
           simp only [Sum.elim_inr] at advanced
           exact (congrFun (LawfulElgotMonad.fixpoint step) (.inl index, encodePacket model packet)).trans
-            (advanced.trans (ih _ (Finset.erase_ssubset fresh) next (advance links checked) predicted))
+            (advanced.trans (ih _ (Finset.erase_ssubset fresh) next (visit links checked) predicted))
       · have same : Part.none = result := by simpa [dite_eq_right fresh, Outcome.predict] using found
-        have closed : ∀ s : At profile.localWidth, s.key ∉ remaining → ∃ next, next? profile s = some next ∧ Seen profile remaining next := by
+        have closed : ∀ s : At profile.localWidth, s.key ∉ remaining → ∃ next, advance s = .next next ∧ Seen profile remaining next := by
           intro s absent
           obtain ⟨next, checked, rfl | known⟩ := links s absent
           · exact ⟨_, checked, fresh⟩
           · exact ⟨next, checked, known⟩
         rw [← same]
         refine Part.eq_none_iff.mpr fun value member => ?_
-        exact no_run model closed ((Silmaril.Elgot.Part.mem_iter_iff _ _ value).mp member)
+        exact no_run model sound closed ((Silmaril.Elgot.Part.mem_iter_iff _ _ value).mp member)
           ⟨⟨index, packet⟩, fresh, rfl⟩
     · have same : Part.some (At.render model (⟨port, packet⟩ : At outputs)) = result := Option.some.inj found
       rw [← same, congrFun (LawfulElgotMonad.fixpoint _) _]
@@ -138,12 +149,19 @@ private theorem encode_cast (model : BooleanModel F α) {source target : Nat} (e
   cases equal
   rfl
 
+theorem entry_with_sound (model : BooleanModel F α) (profile : Profile graph inputs outputs)
+    (advance : Advance profile) (sound : StepSound model profile advance)
+    (input : Fin a) (packet : Packet (inputs input)) (result : Part (Fin b × α))
+    (found : (entryOutcomeWith profile advance input packet).predict model = some result) :
+    graph.denote model.pairModel.val (input, encodePacket model packet) = result := by
+  have performed := inspect_sound model profile advance sound (privateKeys profile) (entryState profile input packet)
+    (fun state absent => (absent (mem_privateKeys profile state)).elim) result found
+  simpa only [Graph.denote, At.render, entryState, encode_cast] using performed
+
 theorem entry_sound (model : BooleanModel F α) (profile : Profile graph inputs outputs)
     (input : Fin a) (packet : Packet (inputs input)) (result : Part (Fin b × α))
     (found : (entryOutcome profile input packet).predict model = some result) :
-    graph.denote model.pairModel.val (input, encodePacket model packet) = result := by
-  have performed := inspect_sound model profile (privateKeys profile) (entryState profile input packet)
-    (fun state absent => (absent (mem_privateKeys profile state)).elim) result found
-  simpa only [Graph.denote, At.render, entryState, encode_cast] using performed
+    graph.denote model.pairModel.val (input, encodePacket model packet) = result :=
+  entry_with_sound model profile (pureAdvance profile) (pure_sound model profile) input packet result found
 
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean
