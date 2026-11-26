@@ -482,6 +482,11 @@ globs = ["tests.ssa.PEG"]
 name = "PeggyDialectTests"
 globs = ["tests.ssa.PeggyDialect"]
 
+# Check fixed-sort Peggy satisfaction against guarded Figure 11 denotation.
+[[lean_lib]]
+name = "PeggyInstitutionTests"
+globs = ["tests.ssa.PeggyInstitution"]
+
 # The component and generator tools of the Wasm release (docs/projects/wasm-components.md).
 [[lean_exe]]
 name = "wasm-tools-gen"
