@@ -293,12 +293,17 @@ before the read excludes that result. The checked pairing adapter
 uses those pure-map and tuple laws. Its `PUnit` law follows from
 `parallel_ret_right`, `mapResult_comp` and `bind_ret`. One
 concrete syntax soundness instantiation at `Behavior Nat` can use
-the read and two write primitives from that witness once the generic
-typed soundness theorem is available. [Iteration laws][brookes-iter] ·
-[Parallel laws and witness][brookes-par] · [Generic pairing contract][generic]
+the read and two write primitives from that witness. The draft
+generic interpreter in #3715 exposes `LetParIter.sound` for this
+instantiation and `denote_embed` for agreement with native terms.
+Both declarations concern monadic denotations. The generic equation
+theory has pure-map and guarded-case laws, and leaves the directed
+rule above optional. [Iteration laws][brookes-iter] · [Parallel laws
+and witness][brookes-par] · [Generic pairing contract][generic] ·
+[Draft typed soundness and native agreement][generic-soundness]
 
 The Lean bridge from the abstract ordered Freyd contract to the new
-syntax and the concrete syntax instantiation remain open. The Brookes
+syntax and the concrete Brookes instantiation remain open. The Brookes
 carrier observes finite possible completions. Contextual full
 abstraction, fairness, and operational adequacy for a full SC scheduler
 require separate results. [Brookes, journal §§7 and 10][brookes] ·
@@ -332,3 +337,4 @@ make check CHECK_TARGETS='+Silmaril.Semantics.Categories.Premonoidal.Interchange
 [kappe]: https://arxiv.org/abs/1710.02787v3
 [brookes]: https://www.cs.cmu.edu/~brookes/papers/FullAbstractionSharedVariable.pdf
 [dvir]: https://arxiv.org/abs/2501.15104v3
+[generic-soundness]: https://github.com/hiloopai/silmaril-lean/blob/0218a4ac2fb85e20d35b991a792336a8f53aec2e/Silmaril/SSA/Isotope/LetParIter/Thms.lean#L37-L52

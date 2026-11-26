@@ -295,7 +295,7 @@ tensor isomorphisms. The paper's Freyd interface instead takes the
 computation unit and tensor as Cartesian structure in the pure wide
 subcategory. [The Denotational Semantics of SSA, Definition 5.3](https://arxiv.org/abs/2411.09347)
 
-The [ordered parallel composition guide](letpariter.md) states the extra
+The [ordered parallel composition guide](letpariter-ordered-freyd.md) states the extra
 Freyd model laws for independent branches sharing a LetIter context.
 It records the Lean interchange lemmas and the concrete Brookes boundary.
 
