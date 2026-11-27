@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check context-map prefixes and exact cursor boundaries on pinned producer streams."""
+"""Check context maps and exact cursor boundaries on pinned producer streams."""
 import argparse
 from hashlib import sha256
 from importlib.metadata import version
@@ -27,7 +27,7 @@ def setup_trace(source, work):
     return build / "brotli"
 
 
-def trace(wire, reference, traced):
+def trace(wire, reference, traced, full):
     native = run(traced, "-d", "-c", data=wire)
     check(native.stdout == run(reference, "-d", "-c", data=wire).stdout, "native output")
     lines = iter(native.stderr.decode().splitlines())
@@ -53,40 +53,65 @@ def trace(wire, reference, traced):
             tag, remaining = next(lines).split()
             check(tag == "symbols", "native map symbol boundary")
             row.update(rle=int(rle), stop=extent - int(remaining))
+        work = 0
+        record = next(lines).split()
+        while record[0] == "token":
+            work += 1
+            record = next(lines).split()
+        tag, flag, end, values = record
+        check(tag == "map", "native full map boundary")
+        if full:
+            row.update(end=extent - int(end), imtf=int(flag), work=work, values=values)
+            check(len(bytes.fromhex(values)) == size, "native map output extent")
         maps.append(row)
     check(maps[0]["start"] == post_modes, "native literal map follows the mode vector")
     return start_controls, maps
 
 
-def collect(reference, traced, harness, work):
+def collect(reference, traced, harness, work, full):
     # Reuse the immediately preceding header's ordinary producers. Its
     # configured streams exercise distance fields, so they are left out.
     sources = HEADER["ordinary_inputs"](reference, harness, work)
     output = {}
     for name, (wire, provenance, _) in sources.items():
-        start_controls, maps = trace(wire, reference, traced)
+        start_controls, maps = trace(wire, reference, traced, full)
         file, requests = work / "wire.br", work / "requests"
         file.write_bytes(wire)
-        requests.write_text("".join(
-            f"{m['kind']} {m['start']} {m['stop']} {m['types']}\n" for m in maps))
+        if full:
+            check(maps[0]["end"] == maps[1]["start"], "native adjacent maps")
+            requests.write_text("".join(
+                f"{m['kind']} {m['start']} {m['end']} {m['types']} {m['work']}\n" for m in maps))
+            expected = [[m["trees"], *bytes.fromhex(m["values"])] for m in maps]
+        else:
+            requests.write_text("".join(
+                f"{m['kind']} {m['start']} {m['stop']} {m['types']}\n" for m in maps))
+            expected = [[m["entries"], m["trees"], m["rle"], m["trees"] + m["rle"]]
+                        if m["trees"] > 1 else [m["entries"], 1] for m in maps]
+        driver = "FullInterop.lean" if full else "Interop.lean"
         result = run("lake", "env", "lean", "-DautoImplicit=false", "-DwarningAsError=true", "--run",
-                     HERE / "Interop.lean", file, str(start_controls), requests)
-        expected = [[m["entries"], m["trees"], m["rle"], m["trees"] + m["rle"]]
-                    if m["trees"] > 1 else [m["entries"], 1] for m in maps]
-        check([json.loads(line) for line in result.stdout.splitlines()] == expected, "Lean map prefixes")
+                     HERE / driver, file, str(start_controls), requests)
+        check([json.loads(line) for line in result.stdout.splitlines()] == expected, "Lean map result")
         output[name] = {"provenance": provenance, "sha256": sha256(wire).hexdigest(),
                         "start_controls": start_controls, "maps": maps}
         for m in maps:
+            if full:
+                print(f"{name}: {m['kind']} bits [{m['start']}, {m['end']}), "
+                      f"{m['entries']} entries, {m['work']} symbols, IMTF={m['imtf']}")
+                continue
             print(f"{name}: {m['kind']} bits [{m['start']}, {m['stop']}), {m['entries']} entries, "
                   f"{m['trees']} trees, RLEMAX={m.get('rle')}")
     check(any(all(m["trees"] == 1 for m in row["maps"]) for row in output.values()), "implicit pair")
     check(any(all(m["trees"] > 1 for m in row["maps"]) for row in output.values()), "coded pair")
+    if full:
+        flags = {m["imtf"] for row in output.values() for m in row["maps"]}
+        check({-1, 1} <= flags, "implicit and inverse transform fixtures")
     return output
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--brotli-source", type=Path)
+    parser.add_argument("--full", action="store_true", help="check full maps instead of prefixes")
     args = parser.parse_args()
     check((pa.__version__, version("thrift")) == ("26.0.1", "0.25.0"), "producer versions")
     harness = runpy.run_path(str(ROOT / "scripts/parquet-brotli-raw/check.py"))
@@ -98,8 +123,9 @@ def main():
         source = args.brotli_source.resolve() if args.brotli_source else None
         reference = harness["build_reference"](source, clean)
         traced = setup_trace(source or clean / "brotli", work)
-        manifest = {"libbrotli_commit": PIN, "fixtures": collect(reference, traced, harness, work)}
-        check(manifest == json.loads((HERE / "fixtures.json").read_text()), "fixture pin")
+        manifest = {"libbrotli_commit": PIN, "fixtures": collect(reference, traced, harness, work, args.full)}
+        expected = HERE / ("full-fixtures.json" if args.full else "fixtures.json")
+        check(manifest == json.loads(expected.read_text()), "fixture pin")
         print(f"Fixture manifest matched libbrotli {PIN}, PyArrow {pa.__version__}, Thrift {version('thrift')}")
 
 

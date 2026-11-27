@@ -11,6 +11,9 @@ namespace Silmaril.Formats.Compression
 theorem natBits_length (value width : Nat) : (natBits value width).length = width :=
   length_natBits value width
 
+theorem msbBits_length (code width : Nat) : (msbBits code width).length = width :=
+  length_msbBits code width
+
 theorem natBits_zero_fill (width : Nat) : natBits 0 width = List.replicate width false :=
   natBits_zero width
 

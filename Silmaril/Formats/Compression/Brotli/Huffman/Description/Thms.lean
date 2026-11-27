@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Compression.Brotli.Huffman.Description.Defs
 import Silmaril.Proofs.Formats.Compression.Brotli.Huffman.Description.Contracts
+import Silmaril.Proofs.Formats.Compression.Brotli.Huffman.Description.Symbol
 
 public section
 
@@ -39,5 +40,14 @@ theorem Table.singleton_code {alphabet only : Nat} (bound : only < alphabet) (sy
     (Table.singleton alphabet only bound).codeFor symbol =
       if symbol = only then some (0, 0) else none :=
   rfl
+
+/-- The committed original bits are exactly the selected Huffman code. -/
+theorem Table.readBounded_sound {table : Table} {bitLimit symbol : Nat}
+    {before after : LSBReader} {input : List Bool} (rep : before.Rep input)
+    (count : before.count < 8) (read : table.readBounded bitLimit before = .ok (symbol, after)) :
+    ∃ code width suffix, table.codeFor symbol = some (code, width) ∧
+      width ≤ 15 ∧ width ≤ bitLimit ∧ input = msbBits code width ++ suffix ∧
+      after.Rep suffix ∧ after.count < 8 ∧ after.totalRead = before.totalRead + width :=
+  Proofs.Formats.Compression.Brotli.Huffman.Description.readBounded_sound rep count read
 
 end Silmaril.Formats.Compression.Brotli.Huffman.Description

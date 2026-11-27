@@ -96,26 +96,14 @@ def readTable (alphabet : Nat) (cursor : Cursor) : Except Error (Table × Cursor
     (Huffman.Description.read ⟨alphabet, cursor.remaining⟩ alphabet cursor.reader).mapError Error.description
   pure (table, cursor.advance after)
 
-/-- Run shared lookup on at most 15 bits of scratch. Commit only a
-    checked code on the original cursor, including a zero-bit singleton. -/
-def findSymbol (table : Table) (cursor : Cursor) : Except Error Nat := do
-  let available := cursor.reader.count + 8 * (cursor.reader.input.take 2).length
-  let width := min 15 (min cursor.remaining available)
-  let some (look, _) := cursor.reader.readBits width | throw .truncated
-  let some (symbol, _) := table.readSymbol ⟨look, width, [], 0⟩
-    | throw (if width = cursor.remaining then .bitLimit else .truncated)
-  pure symbol
+def codeError : Huffman.Description.SymbolError → Error
+  | .bitLimit => .bitLimit
+  | .truncated => .truncated
+  | .invalidCode => .invalidCountCode
 
 def readCode (table : Table) (cursor : Cursor) : Except Error (Nat × Cursor) := do
-  let symbol ← findSymbol table cursor
-  match table.codeFor symbol with
-  | none => .error .invalidCountCode
-  | some (code, width) =>
-    if 15 < width then .error .invalidCountCode
-    else
-      let (value, after) ← take cursor width
-      if natBits value width = msbBits code width then pure (symbol, after)
-      else .error .invalidCountCode
+  let (symbol, after) ← (table.readBounded cursor.remaining cursor.reader).mapError codeError
+  pure (symbol, cursor.advance after)
 
 def readInitial (table : Table) (cursor : Cursor) : Except Error (Nat × Cursor) := do
   let (symbol, next) ← readCode table cursor

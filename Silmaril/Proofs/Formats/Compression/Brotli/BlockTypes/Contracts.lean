@@ -122,18 +122,17 @@ private theorem code_sound {before after : Cursor} {table : Table} {symbol : Nat
     ∃ code width suffix, table.codeFor symbol = some (code, width) ∧ width ≤ 15 ∧
       Advance before after input (msbBits code width) suffix := by
   unfold readCode at read
-  obtain ⟨found, _, next⟩ := bind_ok read
-  split at next <;> try contradiction
-  rename_i code width assigned
-  split at next <;> try contradiction
-  rename_i bounded
-  obtain ⟨⟨value, cursor⟩, field, done⟩ := bind_ok next
-  simp only [] at done
-  split at done <;> try contradiction
-  rename_i sameBits
+  obtain ⟨⟨found, cursor⟩, decoded, done⟩ := bind_ok read
   cases done
-  obtain ⟨_, suffix, advance⟩ := take_sound rep count field
-  exact ⟨code, width, suffix, assigned, by omega, sameBits ▸ advance⟩
+  have decoded : table.readBounded before.remaining before.reader = .ok (symbol, cursor) := by
+    cases actual : table.readBounded before.remaining before.reader
+    · simp [actual, Except.mapError] at decoded
+    · simpa [actual, Except.mapError] using decoded
+  obtain ⟨code, width, suffix, assigned, bounded, cap, split, nextRep, nextCount, offset⟩ :=
+    Table.readBounded_sound rep count decoded
+  exact ⟨code, width, suffix, assigned, bounded, split, nextRep, nextCount,
+    by simpa [Cursor.advance, msbBits_length] using offset,
+    by simp [Cursor.advance, offset, msbBits_length]; omega⟩
 
 private theorem initial_sound {before after : Cursor} {table : Table} {value : Nat}
     {input : List Bool} (rep : before.reader.Rep input) (count : before.reader.count < 8)

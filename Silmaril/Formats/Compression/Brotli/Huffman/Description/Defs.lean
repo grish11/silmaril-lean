@@ -30,6 +30,36 @@ def Table.readSymbol (table : Table) (reader : LSBReader) : Option (Nat × LSBRe
   | .singleton _ only _ => some (only, reader)
   | .canonical table => table.decoder.readSymbolLSB reader
 
+inductive SymbolError where
+  | bitLimit
+  | truncated
+  | invalidCode
+  deriving DecidableEq, Repr
+
+def Internal.findBounded (table : Table) (bitLimit : Nat) (before : LSBReader) :
+    Except SymbolError Nat := do
+  let available := before.count + 8 * (before.input.take 2).length
+  let width := min 15 (min bitLimit available)
+  let some (look, _) := before.readBits width | throw .truncated
+  let some (symbol, _) := table.readSymbol ⟨look, width, [], 0⟩
+    | throw (if width = bitLimit then .bitLimit else .truncated)
+  pure symbol
+
+/-- Look up a code in at most 15 scratch bits and commit the matching
+    code on the original cursor. A singleton can commit zero bits. -/
+def Table.readBounded (table : Table) (bitLimit : Nat) (before : LSBReader) :
+    Except SymbolError (Nat × LSBReader) := do
+  let symbol ← Internal.findBounded table bitLimit before
+  let some (code, width) := table.codeFor symbol | throw .invalidCode
+  if 15 < width then
+    throw .invalidCode
+  else if bitLimit < width then
+    throw .bitLimit
+  else
+    let some (value, after) := before.readBits width | throw .truncated
+    if natBits value width = msbBits code width then pure (symbol, after)
+    else throw .invalidCode
+
 inductive Error where
   | alphabetSize
   | alphabetLimit
