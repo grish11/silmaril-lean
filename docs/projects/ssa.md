@@ -1742,6 +1742,56 @@ The continuation cannot jump back to its own label.
   [Join nodes and their expansion](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Join/Defs.lean) ·
   [Join inlining and ranked transfer](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Join/Thms.lean) ·
   [A join before the stored reply](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomJoinRegression.lean)
+- The spelled grammar is connected to a written source graph. The
+  source level of the ranked sentences is the checked captured table: a
+  flat acyclic graph whose rows have one block parameter each, read the
+  ambient captures and their own packet, and end in a jump or a case,
+  with ordered exits. A join is a row that several rows jump to, and its
+  block parameter is the phi. The emitted operand of an entry of such a
+  table is its checked readback, which unfolds a join row once under
+  each predecessor. When that readback is natively equal to a spelled
+  tree, the ranked theorems apply to the source graph itself: a sentence
+  between two entries whose readbacks are natively equal to spelled
+  trees is valid, at the original entries and original ordered exits,
+  exactly when the two trees have the same normal form, and the ordered
+  trace model with atoms decides it. The entries may be entries of
+  written tables or of graphs realized from terms. The source diamond of
+  the regression is written by hand as a table of four rows over two
+  captures; it is not read back from a LetCase term. Its entry asks the
+  stored request, a classifier row asks a second request and cases on
+  its reply, one predecessor row asks a third request and passes its
+  reply to the join, the other predecessor passes its payload on, and
+  the join row, written once, asks a request on its block parameter and
+  then cases on the stored reply. The stored reply is live in every row
+  and is passed in the packets. Its readback is computed row by row and
+  is an explicit term with the join row in both arms. That term is
+  natively equal to the expansion of the join node of the previous item,
+  hence to the joined term with the continuation written once and to its
+  normal form. The derivation has twenty-five steps: the sequencing laws,
+  case beta at an injection, pure-let beta, and the derived equation for
+  a pattern let on a pair of slots. No law is added and no request moves
+  past another request. So the source graph, the eager spelling written
+  by hand, the tree of the expansion and the graph realized from the
+  joined term are valid together, and the source graph and the eager
+  spelling have the same original-entry, original-exit arrow. A second
+  source graph differs only in the value its first predecessor passes to
+  the join, its own payload in place of the reply, with the same
+  requests on every path. The two source graphs are told apart, in
+  ranked validity and in their arrows. Two interface limits are stated.
+  The native equation between the readback of a table and a tree is
+  given per table; no theorem computes it from the shape of the table.
+  And the existing theorem that readback commutes with linking two
+  written graphs, which would let a later graph read the stored reply as
+  a positional capture, is proved for the finite structural signatures
+  over the types without atoms, through their finite separator, and is
+  not available for the signatures with atoms; this is why the stored
+  reply is passed in the packets. The named phi graphs of the flat
+  three-address syntax elaborate to the scoped flat syntax, and no
+  translation takes them to checked captured tables, which are what the
+  ranked sentences are about; so the source diamond is in the
+  block-parameter form of the captured table.
+  [Source graphs and spelled trees](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Source/Thms.lean) ·
+  [A written source diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomSourceDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
