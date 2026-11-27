@@ -54,12 +54,15 @@ def planDataWith (admits : Int → Bool) (bound : Bound) (frame : Parquet.Page.F
 def planData (bound : Bound) (frame : Parquet.Page.Frame) : Except DictionaryPageError DataPage :=
   planDataWith (· == 8) bound frame
 
-/-- Share the original uncompressed dictionary framing between data profiles.
+/-- Share the original checked dictionary framing between data profiles.
 Check the profile's page sequence and declared slot total before body decoding. -/
-def checkGroupWith (admits : Int → Bool) (validate : List DataPage → Except Leaf.Error Unit)
-    (limits : Limits) (leafLimits : Leaf.Limits) (bound : Bound) (index : Nat) :
+def checkGroupUsing (encoding : Leaf.ChunkEncoding) (limits : Limits) (leafLimits : Leaf.Limits)
+    (bound : Bound) (index : Nat)
+    (plan : Parquet.Page.Frame → Except DictionaryPageError DataPage)
+    (validate : List DataPage → Except Leaf.Error Unit)
+    (read : Parquet.Page.Frame → Except DictionaryPageError (List Int64)) :
     Except Leaf.Error CheckedChunk := do
-  let chunk ← selectChunkWith .dictionary leafLimits bound index
+  let chunk ← selectChunkWith encoding leafLimits bound index
   if limits.maxChunkBytes < chunk.span.stop - chunk.span.start then throw .dictionaryChunkLimit
   let frames ← (Parquet.Page.readChunk leafLimits.framing bound.snapshot.bytes chunk.span).mapError .framing
   let dictionary :: rest := frames | throw .dictionaryMissing
@@ -69,13 +72,19 @@ def checkGroupWith (admits : Int → Bool) (validate : List DataPage → Except 
   if chunk.column.metadata.dataPageOffset ≠ (first.header.start : Int) then
     throw (atFrame 1 first .dataOffset)
   let data ← (rest.zipIdx 1).mapM fun (frame, ordinal) =>
-    (planDataWith admits bound frame).mapError (atFrame ordinal frame)
+    (plan frame).mapError (atFrame ordinal frame)
   validate data
   let expected := chunk.group.numRows.toNat
   let actual := (data.map (·.params.numValues)).sum
   if actual ≠ expected then throw (.rowCount expected actual)
-  let entries ← (readEntries limits bound dictionary).mapError (atFrame 0 dictionary)
+  let entries ← (read dictionary).mapError (atFrame 0 dictionary)
   return ⟨chunk, dictionary, entries, data⟩
+
+/-- Use the original uncompressed dictionary and header policy. -/
+def checkGroupWith (admits : Int → Bool) (validate : List DataPage → Except Leaf.Error Unit)
+    (limits : Limits) (leafLimits : Leaf.Limits) (bound : Bound) (index : Nat) : Except Leaf.Error CheckedChunk :=
+  checkGroupUsing .dictionary limits leafLimits bound index
+    (planDataWith admits bound) validate (readEntries limits bound)
 
 /-- Admit only RLE_DICTIONARY data after the leading PLAIN dictionary. -/
 def checkGroup (limits : Limits) (leafLimits : Leaf.Limits) (bound : Bound) (index : Nat) :

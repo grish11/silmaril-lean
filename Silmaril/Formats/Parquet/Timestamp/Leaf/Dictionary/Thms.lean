@@ -40,6 +40,28 @@ theorem planData_wire {bound : Bound} {frame : Parquet.Page.Frame} {page : DataP
       page.params.encoding = 8 :=
   Proofs.Formats.Parquet.Timestamp.Leaf.Dictionary.planData_wire read
 
+/-- The codec-specific planners keep the same checked chunk, original
+frame offsets and declared row count. -/
+theorem checkGroupUsing_wire {encoding : Leaf.ChunkEncoding} {limits : Limits}
+    {leafLimits : Leaf.Limits} {bound : Bound} {index : Nat}
+    {plan : Parquet.Page.Frame → Except Leaf.DictionaryPageError DataPage}
+    {validate : List DataPage → Except Leaf.Error Unit}
+    {read : Parquet.Page.Frame → Except Leaf.DictionaryPageError (List Int64)} {checked : CheckedChunk}
+    (keepsFrame : ∀ {frame page}, plan frame = .ok page → page.frame = frame)
+    (accepted : checkGroupUsing encoding limits leafLimits bound index plan validate read = .ok checked) :
+    selectChunkWith encoding leafLimits bound index = .ok checked.chunk ∧
+      checked.chunk.span.stop - checked.chunk.span.start ≤ limits.maxChunkBytes ∧
+      Parquet.Page.readChunk leafLimits.framing bound.snapshot.bytes checked.chunk.span = .ok checked.frames ∧
+      Parquet.Page.Chain checked.chunk.span checked.chunk.span.start checked.chunk.span.stop checked.frames ∧
+      checked.chunk.column.metadata.dictionaryPageOffset = some (checked.dictionary.header.start : Int) ∧
+      checked.data.head?.map (fun page => (page.frame.header.start : Int)) =
+        some checked.chunk.column.metadata.dataPageOffset ∧
+      read checked.dictionary = .ok checked.entries ∧
+      (∀ page ∈ checked.data, plan page.frame = .ok page) ∧
+      validate checked.data = .ok () ∧
+      (checked.data.map (·.params.numValues)).sum = checked.chunk.group.numRows.toNat :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Dictionary.checkGroupUsing_wire keepsFrame accepted
+
 theorem checkGroupWith_wire {admits : Int → Bool}
     {validate : List DataPage → Except Leaf.Error Unit} {limits : Limits} {leafLimits : Leaf.Limits} {bound : Bound} {index : Nat}
     {checked : CheckedChunk} (accepted : checkGroupWith admits validate limits leafLimits bound index = .ok checked) :

@@ -80,11 +80,12 @@ theorem planData_wire {bound : Bound} {frame : Parquet.Page.Frame} {page : DataP
   obtain ⟨frame, crc, sizes, params, encoding⟩ := planDataWith_wire (admits := (· == 8)) read
   exact ⟨frame, crc, sizes, params, by simpa using encoding⟩
 
-private theorem planPages_wire (admits : Int → Bool) (bound : Bound) {frames : List Parquet.Page.Frame}
+private theorem planPages_wire (plan : Parquet.Page.Frame → Except Leaf.DictionaryPageError DataPage)
+    (keepsFrame : ∀ {frame page}, plan frame = .ok page → page.frame = frame) {frames : List Parquet.Page.Frame}
     {start : Nat} {pages : List DataPage}
     (planned : (frames.zipIdx start).mapM (fun (frame, ordinal) =>
-      (planDataWith admits bound frame).mapError (atFrame ordinal frame)) = .ok pages) :
-    pages.map (·.frame) = frames ∧ ∀ page ∈ pages, planDataWith admits bound page.frame = .ok page := by
+      (plan frame).mapError (atFrame ordinal frame)) = .ok pages) :
+    pages.map (·.frame) = frames ∧ ∀ page ∈ pages, plan page.frame = .ok page := by
   induction frames generalizing start pages with
   | nil =>
     cases Except.ok.inj planned
@@ -95,7 +96,7 @@ private theorem planPages_wire (admits : Int → Bool) (bound : Bound) {frames :
     obtain ⟨following, kept, output⟩ := bind_ok remaining
     cases Except.ok.inj output
     have original := mapError_ok first
-    obtain ⟨rfl, _, _, _, _⟩ := planDataWith_wire original
+    cases keepsFrame original
     obtain ⟨order, each⟩ := ih kept
     constructor
     · simp [order]
@@ -105,21 +106,25 @@ private theorem planPages_wire (admits : Int → Bool) (bound : Bound) {frames :
       · exact original
       · exact each item later
 
-theorem checkGroupWith_wire {admits : Int → Bool}
-    {validate : List DataPage → Except Leaf.Error Unit} {limits : Limits} {leafLimits : Leaf.Limits} {bound : Bound} {index : Nat}
-    {checked : CheckedChunk} (accepted : checkGroupWith admits validate limits leafLimits bound index = .ok checked) :
-    selectChunkWith .dictionary leafLimits bound index = .ok checked.chunk ∧
+theorem checkGroupUsing_wire {encoding : Leaf.ChunkEncoding} {limits : Limits}
+    {leafLimits : Leaf.Limits} {bound : Bound} {index : Nat}
+    {plan : Parquet.Page.Frame → Except Leaf.DictionaryPageError DataPage}
+    {validate : List DataPage → Except Leaf.Error Unit}
+    {read : Parquet.Page.Frame → Except Leaf.DictionaryPageError (List Int64)} {checked : CheckedChunk}
+    (keepsFrame : ∀ {frame page}, plan frame = .ok page → page.frame = frame)
+    (accepted : checkGroupUsing encoding limits leafLimits bound index plan validate read = .ok checked) :
+    selectChunkWith encoding leafLimits bound index = .ok checked.chunk ∧
       checked.chunk.span.stop - checked.chunk.span.start ≤ limits.maxChunkBytes ∧
       Parquet.Page.readChunk leafLimits.framing bound.snapshot.bytes checked.chunk.span = .ok checked.frames ∧
       Parquet.Page.Chain checked.chunk.span checked.chunk.span.start checked.chunk.span.stop checked.frames ∧
       checked.chunk.column.metadata.dictionaryPageOffset = some (checked.dictionary.header.start : Int) ∧
       checked.data.head?.map (fun page => (page.frame.header.start : Int)) =
         some checked.chunk.column.metadata.dataPageOffset ∧
-      readEntries limits bound checked.dictionary = .ok checked.entries ∧
-      (∀ page ∈ checked.data, planDataWith admits bound page.frame = .ok page) ∧
+      read checked.dictionary = .ok checked.entries ∧
+      (∀ page ∈ checked.data, plan page.frame = .ok page) ∧
       validate checked.data = .ok () ∧
       (checked.data.map (·.params.numValues)).sum = checked.chunk.group.numRows.toNat := by
-  unfold checkGroupWith at accepted
+  unfold checkGroupUsing at accepted
   obtain ⟨chunk, selected, accepted⟩ := bind_ok accepted
   split at accepted
   · contradiction
@@ -147,7 +152,7 @@ theorem checkGroupWith_wire {admits : Int → Bool}
       rename_i count
       obtain ⟨entries, decoded, accepted⟩ := bind_ok accepted
       cases Except.ok.inj accepted
-      obtain ⟨order, dataReads⟩ := planPages_wire admits bound planned
+      obtain ⟨order, dataReads⟩ := planPages_wire plan keepsFrame planned
       have dataHead := congrArg List.head? order
       rw [List.head?_map] at dataHead
       dsimp at dataHead
@@ -157,6 +162,22 @@ theorem checkGroupWith_wire {admits : Int → Bool}
       · simpa [CheckedChunk.frames, order] using framed
       · simpa [CheckedChunk.frames, order] using (Parquet.Page.readChunk_chain framed).2.2
       · simpa [List.map_map, Function.comp_def, ← Decidable.not_not.mp dataOffset] using indexed
+
+theorem checkGroupWith_wire {admits : Int → Bool}
+    {validate : List DataPage → Except Leaf.Error Unit} {limits : Limits} {leafLimits : Leaf.Limits} {bound : Bound} {index : Nat}
+    {checked : CheckedChunk} (accepted : checkGroupWith admits validate limits leafLimits bound index = .ok checked) :
+    selectChunkWith .dictionary leafLimits bound index = .ok checked.chunk ∧
+      checked.chunk.span.stop - checked.chunk.span.start ≤ limits.maxChunkBytes ∧
+      Parquet.Page.readChunk leafLimits.framing bound.snapshot.bytes checked.chunk.span = .ok checked.frames ∧
+      Parquet.Page.Chain checked.chunk.span checked.chunk.span.start checked.chunk.span.stop checked.frames ∧
+      checked.chunk.column.metadata.dictionaryPageOffset = some (checked.dictionary.header.start : Int) ∧
+      checked.data.head?.map (fun page => (page.frame.header.start : Int)) =
+        some checked.chunk.column.metadata.dataPageOffset ∧
+      readEntries limits bound checked.dictionary = .ok checked.entries ∧
+      (∀ page ∈ checked.data, planDataWith admits bound page.frame = .ok page) ∧
+      validate checked.data = .ok () ∧
+      (checked.data.map (·.params.numValues)).sum = checked.chunk.group.numRows.toNat :=
+  checkGroupUsing_wire (fun success => (planDataWith_wire success).1) accepted
 
 theorem checkGroup_wire {limits : Limits} {leafLimits : Leaf.Limits} {bound : Bound} {index : Nat}
     {checked : CheckedChunk} (accepted : checkGroup limits leafLimits bound index = .ok checked) :

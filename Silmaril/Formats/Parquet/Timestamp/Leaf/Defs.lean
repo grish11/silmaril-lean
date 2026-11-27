@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.Formats.Parquet.Snapshot.Defs
-public import Silmaril.Formats.Parquet.Page.Defs
+public import Silmaril.Formats.Parquet.Page.Checksum.Defs
 public import Silmaril.Formats.Parquet.Timestamp.Page.Defs
 public import Silmaril.Formats.Parquet.DictionaryIndex.Defs
 
@@ -25,11 +25,17 @@ def Limits.admitsCodec (limits : Limits) (code : Int) : Bool :=
 inductive ChunkEncoding where
   | plain
   | dictionary
+  | snappyDictionary
 
 @[expose] def ChunkEncoding.admitsCodec (encoding : ChunkEncoding) (limits : Limits) (code : Int) : Bool :=
   match encoding with
   | .plain => limits.admitsCodec code
   | .dictionary => code == 0
+  | .snappyDictionary => code == 1
+
+private def dictionaryMetadata (metadata : Footer.ColumnMetadata) : Bool :=
+  metadata.dictionaryPageOffset.isSome && metadata.encodings.contains 8 &&
+    metadata.encodings.all (fun id => id == 0 || id == 3 || id == 8)
 
 def ChunkEncoding.admitsMetadata (encoding : ChunkEncoding) (metadata : Footer.ColumnMetadata)
     (rows : Int) : Bool :=
@@ -37,9 +43,9 @@ def ChunkEncoding.admitsMetadata (encoding : ChunkEncoding) (metadata : Footer.C
     match encoding with
     | .plain => metadata.encodings.all (fun id => id == 0 || id == 3) &&
         (rows == 0 || metadata.encodings.contains 0) && metadata.dictionaryPageOffset.isNone
-    | .dictionary => metadata.dictionaryPageOffset.isSome && metadata.encodings.contains 8 &&
-        metadata.encodings.all (fun id => id == 0 || id == 3 || id == 8) &&
+    | .dictionary => dictionaryMetadata metadata &&
         metadata.totalCompressedSize == metadata.totalUncompressedSize
+    | .snappyDictionary => dictionaryMetadata metadata
 
 inductive DictionaryPageError where
   | expectedDictionary
@@ -47,11 +53,13 @@ inductive DictionaryPageError where
   | dictionaryAfterFallback
   | dataOffset
   | checksum
+  | checksumFailure (cause : Parquet.Page.Checksum.Error)
   | sizeMismatch
   | encoding (actual : Int)
   | entryLimit
   | byteLimit
   | entries (cause : Plain.Error)
+  | payload (cause : Payload.Error)
   | parameters (cause : Timestamp.Page.Error)
   | references (cause : DictionaryIndex.Error)
   | plain (cause : ScalarPage.Error)
