@@ -3,8 +3,9 @@ module
 import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Composition.LetCase.Handled.Institution.Categorical.Ranked.Atoms.Branching.Direct.Source.Thms
 import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Reverse.Flat.Fragment.Thms
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Defs
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Reverse.Defs
 import Silmaril.SSA.Isotope.LetCase.Administrative.Thms
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.Defs
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
 
@@ -2078,7 +2079,8 @@ example : ¬ RankedValid false (sentenceOf (entryOf phiSource) (entryOf phiSourc
 
 /-- Their original-entry, original-exit arrows differ at the ordered trace
 model with atoms. -/
-example : denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op) (entryOf phiSource) ≠
+private theorem phi_arrows_apart :
+    denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op) (entryOf phiSource) ≠
     denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op)
       (entryOf phiSourcePayload) :=
   fun same => by
@@ -2097,12 +2099,12 @@ check accepts that graph. The lowering then carries the register in the
 record of every edge, including the edge from the entry, where it is not
 yet defined and is read at its initial version. So the elaboration needs
 it among the captures: it rejects the graph at the two captures and
-accepts it at six. The table and the sentences above are for the graph
-whose entry has the two captures of the named graph. -/
+accepts it at six. -/
 
 /-- The φ graph in which `reply`, `payload` and `leaf` read the registers
-of earlier blocks, and only `join` has a φ. -/
-private def phiDirect : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op where
+of earlier blocks, and only `join` has a φ, with its operand on the edge
+from `reply`. -/
+private def phiDirect (incoming : PhiReg) : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op where
   entry := .let1 .s (.app .pick (.var .later))
     (.term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .classify))
   blocks :=
@@ -2112,25 +2114,157 @@ private def phiDirect : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl O
      (.reply, ⟨[], .let1 .e (.app .echo (.var .a))
         (.term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .join))⟩),
      (.payload, ⟨[], .term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .join)⟩),
-     (.join, ⟨[⟨.j, [(some .reply, .var .e), (some .payload, .var .b)]⟩],
+     (.join, ⟨[⟨.j, [(some .reply, .var incoming), (some .payload, .var .b)]⟩],
         .let1 .f (.app .mark (.var .j))
           (.term (.case (.val (.var .s)) .u (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .leaf)
             .q (.br (some .done) (.pair (.var .q) (.var .j)))))⟩),
      (.leaf, ⟨[], .let2 .x .z (.val (.var .u))
         (.term (.br (some .done) (.pair (.var .x) (.var .f))))⟩)]
 
-example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.check phiDirect phiExits
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.check (phiDirect .e) phiExits
     [.later, .earlier]
     [(.classify, [.earlier, .s]), (.reply, [.s, .a]), (.payload, [.s, .b]), (.join, [.s]),
       (.leaf, [.u, .f])] = true := by decide +kernel
 
 example : (Bridge.NamedFlat.compile
-    (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower phiDirect) phiExits
+    (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDirect .e)) phiExits
     phiCaptures).isSome = false := by decide +kernel
 
 example : (Bridge.NamedFlat.compile
-    (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower phiDirect) phiExits
+    (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDirect .e)) phiExits
     ![some .later, some .earlier, some .a, some .b, some .u, some .f]).isSome = true := by
   decide +kernel
+
+/-! ## Forwarding the registers through φ rows
+
+The normalization of φ graphs gives a block one more φ row for each
+register it is to receive, with a copy of the register as its
+destination. Here `reply` receives `a`, `payload` receives `b` and `leaf`
+receives `u` and `f`. The stored reply and the captures are left as they
+are. No capture is added.
+
+The normalized graph runs like the direct graph, by the theorem of the
+normalization. The existing check accepts it, and the existing lowering
+elaborates it at the two captures. Its lowered graph is the lowered graph
+of the φ graph with explicit rows: the two differ in the names of
+registers only, and the scoped flat syntax has none. So it has the same
+typed witness and the same table, and with them the entry, the ordered
+exits, the rank, the readback and the ranked arrow shown above. -/
+
+/-- The registers that each block receives. -/
+private abbrev phiForwards : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Table PhiReg Lbl :=
+  [(.reply, [.a]), (.payload, [.b]), (.leaf, [.u, .f])]
+
+/-- The direct graph with the registers forwarded. -/
+private abbrev phiForwarded (incoming : PhiReg) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) Lbl Op :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.forward (phiDirect incoming) phiForwards
+
+/-- No block defines a register that it receives. -/
+private theorem phiForwards_checked (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.check (phiDirect incoming) phiForwards = true := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- The normalized graph runs like the direct graph, in any model with
+iteration, on the original part of any input. -/
+example {M : Type → Type} {α : Type} [Monad M] [LawfulMonad M] [Elgot.Iterate M]
+    [Elgot.LawfulElgotMonad M] (model : Silmaril.SSA.LambdaRTL.Model Op M α)
+    (input : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl → α) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.run model (phiForwarded .e) input =
+      Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.run model (phiDirect .e) (input ∘ Sum.inl) :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.run_forward model (phiDirect .e) phiForwards
+    (phiForwards_checked .e (.inl rfl)) input
+
+/-- The normalized graph has the exit partition of the direct graph. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.checkExits (phiForwarded .e) phiExits =
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.checkExits (phiDirect .e) phiExits :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.checkExits_forward (phiDirect .e) phiForwards phiExits
+
+private abbrev phiForwardedCaptures : Fin 2 → Option (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) :=
+  ![some (.inl .later), some (.inl .earlier)]
+
+/-- The existing check accepts the normalized graph at the two declared
+exits and the two inputs. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.check (phiForwarded .e) phiExits [.inl .later, .inl .earlier]
+    [(.classify, [.inl .earlier, .inl .s]), (.reply, [.inl .s, .inl .a]),
+      (.payload, [.inl .s, .inl .b]), (.join, [.inl .s]), (.leaf, [.inl .u, .inl .f])] = true := by
+  decide +kernel
+
+/-- The existing lowering of the normalized graph elaborates at the two
+captures. -/
+private theorem phiForwarded_elaborates (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiForwarded incoming)) phiExits
+      phiForwardedCaptures).isSome = true := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- The scoped flat graph of the normalized direct graph. -/
+private def phiForwardedFlat : FiniteCFG Op 5 2 2 :=
+  (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiForwarded .e)) phiExits
+    phiForwardedCaptures).get (phiForwarded_elaborates .e (.inl rfl))
+
+/-- The same when the φ of `join` takes the register that `reply` reads. -/
+private def phiForwardedFlatPayload : FiniteCFG Op 5 2 2 :=
+  (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiForwarded .a)) phiExits
+    phiForwardedCaptures).get (phiForwarded_elaborates .a (.inr rfl))
+
+/-- The lowered graph of the normalized direct graph is the lowered graph
+of the φ graph with explicit rows. -/
+private theorem phiForwardedFlat_eq : phiForwardedFlat = phiFlat := by
+  have entry : phiForwardedFlat.entry = phiFlat.entry := by decide +kernel
+  have block : phiForwardedFlat.block = phiFlat.block := funext (by decide +kernel)
+  show (⟨phiForwardedFlat.entry, phiForwardedFlat.block⟩ : FiniteCFG Op 5 2 2) =
+    ⟨phiFlat.entry, phiFlat.block⟩
+  rw [entry, block]
+
+private theorem phiForwardedFlatPayload_eq : phiForwardedFlatPayload = phiFlatPayload := by
+  have entry : phiForwardedFlatPayload.entry = phiFlatPayload.entry := by decide +kernel
+  have block : phiForwardedFlatPayload.block = phiFlatPayload.block := funext (by decide +kernel)
+  show (⟨phiForwardedFlatPayload.entry, phiForwardedFlatPayload.block⟩ : FiniteCFG Op 5 2 2) =
+    ⟨phiFlatPayload.entry, phiFlatPayload.block⟩
+  rw [entry, block]
+
+/-- The lowered graph of the normalized direct graph has a typed witness
+in the fragment whose checked table is the table of the φ graph with
+explicit rows. -/
+private theorem phiForwarded_table :
+    ∃ (w : FlatLetCase.Witness phiForwardedFlat older phiRowTypes exitTypes) (d : w.Delimited)
+      (c : (w.table d).check = true), w.checkedTable d c = phiSource := by
+  rw [phiForwardedFlat_eq]
+  exact ⟨phiWitness, phiDelimited, phiTableChecked, rfl⟩
+
+private theorem phiForwardedPayload_table :
+    ∃ (w : FlatLetCase.Witness phiForwardedFlatPayload older phiRowTypes exitTypes)
+      (d : w.Delimited) (c : (w.table d).check = true), w.checkedTable d c = phiSourcePayload := by
+  rw [phiForwardedFlatPayload_eq]
+  exact ⟨phiWitnessPayload, phiDelimitedPayload, phiTableCheckedPayload, rfl⟩
+
+/-- The table of the direct graph, after the normalization, and the table
+of the named graph have the same original-entry, original-exit arrow at
+the ordered trace model with atoms, at the two captures and the two
+ordered exits. -/
+example : ∃ (w : FlatLetCase.Witness phiForwardedFlat older phiRowTypes exitTypes)
+    (d : w.Delimited) (c : (w.table d).check = true),
+    denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op)
+        (entryOf (w.checkedTable d c)) =
+      denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op) (entryOf source) := by
+  obtain ⟨w, d, c, same⟩ := phiForwarded_table
+  exact ⟨w, d, c, same ▸ (denoteRanked_entries_iff separable (entryOf phiSource) (entryOf source)
+    (expanded join) (expanded join) phi_expanded source_expanded).mpr rfl⟩
+
+/-- The tables of the two direct graphs, after the normalization, have
+different arrows. -/
+example : ∃ (w : FlatLetCase.Witness phiForwardedFlat older phiRowTypes exitTypes)
+    (d : w.Delimited) (c : (w.table d).check = true)
+    (w' : FlatLetCase.Witness phiForwardedFlatPayload older phiRowTypes exitTypes)
+    (d' : w'.Delimited) (c' : (w'.table d').check = true),
+    denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op)
+        (entryOf (w.checkedTable d c)) ≠
+      denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op)
+        (entryOf (w'.checkedTable d' c')) := by
+  obtain ⟨w, d, c, same⟩ := phiForwarded_table
+  obtain ⟨w', d', c', same'⟩ := phiForwardedPayload_table
+  refine ⟨w, d, c, w', d', c', ?_⟩
+  rw [same, same']
+  exact phi_arrows_apart
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
