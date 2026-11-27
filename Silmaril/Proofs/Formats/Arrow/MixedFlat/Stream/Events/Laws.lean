@@ -76,6 +76,16 @@ private theorem step_exact {limits : MixedFlat.Limits} {input : KBytes}
           cases MixedFlat.Stream.readBatches limits input fields fuel (ordinal + 1)
             (rows + batch.observed.rowCount) batch.range.next <;> rfl
 
+theorem readNext_record {limits : MixedFlat.Limits} {input : KBytes} {fields : List MixedFlat.Field}
+    {remaining ordinal rows offset : Nat} {decoded : Decoded fields}
+    (step : readNext limits input fields remaining ordinal rows offset = .ok (some decoded)) :
+    ∃ fuel, remaining = fuel + 1 ∧
+      MixedFlat.Stream.readBatches limits input fields remaining ordinal rows offset =
+        (MixedFlat.Stream.readBatches limits input fields fuel (ordinal + 1)
+          (rows + decoded.record.observed.rowCount) decoded.record.range.next).map
+          (List.cons decoded.record) :=
+  step_exact step
+
 private theorem pull_exact (limits : MixedFlat.Limits) (input : KBytes) (fields : List MixedFlat.Field)
     (remaining ordinal rows offset : Nat) (acc : List (MixedFlat.Events.Batch (schema fields))) :
     let trace := Arrow.Events.BatchReader.read.pull (reader limits) (schema fields)

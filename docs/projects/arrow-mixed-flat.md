@@ -496,3 +496,54 @@ one-byte fragments, a nonzero origin, and zero-body records.
 make check CHECK_TARGETS='+Silmaril.Formats.Arrow.Framing.Incremental.Examples +Silmaril.Formats.Arrow.Framing.Incremental.Axioms'
 python3 -I scripts/arrow-mixed-flat/stream_fixtures.py
 ```
+
+### Incremental mixed events
+
+`MixedFlat.Stream.Incremental.start` fixes the limits and starts at byte
+zero. `feed` publishes the checked Schema once and yields an aligned event
+for each completed RecordBatch, including an empty batch. A zero-column
+batch retains its explicit row count. The returned ranges refer to the
+original stream. As with incremental framing, process the returned suffix
+before reading the next fragment, including an empty suffix. An error
+ends the call sequence and leaves the schema and batches from prior
+replies available to the caller.
+
+The framer applies the existing per-message byte limits. The typed
+decoder uses the complete mixed Schema and RecordBatch decoders and checks
+the running batch, row, cell, and view data-buffer counts before publishing
+a batch. The view data-buffer count sums the variadic count words as declared
+by the schema. The per-view and per-batch count caps still apply. The
+additional stream-wide count cap is separate from the per-message byte
+limits. The ordinary immutable readers retain their existing limits.
+
+An EOS reply is provisional. Call `finish` after the last supplied byte
+to certify exact exhaustion. Missing bytes at finalization produce a
+framing failure, and bytes after EOS report the first tail offset. A late
+typed failure carries the original zero-based batch ordinal, message
+offset, and typed decoder cause. The incremental path finishes framing
+the candidate before typed decoding, so framing can fail before a typed
+check that the immutable reader would attempt earlier.
+
+The cursor holds the admitted field list, counters, and one pending frame.
+It repacks the completed metadata and body for typed decoding. The caller
+owns pending suffixes and published events. The byte limits bound the
+logical sizes of the frame parts. The API does not bound allocation or
+time for fragmented ropes.
+
+`open_agrees`, `steps_agree`, and `finish_agrees` link actual calls to
+the immutable Schema, exact ordered pull prefix, and original EOS.
+`complete_agrees` gives the original immutable eager result, including
+exact record ranges. `complete_pull_agrees` gives the exact immutable
+pull trace through EOS. The reference carrier in these laws is represented
+as one packed leaf. The incoming fragments can have arbitrary
+well-formed rope shapes and ordered cut points. Guards compare exact
+values and ranges for one-byte and adversarial splits of the pinned
+PyArrow streams, including a late typed failure and late truncation.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Incremental/Defs.lean) ·
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Incremental/Thms.lean) ·
+[Lean guards](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Incremental/Examples.lean)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.Stream.Incremental.Examples +Silmaril.Formats.Arrow.MixedFlat.Stream.Incremental.Axioms'
+python3 -I scripts/arrow-mixed-flat/stream_fixtures.py
+```

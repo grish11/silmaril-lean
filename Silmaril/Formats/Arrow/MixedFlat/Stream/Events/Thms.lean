@@ -17,6 +17,17 @@ theorem readNext_eos {limits : MixedFlat.Limits} {input : KBytes} {fields : List
       readEnvelope limits.observation.ipc input offset = .ok .eos ∧ offset + 8 = input.len :=
   Proofs.Formats.Arrow.MixedFlat.Stream.Events.readNext_eos
 
+/-- The immutable pull step removes exactly one original eager record. -/
+theorem readNext_record {limits : MixedFlat.Limits} {input : KBytes} {fields : List MixedFlat.Field}
+    {remaining ordinal rows offset : Nat} {decoded : Decoded fields}
+    (step : readNext limits input fields remaining ordinal rows offset = .ok (some decoded)) :
+    ∃ fuel, remaining = fuel + 1 ∧
+      Stream.readBatches limits input fields remaining ordinal rows offset =
+        (Stream.readBatches limits input fields fuel (ordinal + 1)
+          (rows + decoded.record.observed.rowCount) decoded.record.range.next).map
+          (List.cons decoded.record) :=
+  Proofs.Formats.Arrow.MixedFlat.Stream.Events.readNext_record step
+
 /-- One message ordinal per delivered event, including an empty batch. -/
 theorem Prefix.ordinal {limits : MixedFlat.Limits} {input : KBytes} {fields : List MixedFlat.Field}
     {remaining first rows offset : Nat} {events : List (MixedFlat.Events.Batch (schema fields))}
