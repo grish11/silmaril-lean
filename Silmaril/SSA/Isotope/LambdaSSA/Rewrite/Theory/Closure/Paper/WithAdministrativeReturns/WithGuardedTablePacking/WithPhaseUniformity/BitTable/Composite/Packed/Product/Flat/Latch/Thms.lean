@@ -70,8 +70,8 @@ through #5306.
 
 ## Not covered
 
-* The reduction of this table without the table-packing seed. It is not
-  proved in default Paper, and nothing is claimed about whether it can be.
+* The reduction of this table without the table-packing seed. Default
+  Paper does not prove it: see `Native/Thms.lean`.
 * A block that uses the captured input. `twoRows_iterate` needs each row
   in the lifted form.
 * Tables with more than two blocks, an entry other than the jump to the
