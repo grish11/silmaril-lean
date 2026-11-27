@@ -19,19 +19,39 @@ On a jump to a label that is not a block there is no record, and the
 payload has the declared type of the label.
 
 Both hold for any typing of the versioned names in which the current
-version of every source register has its declared type. That is the
-state that the versioning maintains along a body; it is a hypothesis
-here, and it is not proved here that the versioning maintains it.
+version of every source register has its declared type.
 
-What remains for the typed elaboration is `Task.certifiedChecks`. It
-needs three things that are not proved: that the versioned bodies keep
-the current versions at their declared types, binder by binder; that a
-versioned block, which takes its packet apart into the φ operands and the
-record and unpacks both, restores that state from the computed packet
-type; and that the elaboration to positional terms turns the named typing
-into the typing check of the elaborated graph. Given the open statement,
-the typed elaboration returns the elaborated graph at the computed packet
-types; with the theorem on closed tables no elaboration is assumed.
+The versioning maintains that state along a body. A certified body,
+lowered and versioned from any current versions at any depth, is typed
+in the named typing: every binder has the type of its operand, and every
+jump carries a value of the type of its label, by the two theorems on
+edges. The typing of names is one function of the name. It has to give
+the declared type to the current version of every source register, and
+to every later version; nothing is asked of the versions in between. The
+canonical typing, in which every version of a register has the declared
+type of the register, is such a typing at every state, so no freshness of
+versions is needed for the types to agree. Since a name has one type
+wherever it is bound, binding a name again is harmless for typing; that
+distinct binders get distinct positions is a separate matter and is not
+used. The entry of the versioned lowering is the versioned entry at the
+initial versions, so it is typed in the canonical typing.
+
+The canonical typing is not a typing of a whole versioned block. A block
+first takes its packet apart, decodes the φ operands and unpacks the
+record, and the names it binds on the way hold the rest of a tuple: the
+packet register at several versions, and one more version of every
+register of the record. The statement for bodies is for any typing that
+is canonical from some depth on, so that a typing of the block which is
+canonical after its prefix can use it.
+
+What remains for the typed elaboration is `Task.certifiedChecks`. Two
+things are not proved: that the prefix of a versioned block is typed
+from the computed packet type and leaves the current versions at their
+declared types; and that the elaboration to positional terms turns the
+named typing into the typing check of the elaborated graph. Given the
+open statement, the typed elaboration returns the elaborated graph at the
+computed packet types; with the theorem on closed tables no elaboration
+is assumed.
 -/
 
 public section
@@ -123,6 +143,59 @@ theorem exit_payload (graph : Graph V K F) (types : V → Ty Base) (exitType : O
       valueType versioned payload = exitType target :=
   exit_payload_proof graph types exitType pred target value absent typed live cur depth versioned
     current
+
+/-- A certified body, lowered and versioned from the given current
+versions and depth, is typed, for any typing of the versioned names that
+gives the declared type to the current version of every source register
+and to every later version. -/
+theorem body_version_typed (graph : Graph V K F) (types : V → Ty Base)
+    (exitType : Option K → Ty Base) (pred : Option K) (live : List (Option V))
+    (versioned : Option V × Nat → Ty Base) (source : CFG.Body V (Option K) F)
+    (cur : Option V → Nat) (depth : Nat)
+    (typed : bodyTyped graph types exitType pred source = true)
+    (current : ∀ register, versioned (some register, cur (some register)) = types register)
+    (fresh : ∀ register v, depth < v → versioned (some register, v) = types register) :
+    regionTyped versioned (targetType graph types exitType)
+      (Version.version (Versioning.destinations (Phi.OrderedExits.lower graph)) live cur depth
+        (Phi.liftBody (Phi.OrderedExits.branchValue graph pred) source).toRegion) = true :=
+  version_body_typed_proof graph types exitType pred live versioned source cur depth typed current
+    fresh
+
+/-- In the canonical typing a certified body, lowered and versioned, is
+typed from any current versions at any depth. -/
+theorem body_version_canon (graph : Graph V K F) (types : V → Ty Base)
+    (exitType : Option K → Ty Base) (pred : Option K) (live : List (Option V))
+    (source : CFG.Body V (Option K) F) (cur : Option V → Nat) (depth : Nat)
+    (typed : bodyTyped graph types exitType pred source = true) :
+    regionTyped (canon types) (targetType graph types exitType)
+      (Version.version (Versioning.destinations (Phi.OrderedExits.lower graph)) live cur depth
+        (Phi.liftBody (Phi.OrderedExits.branchValue graph pred) source).toRegion) = true :=
+  body_version_typed graph types exitType pred live (canon types) source cur depth typed
+    (fun _ => rfl) (fun _ _ _ => rfl)
+
+/-- The entry of the versioned lowering of a certified graph is typed in
+the canonical typing. -/
+theorem entry_typed (graph : Graph V K F) (types : V → Ty Base) (exitType : Option K → Ty Base)
+    (certificate : certified graph types exitType = true) :
+    regionTyped (canon types) (targetType graph types exitType)
+      (Versioning.compile (Phi.OrderedExits.lower graph)).entry.toRegion = true := by
+  simp only [certified, Bool.and_eq_true] at certificate
+  rw [compile_entry_toRegion]
+  exact body_version_canon graph types exitType none _ graph.entry (fun _ => 0) 0 certificate.1
+
+/-- The body of a block of a certified graph, lowered and versioned from
+any current versions at any depth, is typed in the canonical typing. -/
+theorem block_body_typed (graph : Graph V K F) (types : V → Ty Base)
+    (exitType : Option K → Ty Base) (certificate : certified graph types exitType = true)
+    (item : K × Block V K F) (member : item ∈ graph.blocks) (live : List (Option V))
+    (cur : Option V → Nat) (depth : Nat) :
+    regionTyped (canon types) (targetType graph types exitType)
+      (Version.version (Versioning.destinations (Phi.OrderedExits.lower graph)) live cur depth
+        (Phi.liftBody (Phi.OrderedExits.branchValue graph (some item.1)) item.2.body).toRegion) =
+      true := by
+  simp only [certified, Bool.and_eq_true, List.all_eq_true] at certificate
+  exact body_version_canon graph types exitType (some item.1) live item.2.body cur depth
+    (certificate.2 item member)
 
 /-- Given the open statement, the typed elaboration of the lowering of a
 certified φ graph returns the elaborated graph at the computed packet
