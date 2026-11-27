@@ -19,7 +19,7 @@ theorem readEnvelope_iff (limits : Limits) (input : KBytes) (offset : Nat)
   · by_cases hasPrefix : offset + 8 ≤ input.len
     · have marker := KBytes.read_eq input offset 4 wf (by omega)
       have size := KBytes.read_eq input (offset + 4) 4 wf (by omega)
-      simp only [readEnvelope, EnvelopeWire, ite_eq_right (Nat.not_lt.mpr hasPrefix),
+      simp only [readEnvelope, readPrefix, EnvelopeWire, ite_eq_right (Nat.not_lt.mpr hasPrefix),
         inputLength, aligned, hasPrefix, true_and, marker, size]
       generalize KBytes.leVal ((input.toList.drop offset).take 4) = m
       generalize KBytes.leVal ((input.toList.drop (offset + 4)).take 4) = n

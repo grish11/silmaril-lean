@@ -47,21 +47,26 @@ inductive Envelope where
   | metadata (byteCount : Nat)
   deriving DecidableEq, Repr
 
+/-- Check the two modern prefix words before requiring any metadata bytes. -/
+def readPrefix (limits : Limits) (marker size : Nat) : Except Error Envelope :=
+  if marker ≠ 0xffffffff then
+    if 0 < marker ∧ marker < 2^31 then .error (.unsupported .legacyFraming)
+    else .error (.malformed .continuation)
+  else if size = 0 then .ok .eos
+  else if 2^31 ≤ size ∨ size % 8 ≠ 0 then .error (.malformed .metadataLength)
+  else if size > limits.metadataBytes then .error (.limit .metadataBytes)
+  else .ok (.metadata size)
+
 def readEnvelope (limits : Limits) (input : KBytes) (offset : Nat) :
     Except Error Envelope :=
   if offset % 8 ≠ 0 then .error (.malformed .alignment)
   else if offset + 8 > input.len then .error (.malformed .truncated)
   else
-    let marker := input.read offset 4
-    let size := input.read (offset + 4) 4
-    if marker ≠ 0xffffffff then
-      if 0 < marker ∧ marker < 2^31 then .error (.unsupported .legacyFraming)
-      else .error (.malformed .continuation)
-    else if size = 0 then .ok .eos
-    else if 2^31 ≤ size ∨ size % 8 ≠ 0 then .error (.malformed .metadataLength)
-    else if size > limits.metadataBytes then .error (.limit .metadataBytes)
-    else if offset + 8 + size > input.len then .error (.malformed .truncated)
-    else .ok (.metadata size)
+    match readPrefix limits (input.read offset 4) (input.read (offset + 4) 4) with
+    | .ok (.metadata size) =>
+      if offset + 8 + size > input.len then .error (.malformed .truncated)
+      else .ok (.metadata size)
+    | other => other
 
 def readBody (limits : Limits) (input : KBytes) (offset byteCount : Nat) :
     Except Error KBytes :=

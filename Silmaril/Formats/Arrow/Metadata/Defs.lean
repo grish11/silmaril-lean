@@ -468,6 +468,16 @@ private def messageParts (limits : Limits) (bytes : KBytes) :
   emptyVector bytes value 4 4 4 .customMetadata
   return (tag, payload, bodyLength)
 
+/-- Check the common V5 Message table and recover the body length for a
+Schema or RecordBatch frame. The typed payload has its own decoder. -/
+public def frameBodyLength (limits : Limits) (bytes : KBytes) : Except Error Nat := do
+  let (tag, _, bodyLength) ← messageParts limits bytes
+  if tag = 1 then
+    if bodyLength = 0 then return 0
+    else throw (.malformed .bodyLength)
+  else if tag = 3 then return bodyLength
+  else throw (.unsupported (.messageKind tag))
+
 private def viewFieldKind (tag : Nat) (payload : Table) :
     Except Error BinaryView.Schema.Kind := do
   let kind ← BinaryView.Schema.Kind.ofTag tag

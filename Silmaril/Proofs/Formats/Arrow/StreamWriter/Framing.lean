@@ -67,7 +67,7 @@ private theorem envelope_read (limits : Limits) (size : Nat) (tail : KBytes)
     (read_left (by rw [envelope_length]; decide)).trans (envelope_marker size)
   have count : (envelopeBytes size ++ tail).read 4 4 = size :=
     (read_left (by rw [envelope_length]; decide)).trans (envelope_size size signed)
-  simp [readEnvelope, initial, marker, count, show size ≠ 0 by omega,
+  simp [readEnvelope, readPrefix, initial, marker, count, show size ≠ 0 by omega,
     show ¬ (2^31 ≤ size ∨ size % 8 ≠ 0) by omega,
     show ¬ size > limits.metadataBytes by omega, noTruncation]
 

@@ -455,3 +455,44 @@ running row and cell budgets.
 make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.Stream.Events.Examples +Silmaril.Formats.Arrow.MixedFlat.Stream.Events.Axioms'
 python3 -I scripts/arrow-mixed-flat/stream_fixtures.py
 ```
+
+### Incremental IPC framing
+
+`Arrow.Framing.Incremental.start` starts at an absolute byte offset.
+Supply ordered `KBytes` fragments to `feed`. A `.wait` consumed the
+whole fragment and awaits another. An `.advance` or `.frame` returns
+the pending state and the unused suffix. Feed that suffix before
+taking another fragment, including an empty suffix that completes
+a zero-length body. Each emitted frame carries its absolute prefix
+offset and its exact metadata and body bytes.
+
+Call `finish` after processing all input. A pending prefix, metadata
+or body request becomes a typed truncation with its absolute request
+offset. Success requires explicit modern EOS. A nonempty suffix in
+the same fragment or a later fragment fails at the first tail byte.
+The framer checks continuation, alignment, the common V5 Message
+table and the existing per-message metadata and body caps. It accepts
+Schema and RecordBatch envelopes. Schema order, typed payloads and
+stream-wide batch, row and cell limits belong to the downstream reader.
+
+The cursor holds only the current request and, while collecting a
+body, the completed metadata for that frame. The caller owns unused
+suffixes and delivered frames. Completed metadata is repacked for
+the Message table check. The caps bound logical frame bytes. This
+API provides no allocation or runtime bound for fragmented ropes.
+
+The feed law preserves contiguous original byte windows for each
+ordered fragment and suffix. Each emitted frame agrees with the
+immutable envelope and body parsers and carries the original
+metadata octets. The finalization law identifies the EOS at exact
+exhaustion. Guards compare the checked ranges and bytes for cuts
+through each framing stage in the pinned PyArrow stream, including
+one-byte fragments, a nonzero origin, and zero-body records.
+[Definitions](../../Silmaril/Formats/Arrow/Framing/Incremental/Defs.lean) ·
+[Laws](../../Silmaril/Formats/Arrow/Framing/Incremental/Thms.lean) ·
+[Lean guards](../../Silmaril/Formats/Arrow/Framing/Incremental/Examples.lean)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.Framing.Incremental.Examples +Silmaril.Formats.Arrow.Framing.Incremental.Axioms'
+python3 -I scripts/arrow-mixed-flat/stream_fixtures.py
+```

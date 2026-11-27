@@ -36,13 +36,13 @@ theorem Window.readEnvelope_at {part whole : KBytes} {start : Nat}
   | eos =>
     have empty := spec.2.2.2
     change KBytes.leVal ((part.toList.drop 4).take 4) = 0 at empty
-    simp [readEnvelope, aligned, wholeEnough, marker, count, localCount, empty]
+    simp [readEnvelope, readPrefix, aligned, wholeEnough, marker, count, localCount, empty]
   | metadata size =>
     obtain ⟨value, positive, signed, padded, budget, endOfFrame⟩ := spec.2.2.2
     change KBytes.leVal ((part.toList.drop 4).take 4) = size at value
     rw [KBytes.length_toList _ partWf] at endOfFrame
     have enough : ¬ start + 8 + size > whole.len := by omega
-    simp [readEnvelope, aligned, wholeEnough, marker, count, localCount, value,
+    simp [readEnvelope, readPrefix, aligned, wholeEnough, marker, count, localCount, value,
       show size ≠ 0 by omega, show ¬ (2^31 ≤ size ∨ size % 8 ≠ 0) by omega,
       show ¬ size > limits.metadataBytes by omega, enough]
 
