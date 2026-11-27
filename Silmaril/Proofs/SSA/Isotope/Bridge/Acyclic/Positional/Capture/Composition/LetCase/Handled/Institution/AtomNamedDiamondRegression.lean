@@ -5,7 +5,7 @@ import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Reverse.Flat.Fragm
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Defs
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Reverse.Defs
 import Silmaril.SSA.Isotope.LetCase.Administrative.Thms
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.Elaborates.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.SourceTyping.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
 
@@ -2836,5 +2836,122 @@ example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.check injected phiE
     (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower injected) phiExits
       (![some .later] : Fin 1 → Option PhiReg)).isSome = false := by
   decide +kernel
+
+/-! ## A typing certificate on the φ source
+
+The registers of the φ graphs get declared types, and the two exits the
+types of the ordered exits. The certificate is checked on each φ graph.
+The packet types that it computes, from the φ rows and the record of the
+versioning, are the packet types of the typed witnesses written by hand
+above. With them the elaborated graph passes the typing check, and the
+typed elaboration returns it. The check of the elaborated graph is still
+evaluated here; it is the conclusion of the open statement. -/
+
+/-- The declared types of the registers. -/
+private def phiTypes : PhiReg → Ty Unit
+  | .s => sumTy
+  | .u => pairTy
+  | .lu => pairTy
+  | _ => tok
+
+/-- The declared types of the exits. -/
+private def phiExitType : Option Lbl → Ty Unit
+  | some .done => pairTy
+  | _ => tok
+
+example : Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType = exitTypes := by decide
+
+/-- The direct graph, the normalized graphs of both tables and the graph
+with explicit rows are certified, for both operands of the φ of `join`. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phiDirect incoming) phiTypes phiExitType = true ∧
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true ∧
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .ra) :
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phi incoming) phiTypes phiExitType = true := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- The computed packet types are those of the typed witnesses. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.packets (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) = List.ofFn demRowTypes ∧
+    Bridge.NamedFlat.Phi.SourceTyping.packets (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) = List.ofFn phiRowTypes := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .ra) :
+    Bridge.NamedFlat.Phi.SourceTyping.packets (phi incoming) phiTypes = List.ofFn phiRowTypes := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- With the computed packet types the elaborated graphs pass the typing
+check. -/
+private theorem demFlat_checked :
+    Bridge.NamedFlat.check demFlat older
+      (Bridge.NamedFlat.Phi.SourceTyping.internal (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType) = true := by decide +kernel
+
+private theorem demFlatPayload_checked :
+    Bridge.NamedFlat.check demFlatPayload older
+      (Bridge.NamedFlat.Phi.SourceTyping.internal (phiDemanded .a) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType) = true := by decide +kernel
+
+example : Bridge.NamedFlat.check phiFlat older (Bridge.NamedFlat.Phi.SourceTyping.internal (phi .e) phiTypes)
+      (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType) = true ∧
+    Bridge.NamedFlat.check phiFlatPayload older (Bridge.NamedFlat.Phi.SourceTyping.internal (phi .ra) phiTypes)
+      (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType) = true := by decide +kernel
+
+/-- The typed elaboration of the direct diamond with the inferred table,
+at the computed packet types, returns the lowered graph. -/
+example : ∃ result, Bridge.NamedFlat.compileTyped
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e)) phiExits phiForwardedCaptures older
+      (Bridge.NamedFlat.Phi.SourceTyping.internal (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType) = some result ∧ result.val = demFlat :=
+  Bridge.NamedFlat.compileTyped_of_check (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e)) phiExits
+    phiForwardedCaptures older _ _ (target := demFlat) (Option.some_get _).symm demFlat_checked
+
+example : ∃ result, Bridge.NamedFlat.compileTyped
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .a)) phiExits phiForwardedCaptures older
+      (Bridge.NamedFlat.Phi.SourceTyping.internal (phiDemanded .a) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType) = some result ∧ result.val = demFlatPayload :=
+  Bridge.NamedFlat.compileTyped_of_check (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .a)) phiExits
+    phiForwardedCaptures older _ _ (target := demFlatPayload) (Option.some_get _).symm
+    demFlatPayload_checked
+
+/-- A wrong declared type is rejected by the certificate: the φ of `join`
+would take an operand of another type. -/
+example : Bridge.NamedFlat.Phi.SourceTyping.certified (phiDirect .e)
+    (fun register => if register = .j then sumTy else phiTypes register) phiExitType = false := by
+  decide +kernel
+
+/-- The edge from `reply` to `join` in the direct graph with the inferred
+table: lowered and versioned, it carries a packet of the computed packet
+type of `join`, for any typing of the versioned names in which the
+current version of every register has its declared type. This is the
+typed edge theorem at one edge; nothing is evaluated. -/
+example (cur : Option (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) → Nat)
+    (versioned : Option (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) × Nat →
+      Ty Unit)
+    (current : ∀ register, versioned (some register, cur (some register)) =
+      Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes register) :
+    ∃ block payload, (phiDemanded .e).blocks.lookup .join = some block ∧
+      Silmaril.SSA.LambdaRTL.Version.version
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.destinations
+          (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e))) [] cur 0
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.liftTerm
+          (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.branchValue (phiDemanded .e)
+            (some .reply))
+          (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br (F := Op) .join)).toRegion =
+        .br (some .join) payload ∧
+      Bridge.NamedFlat.Phi.SourceTyping.valueType versioned payload =
+        Bridge.NamedFlat.Phi.SourceTyping.packetType (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) .join block := by
+  obtain ⟨block, found⟩ := Option.isSome_iff_exists.mp
+    (show ((phiDemanded .e).blocks.lookup Lbl.join).isSome = true by decide +kernel)
+  obtain ⟨payload, shape, typed⟩ := Bridge.NamedFlat.Phi.SourceTyping.edge_packet (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes)
+    phiExitType (some .reply) .join block .unit found (by
+      have all : Bridge.NamedFlat.Phi.SourceTyping.bodyTyped (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
+          (some .reply) (.term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .join)) = true := by
+        decide +kernel
+      exact all) [] cur 0 versioned current
+  exact ⟨block, payload, found, shape, typed⟩
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
