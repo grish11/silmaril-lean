@@ -2,12 +2,27 @@ module
 
 public import Silmaril.Formats.Parquet.FlatScan.Defs
 import Silmaril.Proofs.Formats.Parquet.FlatScan.Counts
+public import Batteries.Data.List.Basic
+import Silmaril.Proofs.Formats.Parquet.FlatScan.Wire
 
 /-! Count guarantees for checked flat Parquet scans. -/
 
 public section
 
 namespace Silmaril.Formats.Parquet.FlatScan
+
+/-- A successful strict scan consumes the exact chunk frames and appends the
+callback's nullable words in wire order. The strict path rejects page CRCs. -/
+theorem scanColumn_wire {ε : Type} {limits : Limits} {decoder : DecodePage ε}
+    {source : Bytes} {footerStart rows : Nat} {field : Field}
+    {column : Footer.ColumnChunk} {result : ColumnValues rows}
+    (scanned : scanColumn limits decoder source footerStart field rows column = .ok result) :
+    ∃ span frames pages, Page.columnSpan footerStart column.metadata = some span ∧
+      Page.readChunk limits.page source span = .ok frames ∧
+      List.Forall₂ (fun frame values => frame.value.crc = none ∧ decoder field frame.value
+        (Footer.fileBytes source frame.payload.start frame.payload.stop) = .ok values) frames pages ∧
+      result.cells.toList = pages.flatten :=
+  Proofs.Formats.Parquet.FlatScan.scanColumn_wire scanned
 
 /-- Every decoded column carries exactly the row count requested when scanning it. -/
 theorem column_count {rowCount : Nat} (column : ColumnValues rowCount) :
