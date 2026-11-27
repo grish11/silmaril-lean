@@ -160,6 +160,14 @@ def openChecked (limits : Limits) (source : Bytes) : Except Error Checked := do
   let binding ← bind limits.snapshot.footer snapshot
   return ⟨snapshot, binding⟩
 
+/-- Opt in to the pinned zero-page footer profile before the same DATE
+annotation binding. Strict `openChecked` still uses the original validator. -/
+def openCheckedPageLess (limits : Limits) (source : Bytes) :
+    Except (Footer.PageLessInt32.Error ⊕ Error) Checked := do
+  let snapshot ← (Snapshot.checkPageLessInt32 limits.snapshot source).mapError Sum.inl
+  let binding ← (bind limits.snapshot.footer snapshot).mapError Sum.inr
+  return ⟨snapshot, binding⟩
+
 /-- Read one group from the retained snapshot without reopening its footer. -/
 @[expose] def Checked.readGroup (checked : Checked) (limits : Limits) (index : Nat) : Except Error RowGroup := do
   let some group := checked.snapshot.groupAt index | throw (.groupIndex index)

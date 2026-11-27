@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Parquet.Snapshot.Defs
 import Silmaril.Proofs.Formats.Parquet.Snapshot.Correctness
+import Silmaril.Proofs.Formats.Parquet.Snapshot.PageLessInt32
 
 public section
 
@@ -10,6 +11,16 @@ namespace Silmaril.Formats.Parquet.Snapshot
 open Silmaril.Relational Silmaril.Formats.Arrow
 
 variable {Id Kind Failure : Type*} {Value : Kind → Type*} {schema : Scan.Schema Id Kind}
+
+/-- The opt-in snapshot preserves the exact input footer and all its ordinals. -/
+theorem checkPageLessInt32_exact {limits : Limits} {input : Bytes} {snapshot : Checked}
+    (opened : checkPageLessInt32 limits input = .ok snapshot) :
+    Footer.readFooter limits.footer input = .ok (snapshot.footer, snapshot.metadata) ∧
+      Footer.PageLessInt32.validate limits.footer limits.maxSchemaDepth input
+        snapshot.footer snapshot.metadata = .ok () ∧ snapshot.bytes = input ∧
+      snapshot.groupCount = snapshot.metadata.rowGroups.length ∧
+      ∀ index, snapshot.groupAt index = snapshot.metadata.rowGroups[index]? :=
+  Proofs.Formats.Parquet.Snapshot.PageLessInt32.check_exact opened
 
 /-- A successful indexed read returns exactly the decoder's rows at the
 footer's declared count. -/

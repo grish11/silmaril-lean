@@ -7,6 +7,16 @@ public section
 
 namespace Silmaril.Formats.Parquet.Date.Events.ToIpc
 
+/-- Successful emission exposes exactly the completed typed trace in native IPC. -/
+theorem emit_readback {limits : Arrow.ObservationLimits} {source : Source} {wire : KBytes}
+    (written : emit limits source = .ok wire) :
+    ∃ schema trace, ∃ column : Fin schema.width, ∃ name nullable,
+      source = .ok ⟨schema, trace⟩ ∧ trace.termination = .eos ∧
+      schema.width = 1 ∧ schema.kind column = (name, .date32 nullable) ∧
+      Arrow.DateStream.read limits.ipc wire =
+        .ok (Arrow.DateStream.Writer.observation name nullable (batchSlots trace column)) :=
+  Proofs.Formats.Parquet.Date.Events.ToIpc.emit_readback written
+
 /-- A returned stream has the source's exact logical field and nullable
 batches in row-group order through EOS. -/
 theorem convert_readback {inputLimits : Date.Limits} {outputLimits : Arrow.ObservationLimits}
