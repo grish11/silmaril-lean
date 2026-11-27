@@ -1547,6 +1547,15 @@ example : Equiv false Γ₀ older (FlatLetCase.compile witness flatRanked).toLet
     (packedExitType exits) :=
   flat_readback ▸ source_readback ▸ flatReadback_expanded.trans readback_expanded.symm
 
+/-- The same equality is an instance of the readback theorem of the
+fragment, with no derivation for this graph. -/
+example : Equiv false Γ₀ older (FlatLetCase.compile witness flatRanked).toLetCase.1 source.toLetCase.1
+    (packedExitType exits) :=
+  FlatLetCase.Witness.checkedTable_readback false witness delimited flatRanked checked
+
+private theorem flatPayloadRanked : Rank.check (FlatLetCase.localTargets flatPayload) = true := by
+  decide +kernel
+
 /-! ## The named graph, the join and the expansion -/
 
 /-- The readback of the table of the named graph is natively equal to the
@@ -1559,6 +1568,15 @@ private theorem sourcePayload_expanded :
     Equiv false Γ₀ older sourcePayload.toLetCase.1 (around joinPayload.expand.term)
       (packedExitType exits) :=
   sourcePayload_readback ▸ expandedPayload_term ▸ readbackPayload_expanded
+
+/-- The readback theorem of the fragment also covers the graph in which
+`reply` passes its payload, whose flat readback was not computed: the
+term that the flat graph already has is natively equal to the expansion of
+its join. -/
+example : Equiv false Γ₀ older (FlatLetCase.compile witnessPayload flatPayloadRanked).toLetCase.1
+    (around joinPayload.expand.term) (packedExitType exits) :=
+  (FlatLetCase.Witness.checkedTable_readback false witnessPayload delimitedPayload flatPayloadRanked
+    checkedPayload).trans sourcePayload_expanded
 
 /-- The readback of the table of the named graph is natively equal to the
 joined term, with the continuation written once. -/
