@@ -45,12 +45,12 @@ def body(nullable, slots, physical):
     return prefix + b"".join(struct.pack("<i", len(slot)) + slot for slot in slots if slot is not None)
 
 
-def check_group(thrift, wire, cursor, group, fields, slots):
+def check_group(thrift, wire, cursor, group, fields, slots, physical_order):
     count = len(slots[0])
     assert len(slots[1]) == count and group[3] == (TType.I64, count)
     chunks = thrift["list_field"](group, 1)
     start = cursor
-    for chunk, (name, nullable), values, physical in zip(chunks, fields, slots, (1, 6), strict=True):
+    for chunk, (name, nullable), values, physical in zip(chunks, fields, slots, physical_order, strict=True):
         assert chunk[2] == (TType.I64, 0)
         column = chunk[3][1]
         page_size = column[7][1]
@@ -75,7 +75,7 @@ def check_group(thrift, wire, cursor, group, fields, slots):
     return cursor
 
 
-def check_wire_groups(thrift, wire, fields, expected_groups):
+def check_wire_groups(thrift, wire, fields, expected_groups, physical_order=(1, 6)):
     assert wire[:4] == wire[-4:] == b"PAR1"
     size, = struct.unpack_from("<I", wire, len(wire) - 8)
     start = len(wire) - 8 - size
@@ -87,18 +87,19 @@ def check_wire_groups(thrift, wire, fields, expected_groups):
     root, *leaves = thrift["list_field"](footer, 2)
     assert footer[1] == (TType.I32, 1) and footer[3] == (TType.I64, count)
     assert root == {4: (TType.STRING, b"schema"), 5: (TType.I32, 2)}
-    for leaf, (name, nullable), physical in zip(leaves, fields, (1, 6), strict=True):
+    for leaf, (name, nullable), physical in zip(leaves, fields, physical_order, strict=True):
         assert leaf == {1: (TType.I32, physical), 3: (TType.I32, int(nullable)), 4: (TType.STRING, name.encode())}
     cursor = 4
     for group, slots in zip(thrift["list_field"](footer, 4), expected_groups, strict=True):
-        cursor = check_group(thrift, wire, cursor, group, fields, slots)
+        cursor = check_group(thrift, wire, cursor, group, fields, slots, physical_order)
     assert cursor == start
 
 
-def check_arrow_groups(wire, fields, expected_groups):
+def check_arrow_groups(wire, fields, expected_groups, physical_order=(1, 6)):
+    types = {1: pa.int32(), 6: pa.binary()}
     schema = pa.schema([
-        pa.field(name, kind, nullable=nullable)
-        for (name, nullable), kind in zip(fields, (pa.int32(), pa.binary()), strict=True)
+        pa.field(name, types[physical], nullable=nullable)
+        for (name, nullable), physical in zip(fields, physical_order, strict=True)
     ])
     with pq.ParquetFile(pa.BufferReader(wire)) as source:
         assert source.num_row_groups == len(expected_groups) and source.schema_arrow.equals(schema)

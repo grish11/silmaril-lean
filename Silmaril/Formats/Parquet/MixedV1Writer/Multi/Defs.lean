@@ -59,18 +59,24 @@ instance (input : Input) (limits : Limits) : Decidable (input.Matches limits) :=
 def Limits.fileLimit (limits : Limits) : Nat := min limits.writer.maxFileBytes (2 ^ 63 - 1)
 
 /-- Measure all pages and place both chunks of each group before creating any page bodies. -/
-def place (limits : Limits) (input : Input) : Nat → Nat → List Group → Except Error (List Compact.GroupIndex)
+def placeOrdered (order : Order) (limits : Limits) (input : Input) :
+    Nat → Nat → List Group → Except Error (List Compact.GroupIndex)
   | _, _, [] => .ok []
   | offset, ordinal, group :: rest => do
     let intSize ← (FlatInt32Writer.measuredPage limits.writer.intPage group.integers).mapError
       (fun _ => .measure ordinal .intBudget)
     let byteSize ← (measuredBytePage limits.writer.bytePage group.octets).mapError (.measure ordinal)
-    let middle := offset + intSize
-    let stop := middle + byteSize
+    let (firstSize, secondSize) := order.arrange intSize byteSize
+    let middle := offset + firstSize
+    let stop := middle + secondSize
     if stop + 8 > limits.fileLimit then throw .fileLimit
-    let tail ← place limits input stop (ordinal + 1) rest
-    return ⟨group.rowCount, columnIndex input.intField ⟨offset, middle⟩,
-      columnIndex input.byteField ⟨middle, stop⟩⟩ :: tail
+    let (intSpan, byteSpan) := order.arrange (⟨offset, middle⟩ : Footer.Span) ⟨middle, stop⟩
+    let tail ← placeOrdered order limits input stop (ordinal + 1) rest
+    return ⟨group.rowCount, columnIndex input.intField intSpan, columnIndex input.byteField byteSpan⟩ :: tail
+
+def place (limits : Limits) (input : Input) :
+    Nat → Nat → List Group → Except Error (List Compact.GroupIndex) :=
+  placeOrdered .intFirst limits input
 
 structure Pages where
   index : Compact.GroupIndex
@@ -89,7 +95,11 @@ def emitPages (limits : Limits) : Nat → List Group → List Compact.GroupIndex
     return ⟨index, ints, bytes⟩ :: tail
   | _, _, _ => .error .extent
 
-def Pages.wire (pages : Pages) : List UInt8 := pages.intPage.wire.toList ++ pages.bytePage.wire.toList
+def Pages.wireOrdered (pages : Pages) (order : Order) : List UInt8 :=
+  let (first, second) := order.arrange pages.intPage pages.bytePage
+  first.wire.toList ++ second.wire.toList
+
+def Pages.wire (pages : Pages) : List UInt8 := pages.wireOrdered .intFirst
 
 structure Encoded where
   bytes : Bytes
@@ -100,30 +110,41 @@ def Input.intIndex (input : Input) : ColumnIndex := columnIndex input.intField �
 
 def Input.byteIndex (input : Input) : ColumnIndex := columnIndex input.byteField ⟨0, 0⟩
 
-def metadata (input : Input) (groups : List Pages) : Footer.Metadata :=
+def metadataOrdered (order : Order) (input : Input) (groups : List Pages) : Footer.Metadata :=
   let rows := groups.map fun pages => pages.index.rows
   let metadata := groups.map fun pages =>
     let group := pages.index
-    ⟨[group.ints.metadata group.rows, byteChunk group.octets group.rows],
+    ⟨order.columns (group.ints.metadata group.rows) (byteChunk group.octets group.rows),
       group.ints.size + group.octets.size, group.rows, none, none⟩
-  ⟨1, [FlatInt32Writer.Compact.schemaRoot 2, input.intIndex.schema, byteSchema input.byteIndex],
+  ⟨1, FlatInt32Writer.Compact.schemaRoot 2 :: order.columns input.intIndex.schema (byteSchema input.byteIndex),
     rows.sum, metadata, none⟩
 
+def metadata (input : Input) (groups : List Pages) : Footer.Metadata :=
+  metadataOrdered .intFirst input groups
+
 /-- Two adjoining chunks per group and no gap between consecutive groups. -/
-def Contiguous (start : Nat) : List Pages → Nat → Prop
+def ContiguousOrdered (order : Order) (start : Nat) : List Pages → Nat → Prop
   | [], stop => start = stop
   | page :: tail, stop =>
-    page.index.ints.span.start = start ∧ page.index.octets.span.start = page.index.ints.span.stop ∧
-      Contiguous page.index.octets.span.stop tail stop
+    let (first, second) := page.index.spans order
+    first.start = start ∧ second.start = first.stop ∧ ContiguousOrdered order second.stop tail stop
 
-instance instDecidableContiguous :
-    (start : Nat) → (groups : List Pages) → (stop : Nat) → Decidable (Contiguous start groups stop)
+instance instDecidableContiguousOrdered (order : Order) :
+    (start : Nat) → (groups : List Pages) → (stop : Nat) → Decidable (ContiguousOrdered order start groups stop)
   | start, [], stop => inferInstanceAs (Decidable (start = stop))
   | start, group :: rest, stop =>
-    letI := instDecidableContiguous group.index.octets.span.stop rest stop
-    inferInstanceAs (Decidable (group.index.ints.span.start = start ∧
-      group.index.octets.span.start = group.index.ints.span.stop ∧
-      Contiguous group.index.octets.span.stop rest stop))
+    let first := (group.index.spans order).1
+    let second := (group.index.spans order).2
+    letI := instDecidableContiguousOrdered order second.stop rest stop
+    inferInstanceAs (Decidable (first.start = start ∧ second.start = first.stop ∧
+      ContiguousOrdered order second.stop rest stop))
+
+def Contiguous (start : Nat) (groups : List Pages) (stop : Nat) : Prop :=
+  ContiguousOrdered .intFirst start groups stop
+
+instance instDecidableContiguous (start : Nat) (groups : List Pages) (stop : Nat) :
+    Decidable (Contiguous start groups stop) :=
+  instDecidableContiguousOrdered .intFirst start groups stop
 
 def columnChecked (limits : PlainV1Writer.Limits) (file : Bytes) (footerStart : Nat)
     (column : Footer.ColumnMetadata) (span : Footer.Span) (page : PlainV1Writer.Encoded) : Prop :=
@@ -138,36 +159,46 @@ instance (limits : PlainV1Writer.Limits) (file : Bytes) (footerStart : Nat)
   unfold columnChecked
   infer_instance
 
-def Encoded.Checked (output : Encoded) (limits : Limits) (input : Input) : Prop :=
+def Encoded.CheckedOrdered (output : Encoded) (order : Order) (limits : Limits) (input : Input) : Prop :=
   output.bytes.length ≤ limits.writer.maxFileBytes ∧ output.bytes.length < 2 ^ 63 ∧
     output.groups.map (·.index.rows) = input.groups.map Group.rowCount ∧
-    Contiguous 4 output.groups output.footer.start ∧
-    Footer.readFooter limits.writer.footer output.bytes = .ok (output.footer, metadata input output.groups) ∧
+    ContiguousOrdered order 4 output.groups output.footer.start ∧
+    Footer.readFooter limits.writer.footer output.bytes = .ok (output.footer, metadataOrdered order input output.groups) ∧
     ∀ pages ∈ output.groups,
       columnChecked limits.writer.intPage output.bytes output.footer.start
         (pages.index.ints.metadata pages.index.rows).metadata pages.index.ints.span pages.intPage ∧
       columnChecked limits.writer.bytePage.page output.bytes output.footer.start
         (byteChunk pages.index.octets pages.index.rows).metadata pages.index.octets.span pages.bytePage
 
-instance (output : Encoded) (limits : Limits) (input : Input) :
-    Decidable (output.Checked limits input) := by
-  unfold Encoded.Checked
+instance (output : Encoded) (order : Order) (limits : Limits) (input : Input) :
+    Decidable (output.CheckedOrdered order limits input) := by
+  unfold Encoded.CheckedOrdered
   infer_instance
 
+def Encoded.Checked (output : Encoded) (limits : Limits) (input : Input) : Prop :=
+  output.CheckedOrdered .intFirst limits input
+
+instance (output : Encoded) (limits : Limits) (input : Input) :
+    Decidable (output.Checked limits input) :=
+  inferInstanceAs (Decidable (output.CheckedOrdered .intFirst limits input))
+
 /-- The measured data area and remaining footer cap precede page body allocation. -/
-def assemble (limits : Limits) (input : Input) : Except Error Encoded := do
-  let groups ← place limits input 4 0 input.groups
-  let start := (groups.getLast?.map (·.octets.span.stop)).getD 4
+def assembleOrdered (order : Order) (limits : Limits) (input : Input) : Except Error Encoded := do
+  let groups ← placeOrdered order limits input 4 0 input.groups
+  let start := (groups.getLast?.map (fun index => (index.spans order).2.stop)).getD 4
   if start + 8 > limits.fileLimit then throw .fileLimit
   let cap := min (min limits.writer.footer.maxFooterBytes (2 ^ 32 - 1)) (limits.fileLimit - start - 8)
-  let footer ← (Compact.encodeGroups cap input.intIndex input.byteIndex groups).mapError .footer
+  let footer ← (Compact.encodeGroupsOrdered order cap input.intIndex input.byteIndex groups).mapError .footer
   if footer.length > cap then throw .extent
   let pages ← emitPages limits 0 input.groups groups
-  let payload := Bytes.ofList (pages.flatMap Pages.wire)
+  let payload := Bytes.ofList (pages.flatMap (·.wireOrdered order))
   if 4 + payload.length ≠ start then throw .extent
   let bytes := (((Footer.magic.append payload).append footer).append
     (Bytes.ofList (KBytes.unpack 4 footer.length))).append Footer.magic
   return ⟨bytes, ⟨start, start + footer.length⟩, pages⟩
+
+def assemble (limits : Limits) (input : Input) : Except Error Encoded :=
+  assembleOrdered .intFirst limits input
 
 /-- Compare the original group at each indexed ordinal. An empty group still
 consumes an ordinal and must return exactly an empty list. -/
@@ -190,15 +221,19 @@ def certify (limits : Limits) (input : Input) (output : Encoded) : Except Error 
 
 /-- One bounded file, one shared schema, and one real row group per input.
 A zero-length group plan is rejected. Individual groups may be empty. -/
-def emit (limits : Limits) (input : Input) : Except Error Encoded :=
+def emitOrdered (order : Order) (limits : Limits) (input : Input) : Except Error Encoded :=
   if input.groups = [] ∨ input.groups.length > limits.maxGroups ∨
       input.groups.length > limits.writer.footer.compact.maxCollectionSize then .error .groupLimit
   else if input.totalRows > limits.maxTotalRows ∨ input.totalRows ≥ 2 ^ 63 then .error .totalRows
   else if input.Matches limits then do
-    let output ← assemble limits input
-    if output.Checked limits input then
+    let output ← assembleOrdered order limits input
+    if output.CheckedOrdered order limits input then
       (certify limits input output).map (fun _ => output)
     else .error .extent
   else .error .schemaOrCount
+
+/-- The original API emits physical INT32 then BYTE_ARRAY. -/
+def emit (limits : Limits) (input : Input) : Except Error Encoded :=
+  emitOrdered .intFirst limits input
 
 end Silmaril.Formats.Parquet.MixedV1Writer.Multi

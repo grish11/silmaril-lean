@@ -14,6 +14,22 @@ namespace Silmaril.Formats.Parquet.MixedV1Writer
 open Int32ByteArrayGroup (Field Row)
 open FlatInt32Writer.Compact (ColumnIndex)
 
+/-- Physical leaf and chunk order. Row observations remain typed pairs
+with the INT32 slot first. -/
+inductive Order where
+  | intFirst
+  | byteFirst
+  deriving DecidableEq, Repr
+
+def Order.arrange {α : Type*} (order : Order) (integer binary : α) : α × α :=
+  match order with
+  | .intFirst => (integer, binary)
+  | .byteFirst => (binary, integer)
+
+def Order.columns {α : Type*} (order : Order) (integer binary : α) : List α :=
+  let (first, second) := order.arrange integer binary
+  [first, second]
+
 structure Input where
   intName : String
   integers : PlainV1Writer.Input
@@ -93,38 +109,53 @@ structure GroupIndex where
   ints : ColumnIndex
   octets : ColumnIndex
 
-def writeGroup (group : GroupIndex) : Write Unit := do
+def GroupIndex.spans (group : GroupIndex) (order : Order) : Footer.Span × Footer.Span :=
+  order.arrange group.ints.span group.octets.span
+
+def writeGroupOrdered (order : Order) (group : GroupIndex) : Write Unit := do
   field 1 9
   listHeader 12 2
-  chunkFor 1 group.rows group.ints
-  chunkFor 6 group.rows group.octets
+  let (first, second) := order.arrange (chunkFor 1 group.rows group.ints) (chunkFor 6 group.rows group.octets)
+  first
+  second
   field 1 6
   integer .i64 (group.ints.size + group.octets.size)
   field 1 6
   integer .i64 group.rows
   octet 0
 
-def footerGroups (ints octets : ColumnIndex) (groups : List GroupIndex) : Write Unit := do
+def writeGroup (group : GroupIndex) : Write Unit := writeGroupOrdered .intFirst group
+
+def footerGroupsOrdered (order : Order) (ints octets : ColumnIndex) (groups : List GroupIndex) :
+    Write Unit := do
   field 1 5
   integer .i32 1
   field 1 9
   listHeader 12 3
   root 2
-  leaf ints
-  byteLeaf octets
+  let (first, second) := order.arrange (leaf ints) (byteLeaf octets)
+  first
+  second
   field 1 6
   integer .i64 (groups.map GroupIndex.rows).sum
   field 1 9
   listHeader 12 groups.length
-  for group in groups do writeGroup group
+  for group in groups do writeGroupOrdered order group
   octet 0
+
+def footerGroups (ints octets : ColumnIndex) (groups : List GroupIndex) : Write Unit :=
+  footerGroupsOrdered .intFirst ints octets groups
 
 def footer (rows : Nat) (ints octets : ColumnIndex) : Write Unit :=
   footerGroups ints octets [⟨rows, ints, octets⟩]
 
+def encodeGroupsOrdered (order : Order) (limit : Nat) (ints octets : ColumnIndex)
+    (groups : List GroupIndex) : Except FlatInt32Writer.Compact.Error Bytes :=
+  ((footerGroupsOrdered order ints octets groups).run ⟨limit, .empty⟩).map (·.2.bytes)
+
 def encodeGroups (limit : Nat) (ints octets : ColumnIndex) (groups : List GroupIndex) :
     Except FlatInt32Writer.Compact.Error Bytes :=
-  ((footerGroups ints octets groups).run ⟨limit, .empty⟩).map (·.2.bytes)
+  encodeGroupsOrdered .intFirst limit ints octets groups
 
 def encode (limit rows : Nat) (ints octets : ColumnIndex) : Except FlatInt32Writer.Compact.Error Bytes :=
   encodeGroups limit ints octets [⟨rows, ints, octets⟩]

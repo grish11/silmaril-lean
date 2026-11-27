@@ -54,8 +54,19 @@ def main():
         digest = sha256(wire).hexdigest()
         print(f"{digest}  {path.name} {[len(ints) for ints, _ in groups]}")
         assert digest == PINS[name], f"{path.name}: fixture hash changed"
+    path = out / "byte-first.parquet"
+    wire = path.read_bytes()
+    fields, groups = cases["empty-middle"]
+    reversed_fields = fields[::-1]
+    reversed_groups = [slots[::-1] for slots in groups]
+    helpers["check_wire_groups"](thrift, wire, reversed_fields, reversed_groups, (6, 1))
+    helpers["check_arrow_groups"](wire, reversed_fields, reversed_groups, (6, 1))
+    digest = sha256(wire).hexdigest()
+    assert digest == "19be1daad4f8c2e0d4f8f415a2d5920ffaa4e6d0a3fac4a75503aab147ddd857"
+    print(f"{digest}  {path.name} [1, 0, 2] BYTE_ARRAY then INT32")
+
     assert (out / "singleton.parquet").read_bytes() == (out / "single/mixed.parquet").read_bytes()
-    print("Pinned PyArrow and Thrift verified every ordinal in three native multi-group files.")
+    print("Pinned PyArrow and Thrift verified every ordinal in four native multi-group files.")
 
 
 if __name__ == "__main__":

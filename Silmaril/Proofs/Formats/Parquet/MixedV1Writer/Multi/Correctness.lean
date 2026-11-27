@@ -9,27 +9,28 @@ public section
 namespace Silmaril.Proofs.Formats.Parquet.MixedV1Writer.Multi
 
 open Silmaril.Formats.Parquet Silmaril.Formats.Parquet.MixedV1Writer.Multi
+open Silmaril.Formats.Parquet.MixedV1Writer (Order byteSchema byteChunk)
 
-theorem emit_checked {limits : Limits} {input : Input} {output : Encoded}
-    (written : emit limits input = .ok output) :
+theorem emitOrdered_checked {order : Order} {limits : Limits} {input : Input} {output : Encoded}
+    (written : emitOrdered order limits input = .ok output) :
     input.groups ≠ [] ∧ input.groups.length ≤ limits.maxGroups ∧
-    input.totalRows ≤ limits.maxTotalRows ∧ input.Matches limits ∧ output.Checked limits input ∧
+    input.totalRows ≤ limits.maxTotalRows ∧ input.Matches limits ∧ output.CheckedOrdered order limits input ∧
     certify limits input output = .ok () := by
   by_cases groups : input.groups = [] ∨ input.groups.length > limits.maxGroups ∨
       input.groups.length > limits.writer.footer.compact.maxCollectionSize
-  · simp [emit, groups] at written
+  · simp [emitOrdered, groups] at written
   by_cases rows : input.totalRows > limits.maxTotalRows ∨ input.totalRows ≥ 2 ^ 63
-  · simp [emit, groups, rows] at written
+  · simp [emitOrdered, groups, rows] at written
   by_cases schema : input.Matches limits
-  · cases assembled : assemble limits input with
-    | error cause => simp [emit, groups, rows, schema, assembled, Bind.bind, Except.bind] at written
+  · cases assembled : assembleOrdered order limits input with
+    | error cause => simp [emitOrdered, groups, rows, schema, assembled, Bind.bind, Except.bind] at written
     | ok candidate =>
-      by_cases checked : candidate.Checked limits input
+      by_cases checked : candidate.CheckedOrdered order limits input
       · cases certified : certify limits input candidate with
-        | error cause => simp [emit, groups, rows, schema, assembled, checked, certified,
+        | error cause => simp [emitOrdered, groups, rows, schema, assembled, checked, certified,
             Bind.bind, Except.bind, Except.map] at written
         | ok value =>
-          simp [emit, groups, rows, schema, assembled, checked, certified,
+          simp [emitOrdered, groups, rows, schema, assembled, checked, certified,
             Bind.bind, Except.bind, Except.map] at written
           subst output
           have nonempty : input.groups ≠ [] := by
@@ -38,8 +39,8 @@ theorem emit_checked {limits : Limits} {input : Input} {output : Encoded}
           have groupCap := Nat.le_of_not_gt (fun tooMany => groups (.inr (.inl tooMany)))
           have rowCap := Nat.le_of_not_gt (fun tooMany => rows (.inl tooMany))
           exact ⟨nonempty, groupCap, rowCap, schema, checked, by simpa using certified⟩
-      · simp [emit, groups, rows, schema, assembled, checked, Bind.bind, Except.bind] at written
-  · simp [emit, groups, rows, schema] at written
+      · simp [emitOrdered, groups, rows, schema, assembled, checked, Bind.bind, Except.bind] at written
+  · simp [emitOrdered, groups, rows, schema] at written
 
 private theorem checked_at {intField byteField : Int32ByteArrayGroup.Field}
     (limits : Int32ByteArrayGroup.Limits) (opened : Int32ByteArrayGroup.Checked intField byteField)
@@ -60,15 +61,15 @@ private theorem checked_at {intField byteField : Int32ByteArrayGroup.Field}
         · simpa [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using ih (offset + 1) tail index
       · simp [checkGroups, read, same] at checked
 
-theorem emit_indexed {limits : Limits} {input : Input} {output : Encoded}
-    (written : emit limits input = .ok output) :
+theorem emitOrdered_indexed {order : Order} {limits : Limits} {input : Input} {output : Encoded}
+    (written : emitOrdered order limits input = .ok output) :
     ∃ opened : Int32ByteArrayGroup.Checked input.intField input.byteField,
       Int32ByteArrayGroup.openFile limits.writer.readback output.bytes input.intField input.byteField = .ok opened ∧
       opened.snapshot.groupCount = input.groups.length ∧
       ∀ i : Fin input.groups.length,
         opened.readGroup limits.writer.readback i.val = .ok (input.groups.get i).rows ∧
         Int32ByteArrayGroup.GroupWire opened limits.writer.readback i.val (input.groups.get i).rows := by
-  have checked := (emit_checked written).2.2.2.2.2
+  have checked := (emitOrdered_checked written).2.2.2.2.2
   unfold certify at checked
   cases opened : Int32ByteArrayGroup.openFile limits.writer.readback output.bytes input.intField input.byteField with
   | error cause => simp [opened, Except.mapError, Bind.bind, Except.bind] at checked
@@ -81,17 +82,30 @@ theorem emit_indexed {limits : Limits} {input : Input} {output : Encoded}
       exact ⟨by simpa using read, Int32ByteArrayGroup.readGroup_wire (by simpa using read)⟩
     · simp [opened, Except.mapError, Bind.bind, Except.bind, count] at checked
 
-theorem emit_empty {limits : Limits} {input : Input} {output : Encoded}
-    (written : emit limits input = .ok output) (i : Fin input.groups.length)
+theorem emitOrdered_empty {order : Order} {limits : Limits} {input : Input} {output : Encoded}
+    (written : emitOrdered order limits input = .ok output) (i : Fin input.groups.length)
     (empty : (input.groups.get i).rowCount = 0) :
     ∃ opened : Int32ByteArrayGroup.Checked input.intField input.byteField,
       Int32ByteArrayGroup.openFile limits.writer.readback output.bytes input.intField input.byteField = .ok opened ∧
       opened.readGroup limits.writer.readback i.val = .ok [] := by
-  obtain ⟨opened, source, _, all⟩ := emit_indexed written
-  have matched := (emit_checked written).2.2.2.1
+  obtain ⟨opened, source, _, all⟩ := emitOrdered_indexed written
+  have matched := (emitOrdered_checked written).2.2.2.1
   have aligned := MixedV1Writer.rows_exact (matched (input.groups.get i) (List.get_mem input.groups i)).1
   have noRows : (input.groups.get i).rows = [] :=
     List.length_eq_zero_iff.mp (aligned.1.trans empty)
   exact ⟨opened, source, noRows ▸ (all i).1⟩
+
+theorem emit_byteFirst_footer {limits : Limits} {input : Input} {output : Encoded}
+    (written : emitOrdered .byteFirst limits input = .ok output) :
+    ∃ parsed : Footer.Metadata,
+      Footer.readFooter limits.writer.footer output.bytes = .ok (output.footer, parsed) ∧
+      parsed.schema = [FlatInt32Writer.Compact.schemaRoot 2, byteSchema input.byteIndex, input.intIndex.schema] ∧
+      parsed.rowGroups.map Footer.RowGroup.columns =
+        output.groups.map (fun pages => [byteChunk pages.index.octets pages.index.rows,
+          pages.index.ints.metadata pages.index.rows]) := by
+  have checked := (emitOrdered_checked written).2.2.2.2.1
+  refine ⟨metadataOrdered .byteFirst input output.groups, checked.2.2.2.2.1, rfl, ?_⟩
+  simp only [metadataOrdered, List.map_map]
+  rfl
 
 end Silmaril.Proofs.Formats.Parquet.MixedV1Writer.Multi

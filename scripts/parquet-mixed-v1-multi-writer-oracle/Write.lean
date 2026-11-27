@@ -37,11 +37,16 @@ private def reject (caps : Limits) (input : Input) (expected : Error) : IO Unit 
   unless actual == expected do
     throw (IO.userError s!"expected {repr expected}, got {repr actual}")
 
-private def write (directory : System.FilePath) (name : String) (input : Input) : IO Unit := do
-  let .ok output := emit limits input | throw (IO.userError s!"{name}: emission failed")
+private def write (directory : System.FilePath) (name : String) (input : Input)
+    (order : MixedV1Writer.Order := .intFirst) : IO Unit := do
+  let writeFile := match order with | .intFirst => emit | .byteFirst => emitOrdered .byteFirst
+  let .ok output := writeFile limits input | throw (IO.userError s!"{name}: emission failed")
   let .ok checked := Int32ByteArrayGroup.openFile limits.writer.readback output.bytes
       input.intField input.byteField
     | throw (IO.userError s!"{name}: mixed open failed")
+  let (intOrdinal, byteOrdinal) := order.arrange 0 1
+  unless checked.int32Binding.columnOrdinal == intOrdinal && checked.byteArrayBinding.columnOrdinal == byteOrdinal do
+    throw (IO.userError s!"{name}: wrong physical column ordinals")
   unless checked.snapshot.groupCount == input.groups.length do
     throw (IO.userError s!"{name}: wrong actual footer group count")
   for (group, ordinal) in input.groups.zipIdx do
@@ -53,7 +58,7 @@ private def write (directory : System.FilePath) (name : String) (input : Input) 
   unless actual == input.groups.length do throw (IO.userError s!"{name}: wrong failed ordinal")
   let writer := { limits.writer with maxFileBytes := output.bytes.length }
   let exactCaps := ⟨writer, input.groups.length, input.totalRows⟩
-  let .ok bounded := emit exactCaps input | throw (IO.userError s!"{name}: exact caps refused")
+  let .ok bounded := writeFile exactCaps input | throw (IO.userError s!"{name}: exact caps refused")
   unless bounded.bytes == output.bytes do throw (IO.userError s!"{name}: caps changed the wire")
   IO.FS.writeBinFile (directory / s!"{name}.parquet") output.bytes.data
 
@@ -64,6 +69,7 @@ public def main (args : List String) : IO Unit := do
   write directory "required" required
   write directory "empty-middle" middle
   write directory "long-group-list" many
+  write directory "byte-first" middle .byteFirst
 
   let group : Group :=
     ⟨.required [-2147483648, 0, 17, 2147483647, -1],
@@ -87,4 +93,4 @@ public def main (args : List String) : IO Unit := do
   let restricted := { readback with column := { readback.column with maxRows := 1 } }
   reject { limits with writer := { limits.writer with readback := restricted } }
     middle (.groupReadback 2 (.int32 (.column 2 0 "count" (.rowLimit 1 2))))
-  IO.println "Three multi-group files, a byte-identical singleton, exact caps and eight typed refusals."
+  IO.println "Four multi-group files, a byte-identical singleton, exact caps and eight typed refusals."
