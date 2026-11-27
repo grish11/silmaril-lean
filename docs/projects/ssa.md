@@ -1813,9 +1813,8 @@ The continuation cannot jump back to its own label.
   or with lets after a nested case, is not a row, and the translation is
   not defined on it; it is not a translation of all flat graphs. The
   operands are folded, so the flat image of the table is not the flat
-  graph itself, and there is no general theorem that the readback of the
-  table is natively equal to the readback the flat graph already has;
-  that equation is proved on the instance. The instance is a named
+  graph itself; the next item proves that the two readbacks are natively
+  equal all the same. The instance is a named
   three-address graph with block parameters: an entry and five labelled
   blocks, where two blocks jump to a join block whose parameter is the
   phi, with a request before the join and a request on the joined value
@@ -1838,8 +1837,41 @@ The continuation cannot jump back to its own label.
   syntax has primitives applied to variables, pairs and unit, and the
   captures are passed in the first packet.
   [Rows of a flat graph and the translation](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Defs.lean) ·
-  [Jumps, local targets and the rank check](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Thms.lean) ·
+  [Jumps, local targets, the rank check and the readback](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Thms.lean) ·
   [A named block-parameter diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- The translation of the delimited fragment preserves the native
+  readback, for every witnessed flat graph in the fragment and not only
+  on instances. At a fixed captured context, fixed ordered exits and a
+  fixed typed witness, the readback of the checked table is natively
+  equal to the term that `FlatLetCase.compile` already gives the flat
+  graph. The two rank checks are the hypotheses they were: the rank
+  check of the flat graph for its compile and the check of the table for
+  its readback, and the second still follows from the first. The proof
+  is a local row simulation and two inductions. Fix any continuation for
+  every block, over the captured context and the packet of the block.
+  The flat compile of a block around that vector, weakened along a
+  scope, is natively equal to the table compile of its row at that
+  scope, whenever the table continuations agree with the vector at every
+  scope. For a line, the lets move out of the bound jump argument by the
+  sequencing laws. For a fork, the lets move out of the scrutinee, the
+  case of the two injections is sequenced before the case on the packet,
+  each arm reduces by case beta at its injection, and the continuation
+  of each label is renamed beneath the payload binder; a jump to an exit
+  is the let of its tag, by case beta and case eta. The blocks follow by
+  induction on the checked rank of the table, with the flat compiles of
+  the blocks as the vector, and the entry is a line into the first
+  block. Only derived laws of the native theory are used, and no bound
+  term has to be pure. On the named diamond the equation of the previous
+  item is now an instance, and the second named graph, whose flat
+  readback was not computed, gets the same equation and so reaches the
+  expansion of its join from the flat term. The fragment is not widened:
+  a block that is not a row has no table. The statement is native
+  equality of terms. The flat term is not itself an entry of the ranked
+  institution, so the ranked statements remain statements about the
+  table.
+  [Row simulation and readback of the table](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Thms.lean) ·
+  [Proofs](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/FragmentReadback.lean) ·
+  [Instances on the named diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
