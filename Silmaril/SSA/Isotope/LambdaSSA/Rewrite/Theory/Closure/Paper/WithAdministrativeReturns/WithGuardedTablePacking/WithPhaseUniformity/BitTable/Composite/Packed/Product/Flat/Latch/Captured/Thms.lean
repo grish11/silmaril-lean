@@ -92,7 +92,8 @@ The `_of` forms with the step equation as a hypothesis remain.
   quotients below).
 * A row whose use of the captured input is not of the lifted form with
   one common tail: for example a request whose query is the captured
-  input.
+  input. `Controlled/Thms.lean` treats a header whose request label is
+  chosen by the captured input, by a different route.
 * Completeness in default Paper.
 -/
 
