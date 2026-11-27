@@ -1694,6 +1694,54 @@ The continuation cannot jump back to its own label.
   [Trees with computed specializations](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Branch/Defs.lean) ·
   [Native equation and scope](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Branch/Thms.lean) ·
   [A stored reply after one binary branch](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomBranchPrefixRegression.lean)
+- A shared join before the stored reply is inspected is expanded into
+  the tree-shaped prefix. A join is a let whose bound term is a case:
+  `let₁ (case y A B) K`. The two arms of a branch each compute a value
+  of one type, and one continuation `K`, written once, receives it. The
+  join-inlining equation is
+  `let₁ (case y P₁[v₁] P₂[v₂]) K = case y (P₁[K[v₁]]) (P₂[K[v₂]])`,
+  where each arm is a finite nonbranching prefix around the slot it
+  supplies and `K[v]` is the continuation with its newest slot renamed
+  to that slot. It is a consequence of laws the native theory already
+  has: the sequencing law that pulls a case out of the bound term of a
+  let, the sequencing laws that move a request and a pattern let out of
+  the bound term of a let, and pure-let beta at a slot. No exchange law
+  is used. No request moves past another request or past a case: on each
+  path the requests of the arm come before the requests of the
+  continuation, as in the join. The typed node is the bound reply of a
+  request with two tags whose arms feed one continuation. Each arm is a
+  prefix that ends with a tuple of the joined type on top of its stack
+  and leaves the older tuples in place; the continuation is a tree of
+  the previous item with that tuple newest and on top of the stack, so
+  it may use the joined payload, ask requests, branch again, and it
+  inspects the stored reply at its leaves. The expansion keeps the
+  context and the exits: it is the case on the reply with, in each arm,
+  the prefix of the arm followed by the continuation renamed into the
+  arm by the renaming action on trees. It is a tree of the previous
+  item, so with the stored reply above it, it is the checked delayed
+  case. Ranked validity is transferred along the native equation: the
+  graph read back from any typed term that is natively equal to a
+  spelled tree, at the original ordered exits, is valid together with
+  the graph of a spelled tree exactly when the two trees have the same
+  normal form, and they then have the same ordered-exit arrow. So the
+  graph of the joined term is decided on its expansion. The scope is one
+  binary branch feeding one continuation, with a stored reply of two
+  tags. Arms that branch before the join, a joined value that is not a
+  slot, and joins of more than two arms are not covered. The regression
+  asks a request after the stored one and cases on its reply; one arm
+  asks a further request and supplies its reply, the other supplies a
+  component of its payload; the continuation asks a request on the
+  joined atom and then inspects the stored reply. The joined term and
+  its expansion are natively equal, and so are the joined term and the
+  eager spelling written by hand without a join. The graph read back
+  from the joined term and the graph of the eager spelling are valid
+  together with the same ordered-exit arrow. Supplying the payload
+  instead of the reply in the first arm, with the same requests, is told
+  apart, and so is a changed arm of the stored reply in the
+  continuation.
+  [Join nodes and their expansion](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Join/Defs.lean) ·
+  [Join inlining and ranked transfer](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Join/Thms.lean) ·
+  [A join before the stored reply](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomJoinRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,

@@ -123,7 +123,8 @@ and starts a chain over a stack as above. A chain may also start with the
 stack empty. Outside it are: a request whose reply is destructured or
 cased on at the request itself while a tuple is packed; a reply with
 several tags whose inspection is delayed across a prefix whose branches
-join again or share a continuation; and arbitrary LetCase terms. The
+join again or share a continuation, which is not a tree of this grammar
+and is related to one by the `Join` headers; and arbitrary LetCase terms. The
 specializations of a delayed tree across a prefix are given to its
 constructor, with the equations between their terms and the terms the
 shape computes. The renaming actions on spelled trees and on prefixes, in

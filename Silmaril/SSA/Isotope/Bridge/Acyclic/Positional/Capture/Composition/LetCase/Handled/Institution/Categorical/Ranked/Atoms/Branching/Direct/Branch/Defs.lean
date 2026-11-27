@@ -25,6 +25,9 @@ selected back to the top of the stack. At a branch both arms are
 specialized and the branch is kept, so the specialization has the same
 requests on each path, in the same order. The result is the checked
 `deferred` node on the computed shape and specializations.
+
+The tree also has a native typing and the renaming action of the other
+spelled families.
 -/
 
 @[expose] public section
@@ -300,5 +303,102 @@ def SpelledStackTags.delayedTree {stack : List (List α)} {m : Nat} {Δ : BoundC
     (d.spec true (holds.rename (pastPair Δ (tagsTy [atoms, next]) (tupleTy atoms)))
       (Holds.rename_comp holds _ _)).term_eq
     (d.spec false _ rfl).term_eq
+
+/-! ## Typing and renaming of the tree
+
+The tree is natively typed at the packed exits. It has the renaming action
+of the other spelled families: the renamed tree has the renamed term, the
+stored slot is the renamed stored slot, and the tree is renamed onto given
+slots of the stack that are the renamed slots. -/
+
+mutual
+
+/-- The native typing of the tree. -/
+def SpelledDelay.typing {atoms next : List α} : {stack : List (List α)} → {m : Nat} →
+    {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} → {s : Fin m} → {t : LetCase.LocallyNameless.Tm Empty Φ m} →
+    SpelledDelay atoms next stack Δ holds s L t → Derivation Φ Γ₀ Δ t (packedExitType L)
+  | _, _, _, _, _, _, .inspect s left right => .case (slotTyping s) left.typing right.typing
+  | _, _, _, _, _, _, .unit tail => tail.typing
+  | _, _, _, _, _, _, .atom tail => tail.typing
+  | _, _, _, .cons top _, _, _, .step tail => .let₂ (slotTyping top) tail.typing
+  | _, _, _, _, _, _, .ask g argument reply => .let₁ (.op (f := g) (argTyping argument)) reply.typing
+  | _, _, _, _, _, _, .pick _ tail => tail.typing
+
+/-- The native typing of a bound reply of the tree, under its slot. -/
+def SpelledDelayTags.typing {atoms next : List α} : {stack : List (List α)} → {tags : List (List α)} →
+    {m : Nat} → {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} → {s : Fin m} →
+    {t : LetCase.LocallyNameless.Tm Empty Φ (m + 1)} → SpelledDelayTags atoms next stack tags Δ holds s L t →
+    Derivation Φ Γ₀ (Δ.snoc (tagsTy tags)) t (packedExitType L)
+  | _, _, _, _, _, _, _, .bind _ tail => tail.typing
+  | _, _, _, _, _, _, _, .split _ _ _ left right => .case .bv left.typing right.typing
+
+end
+
+mutual
+
+/-- The renaming action on the tree. -/
+def SpelledDelay.renamed {atoms next : List α} : {stack : List (List α)} → {m : Nat} →
+    {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} → {s : Fin m} → {t : LetCase.LocallyNameless.Tm Empty Φ m} →
+    SpelledDelay atoms next stack Δ holds s L t → {k : Nat} → {Θ : BoundCtx (Ty α) k} →
+    (ρ : BoundCtx.Renaming Δ Θ) → (holds' : Holds Θ stack) → holds.rename ρ = holds' →
+    Renamed (SpelledDelay atoms next stack Θ holds' (ρ.toFun s) L) (t.rename ρ.toFun)
+  | _, _, _, holds, _, _, .inspect s left right, _, Θ, ρ, holds', h =>
+    let rl := left.renamed (ρ.up (tupleTy atoms))
+      (.cons ⟨0, rfl⟩ (holds'.rename (BoundCtx.Renaming.succ Θ (tupleTy atoms))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square holds (BoundCtx.Renaming.succ Θ (tupleTy atoms)) h
+        (renaming_ext (fun _ => rfl))))
+    let rr := right.renamed (ρ.up (tupleTy next))
+      (.cons ⟨0, rfl⟩ (holds'.rename (BoundCtx.Renaming.succ Θ (tupleTy next))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square holds (BoundCtx.Renaming.succ Θ (tupleTy next)) h
+        (renaming_ext (fun _ => rfl))))
+    ⟨_, .inspect (s.rename ρ) rl.tree rr.tree, congrArg₂ (LetCase.LocallyNameless.Tm.case (.bv (ρ.toFun s.1))) rl.term_eq rr.term_eq⟩
+  | _, _, _, .cons _ _, _, _, .unit tail, _, _, ρ, .cons _ older', h =>
+    let r := tail.renamed ρ older' (Holds.cons.inj h).2
+    ⟨_, .unit r.tree, r.term_eq⟩
+  | _, _, _, .cons _ _, _, _, .atom tail, _, _, ρ, .cons _ older', h =>
+    let r := tail.renamed ρ older' (Holds.cons.inj h).2
+    ⟨_, .atom r.tree, r.term_eq⟩
+  | (a :: b :: rest) :: _, _, _, .cons _ older, _, _, .step tail, _, Θ, ρ, .cons _ older', h =>
+    let r := tail.renamed ((ρ.up (.base a)).up (tupleTy (b :: rest)))
+      (.cons ⟨0, rfl⟩ (older'.rename (pastPair Θ (.base a) (tupleTy (b :: rest)))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square older (pastPair Θ (.base a) (tupleTy (b :: rest)))
+        (Holds.cons.inj h).2 (renaming_ext (fun _ => rfl))))
+    ⟨_, .step r.tree, congrArg₂ (fun i x => LetCase.LocallyNameless.Tm.let₂ (.bv i) x)
+      (congrArg Subtype.val (Holds.cons.inj h).1).symm r.term_eq⟩
+  | _, _, _, _, _, _, .ask g argument reply, _, _, ρ, holds', h =>
+    let r := reply.renamed ρ holds' h
+    ⟨_, .ask g (argument.rename ρ) r.tree,
+      congrArg₂ LetCase.LocallyNameless.Tm.let₁ (congrArg (LetCase.LocallyNameless.Tm.op g) (argTerm_rename argument ρ)).symm r.term_eq⟩
+  | _, _, _, holds, _, _, .pick sel tail, _, _, ρ, holds', h =>
+    let r := tail.renamed ρ (holds'.select sel)
+      ((Holds.select_rename sel holds ρ).symm.trans (congrArg (Holds.select sel) h))
+    ⟨_, .pick sel r.tree, r.term_eq⟩
+
+/-- The renaming action on a bound reply of the tree, along a renaming of
+the context beneath its slot. -/
+def SpelledDelayTags.renamed {atoms next : List α} : {stack : List (List α)} → {tags : List (List α)} →
+    {m : Nat} → {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} → {s : Fin m} →
+    {t : LetCase.LocallyNameless.Tm Empty Φ (m + 1)} → SpelledDelayTags atoms next stack tags Δ holds s L t → {k : Nat} →
+    {Θ : BoundCtx (Ty α) k} → (ρ : BoundCtx.Renaming Δ Θ) → (holds' : Holds Θ stack) →
+    holds.rename ρ = holds' →
+    Renamed (SpelledDelayTags atoms next stack tags Θ holds' (ρ.toFun s) L) (t.rename (LetCase.LocallyNameless.Tm.up ρ.toFun))
+  | _, _, _, _, holds, _, _, .bind reply tail, _, Θ, ρ, holds', h =>
+    let r := tail.renamed (ρ.up (tupleTy reply))
+      (.cons ⟨0, rfl⟩ (holds'.rename (BoundCtx.Renaming.succ Θ (tupleTy reply))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square holds (BoundCtx.Renaming.succ Θ (tupleTy reply)) h
+        (renaming_ext (fun _ => rfl))))
+    ⟨_, .bind reply r.tree, r.term_eq⟩
+  | _, _, _, _, holds, _, _, .split first second more left right, _, Θ, ρ, holds', h =>
+    let rl := left.renamed ((ρ.up (tagsTy (first :: second :: more))).up (tupleTy first))
+      (.cons ⟨0, rfl⟩ (holds'.rename (pastPair Θ (tagsTy (first :: second :: more)) (tupleTy first))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square holds
+        (pastPair Θ (tagsTy (first :: second :: more)) (tupleTy first)) h (renaming_ext (fun _ => rfl))))
+    let rr := right.renamed (ρ.up (tagsTy (first :: second :: more)))
+      (holds'.rename (BoundCtx.Renaming.succ Θ (tagsTy (first :: second :: more))))
+      (holds_square holds (BoundCtx.Renaming.succ Θ (tagsTy (first :: second :: more))) h
+        (renaming_ext (fun _ => rfl)))
+    ⟨_, .split first second more rl.tree rr.tree, congrArg₂ (LetCase.LocallyNameless.Tm.case (.bv 0)) rl.term_eq rr.term_eq⟩
+
+end
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Institution
