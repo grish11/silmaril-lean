@@ -2334,22 +2334,34 @@ example {M : Type → Type} {α : Type} [Monad M] [LawfulMonad M] [Elgot.Iterate
 /-- Every block of the normalized graph is closed over the two inputs:
 the existing check accepts it when every block arrives with the inputs
 only. -/
-example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+private theorem phiInferred_closed (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
     Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed (phiDirect incoming) (phiInferred incoming) phiExits phiInputs = true := by
   rcases h with rfl | rfl <;> decide +kernel
 
-/-- The entry is kept: the lowered and versioned entry reads no register
-at its initial version except the two inputs. -/
+/-- The entry is kept, by the theorem for closed tables: the lowered and
+versioned entry reads no register at its initial version except the two
+inputs. -/
 example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
-    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept (phiDirect incoming) (phiInferred incoming) phiInputs = true := by
-  rcases h with rfl | rfl <;> decide +kernel
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept (phiDirect incoming) (phiInferred incoming) phiInputs = true :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept_of_closed (phiDirect incoming) (phiInferred incoming) phiExits phiInputs
+    (phiInferred_closed incoming h)
+
+/-- Every record that the versioning carries holds the two inputs only,
+by the same theorem. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) (label : Option Lbl)
+    (ys : List (Option (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl)))
+    (found : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.destinations
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming)) label = some ys) :
+    ∀ z ∈ ys, z ∈ phiInputs.map fun register => some (Sum.inl register) :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.records_of_closed (phiDirect incoming) (phiInferred incoming) phiExits phiInputs
+    (phiInferred_closed incoming h) label ys found
 
 /-- With no register forwarded, the entry is not kept. -/
 example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept (phiDirect .e) [] phiInputs = false := by decide +kernel
 
 /-- The table written by hand keeps the entry, though its blocks are not
 closed over the inputs: they read the stored reply. Closure is sufficient
-for the entry on these graphs, not necessary. -/
+for the entry, not necessary. -/
 example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept (phiDirect .e) phiForwards phiInputs = true ∧
     Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed (phiDirect .e) phiForwards phiExits phiInputs = false := by
   decide +kernel
@@ -2636,5 +2648,39 @@ example : denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op)
         (entryOf demSourcePayload) (expanded join) (expanded joinPayload) dem_expanded
         demPayload_expanded).mp same)).trans expandedPayload_normal
     simp at terms
+
+/-! ## Closed tables at the edges of the statement
+
+Three small graphs, with no register forwarded, at the places where the
+hypothesis of the theorem for closed tables is used: a φ operand on the
+edge from the entry, a label that is neither a block nor a declared exit,
+and a declared input that is defined again. -/
+
+/-- The entry jumps to a block whose φ reads a register on that edge. -/
+private def edgeOperand : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op :=
+  ⟨.term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .join),
+    [(.join, ⟨[⟨.j, [(none, .var .later)]⟩], .term (.br (some .done) (.var .j))⟩)]⟩
+
+/-- With the register declared, the table is closed and the entry is
+kept. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept edgeOperand [] [.later] = true :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept_of_closed edgeOperand [] phiExits [.later] (by decide +kernel)
+
+/-- With the register not declared, the table is not closed, and the entry
+is not kept: the packet of the entry edge reads the register at its
+initial version. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed edgeOperand [] phiExits [] = false ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept edgeOperand [] [] = false := by decide +kernel
+
+/-- A jump to a label that is neither a block nor a declared exit: the
+table is not closed, whatever is declared. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed (⟨.term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .leaf), []⟩ : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op) [] phiExits
+    [.later, .earlier] = false := by decide +kernel
+
+/-- A declared input that the entry defines again: the table is not
+closed. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed
+    (⟨.let1 .later (.app .pick (.var .later)) (.term (.br (some .done) (.var .later))), []⟩ :
+      Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op) [] phiExits [.later] = false := by decide +kernel
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
