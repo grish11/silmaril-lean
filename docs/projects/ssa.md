@@ -1785,13 +1785,61 @@ The continuation cannot jump back to its own label.
   a positional capture, is proved for the finite structural signatures
   over the types without atoms, through their finite separator, and is
   not available for the signatures with atoms; this is why the stored
-  reply is passed in the packets. The named phi graphs of the flat
-  three-address syntax elaborate to the scoped flat syntax, and no
-  translation takes them to checked captured tables, which are what the
-  ranked sentences are about; so the source diamond is in the
-  block-parameter form of the captured table.
+  reply is passed in the packets. The named graphs of the flat
+  three-address syntax elaborate to the scoped flat syntax; this item
+  writes the diamond directly as a captured table, and the next item
+  translates a delimited fragment of the scoped flat syntax to checked
+  captured tables.
   [Source graphs and spelled trees](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Source/Thms.lean) ·
   [A written source diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomSourceDiamondRegression.lean)
+- A delimited fragment of the scoped flat graphs is translated to
+  checked captured tables, so the source diamond can be a named graph.
+  A checked captured table already has a flat image; this is the other
+  direction. It is defined on the existing typed witness of a flat
+  graph, which gives every literal operand its typing. A flat block is
+  in the fragment when it is a row: a line of lets that ends in one
+  jump, or a line of lets that ends in one case whose two arms are lines
+  of lets ending in one jump. A line becomes a jump row whose operand is
+  the lets around the jump argument, as one term. A case becomes a case
+  row whose operand is the lets around the case with each arm wrapped in
+  the injection of its side, so that it computes the packet of the arm
+  it selects. The entry must be a line that jumps to the first block; it
+  becomes the entry operand. The captured context, the block parameters,
+  the order of the blocks and the ordered exits are kept. Every row
+  jumps to the labels of its flat block, in order: a block at the same
+  index, an exit at the same position. So the local targets of the table
+  are those of the flat graph, and the rank check of the flat graph is
+  the check of the table. A block with a case inside an arm of a case,
+  or with lets after a nested case, is not a row, and the translation is
+  not defined on it; it is not a translation of all flat graphs. The
+  operands are folded, so the flat image of the table is not the flat
+  graph itself, and there is no general theorem that the readback of the
+  table is natively equal to the readback the flat graph already has;
+  that equation is proved on the instance. The instance is a named
+  three-address graph with block parameters: an entry and five labelled
+  blocks, where two blocks jump to a join block whose parameter is the
+  phi, with a request before the join and a request on the joined value
+  after it, and the stored reply inspected in the join block. Named
+  blocks do not see the captures of the entry, so every live value is
+  passed in the parameters. The existing elaboration takes the named
+  graph to a scoped flat graph. Its typed witness is in the fragment,
+  and the table is the translation of that witness, with its check
+  obtained from the rank check of the flat graph; no table is written by
+  hand. The checked readback of the table is computed and is natively
+  equal, by the same existing laws, to the expansion of the join node,
+  to the joined term and to its normal form. The existing flat readback
+  of the same witness is computed as well and is natively equal to the
+  readback of the table. The ranked theorems for entries then apply: the
+  table of the named graph and the tree of the expansion are valid
+  together with the same original-entry, original-exit arrow, and a
+  second named graph, which differs only in the value one predecessor
+  passes to the join, gives a table that is told apart. The atom
+  primitives and the captures did not obstruct the example: the named
+  syntax has primitives applied to variables, pairs and unit, and the
+  captures are passed in the first packet.
+  [Rows of a flat graph and the translation](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Defs.lean) ·
+  [Jumps, local targets and the rank check](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Thms.lean) ·
+  [A named block-parameter diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
