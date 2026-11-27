@@ -39,6 +39,13 @@ private theorem observe_group {int32 byteArray : Parquet.Int32ByteArrayGroup.Fie
     Writer.Input.viewField, Writer.Input.intColumn, Arrow.Writer.ColumnValues.observe,
     count, integers, octets, List.map_map, Function.comp_def]
 
+theorem writerBatch_ofRows_observe (int32 byteArray : Parquet.Int32ByteArrayGroup.Field) (pairs : List Row) :
+    (writerBatch (Prepare.Batch.ofRows int32 byteArray (File.rows int32 byteArray pairs))).observe
+        (writerSchema (Prepare.Schema.ofSelection int32 byteArray)) =
+      groupObservation int32 byteArray pairs := by
+  obtain ⟨count, integers, octets⟩ := Prepare.batch_values int32 byteArray pairs
+  exact observe_group count integers octets
+
 theorem convert_readback (written : convert parquet ipc input int32 byteArray = .ok wire) :
     ∃ (checked : File.Checked parquet int32 byteArray) (groups : List (List Row)) (decoded : Stream.Observed),
       File.openFile parquet input int32 byteArray = .ok checked ∧

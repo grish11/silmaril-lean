@@ -14,6 +14,13 @@ open Arrow.MixedFlat
 variable {parquet : File.Limits} {ipc : Arrow.MixedFlat.Limits} {input : Bytes}
 variable {int32 byteArray : Field} {wire : KBytes}
 
+/-- The mixed IPC batch input records the same paired slots as the typed source rows. -/
+theorem writerBatch_ofRows_observe (int32 byteArray : Field) (pairs : List Row) :
+    (writerBatch (Prepare.Batch.ofRows int32 byteArray (File.rows int32 byteArray pairs))).observe
+        (writerSchema (Prepare.Schema.ofSelection int32 byteArray)) =
+      groupObservation int32 byteArray pairs :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.ToIpc.writerBatch_ofRows_observe int32 byteArray pairs
+
 /-- Success consists of complete source preparation and successful native emission. -/
 theorem convert_ok_iff :
     convert parquet ipc input int32 byteArray = .ok wire ↔

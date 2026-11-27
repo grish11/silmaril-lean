@@ -68,3 +68,35 @@ python3 scripts/parquet-byte-array-legacy-events/ScanOracle.py \
   | diff -u tests/formats/parquet-int32-byte-array-legacy/scan-reference.txt -
 lake build --wfail +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ScanTests
 ```
+
+## Native mixed Arrow IPC
+
+`Int32ByteArrayGroup.Legacy.ToIpc.convert` exhausts the checked paired
+source before calling the existing mixed IPC encoder. Successful
+conversion emits a V5 stream with the original selected names and
+nullability in INT32-first order. The BYTE_ARRAY field is BinaryView.
+`convert_readback` ties the checked readback to the original paired
+events with exact octets, batch order, and EOS at the end of the
+carrier. An empty footer group contributes its own empty RecordBatch.
+Source refusals preserve their typed payload, and the writer runs
+only after every source group succeeds.
+
+PyArrow 26.0.1 independently decodes both selected columns and checks
+the Lean-produced native stream, including `[384, 0, 384]` and exact EOS.
+The opaque control replaces two bytes in a dictionary entry and two
+in a long PLAIN value, preserving the original lengths and framing.
+It exercises non-UTF8 and NUL octets in both BinaryView representations.
+The pinned late length error returns group 2, column 1, frame 19,
+header byte 21009 and yields no IPC file in the oracle.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| original.arrows | `be2f9535d085515eaae8e8b5a76d8222e9e3391e9b10521bff2e97d17a0db713` |
+| opaque.parquet | `1500f05bd60795fdd40fa2ab3347b9bfa6b69388c731ea7be926cfc72b8fc29f` |
+| opaque.arrows | `b9cae12f046e2fb4c139ac793eee4cb9855d0a5ac1151677522755bf965507ea` |
+
+```sh
+lake build --wfail +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Checks
+fixture_tmp=$(mktemp -d)
+python3 scripts/parquet-legacy-to-ipc-oracle/check.py "$fixture_tmp"
+```
