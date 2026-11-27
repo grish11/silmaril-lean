@@ -58,13 +58,26 @@ def prepareGroups (descriptor : MixedIpc.Descriptor) :
     let groups ← prepareGroups descriptor (ordinal + 1) rest
     return group :: groups
 
-/-- Preserve physical field order and every record boundary. A schema-only
-stream has no group to write. An explicit zero-row RecordBatch has one. -/
-def prepare (source : MixedIpc.Prepared) : Except PlanError Multi.Input :=
-  if source.descriptor.viewFirst then .error .fieldOrder
-  else if source.batches = [] then .error .noBatches
+def physicalOrder (descriptor : MixedIpc.Descriptor) : Order :=
+  if descriptor.viewFirst then .byteFirst else .intFirst
+
+/-- Retain every record boundary. A schema-only stream has no group to write.
+An explicit zero-row RecordBatch has one. -/
+def prepareOrdered (source : MixedIpc.Prepared) : Except PlanError Multi.Input :=
+  if source.batches = [] then .error .noBatches
   else (prepareGroups source.descriptor 0 source.batches).map fun groups =>
     ⟨field source.descriptor.integer, field source.descriptor.binary, groups⟩
+
+/-- The original entry point admits INT32-first streams. -/
+def prepare (source : MixedIpc.Prepared) : Except PlanError Multi.Input :=
+  if source.descriptor.viewFirst then .error .fieldOrder else prepareOrdered source
+
+/-- Exhaust native IPC and emit the two Parquet leaves in descriptor order. -/
+def convertOrdered (source : MixedIpc.Limits) (sink : Multi.Limits) (input : KBytes) :
+    Except Error Multi.Encoded := do
+  let observed ← (MixedIpc.read source input).mapError .source
+  let plan ← (prepareOrdered observed).mapError .plan
+  (Multi.emitOrdered (physicalOrder observed.descriptor) sink plan).mapError .sink
 
 /-- Finish exact native IPC exhaustion before planning or invoking the sink.
 Only a complete, checked Parquet file is returned. -/

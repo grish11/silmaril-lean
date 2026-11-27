@@ -13,6 +13,19 @@ open Silmaril.Formats.Parquet.Snapshot
 
 variable {Id Kind Failure : Type*} {Value : Kind → Type*} {schema : Scan.Schema Id Kind}
 
+theorem check_metadata {limits : Limits} {bytes : Bytes} {checked : Checked}
+    {span : Footer.Span} {metadata : Footer.Metadata}
+    (opened : check (Failure := Failure) limits bytes = .ok checked)
+    (footer : Footer.readFooter limits.footer bytes = .ok (span, metadata)) :
+    checked.metadata = metadata := by
+  cases validation : Footer.validate span.start limits.maxSchemaDepth metadata with
+  | error cause => simp [check, footer, validation, Except.mapError, Bind.bind, Except.bind] at opened
+  | ok result =>
+    cases result
+    simp [check, footer, validation, Except.mapError, Bind.bind, Except.bind, pure, Except.pure] at opened
+    cases opened
+    rfl
+
 theorem readGroup_ok_iff (snapshot : Checked) (decode : DecodeGroup schema Value Failure)
     (index : Nat) (rows : Reader.RowGroup schema Value) :
     snapshot.readGroup decode index = .ok rows ↔ ∃ group,

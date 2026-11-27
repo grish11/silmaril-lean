@@ -91,21 +91,43 @@ private theorem prepareGroups_exact {descriptor : MixedIpc.Descriptor} {ordinal 
         subst groups
         exact congrArg₂ List.cons (prepareGroup_exact group) (ih tail)
 
+theorem prepareOrdered_exact {source : MixedIpc.Prepared} {plan : Multi.Input}
+    (checked : prepareOrdered source = .ok plan) :
+    source.batches ≠ [] ∧
+    plan.intField = field source.descriptor.integer ∧ plan.byteField = field source.descriptor.binary ∧
+    plan.groups.map Multi.Group.rows = source.batches.map (List.map toRow) := by
+  by_cases empty : source.batches = []
+  · simp [prepareOrdered, empty] at checked
+  cases admitted : prepareGroups source.descriptor 0 source.batches with
+  | error cause => simp [prepareOrdered, empty, admitted, Except.map] at checked
+  | ok groups =>
+    simp [prepareOrdered, empty, admitted, Except.map] at checked
+    subst plan
+    exact ⟨empty, rfl, rfl, prepareGroups_exact admitted⟩
+
 theorem prepare_exact {source : MixedIpc.Prepared} {plan : Multi.Input}
     (checked : prepare source = .ok plan) :
     source.descriptor.viewFirst = false ∧ source.batches ≠ [] ∧
     plan.intField = field source.descriptor.integer ∧ plan.byteField = field source.descriptor.binary ∧
     plan.groups.map Multi.Group.rows = source.batches.map (List.map toRow) := by
   cases order : source.descriptor.viewFirst
-  · by_cases empty : source.batches = []
-    · simp [prepare, order, empty] at checked
-    cases admitted : prepareGroups source.descriptor 0 source.batches with
-    | error cause => simp [prepare, order, empty, admitted, Except.map] at checked
-    | ok groups =>
-      simp [prepare, order, empty, admitted, Except.map] at checked
-      subst plan
-      exact ⟨rfl, empty, rfl, rfl, prepareGroups_exact admitted⟩
+  · exact ⟨rfl, prepareOrdered_exact (by simpa [prepare, order] using checked)⟩
   · simp [prepare, order] at checked
+
+theorem convertOrdered_ok_iff {source : MixedIpc.Limits} {sink : Multi.Limits} {input : KBytes}
+    {output : Multi.Encoded} :
+    convertOrdered source sink input = .ok output ↔
+      ∃ observed plan, MixedIpc.read source input = .ok observed ∧
+        prepareOrdered observed = .ok plan ∧
+        Multi.emitOrdered (physicalOrder observed.descriptor) sink plan = .ok output := by
+  cases decoded : MixedIpc.read source input with
+  | error cause => simp [convertOrdered, decoded, Except.mapError, Bind.bind, Except.bind]
+  | ok observed =>
+    cases planned : prepareOrdered observed with
+    | error cause => simp [convertOrdered, decoded, planned, Except.mapError, Bind.bind, Except.bind]
+    | ok plan =>
+      cases emitted : Multi.emitOrdered (physicalOrder observed.descriptor) sink plan <;>
+        simp [convertOrdered, decoded, planned, emitted, Except.mapError, Bind.bind, Except.bind]
 
 theorem convert_ok_iff {source : MixedIpc.Limits} {sink : Multi.Limits} {input : KBytes}
     {output : Multi.Encoded} :
@@ -121,6 +143,34 @@ theorem convert_ok_iff {source : MixedIpc.Limits} {sink : Multi.Limits} {input :
       cases emitted : Multi.emit sink plan <;>
         simp [convert, decoded, planned, emitted, Except.mapError, Bind.bind, Except.bind]
 
+theorem emit_indexed_of_plan {sink : Multi.Limits} {order : Order} {output : Multi.Encoded}
+    {observed : MixedIpc.Prepared} {plan : Multi.Input}
+    (planned : prepareOrdered observed = .ok plan)
+    (emitted : Multi.emitOrdered order sink plan = .ok output) :
+    ∃ opened : Int32ByteArrayGroup.Checked (field observed.descriptor.integer) (field observed.descriptor.binary),
+      Int32ByteArrayGroup.openFile sink.writer.readback output.bytes
+        (field observed.descriptor.integer) (field observed.descriptor.binary) = .ok opened ∧
+      opened.snapshot.groupCount = observed.batches.length ∧
+      ∀ i : Fin observed.batches.length,
+        opened.readGroup sink.writer.readback i.val = .ok ((observed.batches.get i).map toRow) ∧
+        Int32ByteArrayGroup.GroupWire opened sink.writer.readback i.val ((observed.batches.get i).map toRow) := by
+  obtain ⟨intField, byteField, groups⟩ := plan
+  obtain ⟨_, intLabel, byteLabel, paired⟩ := prepareOrdered_exact planned
+  change intField = field observed.descriptor.integer at intLabel
+  change byteField = field observed.descriptor.binary at byteLabel
+  subst intField
+  subst byteField
+  have length : groups.length = observed.batches.length := by
+    simpa using congrArg List.length paired
+  obtain ⟨opened, openedOk, count, indexed⟩ := Multi.emitOrdered_indexed emitted
+  refine ⟨opened, openedOk, count.trans length, ?_⟩
+  intro i
+  let j : Fin groups.length := ⟨i.val, by rw [length]; exact i.isLt⟩
+  have rows := congrArg (fun xs : List (List Int32ByteArrayGroup.Row) => xs[i.val]?) paired
+  have exactRows : (groups.get j).rows = (observed.batches.get i).map toRow := by
+    simpa [List.getElem?_map, List.getElem?_eq_getElem, List.get_eq_getElem, i.isLt, j, length] using rows
+  exact exactRows ▸ indexed j
+
 theorem convert_indexed {source : MixedIpc.Limits} {sink : Multi.Limits} {input : KBytes}
     {output : Multi.Encoded} (written : convert source sink input = .ok output) :
     ∃ (observed : MixedIpc.Prepared) (opened : Int32ByteArrayGroup.Checked
@@ -133,21 +183,10 @@ theorem convert_indexed {source : MixedIpc.Limits} {sink : Multi.Limits} {input 
       ∀ i : Fin observed.batches.length,
         opened.readGroup sink.writer.readback i.val = .ok ((observed.batches.get i).map toRow) ∧
         Int32ByteArrayGroup.GroupWire opened sink.writer.readback i.val ((observed.batches.get i).map toRow) := by
-  obtain ⟨observed, ⟨intField, byteField, groups⟩, read, planOk, emitted⟩ := convert_ok_iff.mp written
-  obtain ⟨order, _, intLabel, byteLabel, paired⟩ := prepare_exact planOk
-  change intField = field observed.descriptor.integer at intLabel
-  change byteField = field observed.descriptor.binary at byteLabel
-  subst intField
-  subst byteField
-  have length : groups.length = observed.batches.length := by
-    simpa using congrArg List.length paired
-  obtain ⟨opened, openedOk, count, indexed⟩ := Multi.emit_indexed emitted
-  refine ⟨observed, opened, read, order, openedOk, count.trans length, ?_⟩
-  intro i
-  let j : Fin groups.length := ⟨i.val, by rw [length]; exact i.isLt⟩
-  have rows := congrArg (fun xs : List (List Int32ByteArrayGroup.Row) => xs[i.val]?) paired
-  have exactRows : (groups.get j).rows = (observed.batches.get i).map toRow := by
-    simpa [List.getElem?_map, List.getElem?_eq_getElem, List.get_eq_getElem, i.isLt, j, length] using rows
-  exact exactRows ▸ indexed j
+  obtain ⟨observed, plan, read, planOk, emitted⟩ := convert_ok_iff.mp written
+  have order := (prepare_exact planOk).1
+  have planned : prepareOrdered observed = .ok plan := by simpa [prepare, order] using planOk
+  obtain ⟨opened, openedOk, count, indexed⟩ := emit_indexed_of_plan planned emitted
+  exact ⟨observed, opened, read, order, openedOk, count, indexed⟩
 
 end Silmaril.Proofs.Formats.Parquet.MixedV1Writer.FromIpc

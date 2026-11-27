@@ -45,6 +45,30 @@ theorem convert_readback (written : convert parquet ipc input int32 byteArray = 
         Stream.BatchesWire ipc wire decoded.fields ipc.observation.ipc.batches 0 start decoded.batches :=
   Proofs.Formats.Parquet.Int32ByteArrayGroup.ToIpc.convert_readback written
 
+theorem convertOrdered_ok_iff :
+    convertOrdered parquet ipc input int32 byteArray = .ok wire ↔
+      ∃ (checked : File.Checked parquet int32 byteArray) (prepared : Prepare.Prepared),
+        File.openFile parquet input int32 byteArray = .ok checked ∧
+        Prepare.prepareChecked checked = .ok prepared ∧
+        StreamWriter.emit ipc (writerSchemaOrdered (selectedOrder checked.projection) prepared.schema)
+          (prepared.batches.map writerBatch) = .ok wire :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.ToIpc.convertOrdered_ok_iff
+
+theorem convertOrdered_readback (written : convertOrdered parquet ipc input int32 byteArray = .ok wire) :
+    ∃ (checked : File.Checked parquet int32 byteArray) (groups : List (List Row)) (decoded : Stream.Observed),
+      File.openFile parquet input int32 byteArray = .ok checked ∧
+      (List.range checked.projection.snapshot.groupCount).mapM
+        (checked.projection.readGroup parquet.group) = .ok groups ∧
+      Stream.read ipc wire = .ok decoded ∧
+      decoded.fields = (writerSchemaOrdered (selectedOrder checked.projection) (Prepare.Schema.ofSelection int32 byteArray)).fields ∧
+      decoded.batches.map StreamWriter.observeBatch = groups.map (groupObservationOrdered (selectedOrder checked.projection) int32 byteArray) ∧
+      decoded.batches.map (fun batch => batch.observed.rowCount) = groups.map List.length ∧
+      decoded.batches.length = checked.projection.snapshot.groupCount ∧
+      wire.wf = true ∧ ∃ start,
+        Stream.readSchemaFrame ipc.observation.ipc wire = .ok (decoded.fields, start) ∧
+        Stream.BatchesWire ipc wire decoded.fields ipc.observation.ipc.batches 0 start decoded.batches :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.ToIpc.convertOrdered_readback written
+
 /-- An open-time source refusal has priority over writer errors. -/
 theorem convert_open_error {cause : File.Error}
     (failed : File.openFile parquet input int32 byteArray = .error cause) :

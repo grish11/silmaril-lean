@@ -83,7 +83,7 @@ theorem prepare_ok_iff {result : Prepared} :
     | error cause =>
       cases raw : (List.range checked.projection.snapshot.groupCount).mapM
           (checked.projection.readGroup limits.group) with
-      | error reason => simp [prepare, opened, typed, raw, Bind.bind, Except.bind]
+      | error reason => simp [prepare, prepareChecked, opened, typed, raw, Bind.bind, Except.bind]
       | ok groups => simp [typed, raw, Except.toOption] at order
     | ok rows =>
       cases raw : (List.range checked.projection.snapshot.groupCount).mapM
@@ -92,7 +92,7 @@ theorem prepare_ok_iff {result : Prepared} :
       | ok groups =>
         have sameRows : rows = groups.map (File.rows int32 byteArray) := by
           simpa [typed, raw, Except.toOption] using order
-        simp [prepare, opened, typed, raw, sameRows, Bind.bind, Except.bind, pure, Except.pure,
+        simp [prepare, prepareChecked, opened, typed, raw, sameRows, Bind.bind, Except.bind, pure, Except.pure,
           List.map_map, eq_comm]
 
 theorem prepare_group_count {result : Prepared}
@@ -100,10 +100,10 @@ theorem prepare_group_count {result : Prepared}
     (opened : File.openFile limits input int32 byteArray = .ok checked) :
     result.batches.length = checked.projection.snapshot.groupCount := by
   cases read : checked.source.groups.mapM checked.source.readGroup with
-  | error cause => simp [prepare, opened, read, Bind.bind, Except.bind] at success
+  | error cause => simp [prepare, prepareChecked, opened, read, Bind.bind, Except.bind] at success
   | ok rows =>
     have count := read_length read
-    simp [prepare, opened, read, Bind.bind, Except.bind, pure, Except.pure] at success
+    simp [prepare, prepareChecked, opened, read, Bind.bind, Except.bind, pure, Except.pure] at success
     subst result
     simpa [File.Checked.source] using count
 
@@ -150,6 +150,6 @@ theorem prepare_first_error {before after : List Nat} {index : Nat} {groups : Li
   have indexed : checked.source.readGroup index = .error (.groupFailure index reason) := by
     simp [File.Checked.source, failed, Except.map, Except.mapError]
   have indices : checked.source.groups = before ++ index :: after := split
-  simp [prepare, opened, indices, List.mapM_append, earlierTyped, indexed, Bind.bind, Except.bind]
+  simp [prepare, prepareChecked, opened, indices, List.mapM_append, earlierTyped, indexed, Bind.bind, Except.bind]
 
 end Silmaril.Proofs.Formats.Parquet.Int32ByteArrayGroup.Prepare

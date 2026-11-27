@@ -22,6 +22,14 @@ theorem checkPageLessInt32_exact {limits : Limits} {input : Bytes} {snapshot : C
       ∀ index, snapshot.groupAt index = snapshot.metadata.rowGroups[index]? :=
   Proofs.Formats.Parquet.Snapshot.PageLessInt32.check_exact opened
 
+/-- The checked snapshot retains the metadata parsed from the original footer. -/
+theorem check_metadata {limits : Limits} {bytes : Bytes} {checked : Checked}
+    {span : Footer.Span} {metadata : Footer.Metadata}
+    (opened : check (Failure := Failure) limits bytes = .ok checked)
+    (footer : Footer.readFooter limits.footer bytes = .ok (span, metadata)) :
+    checked.metadata = metadata :=
+  Proofs.Formats.Parquet.Snapshot.check_metadata opened footer
+
 /-- A successful indexed read returns exactly the decoder's rows at the
 footer's declared count. -/
 theorem Checked.readGroup_ok_iff (snapshot : Checked) (decode : DecodeGroup schema Value Failure)

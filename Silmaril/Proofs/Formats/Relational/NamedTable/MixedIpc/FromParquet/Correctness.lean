@@ -22,7 +22,7 @@ variable {int32 byteArray : Field} {wire : KBytes}
 private theorem groupObservation_eq (int32 byteArray : Field) (rows : List Row) :
     ToIpc.groupObservation int32 byteArray rows =
       Export.observePairs (descriptor int32 byteArray) (groupPairs rows) := by
-  simp [ToIpc.groupObservation, Export.observePairs, groupPairs, descriptor,
+  simp [ToIpc.groupObservation, ToIpc.groupObservationOrdered, Arrow.MixedFlat.Writer.Order.pair, Export.observePairs, groupPairs, descriptor,
     Prepare.Schema.ofSelection, Descriptor.intField, Descriptor.viewField,
     List.map_map, Function.comp_def]
 

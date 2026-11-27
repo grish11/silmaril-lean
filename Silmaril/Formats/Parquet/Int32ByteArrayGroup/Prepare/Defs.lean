@@ -47,13 +47,18 @@ structure Prepared where
   schema : Schema
   batches : List Batch
 
+/-- Exhaust an already checked file, retaining the caller's original projection. -/
+def prepareChecked {limits : File.Limits} {int32 byteArray : Field}
+    (checked : File.Checked limits int32 byteArray) : Except File.Error Prepared := do
+  let source := checked.source
+  let groups ← source.groups.mapM source.readGroup
+  return ⟨Schema.ofSelection int32 byteArray, groups.map (Batch.ofRows int32 byteArray)⟩
+
 /-- Consume the actual checked source in footer order. The first indexed
 failure returns its original payload and no prepared result. -/
 def prepare (limits : File.Limits) (input : Bytes) (int32 byteArray : Field) :
     Except File.Error Prepared := do
   let checked ← File.openFile limits input int32 byteArray
-  let source := checked.source
-  let groups ← source.groups.mapM source.readGroup
-  return ⟨Schema.ofSelection int32 byteArray, groups.map (Batch.ofRows int32 byteArray)⟩
+  prepareChecked checked
 
 end Silmaril.Formats.Parquet.Int32ByteArrayGroup.Prepare
