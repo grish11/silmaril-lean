@@ -100,3 +100,37 @@ lake build --wfail +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Ch
 fixture_tmp=$(mktemp -d)
 python3 scripts/parquet-legacy-to-ipc-oracle/check.py "$fixture_tmp"
 ```
+
+## Native IPC after logical scan
+
+`Int32ByteArrayGroup.Legacy.ToIpc.Scan.convert` applies the checked legacy
+event scan before exporting. The predicate sees both source cells, including
+nulls, before positional projection. The existing native writers cover any
+INT32-only projection, including repeated INT32 and zero fields, one
+BinaryView field, and one INT32 plus one BinaryView in either order. Other
+shapes within the IPC field limit return `.unsupportedProjection` with the
+ordered projected labels. IPC budgets apply to the filtered rows, including
+rows in zero-column batches.
+
+Successful conversion certifies the IPC schema and each ordered batch
+against the scan's counts and nullable cells by checked readback, with
+BinaryView compared by octets. `Scan.convert_readback` ties that observation
+to the original checked footer groups and the exact end of the carrier.
+Each group retains one batch even when it is empty at the source or after
+filtering. `Scan.convert_first_error` preserves the original indexed cause
+for every predicate and projection. A late failure yields no carrier even
+when the predicate would discard every row.
+
+The PyArrow 26.0.1 comparator reuses the pinned original, opaque-byte, and
+damaged files above. It independently filters the decoded Parquet groups
+before comparing the native IPC fields and rows. It checks `[37, 0, 37]`
+for the ordinal predicate, `[118, 0, 118]` for the nullable payload-length
+predicate including a zero-column result, and `[0, 0, 0]` when all rows are
+discarded. It also checks typed refusals and the original late error.
+
+```sh
+lake build --wfail +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Checks \
+  +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan.Checks
+fixture_tmp=$(mktemp -d)
+python3 scripts/parquet-legacy-to-ipc-oracle/check_scan.py "$fixture_tmp"
+```
