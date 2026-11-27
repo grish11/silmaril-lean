@@ -414,3 +414,44 @@ make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.File.Events.Pull.Exa
 python3 -I scripts/arrow-mixed-flat/file_fixtures.py
 python3 -I tests/formats/arrow-ipc/file_fixture.py --regenerate
 ```
+
+### Pull events from an IPC stream
+
+`MixedFlat.Stream.Events.reader` opens the checked Schema from an
+immutable IPC stream carrier. Each `next` checks one original envelope
+and uses the existing mixed stream record decoder. A zero-row batch
+still yields an event, and a zero-column event carries its explicit row
+count. The cursor holds the next byte offset, zero-based ordinal after
+the Schema, remaining batch count, and running accepted rows. The
+existing decoder checks the framing, metadata, body, and row and cell
+limits in their existing order.
+
+A post-open failure supplies the attempted ordinal, original carrier
+offset and original eager error cause. The collector retains every
+event delivered before the failure. EOS requires a complete modern
+continuation/EOS frame at the end of the carrier. EOF without that
+frame is a truncated envelope. Extra bytes after EOS are an error.
+`readAll_exact` relates successful collection to the eager reader's
+ordered batches and identifies the delivered prefix, stopping offset
+and cause on failure. `Prefix.ordinal` counts empty batches as one
+message each.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Events/Defs.lean) ·
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Events/Thms.lean)
+
+The cursor retains the original carrier in memory. Each direct call
+decodes one record and the collecting driver retains delivered events
+in its result. This API consumes an already available carrier.
+
+The pinned PyArrow 26.0.1 producer writes the mixed `[4, 0, 2]`,
+schema-only, and zero-column `[3, 0]` streams. The Lean guards
+distinguish a third-record body truncated at byte 1743, a missing EOS
+after all three batches at byte 1744, and data after explicit EOS.
+Separate guards exercise envelope and body caps, batch count, and
+running row and cell budgets.
+[Producer](../../scripts/arrow-mixed-flat/stream_fixtures.py) ·
+[Lean guards](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Events/Examples.lean)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.Stream.Events.Examples +Silmaril.Formats.Arrow.MixedFlat.Stream.Events.Axioms'
+python3 -I scripts/arrow-mixed-flat/stream_fixtures.py
+```

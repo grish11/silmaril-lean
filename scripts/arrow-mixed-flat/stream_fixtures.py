@@ -40,20 +40,26 @@ def produce():
     options = pa.ipc.IpcWriteOptions(metadata_version=pa.ipc.MetadataVersion.V5,
                                      use_legacy_format=False, compression=None)
 
-    def stream(batches):
+    def stream(batches, signature=schema):
         sink = pa.BufferOutputStream()
-        with pa.ipc.new_stream(sink, schema, options=options) as writer:
+        with pa.ipc.new_stream(sink, signature, options=options) as writer:
             for batch in batches:
                 writer.write_batch(batch)
         value = sink.getvalue().to_pybytes()
         reader = pa.ipc.open_stream(value)
-        assert reader.schema.equals(schema)
-        assert [batch.to_pylist() for batch in reader] == [batch.to_pylist() for batch in batches]
+        assert reader.schema.equals(signature)
+        rows = list(reader)
+        assert [batch.num_rows for batch in rows] == [batch.num_rows for batch in batches]
+        assert [batch.to_pylist() for batch in rows] == [batch.to_pylist() for batch in batches]
         assert value.endswith(EOS)
         return value
 
     multi = stream([first, empty, last])
     schema_only = stream([])
+    zero_columns = stream([
+        pa.RecordBatch.from_struct_array(pa.array([{}] * count, type=pa.struct([])))
+        for count in [3, 0]
+    ], pa.schema([]))
     messages = list(pa.ipc.MessageReader.open_stream(multi))
     assert [message.type for message in messages] == ["schema", "record batch", "record batch", "record batch"]
     schema_size = messages[0].metadata.size
@@ -95,7 +101,7 @@ def produce():
         "@[expose] public section\n\n",
         "namespace Silmaril.Formats.Arrow.MixedFlat.Stream.Fixture\n\n",
     ]
-    for label, value in (("multi", multi), ("schemaOnly", schema_only)):
+    for label, value in (("multi", multi), ("schemaOnly", schema_only), ("zeroColumns", zero_columns)):
         output.append(f"def {label} : KBytes :=\n  .leaf {len(value)} 0x{int.from_bytes(value, 'little'):x}\n\n")
     output.append(f"def lateTruncated : KBytes := multi.slice 0 {len(late_truncated)}\n\n")
     output.append("def multiRanges : List (Nat × Nat × Nat) :=\n  ["
@@ -108,7 +114,8 @@ def produce():
         "end Silmaril.Formats.Arrow.MixedFlat.Stream.Fixture\n",
     ])
     print(f"record offsets, metadata sizes and body lengths: {ranges}")
-    for name, value in (("multi", multi), ("schemaOnly", schema_only), ("lateTruncated", late_truncated)):
+    for name, value in (("multi", multi), ("schemaOnly", schema_only), ("zeroColumns", zero_columns),
+                        ("lateTruncated", late_truncated)):
         print(f"{name}: SHA-256 {hashlib.sha256(value).hexdigest()}")
     return "".join(output)
 

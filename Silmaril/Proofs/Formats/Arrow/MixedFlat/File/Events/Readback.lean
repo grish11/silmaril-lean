@@ -4,6 +4,7 @@ public import Silmaril.Formats.Arrow.MixedFlat.File.Events.Defs
 public import Silmaril.Formats.Arrow.MixedFlat.File.Window.Projection.Strict.Thms
 public import Mathlib.Data.List.Forall2
 import Silmaril.Formats.Arrow.MixedFlat.File.Thms
+import Silmaril.Formats.Arrow.MixedFlat.Events.Thms
 import Silmaril.Formats.Arrow.MixedFlat.File.Window.Thms
 import Silmaril.Formats.Arrow.Events.Thms
 import Silmaril.Semantics.Relational.Scan.Thms
@@ -15,21 +16,6 @@ namespace Silmaril.Proofs.Formats.Arrow.MixedFlat.File.Events
 
 open Silmaril.Formats Silmaril.Formats.Arrow Silmaril.Relational
 open MixedFlat.File.Events
-
-private theorem ofObserved_agrees (fields : List MixedFlat.Field) (observed : MixedFlat.Observed)
-    (ordered : observed.columns.map Prod.fst = fields)
-    (aligned : ∀ pair ∈ observed.columns, (cells pair.2).length = observed.rowCount) :
-    Agrees (schema fields) observed (ofObserved fields observed ordered aligned) := by
-  have width : observed.columns.length = fields.length := by
-    simpa using congrArg List.length ordered
-  refine ⟨rfl, width, fun i => ?_⟩
-  have bound : i.val < observed.columns.length := Nat.lt_of_lt_of_eq i.isLt width.symm
-  have label := congrArg (fun values : List MixedFlat.Field => values[i.val]?) ordered
-  simp only [List.getElem?_map, List.getElem?_eq_getElem bound,
-    List.getElem?_eq_getElem (show i.val < fields.length from i.isLt), Option.map_some,
-    Option.some.injEq] at label
-  rw [List.getElem?_eq_getElem bound]
-  simp [ofObserved, schema, label]
 
 theorem readStep_exact {limits : MixedFlat.Limits} {input : KBytes}
     {fields : List MixedFlat.Field} {n rows : Nat} {block : FileBlock}
@@ -46,7 +32,7 @@ theorem readStep_exact {limits : MixedFlat.Limits} {input : KBytes}
     | ok _ =>
       simp [budget, bind, Except.bind, Except.mapError, pure, Except.pure] at step
       obtain ⟨rfl, rfl⟩ := step
-      exact ⟨observed, parsed, rfl, ofObserved_agrees _ _ _ _⟩
+      exact ⟨observed, parsed, rfl, MixedFlat.Events.ofObserved_agrees _ _ _ _⟩
 
 private theorem drain_exact (limits : MixedFlat.Limits) (input : KBytes)
     (fields : List MixedFlat.Field) (blocks : List FileBlock) (n rows : Nat)
