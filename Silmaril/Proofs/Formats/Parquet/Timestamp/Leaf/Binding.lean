@@ -68,37 +68,38 @@ theorem openLeafWith_sound {profile : Timestamp.AnnotationProfile} {limits : Sna
       simpa [openLeafWith, checked, Bind.bind, Except.bind, Except.mapError] using accepted
     simp [(bindWith_sound boundRead).1, boundRead]
 
-theorem selectChunk_sound {limits : Limits} {bound : Bound} {index : Nat} {chunk : Chunk}
-    (selected : selectChunk limits bound index = .ok chunk) :
+theorem selectChunkWith_sound {encoding : ChunkEncoding} {limits : Limits} {bound : Bound} {index : Nat} {chunk : Chunk}
+    (selected : selectChunkWith encoding limits bound index = .ok chunk) :
     bound.snapshot.groupAt index = some chunk.group ∧
       chunk.group.columns[bound.ordinal - 1]? = some chunk.column ∧
       chunk.column.metadata.pathInSchema = [bound.binding.leaf.name] ∧
       chunk.column.metadata.physicalType = .int64 ∧
       chunk.column.metadata.numValues = chunk.group.numRows ∧
-      limits.admitsCodec chunk.column.metadata.codec = true ∧
+      encoding.admitsCodec limits chunk.column.metadata.codec = true ∧
+      encoding.admitsMetadata chunk.column.metadata chunk.group.numRows = true ∧
       chunk.group.numRows.toNat ≤ limits.maxRows ∧
       Parquet.Page.columnSpan bound.snapshot.footer.start chunk.column.metadata = some chunk.span ∧
       Internal.disjoint bound.snapshot index (bound.ordinal - 1) chunk.span = true := by
   cases groupRead : bound.snapshot.groupAt index with
-  | none => simp [selectChunk, groupRead] at selected
+  | none => simp [selectChunkWith, groupRead] at selected
   | some group =>
     cases columnRead : group.columns[bound.ordinal - 1]? with
-    | none => simp [selectChunk, groupRead, columnRead] at selected
+    | none => simp [selectChunkWith, groupRead, columnRead] at selected
     | some column =>
       cases spanRead : Parquet.Page.columnSpan bound.snapshot.footer.start column.metadata with
       | none =>
-        simp [selectChunk, groupRead, columnRead, spanRead, Bind.bind, Except.bind] at selected
+        simp [selectChunkWith, groupRead, columnRead, spanRead, Bind.bind, Except.bind] at selected
         split_ifs at selected
       | some span =>
         cases separate : Internal.disjoint bound.snapshot index (bound.ordinal - 1) span <;>
-          simp [selectChunk, groupRead, columnRead, spanRead, separate, Bind.bind, Except.bind,
+          simp [selectChunkWith, groupRead, columnRead, spanRead, separate, Bind.bind, Except.bind,
             pure, Except.pure] at selected <;>
           split_ifs at selected
-        rename_i selectedPath selectedType capped counted codec _
+        rename_i selectedPath selectedType capped counted codec metadata
         have result := Except.ok.inj selected
         subst chunk
         have withinRows : group.numRows.toNat ≤ limits.maxRows := by omega
-        exact ⟨rfl, columnRead, selectedPath, selectedType, counted, by simpa using codec, withinRows, spanRead, separate⟩
+        exact ⟨rfl, columnRead, selectedPath, selectedType, counted, by simpa using codec, by simpa using metadata, withinRows, spanRead, separate⟩
 
 theorem physicalFrame_preparedWire {limits : ScalarPage.Limits} {bound : Bound}
     {codec : Int} {frame : Parquet.Page.Frame} {slots : List (Option Int64)}

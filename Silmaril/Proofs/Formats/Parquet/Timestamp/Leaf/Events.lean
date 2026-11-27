@@ -40,25 +40,31 @@ theorem readAll_open_error {snapshotLimits : Snapshot.Limits} {limits : Leaf.Lim
     readAll snapshotLimits limits ordinal input = .error (.openFailure cause) := by
   simp [readAll, openSource, failure, Except.mapError, Except.map, Reader.readAll]
 
-private theorem denoteGroups_eq_reference (limits : Leaf.Limits) (bound : Leaf.Bound)
-    (indices : List Nat) :
-    Reader.denoteGroups (rowsAt limits bound) indices =
-      let reference := referenceGroups limits bound indices
+private theorem denoteGroups_eq_reference (bound : Leaf.Bound)
+    (read : Nat → Except Leaf.Error (Leaf.Slots bound)) (indices : List Nat) :
+    Reader.denoteGroups (rowsAtWith bound read) indices =
+      let reference := referenceGroupsWith read indices
       (reference.1.map (rows bound), reference.2) := by
   induction indices with
   | nil => rfl
   | cons index following ih =>
-    cases read : Leaf.readGroup limits bound index with
-    | error => simp [Reader.denoteGroups, rowsAt, referenceGroups, read, Except.map, Except.mapError]
+    cases result : read index with
+    | error => simp [Reader.denoteGroups, rowsAtWith, referenceGroupsWith, result, Except.map, Except.mapError]
     | ok slots =>
-      simp [Reader.denoteGroups, rowsAt, referenceGroups, read, Except.map, Except.mapError, ih]
+      simp [Reader.denoteGroups, rowsAtWith, referenceGroupsWith, result, Except.map, Except.mapError, ih]
+
+theorem readBoundWith_reference (bound : Leaf.Bound) (read : Nat → Except Leaf.Error (Leaf.Slots bound)) :
+    let reference := referenceGroupsWith read (List.range bound.snapshot.groupCount)
+    readBoundWith bound read = .ok ⟨schema bound,
+      ⟨reference.1.map (AlignedColumns.ofRows ∘ rows bound), reference.2⟩⟩ := by
+  rw [readBoundWith, Reader.readAll_opened]
+  simp [groupSourceWith, denoteGroups_eq_reference, List.map_map]
 
 theorem readBound_reference (limits : Leaf.Limits) (bound : Leaf.Bound) :
     let reference := referenceGroups limits bound (List.range bound.snapshot.groupCount)
     readBound limits bound = .ok ⟨schema bound,
-      ⟨reference.1.map (AlignedColumns.ofRows ∘ rows bound), reference.2⟩⟩ := by
-  rw [readBound, Reader.readAll_opened]
-  simp [groupSource, denoteGroups_eq_reference, List.map_map]
+      ⟨reference.1.map (AlignedColumns.ofRows ∘ rows bound), reference.2⟩⟩ :=
+  readBoundWith_reference bound (Leaf.readGroup limits bound)
 
 theorem readAll_reference {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits}
     {input : Bytes} {ordinal : Nat} {bound : Leaf.Bound}
@@ -78,13 +84,13 @@ theorem collect_readAll {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits
       ⟨⟨schema bound, reference.1.flatMap (rows bound)⟩, reference.2⟩ := by
   unfold readAll
   rw [Reader.collect_readAll, openSource_of_opened opened]
-  simp [Reader.denote, groupSource, denoteGroups_eq_reference, Except.map, List.flatMap]
+  simp [Reader.denote, groupSource, groupSourceWith, referenceGroups, denoteGroups_eq_reference, Except.map, List.flatMap]
 
-private theorem reference_prefix (limits : Leaf.Limits) (bound : Leaf.Bound)
+private theorem reference_prefix {bound : Leaf.Bound} (read : Nat → Except Leaf.Error (Leaf.Slots bound))
     {indices : List Nat} {groups : List (Leaf.Slots bound)}
-    (decoded : indices.mapM (Leaf.readGroup limits bound) = .ok groups) (tail : List Nat) :
-    referenceGroups limits bound (indices ++ tail) =
-      let suffix := referenceGroups limits bound tail
+    (decoded : indices.mapM read = .ok groups) (tail : List Nat) :
+    referenceGroupsWith read (indices ++ tail) =
+      let suffix := referenceGroupsWith read tail
       (groups ++ suffix.1, suffix.2) := by
   induction indices generalizing groups with
   | nil =>
@@ -92,16 +98,27 @@ private theorem reference_prefix (limits : Leaf.Limits) (bound : Leaf.Bound)
     subst groups
     rfl
   | cons index indices ih =>
-    cases first : Leaf.readGroup limits bound index with
+    cases first : read index with
     | error => simp [List.mapM_cons, first, Bind.bind, Except.bind] at decoded
     | ok group =>
-      cases rest : indices.mapM (Leaf.readGroup limits bound) with
+      cases rest : indices.mapM read with
       | error => simp [List.mapM_cons, first, rest, Bind.bind, Except.bind] at decoded
       | ok following =>
         have ordered : group :: following = groups := by
           simpa [List.mapM_cons, first, rest, Bind.bind, Except.bind, pure, Except.pure] using decoded
         subst groups
-        simp [referenceGroups, first, ih rest]
+        simp [referenceGroupsWith, first, ih rest]
+
+theorem readBoundWith_first_error {bound : Leaf.Bound}
+    {read : Nat → Except Leaf.Error (Leaf.Slots bound)}
+    {before after : List Nat} {index : Nat} {groups : List (Leaf.Slots bound)} {cause : Leaf.Error}
+    (split : List.range bound.snapshot.groupCount = before ++ index :: after)
+    (earlier : before.mapM read = .ok groups)
+    (failed : read index = .error cause) :
+    readBoundWith bound read = .ok ⟨schema bound,
+      ⟨groups.map (AlignedColumns.ofRows ∘ rows bound), .readError (.groupFailure index cause)⟩⟩ := by
+  rw [readBoundWith_reference bound read, split, reference_prefix read earlier]
+  simp [referenceGroupsWith, failed]
 
 theorem readBound_first_error {limits : Leaf.Limits} {bound : Leaf.Bound}
     {before after : List Nat} {index : Nat} {groups : List (Leaf.Slots bound)} {cause : Leaf.Error}
@@ -109,9 +126,8 @@ theorem readBound_first_error {limits : Leaf.Limits} {bound : Leaf.Bound}
     (earlier : before.mapM (Leaf.readGroup limits bound) = .ok groups)
     (failed : Leaf.readGroup limits bound index = .error cause) :
     readBound limits bound = .ok ⟨schema bound,
-      ⟨groups.map (AlignedColumns.ofRows ∘ rows bound), .readError (.groupFailure index cause)⟩⟩ := by
-  rw [readBound_reference limits bound, split, reference_prefix limits bound earlier]
-  simp [referenceGroups, failed]
+      ⟨groups.map (AlignedColumns.ofRows ∘ rows bound), .readError (.groupFailure index cause)⟩⟩ :=
+  readBoundWith_first_error split earlier failed
 
 theorem readAll_first_error {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits}
     {input : Bytes} {ordinal : Nat} {bound : Leaf.Bound}

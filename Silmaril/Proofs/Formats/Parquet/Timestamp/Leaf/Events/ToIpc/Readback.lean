@@ -66,6 +66,18 @@ theorem emit_readback {limits : Arrow.ObservationLimits} {schema : Scan.Schema S
     simpa [emit, ended, one, column] using written
   exact Arrow.TimestampStream.Writer.emit_readback (mapError_ok encoded)
 
+theorem convertGroups_first_error {profile : AnnotationProfile} {inputLimits : Limits} {outputLimits : Arrow.ObservationLimits}
+    {read : (bound : Leaf.Bound) → Nat → Except Leaf.Error (Leaf.Slots bound)}
+    {input : Bytes} {ordinal index : Nat} {bound : Leaf.Bound}
+    {before after : List Nat} {groups : List (Leaf.Slots bound)} {cause : Leaf.Error}
+    (opened : openBoundWith profile inputLimits input ordinal = .ok bound)
+    (split : List.range bound.snapshot.groupCount = before ++ index :: after)
+    (earlier : before.mapM (read bound) = .ok groups)
+    (failed : read bound index = .error cause) :
+    convertGroups profile inputLimits outputLimits input ordinal read = .error (.source (.groupFailure index cause)) := by
+  have observed := Leaf.Events.readBoundWith_first_error split earlier failed
+  simp [convertGroups, opened, observed, emit, Bind.bind, Except.bind]
+
 theorem convertWith_first_error {profile : AnnotationProfile} {inputLimits : Limits} {outputLimits : Arrow.ObservationLimits}
     {input : Bytes} {ordinal index : Nat} {bound : Leaf.Bound}
     {before after : List Nat} {groups : List (Leaf.Slots bound)} {cause : Leaf.Error}
@@ -73,9 +85,8 @@ theorem convertWith_first_error {profile : AnnotationProfile} {inputLimits : Lim
     (split : List.range bound.snapshot.groupCount = before ++ index :: after)
     (earlier : before.mapM (Leaf.readGroup inputLimits.leaf bound) = .ok groups)
     (failed : Leaf.readGroup inputLimits.leaf bound index = .error cause) :
-    convertWith profile inputLimits outputLimits input ordinal = .error (.source (.groupFailure index cause)) := by
-  have read := Leaf.Events.readBound_first_error split earlier failed
-  simp [convertWith, opened, boundEvents, read, emit, Bind.bind, Except.bind]
+    convertWith profile inputLimits outputLimits input ordinal = .error (.source (.groupFailure index cause)) :=
+  convertGroups_first_error opened split earlier failed
 
 private theorem batchesAt_reference (bound : Leaf.Bound) (slots : List (Leaf.Slots bound))
     (termination : Arrow.Events.Termination Leaf.Events.Error) (column : Fin (Leaf.Events.schema bound).width) :
@@ -87,25 +98,26 @@ private theorem batchesAt_reference (bound : Leaf.Bound) (slots : List (Leaf.Slo
   | cons group rest ih =>
     exact congrArg₂ List.cons (Leaf.Events.batch_slots bound group column).2 ih
 
-theorem convertWith_readback {profile : AnnotationProfile} {inputLimits : Limits} {outputLimits : Arrow.ObservationLimits}
+theorem convertGroups_readback {profile : AnnotationProfile} {inputLimits : Limits} {outputLimits : Arrow.ObservationLimits}
+    {read : (bound : Leaf.Bound) → Nat → Except Leaf.Error (Leaf.Slots bound)}
     {input : Bytes} {ordinal : Nat} {wire : KBytes}
-    (written : convertWith profile inputLimits outputLimits input ordinal = .ok wire) :
+    (written : convertGroups profile inputLimits outputLimits input ordinal read = .ok wire) :
     ∃ bound : Leaf.Bound, openBoundWith profile inputLimits input ordinal = .ok bound ∧
-      let reference := Leaf.Events.referenceGroups inputLimits.leaf bound (List.range bound.snapshot.groupCount)
+      let reference := Leaf.Events.referenceGroupsWith (read bound) (List.range bound.snapshot.groupCount)
       reference.2 = .eos ∧ ∃ result, Arrow.TimestampStream.read outputLimits.ipc wire = .ok result ∧
         result.binding = selectedBinding bound ∧
         result.batches.map Arrow.TimestampBatch.Writer.tickCounts =
           reference.1.map (List.map (Option.map Ticks.ticks)) := by
   cases opened : openBoundWith profile inputLimits input ordinal with
-  | error reason => simp [convertWith, opened, Bind.bind, Except.bind] at written
+  | error reason => simp [convertGroups, opened, Bind.bind, Except.bind] at written
   | ok bound =>
-    let reference := Leaf.Events.referenceGroups inputLimits.leaf bound (List.range bound.snapshot.groupCount)
+    let reference := Leaf.Events.referenceGroupsWith (read bound) (List.range bound.snapshot.groupCount)
     let trace : Arrow.Events.Trace (Leaf.Events.schema bound) Leaf.Events.Cell Leaf.Events.Error :=
       ⟨reference.1.map (AlignedColumns.ofRows ∘ Leaf.Events.rows bound), reference.2⟩
-    have events : boundEvents inputLimits.leaf bound = .ok ⟨Leaf.Events.schema bound, trace⟩ :=
-      Leaf.Events.readBound_reference inputLimits.leaf bound
+    have events : Leaf.Events.readBoundWith bound (read bound) = .ok ⟨Leaf.Events.schema bound, trace⟩ :=
+      Leaf.Events.readBoundWith_reference bound (read bound)
     have emitted : emit outputLimits (.ok ⟨Leaf.Events.schema bound, trace⟩) = .ok wire := by
-      simpa [convertWith, opened, events, Bind.bind, Except.bind] using written
+      simpa [convertGroups, opened, events, Bind.bind, Except.bind] using written
     cases ended : reference.2 with
     | eos =>
       have width : (Leaf.Events.schema bound).width = 1 := rfl
@@ -115,5 +127,16 @@ theorem convertWith_readback {profile : AnnotationProfile} {inputLimits : Limits
     | closed => simp [emit, trace, ended] at emitted
     | readError cause => simp [emit, trace, ended] at emitted
     | closeError cause => simp [emit, trace, ended] at emitted
+
+theorem convertWith_readback {profile : AnnotationProfile} {inputLimits : Limits} {outputLimits : Arrow.ObservationLimits}
+    {input : Bytes} {ordinal : Nat} {wire : KBytes}
+    (written : convertWith profile inputLimits outputLimits input ordinal = .ok wire) :
+    ∃ bound : Leaf.Bound, openBoundWith profile inputLimits input ordinal = .ok bound ∧
+      let reference := Leaf.Events.referenceGroups inputLimits.leaf bound (List.range bound.snapshot.groupCount)
+      reference.2 = .eos ∧ ∃ result, Arrow.TimestampStream.read outputLimits.ipc wire = .ok result ∧
+        result.binding = selectedBinding bound ∧
+        result.batches.map Arrow.TimestampBatch.Writer.tickCounts =
+          reference.1.map (List.map (Option.map Ticks.ticks)) :=
+  convertGroups_readback written
 
 end Silmaril.Proofs.Formats.Parquet.Timestamp.Leaf.Events.ToIpc

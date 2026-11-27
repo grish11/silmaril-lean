@@ -43,6 +43,22 @@ theorem openLeaf_sound {limits : Snapshot.Limits} {source : Bytes} {ordinal : Na
 
 /-- The selected chunk is the corresponding INT64 entry in the requested
 group, with the annotated leaf's path and a bounded, disjoint byte span. -/
+theorem selectChunkWith_sound {encoding : ChunkEncoding} {limits : Limits} {bound : Bound} {index : Nat} {chunk : Chunk}
+    (selected : selectChunkWith encoding limits bound index = .ok chunk) :
+    bound.snapshot.groupAt index = some chunk.group ∧
+      chunk.group.columns[bound.ordinal - 1]? = some chunk.column ∧
+      chunk.column.metadata.pathInSchema = [bound.binding.leaf.name] ∧
+      chunk.column.metadata.physicalType = .int64 ∧
+      chunk.column.metadata.numValues = chunk.group.numRows ∧
+      encoding.admitsCodec limits chunk.column.metadata.codec = true ∧
+      encoding.admitsMetadata chunk.column.metadata chunk.group.numRows = true ∧
+      chunk.group.numRows.toNat ≤ limits.maxRows ∧
+      Parquet.Page.columnSpan bound.snapshot.footer.start chunk.column.metadata = some chunk.span ∧
+      Internal.disjoint bound.snapshot index (bound.ordinal - 1) chunk.span = true :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.selectChunkWith_sound selected
+
+/-- The selected chunk is the corresponding INT64 entry in the requested
+group, with the annotated leaf's path and a bounded, disjoint byte span. -/
 theorem selectChunk_sound {limits : Limits} {bound : Bound} {index : Nat} {chunk : Chunk}
     (selected : selectChunk limits bound index = .ok chunk) :
     bound.snapshot.groupAt index = some chunk.group ∧
@@ -53,8 +69,10 @@ theorem selectChunk_sound {limits : Limits} {bound : Bound} {index : Nat} {chunk
       limits.admitsCodec chunk.column.metadata.codec = true ∧
       chunk.group.numRows.toNat ≤ limits.maxRows ∧
       Parquet.Page.columnSpan bound.snapshot.footer.start chunk.column.metadata = some chunk.span ∧
-      Internal.disjoint bound.snapshot index (bound.ordinal - 1) chunk.span = true :=
-  Proofs.Formats.Parquet.Timestamp.Leaf.selectChunk_sound selected
+      Internal.disjoint bound.snapshot index (bound.ordinal - 1) chunk.span = true := by
+  obtain ⟨group, column, path, physical, rows, codec, _, limit, span, disjoint⟩ :=
+    selectChunkWith_sound (encoding := .plain) selected
+  exact ⟨group, column, path, physical, rows, by simpa [ChunkEncoding.admitsCodec] using codec, limit, span, disjoint⟩
 
 /-- The original frame supplies the exact header and body. Preparation
 accounts for the full V1 body or the V2 level prefix and exact value suffix.

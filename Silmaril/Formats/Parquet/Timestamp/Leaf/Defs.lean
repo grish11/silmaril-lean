@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.Parquet.Snapshot.Defs
 public import Silmaril.Formats.Parquet.Page.Defs
 public import Silmaril.Formats.Parquet.Timestamp.Page.Defs
+public import Silmaril.Formats.Parquet.DictionaryIndex.Defs
 
 /-! # Checked selection of one flat INT64 TIMESTAMP column in a Parquet snapshot -/
 
@@ -20,6 +21,39 @@ structure Limits where
 /-- Admit uncompressed chunks and, if requested, raw Snappy blocks. -/
 def Limits.admitsCodec (limits : Limits) (code : Int) : Bool :=
   code == 0 || (limits.allowSnappy && code == 1)
+
+inductive ChunkEncoding where
+  | plain
+  | dictionary
+
+@[expose] def ChunkEncoding.admitsCodec (encoding : ChunkEncoding) (limits : Limits) (code : Int) : Bool :=
+  match encoding with
+  | .plain => limits.admitsCodec code
+  | .dictionary => code == 0
+
+def ChunkEncoding.admitsMetadata (encoding : ChunkEncoding) (metadata : Footer.ColumnMetadata)
+    (rows : Int) : Bool :=
+  !metadata.indexPageOffset.isSome &&
+    match encoding with
+    | .plain => metadata.encodings.all (fun id => id == 0 || id == 3) &&
+        (rows == 0 || metadata.encodings.contains 0) && metadata.dictionaryPageOffset.isNone
+    | .dictionary => metadata.dictionaryPageOffset.isSome && metadata.encodings.contains 8 &&
+        metadata.encodings.all (fun id => id == 0 || id == 3 || id == 8) &&
+        metadata.totalCompressedSize == metadata.totalUncompressedSize
+
+inductive DictionaryPageError where
+  | expectedDictionary
+  | misplacedDictionary
+  | dataOffset
+  | checksum
+  | sizeMismatch
+  | encoding (actual : Int)
+  | entryLimit
+  | byteLimit
+  | entries (cause : Plain.Error)
+  | parameters (cause : Timestamp.Page.Error)
+  | references (cause : DictionaryIndex.Error)
+  deriving DecidableEq, Repr
 
 inductive Error where
   | snapshot (cause : Snapshot.Error Unit)
@@ -41,6 +75,11 @@ inductive Error where
   | rowCount (expected actual : Nat)
   | crcUnsupported (pageIndex : Nat)
   | page (pageIndex : Nat) (cause : Timestamp.Page.Error)
+  | dictionaryChunkLimit
+  | dictionaryMissing
+  | dictionaryOffset
+  | dictionaryMissingData
+  | dictionaryPage (pageIndex headerOffset : Nat) (cause : DictionaryPageError)
   deriving DecidableEq, Repr
 
 /-- The caller cannot substitute new bytes, a different annotation, or new levels. -/
@@ -156,9 +195,9 @@ theorem bind_observation (limits : Footer.Limits) (snapshot : Snapshot.Checked) 
 @[expose] def openLeaf (limits : Snapshot.Limits) (source : Bytes) (ordinal : Nat) : Except Error Bound :=
   openLeafWith .modernOnly limits source ordinal
 
-/-- Associate the group's actual chunk ordinal and path with the annotated leaf.
-Admit PLAIN with optional RLE levels and the selected codec policy. -/
-@[expose] def selectChunk (limits : Limits) (bound : Bound) (index : Nat) : Except Error Chunk := do
+/-- Associate the group's actual ordinal, path and checked span with the annotated leaf. -/
+@[expose] def selectChunkWith (encoding : ChunkEncoding) (limits : Limits) (bound : Bound)
+    (index : Nat) : Except Error Chunk := do
   let some group := bound.snapshot.groupAt index | Except.error (.groupIndex index)
   let columnIndex := bound.ordinal - 1
   let some column := group.columns[columnIndex]? | Except.error (.chunkIndex columnIndex)
@@ -168,14 +207,15 @@ Admit PLAIN with optional RLE levels and the selected codec policy. -/
   if metadata.physicalType ≠ .int64 then Except.error .chunkType
   if group.numRows.toNat > limits.maxRows then Except.error .rowLimit
   if metadata.numValues ≠ group.numRows then Except.error (.chunkCount group.numRows metadata.numValues)
-  if !limits.admitsCodec metadata.codec then Except.error (.chunkCodec metadata.codec)
-  if !metadata.encodings.all (fun id => id == 0 || id == 3) ||
-      (group.numRows != 0 && !metadata.encodings.contains 0) ||
-      metadata.dictionaryPageOffset.isSome || metadata.indexPageOffset.isSome then
-    Except.error .chunkEncoding
+  if !encoding.admitsCodec limits metadata.codec then Except.error (.chunkCodec metadata.codec)
+  if !encoding.admitsMetadata metadata group.numRows then Except.error .chunkEncoding
   let some span := Parquet.Page.columnSpan bound.snapshot.footer.start metadata | Except.error .chunkBounds
   if !Internal.disjoint bound.snapshot index columnIndex span then Except.error .chunkOverlap
   return ⟨group, column, span⟩
+
+/-- Admit PLAIN with optional RLE levels and the selected codec policy. -/
+@[expose] def selectChunk (limits : Limits) (bound : Bound) (index : Nat) : Except Error Chunk :=
+  selectChunkWith .plain limits bound index
 
 /-- Decode exactly the selected chunk from the retained source. The declared
 slot total is checked before any page allocates its decoded values. -/

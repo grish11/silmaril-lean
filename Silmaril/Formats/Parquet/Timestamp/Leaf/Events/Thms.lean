@@ -36,6 +36,13 @@ theorem readAll_open_error {snapshotLimits : Snapshot.Limits} {limits : Leaf.Lim
     readAll snapshotLimits limits ordinal input = .error (.openFailure cause) :=
   Proofs.Formats.Parquet.Timestamp.Leaf.Events.readAll_open_error failure
 
+/-- The bound source uses the selected reader in exact footer order. -/
+theorem readBoundWith_reference (bound : Bound) (read : Nat → Except Leaf.Error (Slots bound)) :
+    let reference := referenceGroupsWith read (List.range bound.snapshot.groupCount)
+    readBoundWith bound read = .ok ⟨schema bound,
+      ⟨reference.1.map (AlignedColumns.ofRows ∘ rows bound), reference.2⟩⟩ :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Events.readBoundWith_reference bound read
+
 /-- Events from a retained leaf agree with its checked footer-order reads
 under the annotation selected at bind time. -/
 theorem readBound_reference (limits : Leaf.Limits) (bound : Bound) :
@@ -63,6 +70,16 @@ theorem collect_readAll {snapshotLimits : Snapshot.Limits} {limits : Leaf.Limits
     (readAll snapshotLimits limits ordinal input).collect = .ok
       ⟨⟨schema bound, reference.1.flatMap (rows bound)⟩, reference.2⟩ :=
   Proofs.Formats.Parquet.Timestamp.Leaf.Events.collect_readAll opened
+
+/-- A failed read on the retained leaf keeps every preceding complete batch. -/
+theorem readBoundWith_first_error {bound : Bound} {read : Nat → Except Leaf.Error (Slots bound)}
+    {before after : List Nat} {index : Nat} {groups : List (Slots bound)} {cause : Leaf.Error}
+    (split : List.range bound.snapshot.groupCount = before ++ index :: after)
+    (earlier : before.mapM read = .ok groups)
+    (failed : read index = .error cause) :
+    readBoundWith bound read = .ok ⟨schema bound,
+      ⟨groups.map (AlignedColumns.ofRows ∘ rows bound), .readError (.groupFailure index cause)⟩⟩ :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Events.readBoundWith_first_error split earlier failed
 
 /-- A failed read on the retained leaf keeps every preceding complete batch. -/
 theorem readBound_first_error {limits : Leaf.Limits} {bound : Bound}

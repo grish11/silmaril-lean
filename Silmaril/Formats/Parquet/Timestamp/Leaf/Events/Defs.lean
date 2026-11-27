@@ -37,19 +37,28 @@ def schema (bound : Bound) : Scan.Schema String Kind :=
 def rows (bound : Bound) (slots : Slots bound) : Reader.RowGroup (schema bound) Cell :=
   slots.map fun slot _ => slot.map fun tick => ⟨tick.ticks⟩
 
-def rowsAt (limits : Leaf.Limits) (bound : Bound) (index : Nat) :
+def rowsAtWith (bound : Bound) (read : Nat → Except Leaf.Error (Slots bound)) (index : Nat) :
     Except Error (Reader.RowGroup (schema bound) Cell) :=
-  (Leaf.readGroup limits bound index).map (rows bound) |>.mapError (.groupFailure index)
+  (read index).map (rows bound) |>.mapError (.groupFailure index)
+
+def rowsAt (limits : Leaf.Limits) (bound : Bound) :=
+  rowsAtWith bound (Leaf.readGroup limits bound)
 
 /-- Pull the selected leaf once per footer row group, in ordinal order. -/
-def groupSource (limits : Leaf.Limits) (bound : Bound) :
+def groupSourceWith (bound : Bound) (read : Nat → Except Leaf.Error (Slots bound)) :
     Reader.Source Nat (schema bound) Cell Error :=
-  ⟨List.range bound.snapshot.groupCount, rowsAt limits bound, fun _ => .ok ()⟩
+  ⟨List.range bound.snapshot.groupCount, rowsAtWith bound read, fun _ => .ok ()⟩
 
-/-- Read events directly from an already checked leaf under its retained
-annotation and snapshot. -/
-def readBound (limits : Leaf.Limits) (bound : Bound) : Arrow.Events.EventStream String Cell Error :=
-  Reader.readAll (.ok ⟨schema bound, groupSource limits bound⟩)
+def groupSource (limits : Leaf.Limits) (bound : Bound) :=
+  groupSourceWith bound (Leaf.readGroup limits bound)
+
+/-- Read events from an already checked leaf using its selected group decoder. -/
+def readBoundWith (bound : Bound) (read : Nat → Except Leaf.Error (Slots bound)) :
+    Arrow.Events.EventStream String Cell Error :=
+  Reader.readAll (.ok ⟨schema bound, groupSourceWith bound read⟩)
+
+def readBound (limits : Leaf.Limits) (bound : Bound) :=
+  readBoundWith bound (Leaf.readGroup limits bound)
 
 /-- The input ordinal is the serialized schema-node index, with root at zero. -/
 def openSource (snapshotLimits : Snapshot.Limits) (limits : Leaf.Limits) (ordinal : Nat)
@@ -68,14 +77,17 @@ def readAll (snapshotLimits : Snapshot.Limits) (limits : Leaf.Limits) (ordinal :
   Reader.readAll (openSource snapshotLimits limits ordinal input)
 
 /-- The reference reads the checked binder directly and stops at the first error. -/
-def referenceGroups (limits : Leaf.Limits) (bound : Bound) :
+def referenceGroupsWith {bound : Bound} (read : Nat → Except Leaf.Error (Slots bound)) :
     List Nat → List (Slots bound) × Arrow.Events.Termination Error
   | [] => ([], .eos)
   | index :: rest =>
-    match Leaf.readGroup limits bound index with
+    match read index with
     | .error cause => ([], .readError (.groupFailure index cause))
     | .ok slots =>
-      let (following, outcome) := referenceGroups limits bound rest
+      let (following, outcome) := referenceGroupsWith read rest
       (slots :: following, outcome)
+
+def referenceGroups (limits : Leaf.Limits) (bound : Bound) :=
+  referenceGroupsWith (Leaf.readGroup limits bound)
 
 end Silmaril.Formats.Parquet.Timestamp.Leaf.Events

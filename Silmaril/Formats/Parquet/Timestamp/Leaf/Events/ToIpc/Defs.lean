@@ -74,12 +74,18 @@ def emit (limits : Arrow.ObservationLimits) (source : Source) : Except Error KBy
         (Arrow.TimestampStream.Writer.emit limits (bindingAt schema column) (batchesAt trace column)).mapError .writer
       else .error (.fieldCount schema.width)
 
-/-- Select the serialized footer leaf ordinal, consume it in footer order,
-and emit only a complete native TIMESTAMP stream. The root has ordinal zero. -/
-def convertWith (profile : AnnotationProfile) (inputLimits : Limits) (outputLimits : Arrow.ObservationLimits)
-    (input : Bytes) (ordinal : Nat) : Except Error KBytes := do
+/-- Bind the checked source once, pull the selected group profile, and emit
+only after complete footer-order reads. The root has ordinal zero. -/
+def convertGroups (profile : AnnotationProfile) (inputLimits : Limits)
+    (outputLimits : Arrow.ObservationLimits) (input : Bytes) (ordinal : Nat)
+    (read : (bound : Leaf.Bound) → Nat → Except Leaf.Error (Leaf.Slots bound)) : Except Error KBytes := do
   let bound ← openBoundWith profile inputLimits input ordinal
-  emit outputLimits (boundEvents inputLimits.leaf bound)
+  emit outputLimits (Events.readBoundWith bound (read bound))
+
+/-- Select the serialized footer leaf ordinal and read its PLAIN data pages. -/
+def convertWith (profile : AnnotationProfile) (inputLimits : Limits) (outputLimits : Arrow.ObservationLimits)
+    (input : Bytes) (ordinal : Nat) : Except Error KBytes :=
+  convertGroups profile inputLimits outputLimits input ordinal (Leaf.readGroup inputLimits.leaf)
 
 /-- Convert a TIMESTAMP leaf with a modern logical annotation. -/
 def convert (inputLimits : Limits) (outputLimits : Arrow.ObservationLimits)

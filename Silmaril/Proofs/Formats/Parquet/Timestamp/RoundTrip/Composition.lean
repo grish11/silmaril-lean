@@ -19,7 +19,7 @@ private theorem reference_eq {limits : Leaf.Limits} {bound : Leaf.Bound}
       (Leaf.readGroup limits bound index).mapError (FromIpc.Error.groupReadback index)) = .ok groups) :
     Leaf.Events.referenceGroups limits bound indices = (groups, .eos) := by
   induction indices generalizing groups with
-  | nil => simpa [Leaf.Events.referenceGroups] using (Except.ok.inj read)
+  | nil => simpa [Leaf.Events.referenceGroups, Leaf.Events.referenceGroupsWith] using (Except.ok.inj read)
   | cons index rest ih =>
     rw [List.mapM_cons] at read
     cases result : Leaf.readGroup limits bound index with
@@ -40,7 +40,9 @@ private theorem reference_eq {limits : Leaf.Limits} {bound : Leaf.Bound}
       | ok following =>
         rw [remaining] at read
         cases Except.ok.inj read
-        simp [Leaf.Events.referenceGroups, result, ih remaining]
+        have tail := ih remaining
+        simp only [Leaf.Events.referenceGroups] at tail
+        simp [Leaf.Events.referenceGroups, Leaf.Events.referenceGroupsWith, result, tail]
 
 private theorem binding_eq {source : FromIpc.Source} {bound : Leaf.Bound}
     {groups : List (Leaf.Slots bound)}
