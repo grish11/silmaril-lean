@@ -1912,11 +1912,52 @@ The continuation cannot jump back to its own label.
   such a register in the record of every edge, including the edge from
   the entry, where it is read at its initial version. The elaboration
   therefore rejects that graph at the two captures and accepts it at
-  six, with a capture for each such register. The typed witness of the
-  lowered graph is still supplied, and the fragment is not widened.
+  six, with a capture for each such register; the next item removes the
+  extra captures by a normalization of the φ graph. The typed witness of
+  the lowered graph is still supplied, and the fragment is not widened.
   [Administrative moves](../../Silmaril/SSA/Isotope/LetCase/Administrative/Defs.lean) ·
   [They keep the native meaning](../../Silmaril/SSA/Isotope/LetCase/Administrative/Thms.lean) ·
   [The φ diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- A φ graph in which blocks read registers that earlier blocks defined
+  is normalized before the existing lowering, so that no capture is
+  added. The existing data does not say what an edge has to carry: the
+  arrival certificate lists the registers that are available at a block,
+  and the versioning collects one support of free reads for the whole
+  graph and carries all of it on every edge. So the normalization takes
+  a table, with the registers that each block is to receive. A block
+  gets one more φ row for each of them. Its destination is a copy of the
+  register that belongs to the block, and its operand for a predecessor
+  is the register as that predecessor reads it: the copy of the
+  predecessor if it has one, the register itself otherwise. The block
+  then reads its copy, and the original registers keep their
+  definitions. The normalized graph has the same blocks at the same
+  labels, the same jumps and the same exit partition. It also has the
+  same run. For the independent φ evaluator, which reads every φ operand
+  in the store of the predecessor, the normalized graph runs like the
+  original graph on the original part of its input, whatever the copies
+  hold at the start, in any monad with lawful iteration, when no block
+  defines a register that it receives; that condition is a check. With
+  the existing theorem for the lowering, the lexical run of the lowered
+  normalized graph is the φ run of the original graph. The elaborator is
+  not changed. On the diamond, `reply`, `payload` and `leaf` receive the
+  registers they read, and the stored reply and the two captures are
+  left as they are. The existing check accepts the normalized graph, and
+  the existing lowering elaborates it at the two captures. Its lowered
+  graph is equal to the lowered graph of the φ graph with explicit rows,
+  because the two differ in the names of registers only and the scoped
+  flat syntax has none. So it has the same typed witness and the same
+  checked table, and with them the two-capture entry, the ordered exits,
+  the rank, the readback and the ranked arrow of the previous item; the
+  graph with the changed φ operand gets the other table, and the two
+  arrows differ. What remains open: the table is supplied, not inferred
+  from liveness; no theorem says that a table makes the lowered graph
+  elaborate at given captures, which is checked by running the existing
+  elaborator; and the arrival certificate is stated again for the names
+  of the normalized graph. The statement is about φ graphs as written,
+  with no claim that every such graph has a table.
+  [Forwarding registers through φ rows](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Defs.lean) ·
+  [It keeps the run](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Thms.lean) ·
+  [The direct diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
