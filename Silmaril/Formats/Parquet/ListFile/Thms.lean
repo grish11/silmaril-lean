@@ -22,6 +22,11 @@ theorem openFile_wire {limits : Limits} {source : Bytes} {checked : Checked}
     (h : openFile limits source = .ok checked) : OpenWire limits source checked :=
   Proofs.Formats.Parquet.ListFile.openFile_wire h
 
+/-- The frame list comes from the original checked group and exact chunk. -/
+theorem frameGroup_wire {checked : Checked} {index : Nat} {framed : FramedGroup}
+    (h : checked.frameGroup index = .ok framed) : FramedGroupWire checked index framed :=
+  Proofs.Formats.Parquet.ListFile.frameGroup_wire h
+
 /-- An admitted group uses its original local chunk and complete V1 frame.
 The original footer row count and header level-slot count are checked separately. -/
 theorem readGroup_wire {checked : Checked} {index : Nat} {slots : List ListPage.Row}

@@ -141,9 +141,9 @@ public theorem openFile_wire {limits : ListFile.Limits} {source : Bytes} {checke
                     extents.1, extents.2, unmarked.1, unmarked.2.1, unmarked.2.2, checkList_wire tag⟩
           · contradiction
 
-public theorem readGroup_wire {checked : Checked} {index : Nat} {slots : List ListPage.Row}
-    (h : checked.readGroup index = .ok slots) : GroupWire checked index slots := by
-  unfold Checked.readGroup at h
+public theorem frameGroup_wire {checked : Checked} {index : Nat} {framed : FramedGroup}
+    (h : checked.frameGroup index = .ok framed) : FramedGroupWire checked index framed := by
+  unfold Checked.frameGroup at h
   cases groupRead : checked.snapshot.groupAt index with
   | none => simp [groupRead] at h
   | some group =>
@@ -167,44 +167,56 @@ public theorem readGroup_wire {checked : Checked} {index : Nat} {slots : List Li
             | none => simp [bounds] at h
             | some span =>
               simp only [bounds, Except.mapError, Bind.bind, Except.bind] at h
-              cases framed : Page.readChunk checked.limits.framing checked.snapshot.bytes span with
-              | error err => simp [framed] at h
+              cases parsed : Page.readChunk checked.limits.framing checked.snapshot.bytes span with
+              | error err => simp [parsed] at h
               | ok frames =>
-                simp only [framed] at h
-                split at h
-                · rename_i frame
-                  split at h
-                  · rename_i info data
-                    split at h
-                    · contradiction
-                    · rename_i slotCount
-                      push Not at slotCount
-                      split at h
-                      · contradiction
-                      · rename_i bodyCap
-                        cases sliced : checked.snapshot.bytes.slice? frame.payload.start
-                            (some frame.payload.stop) with
-                        | none => simp [sliced] at h
-                        | some body =>
-                          simp only [sliced] at h
-                          cases decoded :
-                              ListPage.decodeV1 checked.limits.page chunk.metadata.codec frame.value
-                                group.numRows.toNat body with
-                          | error err => simp [decoded] at h
-                          | ok value =>
-                            have same : value = slots := by simpa [decoded] using h
-                            subst value
-                            have page := ListPage.decodeV1_wire decoded
-                            obtain ⟨other, sameKind, _, _, _, wire⟩ := page.page
-                            rw [data] at sameKind
-                            cases sameKind
-                            refine ⟨group, chunk, span, frame, body, info, ?_, columns, associated.1,
-                              associated.2, codec, absent.1, absent.2, ?_, framed,
-                              (Page.readChunk_chain framed).2.2, sliced, data, slotCount, page, wire, wire.rowCount⟩
-                            · exact groupRead
-                            · exact bounds
-                  · contradiction
-                · contradiction
+                simp only [parsed] at h
+                obtain rfl := Except.ok.inj h
+                exact ⟨groupRead, columns, associated.1, associated.2, codec, absent.1, absent.2,
+                  bounds, parsed, (Page.readChunk_chain parsed).2.2⟩
+    · contradiction
+
+public theorem readGroup_wire {checked : Checked} {index : Nat} {slots : List ListPage.Row}
+    (h : checked.readGroup index = .ok slots) : GroupWire checked index slots := by
+  unfold Checked.readGroup at h
+  cases selected : checked.frameGroup index with
+  | error e => simp [selected, Bind.bind, Except.bind] at h
+  | ok framed =>
+    simp only [selected, Bind.bind, Except.bind] at h
+    split at h
+    · rename_i frame singleton
+      split at h
+      · rename_i info data
+        split at h
+        · contradiction
+        · rename_i slotCount
+          push Not at slotCount
+          split at h
+          · contradiction
+          · cases sliced : checked.snapshot.bytes.slice? frame.payload.start
+                (some frame.payload.stop) with
+            | none => simp [sliced] at h
+            | some body =>
+              simp only [sliced, Except.mapError] at h
+              cases decoded :
+                  ListPage.decodeV1 checked.limits.page framed.chunk.metadata.codec frame.value
+                    framed.group.numRows.toNat body with
+              | error err => simp [decoded] at h
+              | ok value =>
+                have same : value = slots := by simpa [decoded] using h
+                subst value
+                have original := frameGroup_wire selected
+                have page := ListPage.decodeV1_wire decoded
+                obtain ⟨other, sameKind, _, _, _, wire⟩ := page.page
+                rw [data] at sameKind
+                cases sameKind
+                refine ⟨framed.group, framed.chunk, framed.span, frame, body, info,
+                  original.group, original.chunk, original.path, original.physical, original.codec,
+                  original.dictionaryOffset, original.indexPageOffset, original.span, ?_, ?_,
+                  sliced, data, slotCount, page, wire, wire.rowCount⟩
+                · simpa only [singleton] using original.frames
+                · simpa only [singleton] using original.chain
+      · contradiction
     · contradiction
 
 public theorem batch_slots (checked : Checked) (slots : List ListPage.Row)

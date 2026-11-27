@@ -33,4 +33,42 @@ theorem decodeV1_wire {limits : Limits} {codec : Int} {header : Page.Header}
     PageWire limits codec header expectedRows body rows :=
   Proofs.Formats.Parquet.ListPage.decodeV1_wire h
 
+theorem finish_empty : State.empty.finish = [] := Proofs.Formats.Parquet.ListPage.finish_empty
+
+/-- Feeding a page appends precisely its ordered events to the group state. -/
+theorem feed_wire {state next : State} {events : List Event}
+    (h : state.feed events = .ok next) :
+    next.finish.flatMap rowEvents = state.finish.flatMap rowEvents ++ events :=
+  Proofs.Formats.Parquet.ListPage.feed_wire h
+
+/-- The reconstruction result and typed failure are invariant under event cuts. -/
+theorem feed_append (state : State) (left right : List Event) :
+    state.feed (left ++ right) = (state.feed left).bind (·.feed right) :=
+  Proofs.Formats.Parquet.ListPage.feed_append state left right
+
+/-- A leading continuation requires a previously opened nonempty list. -/
+theorem feed_next {state : State} (item : Option Int32) (rest : List Event) :
+    state.feed (.next item :: rest) =
+      match state.active with
+      | none => .error .continuationWithoutList
+      | some (head, tail) => ({ state with active := some (head, item :: tail) } : State).feed rest :=
+  Proofs.Formats.Parquet.ListPage.feed_next item rest
+
+/-- A page-local body decode consumes all bytes at the exact slot count. -/
+theorem decodeEvents_wire {limits : Limits} {slots : Nat} {body : Bytes}
+    {events : List Event} (h : decodeEvents limits slots body = .ok events) :
+    EventsWire limits slots body events :=
+  Proofs.Formats.Parquet.ListPage.decodeEvents_wire h
+
+/-- The V1 guard retains the exact header tags and body sizes. -/
+theorem checkV1_wire {codec : Int} {header : Page.Header} {body : Bytes} {info : Page.DataV1}
+    (h : checkV1 codec header body = .ok info) : V1Wire codec header body info :=
+  Proofs.Formats.Parquet.ListPage.checkV1_wire h
+
+/-- A V1 frame gives the exact ordered wire events, including a possible leading continuation. -/
+theorem decodeV1Events_wire {limits : Limits} {codec : Int} {header : Page.Header}
+    {body : Bytes} {events : List Event} (h : decodeV1Events limits codec header body = .ok events) :
+    ∃ info, V1Wire codec header body info ∧ EventsWire limits info.numValues body events :=
+  Proofs.Formats.Parquet.ListPage.decodeV1Events_wire h
+
 end Silmaril.Formats.Parquet.ListPage

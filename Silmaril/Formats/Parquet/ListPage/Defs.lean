@@ -59,27 +59,39 @@ def readEvent (entry : Nat × Nat × Option Int32) : Except Error Event :=
   | some [] => [.emptyList]
   | some (item :: rest) => .first item :: rest.map Event.next
 
-private abbrev OpenList := Option Int32 × List (Option Int32)
+/-- Group reconstruction state. An open list has a first element, which
+may be null. Both accumulators are reversed for constant-time appends. -/
+structure State where
+  active : Option (Option Int32 × List (Option Int32))
+  closed : List Row
 
-private def flush (active : Option OpenList) (closed : List Row) : List Row :=
-  match active with
-  | none => closed
-  | some (item, reverseTail) => some (item :: reverseTail.reverse) :: closed
+@[expose] def State.empty : State := ⟨none, []⟩
 
-/-- A continuation can extend only an open nonempty list. Starts close
-the previous row. The page starts with no open list. -/
-def reconstruct (events : List Event) : Except Error (List Row) := go events none []
-where
-  go (events : List Event) (active : Option OpenList) (closed : List Row) : Except Error (List Row) :=
-    match events with
-    | [] => .ok (flush active closed).reverse
-    | .nullList :: rest => go rest none (none :: flush active closed)
-    | .emptyList :: rest => go rest none (some [] :: flush active closed)
-    | .first item :: rest => go rest (some (item, [])) (flush active closed)
-    | .next item :: rest =>
-      match active with
-      | none => .error .continuationWithoutList
-      | some (head, reverseTail) => go rest (some (head, item :: reverseTail)) closed
+private def State.flush (state : State) : List Row :=
+  match state.active with
+  | none => state.closed
+  | some (item, reverseTail) => some (item :: reverseTail.reverse) :: state.closed
+
+/-- Finish at the group boundary, closing the final open list. -/
+def State.finish (state : State) : List Row := state.flush.reverse
+
+private def State.step (state : State) : Event → Except Error State
+  | .nullList => .ok ⟨none, none :: state.flush⟩
+  | .emptyList => .ok ⟨none, some [] :: state.flush⟩
+  | .first item => .ok ⟨some (item, []), state.flush⟩
+  | .next item =>
+    match state.active with
+    | none => .error .continuationWithoutList
+    | some (head, reverseTail) => .ok { state with active := some (head, item :: reverseTail) }
+
+/-- Feed a page's ordered events without closing the last list. A continuation
+requires a nonempty list still open in this page or the preceding page. -/
+def State.feed (state : State) (events : List Event) : Except Error State :=
+  events.foldlM State.step state
+
+/-- Whole-page reconstruction starts at a row boundary and closes its final row. -/
+def reconstruct (events : List Event) : Except Error (List Row) :=
+  (State.empty.feed events).map State.finish
 
 structure Limits where
   maxBodyBytes : Nat := 16 * 1024 * 1024
@@ -89,12 +101,11 @@ structure Limits where
 @[expose] def valueMask (definitions : List Nat) : List Bool :=
   definitions.map (· == 3)
 
-/-- Both level streams are exact V1 length-prefixed sections. The remaining
-bytes are exactly the PLAIN INT32 words for definition level 3. -/
-def decodeBody (limits : Limits) (expectedRows slots : Nat) (body : Bytes) :
-    Except Error (List Row) := do
+/-- Read the exact V1 level streams and PLAIN values at this page's slot
+count. Row assembly and continuation policy belong to the consumer. -/
+def decodeEvents (limits : Limits) (slots : Nat) (body : Bytes) :
+    Except Error (List Event) := do
   if limits.maxBodyBytes < body.length then return ← throw .bodyLimit
-  if limits.maxRows < expectedRows then return ← throw .rowLimit
   let first ← (FlatPage.splitV1Optional limits.levels.bytes body).mapError .repetitionSection
   let second ← (FlatPage.splitV1Optional limits.levels.bytes first.scalars).mapError .definitionSection
   let reps ← (Hybrid.decode 1 slots limits.levels first.definitions).mapError .repetition
@@ -102,16 +113,20 @@ def decodeBody (limits : Limits) (expectedRows slots : Nat) (body : Bytes) :
   let mask := valueMask defs
   let values ← (Plain.decodeInt32 (mask.count true) second.scalars).mapError .plain
   let entries ← (FlatPage.reconstruct mask values).mapError .reconstruct
-  let events ← (reps.zip (defs.zip entries)).mapM readEvent
+  (reps.zip (defs.zip entries)).mapM readEvent
+
+/-- Standalone page profile, with the original body-limit and row-limit precedence. -/
+def decodeBody (limits : Limits) (expectedRows slots : Nat) (body : Bytes) :
+    Except Error (List Row) := do
+  if limits.maxBodyBytes < body.length then return ← throw .bodyLimit
+  if limits.maxRows < expectedRows then return ← throw .rowLimit
+  let events ← decodeEvents limits slots body
   let rows ← reconstruct events
   if rows.length ≠ expectedRows then return ← throw (.rowCount expectedRows rows.length)
   pure rows
 
-/-- The caller supplies a matching header and body, a checked canonical LIST
-schema and the expected number of complete rows. Codec 0 is UNCOMPRESSED.
-No carry-in or carry-out partial row is supported. -/
-def decodeV1 (limits : Limits) (codec : Int) (header : Page.Header) (expectedRows : Nat)
-    (body : Bytes) : Except Error (List Row) := do
+/-- Check the header shared by the standalone and continued V1 profiles. -/
+def checkV1 (codec : Int) (header : Page.Header) (body : Bytes) : Except Error Page.DataV1 := do
   if codec ≠ 0 then return ← throw (.codec codec)
   let .dataV1 info := header.kind | throw .pageKind
   if header.crc.isSome then return ← throw .crc
@@ -119,14 +134,26 @@ def decodeV1 (limits : Limits) (codec : Int) (header : Page.Header) (expectedRow
     return ← throw .encoding
   if ¬ (header.compressedSize = body.length ∧ header.uncompressedSize = body.length) then
     return ← throw .bodySize
+  pure info
+
+/-- Decode the exact V1 bytes of one frame without assuming a row boundary. -/
+def decodeV1Events (limits : Limits) (codec : Int) (header : Page.Header)
+    (body : Bytes) : Except Error (List Event) := do
+  let info ← checkV1 codec header body
+  decodeEvents limits info.numValues body
+
+/-- The caller supplies a matching header and body, a checked canonical LIST
+schema and the expected number of complete rows. No partial row is supported. -/
+def decodeV1 (limits : Limits) (codec : Int) (header : Page.Header) (expectedRows : Nat)
+    (body : Bytes) : Except Error (List Row) := do
+  let info ← checkV1 codec header body
   decodeBody limits expectedRows info.numValues body
 
-/-- A data stream witnesses both complete level sections, every source
-scalar, and a canonical event sequence for exactly the returned rows. -/
-structure Wire (limits : Limits) (expectedRows slots : Nat) (body : Bytes) (rows : List Row) : Prop where
-  rowCount : rows.length = expectedRows
-  caps : body.length ≤ limits.maxBodyBytes ∧ expectedRows ≤ limits.maxRows
-  data : ∃ (repLength defLength : List UInt8) (repBytes defBytes scalarBytes : Bytes)
+/-- Exact original bytes and ordered slot triples for the two level streams
+and the PLAIN values. -/
+@[expose] def SlotsWire (slots : Nat) (body : Bytes)
+    (entriesInOrder : List (Nat × Nat × Option Int32)) : Prop :=
+  ∃ (repLength defLength : List UInt8) (repBytes defBytes scalarBytes : Bytes)
       (reps defs : List Nat) (values : List Int32) (entries : List (Option Int32)),
     repLength.length = 4 ∧ defLength.length = 4 ∧
     KBytes.leVal repLength = repBytes.length ∧ KBytes.leVal defLength = defBytes.length ∧
@@ -135,7 +162,27 @@ structure Wire (limits : Limits) (expectedRows slots : Nat) (body : Bytes) (rows
     reps.length = slots ∧ defs.length = slots ∧ entries.length = slots ∧
     Plain.decodeInt32 ((valueMask defs).count true) scalarBytes = .ok values ∧
     entries.map Option.isSome = valueMask defs ∧ entries.filterMap id = values ∧
-    (rows.flatMap rowEvents).map Event.wire = reps.zip (defs.zip entries)
+    entriesInOrder = reps.zip (defs.zip entries)
+
+structure EventsWire (limits : Limits) (slots : Nat) (body : Bytes) (events : List Event) : Prop where
+  cap : body.length ≤ limits.maxBodyBytes
+  slotCount : events.length = slots
+  data : SlotsWire slots body (events.map Event.wire)
+
+structure V1Wire (codec : Int) (header : Page.Header) (body : Bytes) (info : Page.DataV1) : Prop where
+  codec : codec = 0
+  crc : header.crc = none
+  compressedSize : header.compressedSize = body.length
+  uncompressedSize : header.uncompressedSize = body.length
+  kind : header.kind = .dataV1 info
+  encoding : info.encoding = 0 ∧ info.repetitionLevelEncoding = 3 ∧ info.definitionLevelEncoding = 3
+
+/-- A data stream witnesses all slots and a canonical event sequence for
+exactly the returned complete rows. -/
+structure Wire (limits : Limits) (expectedRows slots : Nat) (body : Bytes) (rows : List Row) : Prop where
+  rowCount : rows.length = expectedRows
+  caps : body.length ≤ limits.maxBodyBytes ∧ expectedRows ≤ limits.maxRows
+  data : SlotsWire slots body ((rows.flatMap rowEvents).map Event.wire)
 
 structure PageWire (limits : Limits) (codec : Int) (header : Page.Header) (expectedRows : Nat)
     (body : Bytes) (rows : List Row) : Prop where
