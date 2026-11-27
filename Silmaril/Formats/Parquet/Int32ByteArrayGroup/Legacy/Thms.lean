@@ -50,4 +50,60 @@ theorem readAll_first_error {before after : List Nat} {index : Nat}
       ⟨groups.map (AlignedColumns.ofRows ∘ rows int32Name byteArrayName), .readError cause⟩⟩ :=
   Proofs.Formats.Parquet.Int32ByteArrayGroup.Legacy.readAll_first_error opened split earlier failed
 
+section Scan
+
+variable (project : (selected : Scan.Schema String Kind) → Scan.Projection selected)
+variable (keep : (selected : Scan.Schema String Kind) → Scan.Predicate selected Value)
+
+/-- The predicate sees each complete input row before positional projection.
+Exactly one batch remains for each successfully read footer group. -/
+theorem scan_readAll_order (opened : openFile limits input int32Name byteArrayName = .ok checked) :
+    let selected := schema int32Name byteArrayName
+    let trace := Reader.denoteGroups (rowsAt checked) (List.range checked.projection.snapshot.groupCount)
+    (readAll limits input int32Name byteArrayName).scan project keep = .ok ⟨(project selected).schema,
+      ⟨trace.1.map (fun group => AlignedColumns.ofRows ((project selected).scan (keep selected) group)),
+        trace.2⟩⟩ :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.Legacy.scan_readAll_order
+    project keep opened
+
+/-- Each batch retains the count of rows accepted by its predicate, including
+when the projection selects zero columns. -/
+theorem scan_readAll_counts (opened : openFile limits input int32Name byteArrayName = .ok checked) :
+    let selected := schema int32Name byteArrayName
+    let trace := Reader.denoteGroups (rowsAt checked) (List.range checked.projection.snapshot.groupCount)
+    ((readAll limits input int32Name byteArrayName).scan project keep).map
+        (fun result => result.2.batches.map (·.rowCount)) =
+      .ok (trace.1.map (fun group => (Scan.select (keep selected) group).length)) :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.Legacy.scan_readAll_counts
+    project keep opened
+
+/-- A failed group contributes no rows. The scanned prefix retains its empty
+batches and the original typed terminal cause. -/
+theorem scan_readAll_first_error {before after : List Nat} {index : Nat}
+    {groups : List (List Int32ByteArrayGroup.Row)} {cause : Error}
+    (opened : openFile limits input int32Name byteArrayName = .ok checked)
+    (split : List.range checked.projection.snapshot.groupCount = before ++ index :: after)
+    (earlier : List.Forall₂ (fun i pairs => readGroup checked i = .ok pairs) before groups)
+    (failed : readGroup checked index = .error cause) :
+    let selected := schema int32Name byteArrayName
+    (readAll limits input int32Name byteArrayName).scan project keep = .ok ⟨(project selected).schema,
+      ⟨groups.map (fun pairs => AlignedColumns.ofRows
+        ((project selected).scan (keep selected) (rows int32Name byteArrayName pairs))), .readError cause⟩⟩ :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.Legacy.scan_readAll_first_error
+    project keep opened split earlier failed
+
+/-- At the same projected schema, collection compares flattened logical rows
+and the typed outcome. Batch boundaries are outside this equivalence. -/
+theorem scan_readAll_equivalent_iff (opened : openFile limits input int32Name byteArrayName = .ok checked)
+    (candidate : Events.Trace (project (schema int32Name byteArrayName)).schema Value Error) :
+    let selected := schema int32Name byteArrayName
+    let trace := Reader.denoteGroups (rowsAt checked) (List.range checked.projection.snapshot.groupCount)
+    Events.EventStream.Equivalent ((readAll limits input int32Name byteArrayName).scan project keep)
+      (.ok ⟨(project selected).schema, candidate⟩) ↔
+      (project selected).scan (keep selected) trace.1.flatten = candidate.rows ∧ trace.2 = candidate.termination :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.Legacy.scan_readAll_equivalent_iff
+    project keep opened candidate
+
+end Scan
+
 end Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy

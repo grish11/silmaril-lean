@@ -37,3 +37,34 @@ diff -r data/parquet-byte-array-legacy-events "$fixture_tmp"
 lake build --wfail +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.Tests
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/parquet-int32-byte-array-legacy/Axioms.lean
 ```
+
+## Logical scan over paired events
+
+`Legacy.scan_readAll_order` gives one ordered output batch for each
+successfully read footer group. The predicate sees both original typed
+cells before projection. A false or unknown result discards that row.
+The positional projection may reorder or repeat fields.
+`scan_readAll_counts` counts the rows kept in each group even at zero
+width. `scan_readAll_first_error` preserves the original typed failure
+and the exact scanned prefix, including empty batches.
+
+At the same projected schema, `scan_readAll_equivalent_iff` uses
+`Events.EventStream.Equivalent` to compare flattened logical rows and
+the typed terminal observation. The equivalence forgets batch boundaries.
+The exact trace law records every batch boundary.
+
+PyArrow 26.0.1 independently decodes both columns of the pinned legacy
+files. The INT32 predicate selects 36 rows per nonempty group and
+projects BYTE_ARRAY, retaining nulls when their ordinals match. The
+BYTE_ARRAY length predicate keeps 118 rows per nonempty group and
+projects INT32, or projects zero columns with the same counts. The
+reordered, repeated projection selects BYTE_ARRAY, INT32, BYTE_ARRAY.
+On the damaged file these cases preserve the first nonempty and empty
+batches before the original indexed cause. A wholly unknown predicate
+leaves two empty batches before the same cause.
+
+```sh
+python3 scripts/parquet-byte-array-legacy-events/ScanOracle.py \
+  | diff -u tests/formats/parquet-int32-byte-array-legacy/scan-reference.txt -
+lake build --wfail +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ScanTests
+```
