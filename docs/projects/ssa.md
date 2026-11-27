@@ -1872,6 +1872,51 @@ The continuation cannot jump back to its own label.
   [Row simulation and readback of the table](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Thms.lean) ·
   [Proofs](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/FragmentReadback.lean) ·
   [Instances on the named diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- The same diamond is written in the existing predecessor-indexed φ
+  syntax, and its results are obtained from that source. The φ graph has
+  an entry and five blocks; `join` has the φ of the diamond, with one
+  operand for each of its two predecessors, and the stored reply is read
+  where it is inspected, with no φ. The existing ordered-exit check
+  accepts it at the two declared exits. The existing lowering transposes
+  the φ rows into packets, versions the registers and elaborates to a
+  scoped flat graph at the same two captures. That lowered graph is not
+  the named graph of the earlier item: every edge also carries a record
+  of the registers that blocks read, and every block takes its packet
+  and the record apart with pattern lets. It has the same blocks at the
+  same indices and the same exits at the same positions, and each of its
+  blocks is still a row. So its typed witness is in the fragment and its
+  table is the translation of that witness: the rank check of the
+  lowered graph gives the check of the table, the rows jump to the
+  labels of the lowered blocks in order, and by the readback theorem the
+  readback of the table is natively equal to the term the lowered graph
+  already has. No table is written by hand and no readback of the table
+  is computed. The comparison with the named graph is a general lemma
+  about administrative moves. A value is a bound variable, unit or a
+  pair of values. One pass replaces every let of a value, and every
+  pattern let of a pair of values, by its body with the values
+  substituted; a pass, and any number of passes, gives a natively equal
+  term, by pure let beta and pair beta, when products of types are
+  injective. The abstract type formers do not state that, so it is a
+  hypothesis, and the concrete types have it. Five passes take the term
+  of the lowered graph to the tree of the named graph before the reply
+  of `test` is named, and one sequencing law names it. So the table of
+  the φ graph and the table of the named graph have natively equal
+  readbacks, they are one ranked sentence, and they have the same
+  original-entry, original-exit arrow. The second φ graph differs only
+  in the operand of the φ of `join` on one edge; its table is told apart
+  from the first, as a ranked sentence and as an arrow. The limit is in
+  how values cross edges. Here a value that crosses one edge is a φ
+  operand of its target, also when the target has one predecessor. The
+  φ syntax also lets a block read a register that an earlier block
+  defined, and the check accepts that graph; but the lowering carries
+  such a register in the record of every edge, including the edge from
+  the entry, where it is read at its initial version. The elaboration
+  therefore rejects that graph at the two captures and accepts it at
+  six, with a capture for each such register. The typed witness of the
+  lowered graph is still supplied, and the fragment is not widened.
+  [Administrative moves](../../Silmaril/SSA/Isotope/LetCase/Administrative/Defs.lean) ·
+  [They keep the native meaning](../../Silmaril/SSA/Isotope/LetCase/Administrative/Thms.lean) ·
+  [The φ diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
