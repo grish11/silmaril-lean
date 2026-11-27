@@ -7,6 +7,15 @@ public section
 
 namespace Silmaril.Formats.Parquet.Date.FromIpc
 
+/-- The native group writer returns bytes only after exact DATE readback. -/
+theorem emitGroup_readback {writerLimits : FlatInt32Writer.Limits} {readbackLimits : Date.Limits}
+    {name : String} {nullable : Bool} {dates : Arrow.DateValues.Column} {wire : Bytes}
+    (written : emitGroup writerLimits readbackLimits name nullable dates = .ok wire) :
+    wire.length ≤ writerLimits.maxFileBytes ∧
+    ∃ checked group, Date.openChecked readbackLimits wire = .ok checked ∧
+      Date.readGroup readbackLimits wire 0 = .ok group ∧ Matches checked group ⟨name, nullable, .day⟩ dates :=
+  Proofs.Formats.Parquet.Date.FromIpc.emitGroup_readback written
+
 /-- Successful conversion has exactly the source's one batch and the matching
 checked DATE group at index zero, even when that batch is empty. -/
 theorem convert_readback {inputLimits : Arrow.Limits} {writerLimits : FlatInt32Writer.Limits}

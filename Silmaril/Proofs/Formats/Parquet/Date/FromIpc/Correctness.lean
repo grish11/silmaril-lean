@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Parquet.Date.FromIpc.Defs
 import Silmaril.Formats.Parquet.Date.Thms
+import Silmaril.Formats.Parquet.FlatInt32Writer.Thms
 
 public section
 
@@ -12,7 +13,7 @@ open Silmaril.Formats Silmaril.Formats.Parquet Silmaril.Formats.Parquet.Date.Fro
 private theorem certify_ok {limits : Date.Limits} {wire output : Bytes}
     {field : Arrow.DateStream.Field} {dates : Arrow.DateValues.Column}
     (certified : Internal.certify limits wire field dates = .ok output) :
-    ∃ checked group, Date.openChecked limits output = .ok checked ∧
+    output = wire ∧ ∃ checked group, Date.openChecked limits output = .ok checked ∧
       Date.readGroup limits output 0 = .ok group ∧ Matches checked group field dates := by
   cases opened : Date.openChecked limits wire with
   | error cause => simp [Internal.certify, opened, Except.mapError, Bind.bind, Except.bind] at certified
@@ -24,9 +25,27 @@ private theorem certify_ok {limits : Date.Limits} {wire output : Bytes}
       by_cases agrees : Matches checked group field dates
       · simp [Internal.certify, opened, read, agrees, Except.mapError, Bind.bind, Except.bind] at certified
         subst output
-        exact ⟨checked, group, opened, by simp [Date.readGroup, opened, read, Bind.bind, Except.bind],
+        exact ⟨rfl, checked, group, opened, by simp [Date.readGroup, opened, read, Bind.bind, Except.bind],
           agrees⟩
       · simp [Internal.certify, opened, read, agrees, Except.mapError, Bind.bind, Except.bind] at certified
+
+theorem emitGroup_readback {writerLimits : FlatInt32Writer.Limits} {readbackLimits : Date.Limits}
+    {name : String} {nullable : Bool} {dates : Arrow.DateValues.Column} {wire : Bytes}
+    (written : emitGroup writerLimits readbackLimits name nullable dates = .ok wire) :
+    wire.length ≤ writerLimits.maxFileBytes ∧
+    ∃ checked group, Date.openChecked readbackLimits wire = .ok checked ∧
+      Date.readGroup readbackLimits wire 0 = .ok group ∧ Matches checked group ⟨name, nullable, .day⟩ dates := by
+  cases page : Internal.pageInput nullable dates with
+  | error cause =>
+    simp [emitGroup, page, Bind.bind, Except.bind] at written
+  | ok body =>
+    cases write : FlatInt32Writer.emitAnnotated .date writerLimits ⟨dates.length, [⟨name, body⟩]⟩ with
+    | error cause =>
+      simp [emitGroup, page, write, Except.mapError, Bind.bind, Except.bind] at written
+    | ok output =>
+      simp [emitGroup, page, write, Except.mapError, Bind.bind, Except.bind] at written
+      obtain ⟨same, certified⟩ := certify_ok written
+      exact ⟨same.symm ▸ (FlatInt32Writer.emitAnnotated_checked write).1, certified⟩
 
 theorem convert_readback {inputLimits : Arrow.Limits} {writerLimits : FlatInt32Writer.Limits}
     {readbackLimits : Date.Limits} {input : KBytes} {wire : Bytes}
@@ -47,20 +66,11 @@ theorem convert_readback {inputLimits : Arrow.Limits} {writerLimits : FlatInt32W
         | cons other rest =>
           simp [convert, read, day, batches, Except.mapError, Bind.bind, Except.bind] at written
         | nil =>
-          cases page : Internal.pageInput source.field.nullable dates with
-          | error cause =>
-            simp [convert, read, day, batches, page, Except.mapError, Bind.bind, Except.bind] at written
-          | ok body =>
-            cases write : FlatInt32Writer.emitAnnotated .date writerLimits
-                ⟨dates.length, [⟨source.field.name, body⟩]⟩ with
-            | error cause =>
-              simp [convert, read, day, batches, page, write, Except.mapError, Bind.bind, Except.bind]
-                at written
-            | ok output =>
-              simp [convert, read, day, batches, page, write, Except.mapError, Bind.bind, Except.bind]
-                at written
-              obtain ⟨checked, group, opened, decoded, agrees⟩ := certify_ok written
-              exact ⟨source, dates, checked, group, rfl, day, batches, opened, decoded, agrees⟩
+          simp [convert, read, day, batches, Except.mapError, Bind.bind, Except.bind] at written
+          obtain ⟨_, checked, group, opened, decoded, agrees⟩ := emitGroup_readback written
+          have field : source.field = ⟨source.field.name, source.field.nullable, .day⟩ := by
+            exact congrArg (Arrow.DateStream.Field.mk source.field.name source.field.nullable) day
+          exact ⟨source, dates, checked, group, rfl, day, batches, opened, decoded, field ▸ agrees⟩
     · simp [convert, read, day, Except.mapError, Bind.bind, Except.bind] at written
 
 theorem convert_batchCount {inputLimits : Arrow.Limits} {writerLimits : FlatInt32Writer.Limits}

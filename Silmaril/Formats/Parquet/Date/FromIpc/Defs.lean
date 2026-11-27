@@ -60,6 +60,15 @@ def certify (limits : Date.Limits) (wire : Bytes) (field : Arrow.DateStream.Fiel
 
 end Internal
 
+/-- Write and certify one DATE group from the field name, nullability and
+ordered civil slots. The output is INT32 DATE in whole-day units. -/
+def emitGroup (writerLimits : FlatInt32Writer.Limits) (readbackLimits : Date.Limits)
+    (name : String) (nullable : Bool) (dates : Arrow.DateValues.Column) : Except Error Bytes := do
+  let page ← Internal.pageInput nullable dates
+  let output ← (FlatInt32Writer.emitAnnotated .date writerLimits
+    ⟨dates.length, [⟨name, page⟩]⟩).mapError .writer
+  Internal.certify readbackLimits output.bytes ⟨name, nullable, .day⟩ dates
+
 /-- Read through EOS, then require exactly one Date32 batch. An explicit empty
 batch produces a zero-row group. Bytes are available only after DATE readback. -/
 def convert (inputLimits : Arrow.Limits) (writerLimits : FlatInt32Writer.Limits)
@@ -67,9 +76,6 @@ def convert (inputLimits : Arrow.Limits) (writerLimits : FlatInt32Writer.Limits)
   let source ← (Arrow.DateStream.read inputLimits input).mapError .reader
   if source.field.unit ≠ .day then .error (.wrongUnit source.field.unit)
   let [dates] := source.batches | .error (.batchCount source.batches.length)
-  let page ← Internal.pageInput source.field.nullable dates
-  let output ← (FlatInt32Writer.emitAnnotated .date writerLimits
-    ⟨dates.length, [⟨source.field.name, page⟩]⟩).mapError .writer
-  Internal.certify readbackLimits output.bytes source.field dates
+  emitGroup writerLimits readbackLimits source.field.name source.field.nullable dates
 
 end Silmaril.Formats.Parquet.Date.FromIpc

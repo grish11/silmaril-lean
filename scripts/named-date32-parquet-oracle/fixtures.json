@@ -1,0 +1,133 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "imported_optional": {
+      "source_groups": [
+        [
+          -2147483648,
+          null,
+          -1
+        ],
+        [
+          11016,
+          2147483647,
+          -1
+        ]
+      ],
+      "source_parquet": {
+        "bytes": 278,
+        "sha256": "f408ae36c0c369d770c2e8c5ccea78546ba69e90c2e1dee3aa5ad2bd051ef63b"
+      },
+      "selected_index": 0,
+      "signed_slots": [
+        -2147483648,
+        null,
+        -1,
+        11016,
+        2147483647,
+        -1
+      ],
+      "lean_parquet": {
+        "bytes": 141,
+        "sha256": "609b7d638a0e5a980b6a3d6abd71de522a0a6e6918badff4a4f268d687e43956"
+      },
+      "v1_body": {
+        "bytes": 36,
+        "sha256": "4c2f582ed569bdb941accab418a4db52cbf7d07ea013a1f8465daccc2869ba87"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "imported_empty_required": {
+      "source_groups": [],
+      "source_parquet": {
+        "bytes": 93,
+        "sha256": "eb50605fb67aaadbc6472d02b966ade803a979f637526848c954a5369e7d0d7b"
+      },
+      "selected_index": 0,
+      "signed_slots": [],
+      "lean_parquet": {
+        "bytes": 107,
+        "sha256": "271c8053f38ecfec9cd7055698532f68968c3b175e031cd12ace23e415573f9a"
+      },
+      "v1_body": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 0,
+        "4": "époque",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "duplicate_labels_index_one": {
+      "table_rows": [
+        [
+          -9,
+          null
+        ],
+        [
+          0,
+          11016
+        ],
+        [
+          null,
+          -719528
+        ],
+        [
+          3,
+          11016
+        ]
+      ],
+      "selected_index": 1,
+      "signed_slots": [
+        null,
+        11016,
+        -719528,
+        11016
+      ],
+      "lean_parquet": {
+        "bytes": 129,
+        "sha256": "f8f9fa6cfb7724a36e2cf62bb1cb8ebcfaf81b47678c1b0d5f5fc9e190bc6df1"
+      },
+      "v1_body": {
+        "bytes": 24,
+        "sha256": "d0a7237138329a63d2d3db617a9263ed6c893a702c3fac269ce245c1af368517"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    }
+  }
+}

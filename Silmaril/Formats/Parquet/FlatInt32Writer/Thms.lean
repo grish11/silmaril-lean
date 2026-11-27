@@ -11,6 +11,12 @@ public section
 
 namespace Silmaril.Formats.Parquet.FlatInt32Writer
 
+/-- Annotated output satisfies the same checked physical limits as primitive output. -/
+theorem emitAnnotated_checked {annotation : Compact.LeafAnnotation} {limits : Limits}
+    {input : Input} {output : Encoded} (written : emitAnnotated annotation limits input = .ok output) :
+    output.Checked limits input.rowCount :=
+  Proofs.Formats.Parquet.FlatInt32Writer.emitAnnotated_checked written
+
 /-- A successful writer recovers its exact footer and its ordered chunks cover
 the data area from the leading magic to the start of Compact metadata. -/
 theorem emit_layout {limits : Limits} {input : Input} {output : Encoded}

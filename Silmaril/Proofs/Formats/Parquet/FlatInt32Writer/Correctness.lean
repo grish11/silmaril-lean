@@ -83,6 +83,11 @@ private theorem emit_parts {annotation : Compact.LeafAnnotation} {limits : Limit
       · simp [emitAnnotated, valid, built, checked, Bind.bind, Except.bind] at written
   · simp [emitAnnotated, valid] at written
 
+theorem emitAnnotated_checked {annotation : Compact.LeafAnnotation} {limits : Limits}
+    {input : Input} {output : Encoded} (written : emitAnnotated annotation limits input = .ok output) :
+    output.Checked limits input.rowCount :=
+  (emit_parts written).2.1
+
 theorem emit_layout {limits : Limits} {input : Input} {output : Encoded}
     (written : emit limits input = .ok output) :
     input.Valid limits ∧ output.Checked limits input.rowCount ∧
