@@ -42,18 +42,22 @@ def readEntries (limits : Limits) (bound : Bound) (frame : Parquet.Page.Frame) :
   if limits.maxDictionaryBytes < frame.value.compressedSize then throw .byteLimit
   (Plain.decodeInt64 header.numValues (Internal.body bound frame)).mapError .entries
 
-def planData (bound : Bound) (frame : Parquet.Page.Frame) :
+def planDataWith (admits : Int → Bool) (bound : Bound) (frame : Parquet.Page.Frame) :
     Except DictionaryPageError DataPage := do
   if let .dictionary _ := frame.value.kind then throw .misplacedDictionary
   if frame.value.crc.isSome then throw .checksum
   if frame.value.compressedSize ≠ frame.value.uncompressedSize then throw .sizeMismatch
   let params ← (Timestamp.Page.parameters bound.binding.leaf bound.levels 0 frame.value).mapError .parameters
-  if params.encoding ≠ 8 then throw (.encoding params.encoding)
+  if !admits params.encoding then throw (.encoding params.encoding)
   return ⟨frame, params⟩
 
-/-- Plan one leading dictionary and every RLE_DICTIONARY data page from the
-original selected chunk. Check the declared slot total before body decoding. -/
-def checkGroup (limits : Limits) (leafLimits : Leaf.Limits) (bound : Bound) (index : Nat) :
+def planData (bound : Bound) (frame : Parquet.Page.Frame) : Except DictionaryPageError DataPage :=
+  planDataWith (· == 8) bound frame
+
+/-- Share the original uncompressed dictionary framing between data profiles.
+Check the profile's page sequence and declared slot total before body decoding. -/
+def checkGroupWith (admits : Int → Bool) (validate : List DataPage → Except Leaf.Error Unit)
+    (limits : Limits) (leafLimits : Leaf.Limits) (bound : Bound) (index : Nat) :
     Except Leaf.Error CheckedChunk := do
   let chunk ← selectChunkWith .dictionary leafLimits bound index
   if limits.maxChunkBytes < chunk.span.stop - chunk.span.start then throw .dictionaryChunkLimit
@@ -65,12 +69,18 @@ def checkGroup (limits : Limits) (leafLimits : Leaf.Limits) (bound : Bound) (ind
   if chunk.column.metadata.dataPageOffset ≠ (first.header.start : Int) then
     throw (atFrame 1 first .dataOffset)
   let data ← (rest.zipIdx 1).mapM fun (frame, ordinal) =>
-    (planData bound frame).mapError (atFrame ordinal frame)
+    (planDataWith admits bound frame).mapError (atFrame ordinal frame)
+  validate data
   let expected := chunk.group.numRows.toNat
   let actual := (data.map (·.params.numValues)).sum
   if actual ≠ expected then throw (.rowCount expected actual)
   let entries ← (readEntries limits bound dictionary).mapError (atFrame 0 dictionary)
   return ⟨chunk, dictionary, entries, data⟩
+
+/-- Admit only RLE_DICTIONARY data after the leading PLAIN dictionary. -/
+def checkGroup (limits : Limits) (leafLimits : Leaf.Limits) (bound : Bound) (index : Nat) :
+    Except Leaf.Error CheckedChunk :=
+  checkGroupWith (· == 8) (fun _ => .ok ()) limits leafLimits bound index
 
 def decodePage (limits : Limits) (leafLimits : Leaf.Limits) (bound : Bound)
     (entries : Array Int64) (page : DataPage) (ordinal : Nat) :

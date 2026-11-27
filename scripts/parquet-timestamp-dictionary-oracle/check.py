@@ -25,7 +25,7 @@ GROUPS = [[MIN, None, -1, MIN, MAX, -1], [0, -7, None, 0, 8, None], [-2, None, -
 EOS = struct.pack("<II", 0xFFFFFFFF, 0)
 
 
-def produce(unit, zone, page_version, *, codec="NONE", fallback=False):
+def produce(unit, zone, page_version, *, codec="NONE", fallback=False, groups=None):
     tick_type = pa.timestamp(unit, zone)
     schema = pa.schema([pa.field("decoy", pa.int32(), nullable=False), pa.field("ticks", tick_type)])
     sink = pa.BufferOutputStream()
@@ -33,7 +33,8 @@ def produce(unit, zone, page_version, *, codec="NONE", fallback=False):
     with pq.ParquetWriter(sink, schema, version="2.6", data_page_version=page_version, compression=codec,
                           use_dictionary=["ticks"], write_statistics=False, store_schema=False,
                           **fallback_options) as writer:
-        groups = [list(range(24))] if fallback else GROUPS
+        if groups is None:
+            groups = [list(range(24))] if fallback else GROUPS
         for group in groups:
             values = pa.array(group, type=pa.int64()).view(tick_type)
             writer.write_table(pa.Table.from_arrays([pa.array(range(len(group)), type=pa.int32()), values],

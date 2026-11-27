@@ -23,6 +23,14 @@ theorem readEntries_wire {limits : Limits} {bound : Bound} {frame : Parquet.Page
       entries.length = header.numValues :=
   Proofs.Formats.Parquet.Timestamp.Leaf.Dictionary.readEntries_wire read
 
+theorem planDataWith_wire {admits : Int → Bool} {bound : Bound} {frame : Parquet.Page.Frame} {page : DataPage}
+    (read : planDataWith admits bound frame = .ok page) :
+    page.frame = frame ∧ page.frame.value.crc = none ∧
+      page.frame.value.compressedSize = page.frame.value.uncompressedSize ∧
+      Timestamp.Page.parameters bound.binding.leaf bound.levels 0 frame.value = .ok page.params ∧
+      admits page.params.encoding = true :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Dictionary.planDataWith_wire read
+
 /-- Each original data header supplies its RLE_DICTIONARY parameters. -/
 theorem planData_wire {bound : Bound} {frame : Parquet.Page.Frame} {page : DataPage}
     (read : planData bound frame = .ok page) :
@@ -31,6 +39,22 @@ theorem planData_wire {bound : Bound} {frame : Parquet.Page.Frame} {page : DataP
       Timestamp.Page.parameters bound.binding.leaf bound.levels 0 frame.value = .ok page.params ∧
       page.params.encoding = 8 :=
   Proofs.Formats.Parquet.Timestamp.Leaf.Dictionary.planData_wire read
+
+theorem checkGroupWith_wire {admits : Int → Bool}
+    {validate : List DataPage → Except Leaf.Error Unit} {limits : Limits} {leafLimits : Leaf.Limits} {bound : Bound} {index : Nat}
+    {checked : CheckedChunk} (accepted : checkGroupWith admits validate limits leafLimits bound index = .ok checked) :
+    selectChunkWith .dictionary leafLimits bound index = .ok checked.chunk ∧
+      checked.chunk.span.stop - checked.chunk.span.start ≤ limits.maxChunkBytes ∧
+      Parquet.Page.readChunk leafLimits.framing bound.snapshot.bytes checked.chunk.span = .ok checked.frames ∧
+      Parquet.Page.Chain checked.chunk.span checked.chunk.span.start checked.chunk.span.stop checked.frames ∧
+      checked.chunk.column.metadata.dictionaryPageOffset = some (checked.dictionary.header.start : Int) ∧
+      checked.data.head?.map (fun page => (page.frame.header.start : Int)) =
+        some checked.chunk.column.metadata.dataPageOffset ∧
+      readEntries limits bound checked.dictionary = .ok checked.entries ∧
+      (∀ page ∈ checked.data, planDataWith admits bound page.frame = .ok page) ∧
+      validate checked.data = .ok () ∧
+      (checked.data.map (·.params.numValues)).sum = checked.chunk.group.numRows.toNat :=
+  Proofs.Formats.Parquet.Timestamp.Leaf.Dictionary.checkGroupWith_wire accepted
 
 /-- The selected chunk has one leading dictionary at the original offset,
 with all continuation frames in wire order and their exact declared slot total. -/

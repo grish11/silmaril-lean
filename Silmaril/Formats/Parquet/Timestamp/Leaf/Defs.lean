@@ -44,6 +44,7 @@ def ChunkEncoding.admitsMetadata (encoding : ChunkEncoding) (metadata : Footer.C
 inductive DictionaryPageError where
   | expectedDictionary
   | misplacedDictionary
+  | dictionaryAfterFallback
   | dataOffset
   | checksum
   | sizeMismatch
@@ -53,6 +54,7 @@ inductive DictionaryPageError where
   | entries (cause : Plain.Error)
   | parameters (cause : Timestamp.Page.Error)
   | references (cause : DictionaryIndex.Error)
+  | plain (cause : ScalarPage.Error)
   deriving DecidableEq, Repr
 
 inductive Error where
@@ -79,6 +81,7 @@ inductive Error where
   | dictionaryMissing
   | dictionaryOffset
   | dictionaryMissingData
+  | dictionaryMissingFallback
   | dictionaryPage (pageIndex headerOffset : Nat) (cause : DictionaryPageError)
   deriving DecidableEq, Repr
 
