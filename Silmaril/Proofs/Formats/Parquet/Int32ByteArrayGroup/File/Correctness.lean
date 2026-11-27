@@ -20,12 +20,10 @@ private theorem bind_ok {ε α β : Type} {input : Except ε α} {f : α → Exc
   | error _ => cases success
   | ok a => exact ⟨a, rfl, success⟩
 
-theorem openFile_snapshot {limits : File.Limits} {input : Bytes} {int32 byteArray : Field}
+theorem openFile_projection {limits : File.Limits} {input : Bytes} {int32 byteArray : Field}
     {checked : File.Checked limits int32 byteArray}
     (opened : File.openFile limits input int32 byteArray = .ok checked) :
-    Snapshot.check (Failure := Unit) limits.group.snapshot input = .ok checked.projection.snapshot ∧
-    checked.projection.snapshot.metadata.numRows.toNat ≤ limits.maxFileRows := by
-  refine ⟨?_, checked.rowCap⟩
+    Int32ByteArrayGroup.openFile limits.group input int32 byteArray = .ok checked.projection := by
   unfold File.openFile at opened
   obtain ⟨projection, projected, opened⟩ := bind_ok opened
   dsimp only at opened
@@ -33,10 +31,17 @@ theorem openFile_snapshot {limits : File.Limits} {input : Bytes} {int32 byteArra
   cases opened
   cases read : Int32ByteArrayGroup.openFile limits.group input int32 byteArray with
   | error _ => simp [read, Except.mapError] at projected
-  | ok _ =>
+  | ok selection =>
     simp [read, Except.mapError] at projected
     cases projected
-    exact (Int32ByteArrayGroup.openFile_snapshot read).1
+    rfl
+
+theorem openFile_snapshot {limits : File.Limits} {input : Bytes} {int32 byteArray : Field}
+    {checked : File.Checked limits int32 byteArray}
+    (opened : File.openFile limits input int32 byteArray = .ok checked) :
+    Snapshot.check (Failure := Unit) limits.group.snapshot input = .ok checked.projection.snapshot ∧
+    checked.projection.snapshot.metadata.numRows.toNat ≤ limits.maxFileRows :=
+  ⟨(Int32ByteArrayGroup.openFile_snapshot (openFile_projection opened)).1, checked.rowCap⟩
 
 theorem openFile_rowLimit {limits : File.Limits} {input : Bytes} {int32 byteArray : Field}
     {projection : Int32ByteArrayGroup.Checked int32 byteArray}

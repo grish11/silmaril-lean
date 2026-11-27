@@ -11,6 +11,12 @@ namespace Silmaril.Formats.Parquet.Int32ByteArrayGroup.File
 
 open Silmaril.Relational Silmaril.Formats.Arrow
 
+/-- File admission preserves the exact lower-level checked projection. -/
+theorem openFile_projection {limits : Limits} {input : Bytes} {int32 byteArray : Field}
+    {checked : Checked limits int32 byteArray} (opened : openFile limits input int32 byteArray = .ok checked) :
+    Int32ByteArrayGroup.openFile limits.group input int32 byteArray = .ok checked.projection :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.File.openFile_projection opened
+
 theorem openFile_snapshot {limits : Limits} {input : Bytes} {int32 byteArray : Field}
     {checked : Checked limits int32 byteArray} (opened : openFile limits input int32 byteArray = .ok checked) :
     Snapshot.check (Failure := Unit) limits.group.snapshot input = .ok checked.projection.snapshot ∧
