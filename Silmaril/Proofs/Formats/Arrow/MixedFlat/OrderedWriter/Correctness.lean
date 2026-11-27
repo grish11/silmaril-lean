@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Formats.Arrow.MixedFlat.TwoBinaryViews.Defs
+public import Silmaril.Formats.Arrow.MixedFlat.OrderedWriter.Defs
 import Batteries.Data.List.Lemmas
 import Silmaril.Formats.Arrow.BinaryView.Column.Writer.Thms
 import Silmaril.Formats.Arrow.MixedFlat.Stream.Thms
@@ -9,10 +9,10 @@ import Silmaril.Formats.Arrow.Writer.Thms
 
 public section
 
-namespace Silmaril.Proofs.Formats.Arrow.MixedFlat.TwoBinaryViews
+namespace Silmaril.Proofs.Formats.Arrow.MixedFlat.OrderedWriter
 
 open Silmaril.Formats Silmaril.Formats.Arrow Silmaril.Formats.Arrow.MixedFlat
-open Silmaril.Formats.Arrow.MixedFlat.TwoBinaryViews
+open Silmaril.Formats.Arrow.MixedFlat.OrderedWriter
 
 private theorem view_wf {limits : BinaryView.Column.Limits} {nullable : Bool}
     {values : List (Option KBytes)} {view : BinaryView.Column.Writer.Emitted}
@@ -29,13 +29,13 @@ private theorem view_wf {limits : BinaryView.Column.Limits} {nullable : Bool}
     simpa using (Array.all_eq_true.mp valid.2.2) index (by simpa using bound)
 
 private theorem column_wf {limits : MixedFlat.Limits} {rows position : Nat}
-    {column : TwoBinaryViews.Column} {physical : PhysicalColumn}
+    {column : OrderedWriter.Column} {physical : PhysicalColumn}
     (written : column.compile limits rows position = .ok physical) :
     ∀ part ∈ physical.parts, part.wf = true := by
   by_cases same : column.length = rows
   · cases column with
     | int32 name nullable values =>
-      simp only [TwoBinaryViews.Column.compile, same, ne_eq, not_true_eq_false, ↓reduceIte,
+      simp only [OrderedWriter.Column.compile, same, ne_eq, not_true_eq_false, ↓reduceIte,
         Bind.bind, Except.bind] at written
       split at written
       · contradiction
@@ -47,17 +47,17 @@ private theorem column_wf {limits : MixedFlat.Limits} {rows position : Nat}
     | binary name nullable values =>
       cases view : BinaryView.Column.Writer.emitBinary limits.view nullable values with
       | error cause =>
-        simp [TwoBinaryViews.Column.compile, same, view, Except.mapError, Bind.bind, Except.bind] at written
+        simp [OrderedWriter.Column.compile, same, view, Except.mapError, Bind.bind, Except.bind] at written
       | ok actual =>
-        simp [TwoBinaryViews.Column.compile, same, view, Except.mapError, Bind.bind, Except.bind,
+        simp [OrderedWriter.Column.compile, same, view, Except.mapError, Bind.bind, Except.bind,
           Pure.pure, Except.pure] at written
         subst physical
         exact view_wf view
-  · simp [TwoBinaryViews.Column.compile, same, Bind.bind, Except.bind, throw] at written
+  · simp [OrderedWriter.Column.compile, same, Bind.bind, Except.bind, throw] at written
 
 theorem compile_binary_wire {limits : MixedFlat.Limits} {rows position : Nat} {name : String}
     {nullable : Bool} {values : List (Option KBytes)} {physical : PhysicalColumn}
-    (written : (TwoBinaryViews.Column.binary name nullable values).compile limits rows position = .ok physical) :
+    (written : (OrderedWriter.Column.binary name nullable values).compile limits rows position = .ok physical) :
     ∃ view, BinaryView.Column.Writer.emitBinary limits.view nullable values = .ok view ∧
       physical = ⟨view.node, some view.buffers.payload.data.size, MixedFlat.Writer.viewParts view.buffers⟩ ∧
       ∃ decoded, BinaryView.Column.readBinary limits.view view.node nullable view.buffers = .ok decoded ∧
@@ -65,16 +65,16 @@ theorem compile_binary_wire {limits : MixedFlat.Limits} {rows position : Nat} {n
   by_cases same : values.length = rows
   · cases view : BinaryView.Column.Writer.emitBinary limits.view nullable values with
     | error cause =>
-      simp [TwoBinaryViews.Column.compile, TwoBinaryViews.Column.length, same, view,
+      simp [OrderedWriter.Column.compile, OrderedWriter.Column.length, same, view,
         Except.mapError, Bind.bind, Except.bind] at written
     | ok actual =>
-      simp [TwoBinaryViews.Column.compile, TwoBinaryViews.Column.length, same, view,
+      simp [OrderedWriter.Column.compile, OrderedWriter.Column.length, same, view,
         Except.mapError, Bind.bind, Except.bind, Pure.pure, Except.pure] at written
       exact ⟨actual, rfl, written.symm, BinaryView.Column.Writer.emitBinary_roundtrip view⟩
-  · simp [TwoBinaryViews.Column.compile, TwoBinaryViews.Column.length, same, Bind.bind, Except.bind, throw] at written
+  · simp [OrderedWriter.Column.compile, OrderedWriter.Column.length, same, Bind.bind, Except.bind, throw] at written
 
 private theorem compiled_wf {limits : MixedFlat.Limits} {rows : Nat}
-    {inputs : List (TwoBinaryViews.Column × Nat)} {outputs : List PhysicalColumn}
+    {inputs : List (OrderedWriter.Column × Nat)} {outputs : List PhysicalColumn}
     (compiled : List.Forall₂ (fun input physical =>
       input.1.compile limits rows input.2 = .ok physical) inputs outputs) :
     ∀ part ∈ outputs.flatMap PhysicalColumn.parts, part.wf = true := by
@@ -101,14 +101,15 @@ theorem record_wire {limits : MixedFlat.Limits} {input : BatchInput} (record : R
     exact Arrow.Writer.packBuffers_exact _ wf
 
 theorem emit_readback {limits : MixedFlat.Limits} {fields : List MixedFlat.Field}
-    {batches : List BatchInput} {wire : KBytes} (written : emit limits fields batches = .ok wire) :
+    {batches : List BatchInput} {shape : List MixedFlat.Field → Bool} {wire : KBytes}
+    (written : emit limits fields batches shape = .ok wire) :
     ∃ decoded, Stream.read limits wire = .ok decoded ∧ decoded.fields = fields ∧
       decoded.batches.map StreamWriter.observeBatch = batches.map BatchInput.observe ∧
       wire.wf = true ∧ ∃ start,
         Stream.readSchemaFrame limits.observation.ipc wire = .ok (decoded.fields, start) ∧
         Stream.BatchesWire limits wire decoded.fields limits.observation.ipc.batches 0 start decoded.batches := by
   unfold emit at written
-  cases serialized : serialize limits fields batches with
+  cases serialized : serialize limits fields batches shape with
   | error => simp [serialized, Bind.bind, Except.bind] at written
   | ok bytes =>
     cases read : Stream.read limits bytes with
@@ -121,4 +122,4 @@ theorem emit_readback {limits : MixedFlat.Limits} {fields : List MixedFlat.Field
         exact ⟨decoded, read, agrees.1, agrees.2, (Stream.read_iff limits _ decoded).mp read⟩
       · contradiction
 
-end Silmaril.Proofs.Formats.Arrow.MixedFlat.TwoBinaryViews
+end Silmaril.Proofs.Formats.Arrow.MixedFlat.OrderedWriter

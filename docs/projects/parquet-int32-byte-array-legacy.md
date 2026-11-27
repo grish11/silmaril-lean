@@ -105,13 +105,11 @@ python3 scripts/parquet-legacy-to-ipc-oracle/check.py "$fixture_tmp"
 
 `Int32ByteArrayGroup.Legacy.ToIpc.Scan.convert` applies the checked legacy
 event scan before exporting. The predicate sees both source cells, including
-nulls, before positional projection. The existing native writers cover any
-INT32-only projection, including repeated INT32 and zero fields, one
-BinaryView field, and one INT32 plus one BinaryView in either order. Two
-BinaryView selections can appear alone or with one INT32 in any position.
-Other shapes within the IPC field limit return `.unsupportedProjection`
-with the ordered projected labels. IPC budgets apply to the filtered rows,
-including rows in zero-column batches.
+nulls, before positional projection. The output supports arbitrary ordering
+and repetition of the selected INT32 and BYTE_ARRAY leaves, including zero
+fields. BYTE_ARRAY becomes BinaryView with the original octets. IPC field,
+row, cell, and buffer budgets bound the projection. Repeated fields count
+at each output position, and zero-column batches still count their rows.
 
 Successful conversion certifies the IPC schema and each ordered batch
 against the scan's counts and nullable cells by checked readback, with
@@ -129,21 +127,26 @@ for the ordinal predicate, `[118, 0, 118]` for the nullable payload-length
 predicate including a zero-column result, and `[0, 0, 0]` when all rows are
 discarded. It also checks typed refusals and the original late error.
 
-The two-view writer emits one count word per BinaryView ordinal, including
-zero for a view with only inline or null values. Each column has its own
-validity, views and data buffers. `TwoBinaryViews.compile_binary_wire` gives
-the local slot readback and `TwoBinaryViews.record_wire` ties the packed bytes
-and counts to the checked field order and descriptor ranges. The comparator
-checks two selected copies of the opaque Parquet column alone and next to
-INT32 in every position. A standalone stream feeds distinct short and long
-Parquet values to each view and observes count vectors `[0, 1]`, `[1, 0]`
-and `[0, 0]`, with the last vector belonging to an explicit empty batch.
-Three view selections still receive a typed refusal.
+The ordered writer emits one count word per BinaryView ordinal, including
+zero for a view with only inline or null values. Each view owns its validity,
+views and data buffers. `OrderedWriter.compile_binary_wire` proves local slot
+readback and `OrderedWriter.record_wire` ties packed bytes and counts to the
+checked field order and descriptor ranges. `Scan.orderedBatch_exact` connects
+prepared batches to the projected names, nullability, cells, and explicit
+row counts.
+
+The comparator includes five- and six-column projections with three copies
+of the opaque Parquet column interleaved with repeated INT32. A standalone
+stream feeds different short and long Parquet values to three views and
+checks count vectors `[0, 1, 0]`, `[1, 0, 1]`, and `[0, 0, 0]` in order.
+The zero-column writer case preserves `[2, 0, 1]` through EOS. The damaged
+source reports its original indexed error even when the predicate discards
+every row and the projection exceeds the IPC field cap.
 
 ```sh
 lake build --wfail +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Checks \
   +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan.Checks \
-  +Silmaril.Formats.Arrow.MixedFlat.TwoBinaryViews.Checks
+  +Silmaril.Formats.Arrow.MixedFlat.OrderedWriter.Checks
 fixture_tmp=$(mktemp -d)
 python3 scripts/parquet-legacy-to-ipc-oracle/check_scan.py "$fixture_tmp"
 ```

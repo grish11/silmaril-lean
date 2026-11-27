@@ -218,6 +218,22 @@ make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.StreamWriter.Example
 python3 -I scripts/arrow-mixed-flat/stream_writer_fixtures.py --out /tmp/arrow-mixed-flat-stream-writer
 ```
 
+### Ordered INT32 and BinaryView writer
+
+`MixedFlat.OrderedWriter.emit` accepts an ordered schema of INT32 and
+BinaryView fields under the existing IPC caps. Each BinaryView column
+owns its count word and local buffer indices. A column with no external
+payload contributes zero to the count vector, and an INT32 column
+contributes no word. The writer checks every record's declared schema,
+nodes, and ordered descriptor ranges before framing it. The existing
+mixed reader certifies all batches through exact EOS, including zero-row
+batches and positive row counts at width zero.
+
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/OrderedWriter/Defs.lean) ·
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/OrderedWriter/Thms.lean) ·
+[PyArrow comparison](parquet-int32-byte-array-legacy.md#native-ipc-after-logical-scan)
+
+
 ## Indexed files in a bounded carrier window
 
 `MixedFlat.File.Window.readIndex limits carrier start stop` accepts an

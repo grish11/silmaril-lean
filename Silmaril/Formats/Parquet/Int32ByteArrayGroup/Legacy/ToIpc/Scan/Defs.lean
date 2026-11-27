@@ -28,27 +28,30 @@ inductive Error where
   | binaryWriter (cause : Arrow.BinaryView.StreamWriter.Error)
   | mixedWriter (cause : StreamWriter.Error)
   | twoViewWriter (cause : TwoBinaryViews.Error)
+  | orderedWriter (cause : OrderedWriter.Error)
   | readback (cause : Stream.Error)
   | readbackMismatch
   deriving DecidableEq, Repr
 
-def field : String × Legacy.Kind → Arrow.MixedFlat.Field
+@[expose] def field : String × Legacy.Kind → Arrow.MixedFlat.Field
   | (name, .int32 layout) => ⟨name, layout == .optional, .primitive .int32⟩
   | (name, .byteArray layout) => ⟨name, layout == .optional, .view .binary⟩
 
-def fields (selected : Schema) : List Arrow.MixedFlat.Field :=
+@[expose] def fields (selected : Schema) : List Arrow.MixedFlat.Field :=
   (List.ofFn selected.kind).map field
 
 inductive Column where
   | int32 (values : List (Option Int32))
   | binary (values : List (Option Bytes))
 
-def column {selected : Schema} (batch : Batch selected) (i : Fin selected.width) : Column :=
-  match kind : (selected.kind i).2 with
-  | .int32 _ => .int32 (cast (congrArg (fun k => List (Option (Legacy.Value k))) kind) (batch.values i))
-  | .byteArray _ => .binary (cast (congrArg (fun k => List (Option (Legacy.Value k))) kind) (batch.values i))
+@[expose] def Column.ofValues : (kind : Legacy.Kind) → List (Option (Legacy.Value kind)) → Column
+  | .int32 _, values => .int32 values
+  | .byteArray _, values => .binary values
 
-def Column.observe : Column → Writer.ColumnObservation
+@[expose] def column {selected : Schema} (batch : Batch selected) (i : Fin selected.width) : Column :=
+  Column.ofValues (selected.kind i).2 (batch.values i)
+
+@[expose] def Column.observe : Column → Writer.ColumnObservation
   | .int32 values => .int32 (values.map (Option.map Arrow.Value.int32))
   | .binary values => .binaryView (values.map (Option.map Bytes.toList))
 
@@ -56,7 +59,7 @@ def Column.observe : Column → Writer.ColumnObservation
 @[expose] def observe {selected : Schema} (batch : Batch selected) : StreamWriter.BatchObservation :=
   (batch.rowCount, some (List.ofFn fun i => (field (selected.kind i), (column batch i).observe)))
 
-private def binaryValues (values : List (Option Bytes)) : List (Option KBytes) :=
+@[expose] def binaryValues (values : List (Option Bytes)) : List (Option KBytes) :=
   values.map (Option.map fun bytes => Arrow.Writer.emitWords 1 (bytes.toList.map UInt8.toNat))
 
 private def emitMixed (ipc : Arrow.MixedFlat.Limits) (schema : StreamWriter.Schema)
@@ -91,12 +94,13 @@ private def emitPrimitive (ipc : Arrow.MixedFlat.Limits) (selected : Schema)
     return (⟨batch.rowCount, named⟩ : Arrow.Writer.BatchInput)
   (Arrow.StreamWriter.emit ipc.observation fields inputs).mapError .primitiveWriter
 
-private def twoViewBatch {selected : Schema} (batch : Batch selected) : TwoBinaryViews.BatchInput :=
-  ⟨batch.rowCount, List.ofFn fun index =>
-    let label := field (selected.kind index)
-    match column batch index with
-    | .int32 values => .int32 label.name label.nullable values
-    | .binary values => .binary label.name label.nullable (binaryValues values)⟩
+@[expose] def Column.toOrdered (label : Arrow.MixedFlat.Field) : Column → OrderedWriter.Column
+  | .int32 values => .int32 label.name label.nullable values
+  | .binary values => .binary label.name label.nullable (binaryValues values)
+
+/-- Prepare fields positionally, retaining repeated selections and explicit row counts. -/
+@[expose] def orderedBatch {selected : Schema} (batch : Batch selected) : OrderedWriter.BatchInput :=
+  ⟨batch.rowCount, List.ofFn fun index => (column batch index).toOrdered (field (selected.kind index))⟩
 
 def serialize (ipc : Arrow.MixedFlat.Limits) (selected : Schema)
     (batches : List (Batch selected)) : Except Error KBytes := do
@@ -114,8 +118,9 @@ def serialize (ipc : Arrow.MixedFlat.Limits) (selected : Schema)
     emitMixed ipc ⟨.viewFirst, int, i == .optional, view, b == .optional⟩ (inputs ()) bad
   | _ =>
     let nativeFields := fields selected
-    if TwoBinaryViews.supported nativeFields then
-      (TwoBinaryViews.serialize ipc nativeFields (batches.map twoViewBatch)).mapError .twoViewWriter
+    if nativeFields.any (·.kind.isView) then
+      let writerError := if TwoBinaryViews.supported nativeFields then Error.twoViewWriter else Error.orderedWriter
+      (OrderedWriter.serialize ipc nativeFields (batches.map orderedBatch)).mapError writerError
     else emitPrimitive ipc selected batches bad
 
 /-- Certify every supported writer's output against the same ordered observation. -/

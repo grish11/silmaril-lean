@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan.Defs
 import Silmaril.Formats.Arrow.MixedFlat.Stream.Thms
+import Silmaril.Formats.Arrow.Writer.Thms
 import Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.Thms
 
 public section
@@ -15,6 +16,36 @@ open Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan
 variable {parquet : Legacy.Limits} {ipc : Arrow.MixedFlat.Limits} {input : Bytes}
 variable {int32Name byteArrayName : String} {project : Projection} {keep : Predicate} {wire : KBytes}
 variable {checked : Legacy.Checked parquet int32Name byteArrayName}
+
+private theorem orderedField (label : String × Legacy.Kind)
+    (values : List (Option (Legacy.Value label.2))) :
+    ((Column.ofValues label.2 values).toOrdered (field label)).field = field label := by
+  rcases label with ⟨name, kind⟩
+  cases kind <;> rfl
+
+private theorem orderedCells (label : Arrow.MixedFlat.Field)
+    (column : Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan.Column) :
+    (column.toOrdered label).observe = column.observe := by
+  cases column with
+  | int32 => rfl
+  | binary values =>
+    change Writer.ColumnObservation.binaryView ((binaryValues values).map (Option.map KBytes.toList)) =
+      Writer.ColumnObservation.binaryView (values.map (Option.map Bytes.toList))
+    congr 1
+    rw [binaryValues, List.map_map]
+    apply List.map_congr_left
+    intro value _
+    cases value <;> simp [Arrow.Writer.emitBytes_bytes]
+
+theorem orderedBatch_exact {selected : Schema} (batch : Batch selected) :
+    (orderedBatch batch).fields = fields selected ∧ (orderedBatch batch).observe = observe batch := by
+  constructor
+  · simp only [orderedBatch, OrderedWriter.BatchInput.fields, fields, List.map_ofFn]
+    exact congrArg List.ofFn (funext fun i => orderedField (selected.kind i) (batch.values i))
+  · simp only [orderedBatch, OrderedWriter.BatchInput.observe, observe, List.map_ofFn]
+    congr 3
+    funext i
+    exact Prod.ext (orderedField (selected.kind i) (batch.values i)) (orderedCells _ _)
 
 theorem emit_readback {selected : Schema} {batches : List (Batch selected)}
     (written : emit ipc selected batches = .ok wire) :

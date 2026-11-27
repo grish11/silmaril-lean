@@ -13,6 +13,12 @@ variable {parquet : Legacy.Limits} {ipc : Arrow.MixedFlat.Limits} {input : Bytes
 variable {int32Name byteArrayName : String} {project : Projection} {keep : Predicate} {wire : KBytes}
 variable {checked : Legacy.Checked parquet int32Name byteArrayName}
 
+/-- Ordered preparation preserves the exact projected labels and nullable
+slots, including repeated fields and row counts at width zero. -/
+theorem orderedBatch_exact {selected : Schema} (batch : Batch selected) :
+    (orderedBatch batch).fields = fields selected ∧ (orderedBatch batch).observe = observe batch :=
+  Proofs.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan.orderedBatch_exact batch
+
 /-- The native stream reads back with the precise projected fields and ordered
 column observations from each successful footer group. Its explicit batch
 counts include zero-width and zero-row batches, and framing ends at exact EOS. -/
