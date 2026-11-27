@@ -2285,6 +2285,45 @@ The continuation cannot jump back to its own label.
   [Certificate preservation](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Thms.lean) ·
   [Proofs](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping.lean) ·
   [Diamonds from source checks](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- One semantic square goes from the original φ graph to its compiled
+  program, from checks on the original graph only. On one side is the
+  independent φ evaluator of the original graph, which reads every φ
+  operand in the store of the predecessor, observed at the declared
+  exits in their order. On the other is the typed packed program of the
+  elaborated lowering of the normalized graph, run on the supplied input
+  record. They are equal as trees in every model of the primitives. The
+  square composes existing theorems and proves no denotation again: the
+  forwarding normalization keeps the φ run; the lowering and versioning
+  make it the lexical run of a named graph; the named elaboration keeps
+  that run at the numbered exits; and the packed program of a typed
+  elaborated graph runs as the graph does on the decoded captures. The
+  last three are the steps of the existing theorem for admissions of φ
+  graphs at the live-out exit interface. That theorem takes the
+  elaboration and its typing as fields of an admission, and its exits
+  carry a payload with a live-out record, so it does not apply to exits
+  of other types and it starts from compiler output. The same steps are
+  composed here at any exit types, and the elaboration and its typing
+  are obtained from the source by the earlier items. With the inferred
+  table the hypotheses are the scope check with arrival claims, the
+  condition on claims, a rank, the fragment, the typing certificate, and
+  captures that cover the inputs at their declared types; there is also
+  a form for any closed table under which no block defines a register it
+  receives. Typing and semantics stay apart: the certificate is used only to
+  have a typing of the elaborated graph, which the typed packed program
+  needs, and the steps on runs use no typing. The tree semantics is
+  stated one universe above the enumerations of the atom regressions, so
+  the two direct diamonds are declared again at that universe, with the
+  same blocks, rows, claims, rank and types, and the square is
+  instantiated on both, with the inferred table and with a table written
+  by hand; nothing is evaluated on a normalized, lowered or elaborated
+  graph. The square is not connected here to the ranked institution of
+  the atom regressions, whose arrows are about the table read back from
+  the elaborated graph: that needs the existing readback of that table
+  to be related to the packed program at this interface, which is a
+  separate statement.
+  [The source square](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemantics/Thms.lean) ·
+  [Proofs](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemantics.lean) ·
+  [Both diamonds](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemanticsRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
