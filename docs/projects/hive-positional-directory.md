@@ -70,3 +70,50 @@ the rows under explicit caller ordering. Lean checks the aligned
 python -I scripts/hive-positional-path-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet
 lake build --wfail +Silmaril.Formats.Hive.PartitionPath.Positional.Checks
 ```
+
+## Canonical bounded rendering
+
+[`Positional.render`](../../Silmaril/Formats/Hive/PartitionPath/Positional/Render/Defs.lean)
+takes the same ordered keys, encoding and options as the parser. Entries
+must match the key sequence exactly and pass the shared key validation.
+URI mode uses the shared uppercase percent encoder. It keeps underscores,
+escapes literal percent and delimiters, and encodes non-ASCII text as UTF-8.
+Literal mode keeps safe text as supplied, including equals, underscores,
+percent and non-ASCII characters. Encoded segments must be nonempty and
+may not contain slash, backslash, colon or NUL or equal `.` or `..`.
+The URI encoder leaves dots unescaped, so the special dot and dot-dot components
+are refused in either mode.
+
+This exact-arity formatter refuses null in any position, including a trailing
+one. It also refuses present text equal to the configured canonical Hive
+null marker so the output can be used with shared manifest admission.
+A different noncolliding marker permits that literal string. PyArrow reads
+that string as ordinary positional text. Zero declared keys and zero entries
+produce the empty directory.
+
+Byte caps apply to each encoded segment and the whole joined directory,
+including slash separators. The separate inventory bound applies to each
+complete path with its leaf. These are output size bounds. Validation checks
+the marker option, key order and shared key rules first, then encoded values
+left to right, and finally the joined directory size.
+
+`render_spec` proves that successful output parses to the original ordered
+entries, has exactly the declared segment count, and satisfies both byte caps.
+`parse_render_of_ok` gives the parser equality directly. The same shared
+ordered inventory accepts the rendered directories. Its existing
+`prepareInventoryWith_paths` law preserves supplied literal resolver keys,
+including escape case and the leaf spelling.
+
+The optional second argument to the pinned oracle is the output of
+[`Generate.lean`](../../scripts/hive-positional-path-oracle/Generate.lean).
+PyArrow reads actual Parquet bytes under these Lean-generated URI, literal,
+alternate-marker and zero-key directories. It checks the exact virtual
+values and all five physical rows, including null, empty and non-UTF-8
+binary payloads. Lean checks admission and actual snapshot reads with a
+second URI spelling that decodes identically but resolves at its own key.
+
+```sh
+lake build --wfail +Silmaril.Formats.Hive.PartitionPath.Positional.Render.Checks
+lake env lean -DautoImplicit=false -DwarningAsError=true --run scripts/hive-positional-path-oracle/Generate.lean > /tmp/positional-directories.txt
+python -I scripts/hive-positional-path-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet /tmp/positional-directories.txt
+```

@@ -92,3 +92,34 @@ with tempfile.TemporaryDirectory() as temp:
 print("PyArrow also accepts missing and extra segments, malformed percent text, and empty string slots.")
 print("Positional null formatting omits a trailing null and rejects a later key after a null.")
 print(f"CPython {sys.version.split()[0]}, PyArrow {pa.__version__}, NumPy {np.__version__}, fixture {digest}")
+
+if len(sys.argv) > 2:
+    rendered = Path(sys.argv[2]).read_text(encoding="utf-8").splitlines()
+    assert rendered == [
+        "caf%C3%A9%2Fblue%3D%255F%3Awest%5Cx/7",
+        "café=blue%5F_west/7",
+        "__HIVE_DEFAULT_PARTITION__/7",
+        "",
+    ]
+    for directory, profile, expected in zip(
+        rendered,
+        (uri, literal, uri, ds.DirectoryPartitioning(pa.schema([]))),
+        ("café/blue=%5F:west\\x", "café=blue%5F_west", marker, None),
+        strict=True,
+    ):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / directory / "part.parquet"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+            dataset = ds.dataset([str(target)], format="parquet", partitioning=profile,
+                                 partition_base_dir=str(root))
+            columns = ["ordinal", "payload"] + (["region", "year"] if expected is not None else [])
+            table = dataset.to_table(columns=columns, use_threads=False)
+            assert table.column_names == columns
+            assert table["ordinal"].to_pylist() == [-2147483648, 0, 17, 2147483647, -1]
+            assert table["payload"].to_pylist() == [None, b"", b"\xff\x00", b"\x80", b"xy"]
+            if expected is not None:
+                assert table["region"].to_pylist() == [expected] * 5
+                assert table["year"].to_pylist() == [7] * 5
+            print(f"Lean directory {directory!r}: five exact physical rows, region {expected!r}")

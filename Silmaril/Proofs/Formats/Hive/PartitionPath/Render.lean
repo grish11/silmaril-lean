@@ -68,6 +68,18 @@ private theorem splitOn_slash (value : String) :
   simpa [String.splitOn, List.splitOn_eq_splitOnP,
     show ("/" == "" : Bool) = false by decide] using splitOnAux_slash [] [] value.toList []
 
+theorem splitOn_slash_intercalate (first : String) (rest : List String)
+    (safe : ∀ segment ∈ first :: rest, '/' ∉ segment.toList) :
+    (String.intercalate "/" (first :: rest)).splitOn "/" = first :: rest := by
+  rw [splitOn_slash, String.toList_intercalate]
+  change ((['/'].intercalate ((first :: rest).map String.toList)).splitOn '/').map String.ofList = _
+  rw [List.splitOn_intercalate]
+  · simp
+  · intro piece member
+    obtain ⟨segment, included, rfl⟩ := List.mem_map.mp member
+    exact safe segment included
+  · simp
+
 private theorem encode_avoids (text : String) (sep : Char) (hsep : sep.toNat = 47 ∨ sep.toNat = 61) :
     sep ∉ (encode text).toList := by
   simp only [encode, Percent.encodeWith, String.toList_ofList, List.mem_map]
@@ -193,15 +205,7 @@ theorem parse_render_of_ok {options : Options} {entries : Partition} {directory 
         subst entries
         simp [parse, emptyMarker, validated, Except.bind]
       | cons first rest =>
-        have separated : (String.intercalate "/" (first :: rest)).splitOn "/" = first :: rest := by
-          rw [splitOn_slash, String.toList_intercalate]
-          change ((['/'].intercalate ((first :: rest).map String.toList)).splitOn '/').map String.ofList = _
-          rw [List.splitOn_intercalate]
-          · simp
-          · intro piece member
-            obtain ⟨segment, included, rfl⟩ := List.mem_map.mp member
-            exact (safe segment included).1
-          · simp
+        have separated := splitOn_slash_intercalate first rest (fun segment hit => (safe segment hit).1)
         have nonempty : (String.intercalate "/" (first :: rest)).isEmpty = false := by
           cases rest with
           | nil => simpa [String.isEmpty_iff] using (safe first (by simp)).2

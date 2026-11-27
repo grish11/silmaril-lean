@@ -44,6 +44,12 @@ theorem parse_lookup {options : Options} {path : String} {entries : Partition}
       ∀ key ∈ options.requiredKeys, ∃ value, lookup key entries = some value :=
   Proofs.Formats.Hive.PartitionPath.parse_lookup h
 
+/-- Joining slash-free segments and splitting on slash recovers every component. -/
+theorem splitOn_slash_intercalate (first : String) (rest : List String)
+    (safe : ∀ segment ∈ first :: rest, '/' ∉ segment.toList) :
+    (String.intercalate "/" (first :: rest)).splitOn "/" = first :: rest :=
+  Proofs.Formats.Hive.PartitionPath.splitOn_slash_intercalate first rest safe
+
 /-- A successfully rendered directory parses back to the exact ordered entries
 under the same path options, including explicit nulls and empty text. -/
 theorem parse_render_of_ok {options : Options} {entries : Partition} {directory : String}
