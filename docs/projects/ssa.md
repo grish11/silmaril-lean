@@ -2012,11 +2012,55 @@ The continuation cannot jump back to its own label.
   by hand; that table keeps the entry though it is not closed, so
   closure is sufficient and not necessary. The typed
   witness is supplied. Nothing is claimed for graphs with cycles beyond
-  the validity of the table, and nothing says that the inferred table
-  is closed for every acyclic graph.
+  the validity of the table. The next item says when the inferred table
+  is closed.
   [Demand and the inferred table](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Demand/Defs.lean) ·
   [The inferred table is valid](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Demand/Thms.lean) ·
   [The direct diamond, inferred](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- The inferred table is closed under three checked conditions, and not
+  under the existing scope check and a rank alone. The demand of a block
+  leaves out every register the block defines, wherever the definition
+  is. A block may read a register before it defines it, or on one arm of
+  a case and define it on the other, when its arrival claim lists the
+  register; the existing check accepts such a claim for a block that
+  nothing jumps to, since no edge has to supply it. Two small graphs of
+  this kind are accepted by the existing check, ranked and saturated,
+  and their inferred tables are not closed and do not keep the entry:
+  the record on the edge from the entry carries the masked register. The
+  conditions are these. The existing ordered-exit check accepts the
+  graph with some arrival claims. Every block has a claim, and it lists
+  no register that the block defines. One more round of demand changes
+  no demand. The second and third are new decidable checks, and a rank
+  on the labels, below the number of blocks and lowered by every jump
+  from a block to a block, gives the third. Under them the inferred
+  table is closed, so by the previous item the lowered and versioned
+  entry reads the declared inputs only. The proof is edge by edge. Every
+  demand is within the arrival claim of its block, by induction on the
+  rounds. On a route of a block that passes the existing check, what the
+  route needs, counting what its target is given, is within the claim of
+  the block; by the condition on claims it is not defined in the block,
+  so it is an input, a φ destination of the block or in its demand. In
+  the normalized graph the block has a copy of everything in its demand,
+  and the φ operands on each of its edges are the original operands and
+  what the target is given, as the block reads them; so every route
+  passes the check from the inputs, the φ destinations and the copies.
+  The normalized graph is also a normalized φ graph with single
+  definitions, and collapsing the exits commutes with the normalization.
+  The middle step is stated for any table: the normalized graph passes
+  the scope check when the entry needs inputs only and each block needs
+  only inputs, its φ destinations and what it receives. On the direct
+  diamond and the changed-operand variant the three conditions are
+  evaluated and the closed check is not; the masked graphs fail the
+  condition on claims. These are statements about scope. The check of
+  the normalization and the preservation of the run hold for every graph
+  with distinct labels and are not used here, and nothing here says that
+  the lowered graph elaborates or is typed at given captures. The
+  condition on claims is sufficient; it is not shown necessary, and it
+  is not derived from the existing check for graphs in which every block
+  is reached from the entry.
+  [Conditions](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Closure/Defs.lean) ·
+  [The inferred table is closed](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Closure/Thms.lean) ·
+  [Counterexamples and the diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,

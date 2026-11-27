@@ -5,7 +5,7 @@ import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Reverse.Flat.Fragm
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Defs
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Reverse.Defs
 import Silmaril.SSA.Isotope.LetCase.Administrative.Thms
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Demand.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Closure.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
 
@@ -2331,12 +2331,38 @@ example {M : Type → Type} {α : Type} [Monad M] [LawfulMonad M] [Elgot.Iterate
   Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.run_infer model (phiDirect incoming) phiExits phiInputs (phiDirect_labels incoming)
     input
 
-/-- Every block of the normalized graph is closed over the two inputs:
-the existing check accepts it when every block arrives with the inputs
-only. -/
+/-- The arrival claims of the direct graph. No claim lists a register that
+its block defines. -/
+private abbrev phiDirectArrivals : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.GlobalSSA.Certificate PhiReg Lbl :=
+  [(.classify, [.earlier, .s]), (.reply, [.s, .a]), (.payload, [.s, .b]), (.join, [.s]),
+    (.leaf, [.u, .f])]
+
+/-- A rank of the blocks of the direct graph: every jump from a block to
+a block lowers it. -/
+private def phiRank : Lbl → Nat
+  | .classify => 4
+  | .reply => 3
+  | .payload => 3
+  | .join => 2
+  | .leaf => 1
+  | _ => 0
+
+/-- Every block of the normalized graph is closed over the two inputs, by
+the theorem for inferred tables: the existing check accepts the direct
+graph with its claims, no claim lists a register that its block defines,
+and the graph is ranked. The closed check itself is not evaluated. -/
 private theorem phiInferred_closed (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
-    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed (phiDirect incoming) (phiInferred incoming) phiExits phiInputs = true := by
-  rcases h with rfl | rfl <;> decide +kernel
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed (phiDirect incoming) (phiInferred incoming) phiExits phiInputs = true :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed_infer_of_ranked (phiDirect incoming) phiExits phiInputs phiDirectArrivals
+    phiRank (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel)
+
+/-- The demand of the direct graph is saturated, by its rank. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.saturated (phiDirect incoming) phiExits phiInputs = true :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.saturated_of_ranked (phiDirect incoming) phiExits phiInputs phiRank
+    (by rcases h with rfl | rfl <;> decide +kernel)
 
 /-- The entry is kept, by the theorem for closed tables: the lowered and
 versioned entry reads no register at its initial version except the two
@@ -2682,5 +2708,64 @@ closed. -/
 example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed
     (⟨.let1 .later (.app .pick (.var .later)) (.term (.br (some .done) (.var .later))), []⟩ :
       Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op) [] phiExits [.later] = false := by decide +kernel
+
+/-! ## The inferred table is not always closed
+
+The existing check with arrival claims and a rank do not make the
+inferred table closed. The demand of a block leaves out every register
+that the block defines. In the two graphs below a block that nothing
+jumps to reads a register that it also defines: before the definition in
+the first, on the other arm of a case in the second. Its arrival claim
+lists the register, and the existing check accepts the claim because no
+edge has to supply it. The demand misses the register, the normalized
+graph is not closed, and the entry is not kept: the record on the edge
+from the entry carries the register.
+
+The condition on claims rejects both: the claim lists a register that
+its block defines. -/
+
+/-- `leaf` reads `u` and then defines `u`. -/
+private def maskedBefore : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op :=
+  ⟨.term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .join),
+    [(.join, ⟨[], .term (.br (some .done) .unit)⟩),
+     (.leaf, ⟨[], .let1 .x (.val (.var .u))
+        (.let1 .u (.val .unit) (.term (.br (some .done) (.var .x))))⟩)]⟩
+
+/-- `leaf` reads `u` on the arm of a case that does not define it. -/
+private def maskedSibling : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op :=
+  ⟨.term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .join),
+    [(.join, ⟨[], .term (.br (some .done) .unit)⟩),
+     (.leaf, ⟨[], .term (.case (.val (.var .s))
+        .u (.br (some .done) (.var .u)) .q (.br (some .done) (.var .u)))⟩)]⟩
+
+/-- The existing check accepts the first graph, which is ranked and
+saturated, and the inferred table is not closed and does not keep the
+entry. -/
+example :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.check maskedBefore phiExits [] [(.join, []), (.leaf, [.u])] = true ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.ranked maskedBefore (fun _ => 0) = true ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.saturated maskedBefore phiExits [] = true ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer maskedBefore phiExits [] = [(.join, []), (.leaf, [])] ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed maskedBefore (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer maskedBefore phiExits []) phiExits [] =
+      false ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept maskedBefore (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer maskedBefore phiExits []) [] = false := by
+  decide +kernel
+
+/-- The same for the second graph, where the stored reply is declared. -/
+example :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.check maskedSibling phiExits [.s] [(.join, []), (.leaf, [.s, .u])] = true ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.ranked maskedSibling (fun _ => 0) = true ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.saturated maskedSibling phiExits [.s] = true ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer maskedSibling phiExits [.s] = [(.join, []), (.leaf, [])] ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed maskedSibling (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer maskedSibling phiExits [.s]) phiExits
+      [.s] = false ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept maskedSibling (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer maskedSibling phiExits [.s]) [.s] =
+      false := by
+  decide +kernel
+
+/-- The condition on claims rejects both. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.claimed maskedBefore [(.join, []), (.leaf, [.u])] = false ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.claimed maskedSibling [(.join, []), (.leaf, [.s, .u])] = false := by
+  decide +kernel
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
