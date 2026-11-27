@@ -107,10 +107,11 @@ python3 scripts/parquet-legacy-to-ipc-oracle/check.py "$fixture_tmp"
 event scan before exporting. The predicate sees both source cells, including
 nulls, before positional projection. The existing native writers cover any
 INT32-only projection, including repeated INT32 and zero fields, one
-BinaryView field, and one INT32 plus one BinaryView in either order. Other
-shapes within the IPC field limit return `.unsupportedProjection` with the
-ordered projected labels. IPC budgets apply to the filtered rows, including
-rows in zero-column batches.
+BinaryView field, and one INT32 plus one BinaryView in either order. Two
+BinaryView selections can appear alone or with one INT32 in any position.
+Other shapes within the IPC field limit return `.unsupportedProjection`
+with the ordered projected labels. IPC budgets apply to the filtered rows,
+including rows in zero-column batches.
 
 Successful conversion certifies the IPC schema and each ordered batch
 against the scan's counts and nullable cells by checked readback, with
@@ -128,9 +129,21 @@ for the ordinal predicate, `[118, 0, 118]` for the nullable payload-length
 predicate including a zero-column result, and `[0, 0, 0]` when all rows are
 discarded. It also checks typed refusals and the original late error.
 
+The two-view writer emits one count word per BinaryView ordinal, including
+zero for a view with only inline or null values. Each column has its own
+validity, views and data buffers. `TwoBinaryViews.compile_binary_wire` gives
+the local slot readback and `TwoBinaryViews.record_wire` ties the packed bytes
+and counts to the checked field order and descriptor ranges. The comparator
+checks two selected copies of the opaque Parquet column alone and next to
+INT32 in every position. A standalone stream feeds distinct short and long
+Parquet values to each view and observes count vectors `[0, 1]`, `[1, 0]`
+and `[0, 0]`, with the last vector belonging to an explicit empty batch.
+Three view selections still receive a typed refusal.
+
 ```sh
 lake build --wfail +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Checks \
-  +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan.Checks
+  +Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan.Checks \
+  +Silmaril.Formats.Arrow.MixedFlat.TwoBinaryViews.Checks
 fixture_tmp=$(mktemp -d)
 python3 scripts/parquet-legacy-to-ipc-oracle/check_scan.py "$fixture_tmp"
 ```

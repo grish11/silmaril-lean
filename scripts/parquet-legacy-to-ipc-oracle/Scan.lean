@@ -5,6 +5,7 @@ meta import Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan.Defs
 
 open Silmaril Silmaril.Formats Silmaril.Relational
 open Silmaril.Formats.Parquet.Int32ByteArrayGroup
+open Silmaril.Formats.Arrow.MixedFlat
 open Silmaril.Formats.Parquet
 open Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.ToIpc.Scan
 
@@ -37,6 +38,39 @@ private def convertNamed (input : Bytes) (positions : List Nat) (keep : Predicat
     (ipc : Arrow.MixedFlat.Limits := {}) : Except Legacy.ToIpc.Scan.Error KBytes :=
   convert {} ipc input "ordinal" "payload" (project positions) keep
 
+private def independentViews (directory : System.FilePath) : IO Unit := do
+  let input ← load directory "opaque"
+  let .ok checked := Legacy.openFile {} input "ordinal" "payload" |
+    throw (IO.userError "could not bind the independent-view fixture")
+  let .ok first := Legacy.readGroup checked 0 | throw (IO.userError "missing first opaque group")
+  let .ok last := Legacy.readGroup checked 2 | throw (IO.userError "missing last opaque group")
+  let some short := first[0]?.bind Prod.snd | throw (IO.userError "missing short opaque slot")
+  let some long := last[372]?.bind Prod.snd | throw (IO.userError "missing long opaque slot")
+  let toWire := fun (bytes : Bytes) => Arrow.Writer.emitWords 1 (bytes.toList.map UInt8.toNat)
+  let short := toWire short
+  let long := toWire long
+  let batch := fun (rows : Nat) left right =>
+    (⟨rows, [.binary "left" true left, .binary "right" true right]⟩ : TwoBinaryViews.BatchInput)
+  let batches := [batch 2 [some short, none] [some long, some long], batch 2 [some long, none]
+    [some short, some KBytes.empty], batch 0 [] []]
+  let fields := (batch 0 [] []).fields
+  let limits : Arrow.MixedFlat.Limits := {}
+  let .ok wire := TwoBinaryViews.emit limits fields batches |
+    throw (IO.userError "standalone two-view writer rejected distinct inputs")
+  let .ok observed := Stream.read limits wire | throw (IO.userError "rejected two-view stream")
+  unless observed.batches.map (·.observed.rowCount) == [2, 2, 0] do
+    throw (IO.userError "wrong independent view rows")
+  let layouts ← observed.batches.mapM fun record => do
+    let .ok metadata := Arrow.MixedFlat.readMetadata limits.observation.ipc limits.view.dataBuffers
+        limits.totalDataBuffers fields (record.range.metadataSlice wire) |
+      throw (IO.userError "rejected independent count vector")
+    let .ok plan := Arrow.MixedFlat.bindBatch limits fields metadata (record.range.bodySlice wire) |
+      throw (IO.userError "rejected independent descriptor ranges")
+    return (plan.assignment.groups.map Group.count, plan.assignment.groups.map (·.buffers.length))
+  unless layouts == [([some 0, some 1], [2, 3]), ([some 1, some 0], [3, 2]), ([some 0, some 0], [2, 2])] do
+    throw (IO.userError "wrong independent count ordinals or descriptor widths")
+  IO.FS.writeBinFile (directory / "independent-views.arrows") wire.toByteArray
+
 public def main (args : List String) : IO Unit := do
   let [path] := args | throw (IO.userError "expected the fixture directory")
   let directory := System.FilePath.mk path
@@ -47,7 +81,12 @@ public def main (args : List String) : IO Unit := do
     ("paired-by-payload", [0, 1], byPayload),
     ("repeated-int32", [0, 0], byPayload),
     ("zero-width", [], byPayload),
-    ("discard-all", [1, 0], discard)]
+    ("discard-all", [1, 0], discard),
+    ("two-views", [1, 1], byOrdinal),
+    ("int-first", [0, 1, 1], byPayload),
+    ("int-middle", [1, 0, 1], byOrdinal),
+    ("int-last", [1, 1, 0], byPayload),
+    ("two-views-discard-all", [1, 0, 1], discard)]
   for name in ["original", "opaque"] do
     let input ← load directory name
     for (label, positions, keep) in cases do
@@ -56,16 +95,21 @@ public def main (args : List String) : IO Unit := do
       | .ok wire => IO.FS.writeBinFile (directory / s!"{name}-{label}.arrows") wire.toByteArray
   let original ← load directory "original"
   let .error (.unsupportedProjection [("payload", .byteArray .optional),
-      ("ordinal", .int32 .required), ("payload", .byteArray .optional)]) :=
-    convertNamed original [1, 0, 1] discard |
-    throw (IO.userError "expected a typed refusal for repeated BinaryView")
+      ("payload", .byteArray .optional), ("payload", .byteArray .optional)]) :=
+    convertNamed original [1, 1, 1] discard |
+    throw (IO.userError "expected a typed refusal for three BinaryView fields")
+  let singleDataBuffer : Arrow.MixedFlat.Limits := { totalDataBuffers := 1 }
+  let .error (.twoViewWriter (.record 0 (.metadata .totalDataBufferLimit))) :=
+    convertNamed original [1, 0, 1] byOrdinal singleDataBuffer |
+    throw (IO.userError "both projected views must count their independent data buffer")
   let lowIpc : Arrow.MixedFlat.Limits := { observation := { totalRows := 0 } }
   let .error (.budget (.limit .totalRows)) := convertNamed original [] byPayload lowIpc |
     throw (IO.userError "zero-width rows must still count toward the IPC budget")
   let damaged ← load directory "damaged"
-  for positions in [[], [1, 0], [1, 0, 1]] do
+  for positions in [[], [1, 0], [1, 1], [1, 0, 1], [1, 1, 1]] do
     let .error (.source (.byteArray (.page 2 1 "payload" 19 21009
         (.decode (.plain (.plain .integerOverflow)))))) :=
       convertNamed damaged positions discard lowIpc |
       throw (IO.userError "late indexed failure must prevent a carrier before projection and writer refusal")
-  IO.println "Lean: projected native streams, repeated BinaryView refusal, zero-width budget and late source precedence passed"
+  independentViews directory
+  IO.println "Lean: projected streams, two independent view ranges, budgets and late source precedence passed"

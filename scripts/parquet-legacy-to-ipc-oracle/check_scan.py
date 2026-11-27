@@ -42,6 +42,11 @@ cases = [
     ("repeated-int32", [0, 0], by_payload),
     ("zero-width", [], by_payload),
     ("discard-all", [1, 0], lambda *_: False),
+    ("two-views", [1, 1], by_ordinal),
+    ("int-first", [0, 1, 1], by_payload),
+    ("int-middle", [1, 0, 1], by_ordinal),
+    ("int-last", [1, 1, 0], by_payload),
+    ("two-views-discard-all", [1, 0, 1], lambda *_: False),
 ]
 
 for name in ("original", "opaque"):
@@ -66,11 +71,11 @@ for name in ("original", "opaque"):
                 expected_batches.append(pa.record_batch([pa.nulls(len(survivors))], names=["unused"]).select([]))
         counts = [batch.num_rows for batch in expected_batches]
         assert len(counts) == 3 and counts[1] == 0
-        if label == "discard-all":
+        if label.endswith("discard-all"):
             assert counts == [0, 0, 0]
         else:
             assert counts[0] > 0 and counts[2] > 0
-        if label == "payload-by-ordinal":
+        if label in ("payload-by-ordinal", "two-views", "int-middle"):
             assert None in expected_batches[0].column(0).to_pylist()
             if name == "opaque":
                 assert b"\xff\x00peat-a" in expected_batches[0].column(0).to_pylist()
@@ -87,3 +92,18 @@ for name in ("original", "opaque"):
                 assert batch.equals(expected, check_metadata=True)
             assert carrier.tell() == len(wire)
         print(f"{sha256(wire).hexdigest()}  {filename}  {counts}")
+
+with pq.ParquetFile(out / "opaque.parquet") as source:
+    short = source.read_row_group(0, columns=["payload"]).column(0)[0].as_py()
+    long = source.read_row_group(2, columns=["payload"]).column(0)[372].as_py()
+assert short == b"\xff\x00peat-a" and long.startswith(b"\x00\xfe") and len(long) > 12
+wire = (out / "independent-views.arrows").read_bytes()
+assert wire[-8:] == b"\xff\xff\xff\xff\x00\x00\x00\x00"
+carrier = pa.BufferReader(wire)
+with pa.ipc.open_stream(carrier) as reader:
+    assert reader.schema == pa.schema([pa.field("left", pa.binary_view()), pa.field("right", pa.binary_view())])
+    assert [[batch.column(i).to_pylist() for i in range(2)] for batch in reader] == [
+        [[short, None], [long, long]], [[long, None], [short, b""]], [[], []],
+    ]
+    assert carrier.tell() == len(wire)
+print(f"{sha256(wire).hexdigest()}  independent-views.arrows  [2, 2, 0]")

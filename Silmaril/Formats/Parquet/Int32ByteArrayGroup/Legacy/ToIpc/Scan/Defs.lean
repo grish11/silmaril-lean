@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Arrow.BinaryView.StreamWriter.Defs
 public import Silmaril.Formats.Arrow.MixedFlat.StreamWriter.Defs
+public import Silmaril.Formats.Arrow.MixedFlat.TwoBinaryViews.Defs
 public import Silmaril.Formats.Parquet.Int32ByteArrayGroup.Legacy.Defs
 
 /-! Export the completed checked legacy scan through the existing native writers. -/
@@ -26,6 +27,7 @@ inductive Error where
   | primitiveWriter (cause : Arrow.Error)
   | binaryWriter (cause : Arrow.BinaryView.StreamWriter.Error)
   | mixedWriter (cause : StreamWriter.Error)
+  | twoViewWriter (cause : TwoBinaryViews.Error)
   | readback (cause : Stream.Error)
   | readbackMismatch
   deriving DecidableEq, Repr
@@ -89,6 +91,13 @@ private def emitPrimitive (ipc : Arrow.MixedFlat.Limits) (selected : Schema)
     return (⟨batch.rowCount, named⟩ : Arrow.Writer.BatchInput)
   (Arrow.StreamWriter.emit ipc.observation fields inputs).mapError .primitiveWriter
 
+private def twoViewBatch {selected : Schema} (batch : Batch selected) : TwoBinaryViews.BatchInput :=
+  ⟨batch.rowCount, List.ofFn fun index =>
+    let label := field (selected.kind index)
+    match column batch index with
+    | .int32 values => .int32 label.name label.nullable values
+    | .binary values => .binary label.name label.nullable (binaryValues values)⟩
+
 def serialize (ipc : Arrow.MixedFlat.Limits) (selected : Schema)
     (batches : List (Batch selected)) : Except Error KBytes := do
   if selected.width > ipc.observation.ipc.fields then throw (.budget (.limit .fields))
@@ -103,7 +112,11 @@ def serialize (ipc : Arrow.MixedFlat.Limits) (selected : Schema)
     emitMixed ipc ⟨.intFirst, int, i == .optional, view, b == .optional⟩ (inputs ()) bad
   | [(view, .byteArray b), (int, .int32 i)] =>
     emitMixed ipc ⟨.viewFirst, int, i == .optional, view, b == .optional⟩ (inputs ()) bad
-  | _ => emitPrimitive ipc selected batches bad
+  | _ =>
+    let nativeFields := fields selected
+    if TwoBinaryViews.supported nativeFields then
+      (TwoBinaryViews.serialize ipc nativeFields (batches.map twoViewBatch)).mapError .twoViewWriter
+    else emitPrimitive ipc selected batches bad
 
 /-- Certify every supported writer's output against the same ordered observation. -/
 @[expose] def emit (ipc : Arrow.MixedFlat.Limits) (selected : Schema) (batches : List (Batch selected)) :
