@@ -69,8 +69,9 @@ Every row of `d.router` is labelled, so the table is `Tidy`.
 
 * Recognition of syntax is in `Read/Thms.lean`: a reader from scoped flat
   graphs to `PollTable` that accepts exactly the graphs `d.flat`.
-* More than two blocks. The reduction of the readback uses the two-row
-  lemma of #5314 and the packed state `States 1`.
+* More than two blocks in this grammar. `Tags/Thms.lean` has the
+  reduction for any number of blocks from a certificate, and a cycle of
+  three blocks.
 * Request-free blocks (silent forwarding), a block that uses the captured
   input, a reply branch that sends a constant or a computed Bit, an entry
   other than a jump with the input, and more than one exit.
