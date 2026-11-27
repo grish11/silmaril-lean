@@ -37,21 +37,38 @@ used. The entry of the versioned lowering is the versioned entry at the
 initial versions, so it is typed in the canonical typing.
 
 The canonical typing is not a typing of a whole versioned block. A block
-first takes its packet apart, decodes the φ operands and unpacks the
-record, and the names it binds on the way hold the rest of a tuple: the
+first takes its packet apart, unpacks the record and decodes the φ
+operands, and the names it binds on the way hold the rest of a tuple: the
 packet register at several versions, and one more version of every
 register of the record. The statement for bodies is for any typing that
-is canonical from some depth on, so that a typing of the block which is
-canonical after its prefix can use it.
+is canonical from some depth on.
 
-What remains for the typed elaboration is `Task.certifiedChecks`. Two
-things are not proved: that the prefix of a versioned block is typed
-from the computed packet type and leaves the current versions at their
-declared types; and that the elaboration to positional terms turns the
-named typing into the typing check of the elaborated graph. Given the
-open statement, the typed elaboration returns the elaborated graph at the
-computed packet types; with the theorem on closed tables no elaboration
-is assumed.
+A whole versioned block is typed in `blockTyping`, which is explicit. The
+packet has the computed packet type. The temporaries have the types of
+what remains: a version of the packet register has the type of the rest
+of the φ operands, and an even version of a source register, from `4` to
+twice the length of the record plus `2`, has the type of the rest of the
+record. Every other version of a source register has its declared type.
+The temporaries do not touch what the body needs. After the prefix, the
+current version of a source register is its initial version, the odd
+version at which the record gave it, or a version above the record at
+which a φ row gave it; and the body binds above all of them. At each of
+these the typing gives the declared type. So the theorem for bodies
+applies after the prefix.
+
+No freshness or distinctness is assumed. The registers of a record need
+not be distinct and the φ destinations need not be distinct or apart from
+the record: every binder of the prefix has its own version, and a name is
+a register with a version. A typing by name can go wrong only if one
+name is bound at two types, and the versioning never binds a name twice
+in a block.
+
+What remains for the typed elaboration is `Task.certifiedChecks`. One
+thing is not proved: that the elaboration to positional terms turns the
+named typing of the versioned entry and blocks into the typing check of
+the elaborated graph. Given the open statement, the typed elaboration
+returns the elaborated graph at the computed packet types; with the
+theorem on closed tables no elaboration is assumed.
 -/
 
 public section
@@ -196,6 +213,45 @@ theorem block_body_typed (graph : Graph V K F) (types : V → Ty Base)
   simp only [certified, Bool.and_eq_true, List.all_eq_true] at certificate
   exact body_version_canon graph types exitType (some item.1) live item.2.body cur depth
     (certificate.2 item member)
+
+omit [DecidableEq Base] [HasTy F (Ty Base)] in
+/-- The packet of a versioned block has the computed packet type, which
+is the product of the types of its two parts. -/
+theorem blockTyping_packet (graph : Graph V K F) (types : V → Ty Base) (key : K)
+    (block : Block V K F) :
+    blockTyping graph types key block (none, 0) = packetType graph types key block ∧
+      packetType graph types key block =
+        .product (blockTyping graph types key block (none, 1))
+          (blockTyping graph types key block (none, 2)) :=
+  ⟨rfl, rfl⟩
+
+omit [DecidableEq Base] [HasTy F (Ty Base)] in
+/-- The temporaries of the prefix do not touch the versions that the body
+uses: a source register has its declared type at its initial version, at
+every odd version, and at every version above the record. -/
+theorem blockTyping_source (graph : Graph V K F) (types : V → Ty Base) (key : K)
+    (block : Block V K F) (register : V) (version : Nat)
+    (side : version % 2 = 1 ∨ version < 4 ∨
+      2 + 2 * (Versioning.slots (Phi.OrderedExits.lower graph)
+        (Phi.OrderedExits.lowerBlock graph key block)).length < version) :
+    blockTyping graph types key block (some register, version) = types register := by
+  simp only [blockTyping]
+  split
+  · omega
+  · rfl
+
+/-- A versioned block of the lowering of a certified graph is typed in
+its block typing, from its packet at the computed packet type. This is
+the block that the versioning produces: the prefix that takes the packet
+apart, unpacks the record and decodes the φ operands, and the versioned
+body. -/
+theorem block_typed (graph : Graph V K F) (types : V → Ty Base) (exitType : Option K → Ty Base)
+    (certificate : certified graph types exitType = true) (item : K × Block V K F)
+    (member : item ∈ graph.blocks) :
+    regionTyped (blockTyping graph types item.1 item.2) (targetType graph types exitType)
+      (Versioning.compileBlock (Phi.OrderedExits.lower graph)
+        (Phi.OrderedExits.lowerBlock graph item.1 item.2)).body.toRegion = true :=
+  block_typed_proof graph types exitType certificate item member
 
 /-- Given the open statement, the typed elaboration of the lowering of a
 certified φ graph returns the elaborated graph at the computed packet

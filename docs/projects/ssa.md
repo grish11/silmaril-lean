@@ -2166,9 +2166,10 @@ The continuation cannot jump back to its own label.
   operands and unpacks the record, and the names it binds there hold the
   rest of a tuple. The theorem is stated for any typing that is
   canonical from some depth on, so that a typing of the block can use it
-  after the prefix. Two parts of the open statement remain: the prefix
-  of a versioned block from the computed packet type, and the transport
-  of the named typing to the typing check of the elaborated graph. The
+  after the prefix. Two parts of the open statement remained: the prefix
+  of a versioned block from the computed packet type, which the next
+  item proves, and the transport of the named typing to the typing check
+  of the elaborated graph. The
   open statement itself was probed for a missing hypothesis, with a
   capture bound again, repeated captures, the packet register as a
   capture, a φ destination that is also a capture and a binder, repeated
@@ -2179,6 +2180,40 @@ The continuation cannot jump back to its own label.
   [Named typing](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Defs.lean) ·
   [The versioned bodies](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Thms.lean) ·
   [Both diamonds, versioned](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- A whole versioned block of a certified φ graph is typed, from its
+  packet at the computed packet type. The block is the one the
+  versioning produces. Its prefix takes the packet apart into the φ
+  operands and the record, unpacks the record, and decodes the φ
+  operands; its body is the versioned body. The typing of its names is
+  explicit. The packet has the computed packet type, which is the
+  product of the types of its two parts. Unpacking the record binds, for
+  the register at position `i` of the layout, the register at version
+  `2 i + 3` and, at version `2 i + 4`, the rest of the record; decoding
+  binds, after a record of length `m`, the destination of row `j` at
+  version `2 m + 2 j + 3` and the packet register at version
+  `2 m + 2 j + 4` for the rest of the operands. So a version of the
+  packet register has the type of what remains of the operands, an even
+  version of a source register from `4` to `2 m + 2` has the type of
+  what remains of the record, and every other version of a source
+  register has its declared type. The temporaries do not touch what the
+  body needs: after the prefix the current version of a source register
+  is its initial version, an odd version from the record, or a version
+  above the record from a φ row, and the body binds above all of them;
+  at each of these the typing gives the declared type, so the theorem
+  for bodies applies. No freshness or distinctness is assumed. The
+  registers of a record need not be distinct, and the φ destinations
+  need not be distinct or apart from the record or from the binders of
+  the body: every binder of the prefix has its own version, and a name
+  is a register with a version. The one part of the open statement that
+  remains is the transport from the named typing of the versioned entry
+  and blocks to the typing check of the elaborated positional graph. On
+  the diamonds, with both tables and with explicit rows, every versioned
+  block is typed by the theorem; a graph in which one register is a
+  capture, the φ destination of a block, a register of its record and a
+  binder of its body is typed in the same way.
+  [Block typing](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Defs.lean) ·
+  [Whole blocks](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Thms.lean) ·
+  [Diamonds and overlapping names](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,

@@ -3009,8 +3009,8 @@ example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a)
 
 /-- The canonical typing is not a typing of a whole versioned block. A
 block first takes its packet apart and unpacks its record, and the names
-it binds there hold the rest of a tuple. This is the part that is not
-proved yet. -/
+it binds there hold the rest of a tuple. The block typing below types
+them. -/
 example : ((Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e))).blocks.map
     fun item => Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
       (Bridge.NamedFlat.Phi.SourceTyping.targetType (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType)
@@ -3033,5 +3033,103 @@ example : Bridge.NamedFlat.Phi.SourceTyping.certified rebound phiTypes phiExitTy
       fun target => Bridge.NamedFlat.check target older (Bridge.NamedFlat.Phi.SourceTyping.internal rebound phiTypes)
         (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType)) = true := by
   decide +kernel
+
+/-! ## Whole versioned blocks are typed
+
+Each versioned block is typed in its block typing, with its packet at the
+computed packet type, by the theorem for certified graphs. The blocks
+are those that the versioning produces; nothing is evaluated but the
+certificate. -/
+
+/-- Every versioned block of both diamonds with the inferred table. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a)
+    (item : Lbl × Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Block (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) Lbl Op)
+    (member : item ∈ (phiDemanded incoming).blocks) :
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped
+      (Bridge.NamedFlat.Phi.SourceTyping.blockTyping (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) item.1 item.2)
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType)
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compileBlock (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming))
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lowerBlock (phiDemanded incoming) item.1 item.2)).body.toRegion =
+      true :=
+  Bridge.NamedFlat.Phi.SourceTyping.block_typed (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
+    (phiDemanded_certified incoming h) item member
+
+/-- The same for the table written by hand and for the graph with explicit
+rows. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a)
+    (item : Lbl × Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Block (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) Lbl Op)
+    (member : item ∈ (phiForwarded incoming).blocks) :
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped
+      (Bridge.NamedFlat.Phi.SourceTyping.blockTyping (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) item.1 item.2)
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType)
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compileBlock (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiForwarded incoming))
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lowerBlock (phiForwarded incoming) item.1 item.2)).body.toRegion =
+      true :=
+  Bridge.NamedFlat.Phi.SourceTyping.block_typed (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
+    (by rcases h with rfl | rfl <;> decide +kernel) item member
+
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .ra)
+    (item : Lbl × Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Block PhiReg Lbl Op) (member : item ∈ (phi incoming).blocks) :
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.blockTyping (phi incoming) phiTypes item.1 item.2)
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType (phi incoming) phiTypes phiExitType)
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compileBlock (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phi incoming))
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lowerBlock (phi incoming) item.1 item.2)).body.toRegion = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.block_typed (phi incoming) phiTypes phiExitType
+    (by rcases h with rfl | rfl <;> decide +kernel) item member
+
+/-- The blocks of the versioned lowering are these blocks, in order, and
+the packet of each has the computed packet type. -/
+example : (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e))).blocks =
+    (phiDemanded .e).blocks.map fun item =>
+      (some item.1, Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compileBlock (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e))
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lowerBlock (phiDemanded .e) item.1 item.2)) := by
+  simp [Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile, Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower, List.map_map, Function.comp_def]
+
+/-- Evaluated on the diamond: all five compiled blocks are typed in their
+block typings, where the canonical typing typed none. -/
+example : ((phiDemanded .e).blocks.map fun item =>
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped
+      (Bridge.NamedFlat.Phi.SourceTyping.blockTyping (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) item.1 item.2)
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType)
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compileBlock (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e))
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lowerBlock (phiDemanded .e) item.1 item.2)).body.toRegion) =
+    [true, true, true, true, true] := by
+  decide +kernel
+
+/-! ## Overlapping names in a block
+
+No freshness or distinctness is needed for the block typing. In the graph
+below one register is a capture, the φ destination of the block, a
+register of the record of the block, and a binder of its body. The
+certificate holds and the versioned block is typed by the theorem; the
+elaborated graph also passes the typing check at the computed packet
+types. -/
+
+private def overlap : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op :=
+  ⟨.term (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.br .join),
+    [(.join, ⟨[⟨.later, [(none, .var .later)]⟩],
+      .let1 .later (.app .echo (.var .later))
+        (.term (.br (some .done) (.pair (.var .later) (.var .earlier))))⟩)]⟩
+
+private theorem overlap_certified : Bridge.NamedFlat.Phi.SourceTyping.certified overlap phiTypes phiExitType = true := by
+  decide +kernel
+
+example (item : Lbl × Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Block PhiReg Lbl Op) (member : item ∈ overlap.blocks) :
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.blockTyping overlap phiTypes item.1 item.2)
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType overlap phiTypes phiExitType)
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compileBlock (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower overlap)
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lowerBlock overlap item.1 item.2)).body.toRegion = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.block_typed overlap phiTypes phiExitType overlap_certified item member
+
+example : ((Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower overlap) phiExits phiCaptures).any
+    fun target => Bridge.NamedFlat.check target older (Bridge.NamedFlat.Phi.SourceTyping.internal overlap phiTypes)
+      (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType)) = true := by
+  decide +kernel
+
+/-- The entry of `rebound`, which has no block, is typed in the canonical
+typing. -/
+example : Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon phiTypes) (Bridge.NamedFlat.Phi.SourceTyping.targetType rebound phiTypes phiExitType)
+    (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower rebound)).entry.toRegion = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.entry_typed rebound phiTypes phiExitType (by decide +kernel)
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
