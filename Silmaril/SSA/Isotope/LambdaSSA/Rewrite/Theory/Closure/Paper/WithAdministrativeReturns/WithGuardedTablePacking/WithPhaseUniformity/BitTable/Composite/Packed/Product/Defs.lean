@@ -17,8 +17,7 @@ rows: a tagged sum of two Bits.
 
 `pairBody l` is a step written on pairs, `pairRouter l` the router table
 it corresponds to, and `Task.pairStep l` the equation between the
-conjugated body and the dispatcher step of that table. That equation is
-open: it is stated here and not proved.
+conjugated body and the dispatcher step of that table.
 -/
 
 @[expose] public section
@@ -130,8 +129,8 @@ def pairRouter (l : Bool) : Router 1 := Router.ofLabels (fun _ => l) pairAct
 
 namespace Task
 
-/-- Open: the body on pairs, conjugated by the encoding, is the dispatcher
-step of `pairRouter l`. -/
+/-- The body on pairs, conjugated by the encoding, is the dispatcher step
+of `pairRouter l`. It is proved as `pairBody_step`. -/
 def pairStep (l : Bool) : Prop :=
   Eqv false [States 1] (seqRegion pairDec (seqRegion (pairBody l) (postRegion pairEnc)))
     (dispatch 1 (pairRouter l).rows) [Silmaril.coprod Bit (States 1)]
