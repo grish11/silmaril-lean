@@ -2127,12 +2127,13 @@ The continuation cannot jump back to its own label.
   proposition with its conditional theorems: the elaborated lowering of
   a certified graph passes the typing check at the computed packet
   types, when the capture context has the declared types of the
-  captures. It needs that the versioned bodies keep the current versions
-  at their declared types, binder by binder; that a versioned block,
-  which takes its packet apart and unpacks the φ operands and the
-  record, restores that state from the computed packet type; and that
-  the elaboration to positional terms turns the named typing into the
-  typing check. On the direct diamond and the changed-operand variant,
+  captures. It needs three things: that the versioned bodies keep the
+  current versions at their declared types, binder by binder, which the
+  next item proves; that a versioned block, which takes its packet apart
+  and unpacks the φ operands and the record, restores that state from
+  the computed packet type; and that the elaboration to positional terms
+  turns the named typing into the typing check. On the direct diamond
+  and the changed-operand variant,
   with both tables, and on the graph with explicit rows, the certificate
   holds, the computed packet types are the packet types of the typed
   witnesses written by hand, and the elaborated graphs pass the typing
@@ -2142,6 +2143,42 @@ The continuation cannot jump back to its own label.
   [Certificate and packet types](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Defs.lean) ·
   [The typed edge](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Thms.lean) ·
   [Both diamonds, typed](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- The versioned bodies of a certified φ graph are typed. The named typing
+  of a region gives one type to every name and one to every label: a
+  binder has the type of its operand, a pattern let binds the components
+  of a product, a case the sides of a sum, and a jump carries a value of
+  the type of its label, which is the computed packet type of a block or
+  the declared type of another label. A certified body, lowered and then
+  versioned from any current versions at any depth, is typed in it, for
+  any typing of the versioned names that gives the declared type to the
+  current version of every source register and to every later version.
+  The proof is by induction over lets, pattern lets and cases, with the
+  two theorems on edges at the jumps. The canonical typing, in which
+  every version of a register has the declared type of the register,
+  satisfies the hypothesis at every state, so type agreement needs no
+  freshness of versions. A name has one type wherever it is bound, so
+  binding a name again is harmless for typing; that distinct binders get
+  distinct positions is a separate matter and is not used. The entry of
+  the versioned lowering is the versioned entry at the initial versions,
+  so it is typed in the canonical typing; this is a statement about the
+  output of the versioning. The canonical typing does not type a whole
+  versioned block: the block first takes its packet apart, decodes the φ
+  operands and unpacks the record, and the names it binds there hold the
+  rest of a tuple. The theorem is stated for any typing that is
+  canonical from some depth on, so that a typing of the block can use it
+  after the prefix. Two parts of the open statement remain: the prefix
+  of a versioned block from the computed packet type, and the transport
+  of the named typing to the typing check of the elaborated graph. The
+  open statement itself was probed for a missing hypothesis, with a
+  capture bound again, repeated captures, the packet register as a
+  capture, a φ destination that is also a capture and a binder, repeated
+  block labels and row destinations, an exit label that is also a block,
+  a loop that binds its φ destination again, and a read at an initial
+  version in a block; its conclusion held on each, and it is unchanged.
+  One of these is in the regression.
+  [Named typing](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Defs.lean) ·
+  [The versioned bodies](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Thms.lean) ·
+  [Both diamonds, versioned](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,

@@ -2954,4 +2954,84 @@ example (cur : Option (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg
       exact all) [] cur 0 versioned current
   exact ⟨block, payload, found, shape, typed⟩
 
+/-! ## The versioned bodies are typed
+
+The named typing gives one type to every versioned name and one to every
+label. In the canonical typing every version of a register has the
+declared type of the register. The entry of the versioned lowering is
+typed in it, by the theorem for certified bodies; nothing is evaluated
+but the certificate. -/
+
+private theorem phiDemanded_certified (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- The versioned entry of both diamonds with the inferred table. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType)
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming))).entry.toRegion = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.entry_typed (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
+    (phiDemanded_certified incoming h)
+
+/-- The same for the table written by hand and for the graph with explicit
+rows. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType)
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiForwarded incoming))).entry.toRegion = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.entry_typed (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
+    (by rcases h with rfl | rfl <;> decide +kernel)
+
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .ra) :
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon phiTypes) (Bridge.NamedFlat.Phi.SourceTyping.targetType (phi incoming) phiTypes phiExitType)
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phi incoming))).entry.toRegion =
+        true :=
+  Bridge.NamedFlat.Phi.SourceTyping.entry_typed (phi incoming) phiTypes phiExitType
+    (by rcases h with rfl | rfl <;> decide +kernel)
+
+/-- The body of every block of both diamonds, lowered and versioned from
+any current versions at any depth. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a)
+    (item : Lbl × Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Block (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) Lbl Op)
+    (member : item ∈ (phiDemanded incoming).blocks)
+    (cur : Option (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) → Nat) (depth : Nat) :
+    Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType)
+      (Silmaril.SSA.LambdaRTL.Version.version
+        (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.destinations (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming))) [] cur
+        depth (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.liftBody (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.branchValue (phiDemanded incoming)
+          (some item.1)) item.2.body).toRegion) = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.block_body_typed (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
+    (phiDemanded_certified incoming h) item member [] cur depth
+
+/-- The canonical typing is not a typing of a whole versioned block. A
+block first takes its packet apart and unpacks its record, and the names
+it binds there hold the rest of a tuple. This is the part that is not
+proved yet. -/
+example : ((Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e))).blocks.map
+    fun item => Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.targetType (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType)
+      item.2.body.toRegion) = [false, false, false, false, false] := by
+  decide +kernel
+
+/-! ## Names that overlap
+
+The open statement on the typed elaboration is not refuted by a capture
+that the entry binds again at its declared type: the certificate holds,
+the lowering elaborates, and the elaborated graph passes the typing
+check at the computed packet types. -/
+
+private def rebound : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op :=
+  ⟨.let1 .later (.app .echo (.var .later))
+    (.term (.br (some .done) (.pair (.var .later) (.var .earlier)))), []⟩
+
+example : Bridge.NamedFlat.Phi.SourceTyping.certified rebound phiTypes phiExitType = true ∧
+    ((Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower rebound) phiExits phiCaptures).any
+      fun target => Bridge.NamedFlat.check target older (Bridge.NamedFlat.Phi.SourceTyping.internal rebound phiTypes)
+        (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType)) = true := by
+  decide +kernel
+
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests

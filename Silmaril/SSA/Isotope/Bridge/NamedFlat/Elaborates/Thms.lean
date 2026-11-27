@@ -53,6 +53,25 @@ section Named
 
 variable {V K : Type w} {F : Type v} [DecidableEq V] [DecidableEq K] {n : Nat}
 
+/-- The versioned entry reads back to the versioned region of the entry. -/
+theorem compile_entry_toRegion (graph : CFG V K F) :
+    (Versioning.compile graph).entry.toRegion =
+      Version.version (Versioning.destinations graph) (Versioning.registers graph) (fun _ => 0) 0
+        graph.entry.toRegion :=
+  versionBody_region_proof _ _ _ _ _
+
+/-- The region of a versioned block: it takes its packet apart, unpacks
+its record, and runs the versioned body. -/
+theorem compileBlock_toRegion (graph : CFG V K F) (block : CFG.Block V K F) :
+    (Versioning.compileBlock graph block).body.toRegion =
+      .let2 (block.param, 1) (block.param, 2) (.val (.var (block.param, 0)))
+        (Version.unpack (Versioning.slots graph block) (block.param, 2) 2
+          (Version.version (Versioning.destinations graph) (Versioning.registers graph)
+            (Version.unpackCur (Versioning.slots graph block)
+              (Version.setv (fun _ => 0) block.param 1) 2)
+            (2 + 2 * (Versioning.slots graph block).length) block.body.toRegion)) :=
+  compileBlock_region_proof graph block
+
 /-- A versioned block reads only its parameter freely. -/
 theorem compileBlock_names (graph : CFG V K F) (item : K × CFG.Block V K F)
     (member : item ∈ graph.blocks) :

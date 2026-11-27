@@ -232,4 +232,132 @@ theorem exit_payload_proof (graph : Graph V K F) (types : V → Ty Base)
 
 end Edge
 
+/-! ## The versioned body
+
+A certified body, lowered and versioned, is typed under any typing of the
+versioned names in which the current version of every source register
+has its declared type and every later version has it too. -/
+
+section VersionedBody
+
+variable {Base V K : Type u} {F : Type v} [DecidableEq Base] [HasTy F (Ty Base)] [DecidableEq V]
+  [DecidableEq K]
+
+omit [DecidableEq V] in
+/-- A lifted operand, read at current versions, has the type of the
+operand. -/
+theorem opType_version_proof (types : V → Ty Base) (versioned : Option V × Nat → Ty Base)
+    (cur : Option V → Nat)
+    (current : ∀ register, versioned (some register, cur (some register)) = types register)
+    (operand : Op V F) :
+    opType versioned (Version.rnOp cur (Phi.liftOp operand)) = opType types operand := by
+  have value : ∀ a : Val V,
+      valueType versioned (Version.rn cur (Phi.liftVal a)) = valueType types a := fun a => by
+    rw [valueType_rn_proof (lifted types) versioned cur _ (fun z member => by
+      obtain ⟨r, rfl⟩ := liftVal_fv_proof a z member
+      exact current r), valueType_liftVal_proof]
+  cases operand <;> simp only [Phi.liftOp, Version.rnOp, opType, value]
+
+omit [DecidableEq Base] [HasTy F (Ty Base)] in
+/-- The current versions after a binder at a later version. -/
+theorem current_bind_proof (types : V → Ty Base) (versioned : Option V × Nat → Ty Base)
+    (cur : Option V → Nat) (depth : Nat) (x : V) (version : Nat) (later : depth < version)
+    (current : ∀ register, versioned (some register, cur (some register)) = types register)
+    (fresh : ∀ register v, depth < v → versioned (some register, v) = types register) :
+    ∀ register, versioned (some register, Version.setv cur (some x) version (some register)) =
+      types register := by
+  intro register
+  by_cases same : register = x
+  · subst same
+    simpa [Version.setv] using fresh register version later
+  · simpa [Version.setv, same] using current register
+
+/-- A certified terminator, lowered and versioned, is typed. -/
+theorem version_term_typed_proof (graph : Graph V K F) (types : V → Ty Base)
+    (exitType : Option K → Ty Base) (pred : Option K) (live : List (Option V))
+    (versioned : Option V × Nat → Ty Base) :
+    (tail : Term V (Option K) F) → (cur : Option V → Nat) → (depth : Nat) →
+    termTyped graph types exitType pred tail = true →
+    (∀ register, versioned (some register, cur (some register)) = types register) →
+    (∀ register v, depth < v → versioned (some register, v) = types register) →
+    regionTyped versioned (targetType graph types exitType)
+      (Version.version (Versioning.destinations (Phi.OrderedExits.lower graph)) live cur depth
+        (Phi.liftTerm (Phi.OrderedExits.branchValue graph pred) tail).toRegion) = true
+  | .br target value, cur, depth, typed, current, _ => by
+    cases looked : Phi.OrderedExits.lookup graph target with
+    | some block =>
+      cases target with
+      | none => simp [Phi.OrderedExits.lookup] at looked
+      | some key =>
+        have found : graph.blocks.lookup key = some block := looked
+        obtain ⟨payload, shape, carried⟩ := edge_packet_proof graph types exitType pred key block
+          value found typed live cur depth versioned current
+        rw [shape]
+        simp only [regionTyped, targetType, found, Option.elim, carried, decide_eq_true_eq]
+    | none =>
+      obtain ⟨payload, shape, carried⟩ := exit_payload_proof graph types exitType pred target value
+        looked typed live cur depth versioned current
+      have label : targetType graph types exitType target = exitType target := by
+        cases target with
+        | none => rfl
+        | some key =>
+          have missing : graph.blocks.lookup key = none := looked
+          simp only [targetType, missing, Option.elim]
+      rw [shape]
+      simp only [regionTyped, label, carried, decide_eq_true_eq]
+  | .case operand x left y right, cur, depth, typed, current, fresh => by
+    simp only [termTyped, Bool.and_eq_true, decide_eq_true_eq] at typed
+    have inLeft := version_term_typed_proof graph types exitType pred live versioned left
+      (Version.setv cur (some x) (depth + 1)) (depth + 1) typed.1.2
+      (current_bind_proof types versioned cur depth x (depth + 1) (by omega) current fresh)
+      (fun register v later => fresh register v (by omega))
+    have inRight := version_term_typed_proof graph types exitType pred live versioned right
+      (Version.setv cur (some y) (depth + 1)) (depth + 1) typed.2
+      (current_bind_proof types versioned cur depth y (depth + 1) (by omega) current fresh)
+      (fun register v later => fresh register v (by omega))
+    simp only [Phi.liftTerm, Term.toRegion, Version.version, regionTyped, Bool.and_eq_true,
+      decide_eq_true_eq, opType_version_proof types versioned cur current, typed.1.1,
+      fresh x (depth + 1) (by omega), fresh y (depth + 1) (by omega)]
+    exact ⟨⟨trivial, inLeft⟩, inRight⟩
+
+/-- A certified body, lowered and versioned, is typed. -/
+theorem version_body_typed_proof (graph : Graph V K F) (types : V → Ty Base)
+    (exitType : Option K → Ty Base) (pred : Option K) (live : List (Option V))
+    (versioned : Option V × Nat → Ty Base) :
+    (source : Body V (Option K) F) → (cur : Option V → Nat) → (depth : Nat) →
+    bodyTyped graph types exitType pred source = true →
+    (∀ register, versioned (some register, cur (some register)) = types register) →
+    (∀ register v, depth < v → versioned (some register, v) = types register) →
+    regionTyped versioned (targetType graph types exitType)
+      (Version.version (Versioning.destinations (Phi.OrderedExits.lower graph)) live cur depth
+        (Phi.liftBody (Phi.OrderedExits.branchValue graph pred) source).toRegion) = true
+  | .term tail, cur, depth, typed, current, fresh =>
+    version_term_typed_proof graph types exitType pred live versioned tail cur depth typed current
+      fresh
+  | .let1 x operand rest, cur, depth, typed, current, fresh => by
+    simp only [bodyTyped, Bool.and_eq_true, decide_eq_true_eq] at typed
+    have inRest := version_body_typed_proof graph types exitType pred live versioned rest
+      (Version.setv cur (some x) (depth + 1)) (depth + 1) typed.2
+      (current_bind_proof types versioned cur depth x (depth + 1) (by omega) current fresh)
+      (fun register v later => fresh register v (by omega))
+    simp only [Phi.liftBody, Body.toRegion, Version.version, regionTyped, Bool.and_eq_true,
+      decide_eq_true_eq, opType_version_proof types versioned cur current, typed.1,
+      fresh x (depth + 1) (by omega)]
+    exact ⟨trivial, inRest⟩
+  | .let2 x y operand rest, cur, depth, typed, current, fresh => by
+    simp only [bodyTyped, Bool.and_eq_true, decide_eq_true_eq] at typed
+    have inRest := version_body_typed_proof graph types exitType pred live versioned rest
+      (Version.setv (Version.setv cur (some x) (depth + 1)) (some y) (depth + 2)) (depth + 2)
+      typed.2
+      (current_bind_proof types versioned _ (depth + 1) y (depth + 2) (by omega)
+        (current_bind_proof types versioned cur depth x (depth + 1) (by omega) current fresh)
+        (fun register v later => fresh register v (by omega)))
+      (fun register v later => fresh register v (by omega))
+    simp only [Phi.liftBody, Body.toRegion, Version.version, regionTyped, Bool.and_eq_true,
+      decide_eq_true_eq, opType_version_proof types versioned cur current, typed.1,
+      fresh x (depth + 1) (by omega), fresh y (depth + 2) (by omega)]
+    exact ⟨trivial, inRest⟩
+
+end VersionedBody
+
 end Silmaril.Isotope.Bridge.NamedFlat.Phi.SourceTyping

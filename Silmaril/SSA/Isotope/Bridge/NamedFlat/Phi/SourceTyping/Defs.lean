@@ -137,6 +137,38 @@ def internal (graph : Graph V K F) (types : V → Ty Base) :
     Fin (Versioning.compile (Phi.OrderedExits.lower graph)).blocks.length → Ty Base :=
   fun i => (packets graph types).getD i.val .unit
 
+omit [DecidableEq Base] [HasTy F (Ty Base)] [DecidableEq V] in
+/-- The canonical typing of versioned names: every version of a source
+register has the declared type of the register. -/
+def canon (types : V → Ty Base) : Option V × Nat → Ty Base :=
+  fun name => lifted types name.1
+
+omit [DecidableEq Base] [HasTy F (Ty Base)] in
+/-- The type that a jump of the versioned lowering carries to a label: the
+computed packet type of a block, or the declared type of another label. -/
+def targetType (graph : Graph V K F) (types : V → Ty Base) (exitType : Option K → Ty Base) :
+    Option K → Ty Base
+  | some key => (graph.blocks.lookup key).elim (exitType (some key)) (packetType graph types key)
+  | none => exitType none
+
+omit [DecidableEq V] [DecidableEq K] in
+/-- Named typing of a region: one type for every name and one for every
+label. A binder has the type of its operand, a pattern let binds the
+components of a product, a case binds the sides of a sum, and a jump
+carries a value of the type of its label. A name has one type wherever
+it is bound, so binding a name again needs no care. -/
+def regionTyped {N L : Type u} (ty : N → Ty Base) (labelType : L → Ty Base) :
+    Region N L F → Bool
+  | .br label value => decide (valueType ty value = labelType label)
+  | .let1 x operand rest =>
+    decide (opType ty operand = some (ty x)) && regionTyped ty labelType rest
+  | .let2 x y operand rest =>
+    decide (opType ty operand = some (.product (ty x) (ty y))) && regionTyped ty labelType rest
+  | .case operand x left y right =>
+    decide (opType ty operand = some (.coprod (ty x) (ty y))) &&
+      regionTyped ty labelType left && regionTyped ty labelType right
+  | .join _ _ _ _ => false
+
 /-- Open: the elaborated lowering of a certified φ graph passes the typing
 check at the computed packet types, when the capture context has the
 declared types of the captures. -/
