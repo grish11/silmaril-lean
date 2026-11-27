@@ -73,9 +73,9 @@ namespace Wire
 
 open MetadataWriter.Wire
 
-/-- V5 RecordBatch Message with aligned node and descriptor vectors and a
-singleton signed Count vector. The node vector starts at byte 104. -/
-def metadata (batch : RecordBatch) (bodyLength count : Nat) : KBytes :=
+/-- V5 RecordBatch Message with aligned node, descriptor, and signed count
+vectors. The count vector follows the descriptors in view field order. -/
+def metadataWithCounts (batch : RecordBatch) (bodyLength : Nat) (variadic : List Nat) : KBytes :=
   let nodeBytes := 16 * batch.nodes.length
   let bufferBytes := 16 * batch.buffers.length
   let vtable := words [halfwords 14 32, halfwords 8 16, halfwords 20 0, halfwords 24 0]
@@ -85,8 +85,14 @@ def metadata (batch : RecordBatch) (bodyLength count : Nat) : KBytes :=
     longs (batch.nodes.flatMap fun node => [node.length, node.nullCount])
   let buffers := words [0, batch.buffers.length] ++
     longs (batch.buffers.flatMap fun buffer => [buffer.offset, buffer.length])
-  let counts := words [0, 1] ++ longs [count]
+  let counts := words [0, variadic.length] ++ longs variadic
   messagePrefix 3 64 bodyLength ++ (vtable ++ (table ++ (nodes ++ (buffers ++ counts))))
+
+def metadata (batch : RecordBatch) (bodyLength count : Nat) : KBytes :=
+  metadataWithCounts batch bodyLength [count]
+
+def metadataSizeWithCounts (nodes buffers counts : Nat) : Nat :=
+  120 + 16 * nodes + 16 * buffers + 8 * counts
 
 def metadataSize (nodes buffers : Nat) : Nat := 128 + 16 * nodes + 16 * buffers
 

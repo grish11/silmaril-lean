@@ -25,10 +25,18 @@ private theorem pairWords {α : Type} (first second : α → Nat) (values : List
     simp only [List.flatMap_cons, List.length_append, List.length_cons, List.length_nil, ih]
     omega
 
+theorem metadataWithCounts_extent (batch : RecordBatch) (bodyLength : Nat) (variadic : List Nat) :
+    (Wire.metadataWithCounts batch bodyLength variadic).len =
+      Wire.metadataSizeWithCounts batch.nodes.length batch.buffers.length variadic.length := by
+  simp only [Wire.metadataWithCounts, Wire.metadataSizeWithCounts, messagePrefix, words, longs,
+    Arrow.Writer.emitWords_length, appendLen, List.length_cons, List.length_nil, pairWords]
+  omega
+
 theorem metadata_extent (batch : RecordBatch) (bodyLength count : Nat) :
     (Wire.metadata batch bodyLength count).len = Wire.metadataSize batch.nodes.length batch.buffers.length := by
-  simp only [Wire.metadata, Wire.metadataSize, messagePrefix, words, longs, Arrow.Writer.emitWords_length,
-    appendLen, List.length_cons, List.length_nil, pairWords]
+  rw [Wire.metadata, metadataWithCounts_extent]
+  unfold Wire.metadataSizeWithCounts Wire.metadataSize
+  simp only [List.length_cons, List.length_nil]
   omega
 
 private theorem lengths_of_checked {limits : MixedFlat.Limits} {input : Input}

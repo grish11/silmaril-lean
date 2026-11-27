@@ -42,9 +42,12 @@ namespace Wire
 
 open MetadataWriter.Wire
 
-def viewField (schema : Schema) : KBytes :=
+def viewFieldBytes (name : String) (nullable : Bool) (kind : BinaryView.Schema.Kind) : KBytes :=
   let emptyType := words [halfwords 4 4, 0, 8, 0, 0]
-  fieldFragment schema.viewName schema.viewNullable BinaryView.Schema.Kind.binary.tag emptyType
+  fieldFragment name nullable kind.tag emptyType
+
+def viewField (schema : Schema) : KBytes :=
+  viewFieldBytes schema.viewName schema.viewNullable .binary
 
 def schemaMetadata (schema : Schema) : KBytes :=
   let integer := fieldBytes ⟨schema.intName, schema.intNullable, .int32⟩

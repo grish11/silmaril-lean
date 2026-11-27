@@ -8,6 +8,11 @@ import Silmaril.Proofs.Formats.Arrow.MixedFlat.Writer.Readback
 
 namespace Silmaril.Formats.Arrow.MixedFlat.Writer
 
+theorem Wire.metadataWithCounts_extent (batch : RecordBatch) (bodyLength : Nat) (variadic : List Nat) :
+    (metadataWithCounts batch bodyLength variadic).len =
+      metadataSizeWithCounts batch.nodes.length batch.buffers.length variadic.length :=
+  Proofs.Formats.Arrow.MixedFlat.Writer.metadataWithCounts_extent batch bodyLength variadic
+
 theorem Wire.metadata_extent (batch : RecordBatch) (bodyLength count : Nat) :
     (metadata batch bodyLength count).len = metadataSize batch.nodes.length batch.buffers.length :=
   Proofs.Formats.Arrow.MixedFlat.Writer.metadata_extent batch bodyLength count
