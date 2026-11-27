@@ -374,3 +374,43 @@ make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.File.Events.Examples
 python3 -I scripts/arrow-mixed-flat/file_fixtures.py
 python3 -I tests/formats/arrow-ipc/file_fixture.py --regenerate
 ```
+
+### Pull events from a strict file
+
+`MixedFlat.File.Events.Pull.reader` implements the existing
+`Arrow.Events.BatchReader` protocol. A successful open validates the
+strict file index and exposes its footer schema. Each `next` checks
+the next ordered footer block using the same single-record step as the
+eager reader. It delivers that batch, including an explicit empty batch,
+or returns the original record error with its zero-based ordinal. Each
+cursor tracks the running accepted rows and cells independently. The
+candidate's existing per-batch checks run before its aggregate check.
+The cursor signals EOS on a call after the final batch.
+
+`Pull.readAll` uses the generic pull driver with enough calls to reach
+EOS. After a successful open, a late failure becomes `.readError` and
+the trace retains the batches already delivered. An admission failure
+appears as the outer error. The generic driver's caller-supplied fuel
+can also stop early with `.closed`. The cursor retains the entire
+immutable file carrier and the remaining footer entries. Pulling one
+batch at a time bounds the number of records decoded per call. The
+collecting driver retains all delivered events in its result.
+
+`Pull.readAll_eager` gives exact schema and batch agreement at EOS.
+`Pull.readAll_failure_exact` identifies the completed strict footer
+prefix with its aligned events and the next failed block. The cause is
+either the original strict record error or the aggregate limit failure
+after decoding the candidate. The eager reader returns that same error.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/File/Events/Pull/Defs.lean) ·
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/File/Events/Pull/Thms.lean)
+
+The guards exercise the original mixed file `[4, 0, 2]`, schema-only
+absence, and the pinned zero-column file with row counts `[3, 0]`.
+A third-record length fault retains the first two batches and their
+exact values. The two running budget controls retain the same prefix.
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.File.Events.Pull.Examples +Silmaril.Formats.Arrow.MixedFlat.File.Events.Pull.Axioms'
+python3 -I scripts/arrow-mixed-flat/file_fixtures.py
+python3 -I tests/formats/arrow-ipc/file_fixture.py --regenerate
+```

@@ -59,6 +59,24 @@ def ofObserved (fields : List MixedFlat.Field) (observed : MixedFlat.Observed)
     simp [columns]
     exact aligned _ (List.getElem_mem _)⟩
 
+/-- Decode one strict record, check its running observation budget, and
+form the aligned event used by both eager and pull readers. -/
+def readStep (limits : MixedFlat.Limits) (input : KBytes) (fields : List MixedFlat.Field)
+    (n rows : Nat) (block : FileBlock) : Except Error (Nat × Batch (schema fields)) :=
+  match parsed : MixedFlat.File.readRecord limits input fields block with
+  | .error cause => .error (.file (.batch n cause))
+  | .ok observed => do
+    let total := rows + observed.rowCount
+    (Body.checkBudget limits.observation fields.length total).mapError (.budget n)
+    let batch := ofObserved fields observed
+      (by exact (Proofs.Formats.Arrow.MixedFlat.File.Events.readRecord_shape parsed).1)
+      (by
+        intro pair member
+        have slots := (Proofs.Formats.Arrow.MixedFlat.File.Events.readRecord_shape parsed).2 pair member
+        cases column : pair.2 <;>
+          simpa [column, cells, Proofs.Formats.Arrow.MixedFlat.File.Events.slotCount] using slots)
+    return (total, batch)
+
 /-- Eager decoding returns the entire trace with EOS, or an atomic error.
 The original decoder checks each candidate batch before the running row
 and cell budgets are checked, so at most one candidate is decoded beyond
@@ -73,20 +91,8 @@ where
   drain (limits : MixedFlat.Limits) (input : KBytes) (fields : List MixedFlat.Field) :
       Nat → Nat → List FileBlock → Except Error (List (Batch (schema fields)))
     | _, _, [] => .ok []
-    | n, rows, block :: rest =>
-      match parsed : MixedFlat.File.readRecord limits input fields block with
-      | .error cause => .error (.file (.batch n cause))
-      | .ok observed => do
-        let total := rows + observed.rowCount
-        (Body.checkBudget limits.observation fields.length total).mapError (.budget n)
-        let remaining ← drain limits input fields (n + 1) total rest
-        let batch := ofObserved fields observed
-          (by exact (Proofs.Formats.Arrow.MixedFlat.File.Events.readRecord_shape parsed).1)
-          (by
-            intro pair member
-            have slots := (Proofs.Formats.Arrow.MixedFlat.File.Events.readRecord_shape parsed).2 pair member
-            cases column : pair.2 <;>
-              simpa [column, cells, Proofs.Formats.Arrow.MixedFlat.File.Events.slotCount] using slots)
-        return batch :: remaining
+    | n, rows, block :: rest => do
+      let (total, batch) ← readStep limits input fields n rows block
+      return batch :: (← drain limits input fields (n + 1) total rest)
 
 end Silmaril.Formats.Arrow.MixedFlat.File.Events

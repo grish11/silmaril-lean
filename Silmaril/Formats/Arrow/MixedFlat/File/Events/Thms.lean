@@ -11,6 +11,16 @@ namespace Silmaril.Formats.Arrow.MixedFlat.File.Events
 
 open Silmaril.Relational
 
+/-- The common one-record step emits exactly the aligned strict observation
+and updates the running total by its explicit row count. -/
+theorem readStep_exact {limits : MixedFlat.Limits} {input : KBytes}
+    {fields : List MixedFlat.Field} {n rows : Nat} {block : FileBlock}
+    {total : Nat} {batch : Batch (schema fields)}
+    (step : readStep limits input fields n rows block = .ok (total, batch)) :
+    ∃ observed, MixedFlat.File.readRecord limits input fields block = .ok observed ∧
+      total = rows + observed.rowCount ∧ Agrees (schema fields) observed batch :=
+  Proofs.Formats.Arrow.MixedFlat.File.Events.readStep_exact step
+
 /-- Successful eager decoding gives the exact checked footer schema, one
 aligned event for each strict record observation in order, and EOS. -/
 theorem read_exact {limits : MixedFlat.Limits} {input : KBytes}

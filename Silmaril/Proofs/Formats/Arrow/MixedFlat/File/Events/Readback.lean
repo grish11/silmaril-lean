@@ -31,6 +31,23 @@ private theorem ofObserved_agrees (fields : List MixedFlat.Field) (observed : Mi
   rw [List.getElem?_eq_getElem bound]
   simp [ofObserved, schema, label]
 
+theorem readStep_exact {limits : MixedFlat.Limits} {input : KBytes}
+    {fields : List MixedFlat.Field} {n rows : Nat} {block : FileBlock}
+    {total : Nat} {batch : Batch (schema fields)}
+    (step : readStep limits input fields n rows block = .ok (total, batch)) :
+    ∃ observed, MixedFlat.File.readRecord limits input fields block = .ok observed ∧
+      total = rows + observed.rowCount ∧ Agrees (schema fields) observed batch := by
+  unfold readStep at step
+  split at step
+  · contradiction
+  · rename_i observed parsed
+    cases budget : Body.checkBudget limits.observation fields.length (rows + observed.rowCount) with
+    | error => simp [budget, bind, Except.bind, Except.mapError] at step
+    | ok _ =>
+      simp [budget, bind, Except.bind, Except.mapError, pure, Except.pure] at step
+      obtain ⟨rfl, rfl⟩ := step
+      exact ⟨observed, parsed, rfl, ofObserved_agrees _ _ _ _⟩
+
 private theorem drain_exact (limits : MixedFlat.Limits) (input : KBytes)
     (fields : List MixedFlat.Field) (blocks : List FileBlock) (n rows : Nat)
     {events : List (Batch (schema fields))}
@@ -43,23 +60,19 @@ private theorem drain_exact (limits : MixedFlat.Limits) (input : KBytes)
     subst events
     exact ⟨[], rfl, .nil⟩
   | cons block rest ih =>
-    unfold read.drain at drained
-    split at drained
-    · contradiction
-    · rename_i observed parsed
-      cases budget : Body.checkBudget limits.observation fields.length (rows + observed.rowCount) with
-      | error =>
-        simp [budget, bind, Except.bind, Except.mapError] at drained
-      | ok _ =>
-        cases remaining : read.drain limits input fields (n + 1) (rows + observed.rowCount) rest with
-        | error =>
-          simp [budget, remaining, bind, Except.bind, Except.mapError] at drained
-        | ok tail =>
-          simp [budget, remaining, bind, Except.bind, Except.mapError, pure, Except.pure] at drained
-          subst events
-          obtain ⟨values, strict, agrees⟩ := ih _ _ remaining
-          refine ⟨observed :: values, ?_, .cons (ofObserved_agrees _ _ _ _) agrees⟩
-          simp [List.mapM_cons, parsed, strict, bind, Except.bind, pure, Except.pure]
+    cases step : readStep limits input fields n rows block with
+    | error => simp [read.drain, step, bind, Except.bind] at drained
+    | ok entry =>
+      obtain ⟨total, batch⟩ := entry
+      cases remaining : read.drain limits input fields (n + 1) total rest with
+      | error => simp [read.drain, step, remaining, bind, Except.bind] at drained
+      | ok tail =>
+        simp [read.drain, step, remaining, bind, Except.bind, pure, Except.pure] at drained
+        subst events
+        obtain ⟨first, parsed, _, firstExact⟩ := readStep_exact step
+        obtain ⟨values, strict, agrees⟩ := ih _ _ remaining
+        refine ⟨first :: values, ?_, .cons firstExact agrees⟩
+        simp [List.mapM_cons, parsed, strict, bind, Except.bind, pure, Except.pure]
 
 theorem read_exact {limits : MixedFlat.Limits} {input : KBytes}
     {source : Σ signature : Scan.Schema MixedFlat.Field Unit, Trace signature}
