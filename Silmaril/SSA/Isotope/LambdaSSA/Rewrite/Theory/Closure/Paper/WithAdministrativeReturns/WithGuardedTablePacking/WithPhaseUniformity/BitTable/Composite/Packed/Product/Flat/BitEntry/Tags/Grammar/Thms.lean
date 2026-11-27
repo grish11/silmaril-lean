@@ -2,7 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithAdministrativeReturns.WithGuardedTablePacking.WithPhaseUniformity.BitTable.Composite.Packed.Product.Flat.BitEntry.Tags.Grammar.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithAdministrativeReturns.WithGuardedTablePacking.WithPhaseUniformity.BitTable.Composite.Packed.Product.Flat.BitEntry.Tags.Thms
-import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.WithAdministrativeReturns.GuardedTablePacking.PhaseUniformity.TagsGrammar
+import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.WithAdministrativeReturns.GuardedTablePacking.PhaseUniformity.GrammarStep
 
 /-! # The request and reply grammar at every size: rows, entry and tag map
 
@@ -41,44 +41,52 @@ two-block reader of #5340 is unchanged.
 * `toStatesN_tag`: `toStatesN K` sends the tag of block `i` to row `i`.
   These are the injection equations of the `tags` field of `TagCert`.
 
-## The certificate, and the one field that remains
+## The step equation of every row, for every size (default Paper)
 
-Three of the four fields of `TagCert` are now proved for every table and
-size. The fourth is the step equation of each row:
+* `NTable.step`: for every block `i`, the capture-free row `d.free i`
+  followed by `toStatesN K` on its repeat side is row `i` of `d.router`
+  entered from a Bit. The proof is compositional:
+  1. the common request is factored out of both sides. A request
+     followed by a case on its reply is the request with the two arms as
+     continuations; this is proved once for any two arms, by congruence
+     under the request and the native case on a constructor;
+  2. the two reply branches are compared leaf by leaf. For an exit both
+     sides are the sum injection of the returned payload. For a jump the
+     tag is sent to its row by `toStatesN_tag`;
+  3. a Bit is the case of its two constructors, and the state tag
+     `injTm K j` commutes with renaming and substitution, by induction on
+     the size.
 
-`Task.nStep d`: for every block `i`, the capture-free row `d.free i`
-followed by `toStatesN K` on its repeat side is row `i` of `d.router`
-entered from a Bit.
+  No opt-in rule is used.
 
-It is not proved for a variable size. It is an equation between the
-arrows of two explicit regions for each row. Its fixed-size proofs
-compute with a concrete region from tags to states; for a variable size
-that region and `injTm K j` do not compute under renaming and
-substitution, so it needs lemmas for those. I did not prove them.
+## Every table of the grammar, at every size
 
-* `NTable.cert_of_step`: the step equations give the certificate.
-* `NTable.bitPointed_of_step`, `NTable.complete_of_step`: the #5332
-  certificate, and the supported-model iff for two tables of any two
-  sizes. Every row is labelled, so the router tables are `Tidy`; the iff
-  is in the opt-in quotient and for the supported models.
+* `NTable.hasCert`: the certificate of #5344.
+* `NTable.source_eqv_entered`: the table is its router table entered at
+  the start row, in the table-packing quotient. The packing seed is the
+  only opt-in rule.
+* `NTable.bitPointed`: the certificate of #5332.
+* `NTable.complete`: two tables of any two sizes are equal at the source
+  entry exactly when they are valid in every supported model. Every row
+  is labelled, so the router tables are `Tidy`. The iff is in the opt-in
+  quotient and for the supported models.
+* `NTable.eqv_iff_bisimulation`: they are equal exactly when the two
+  tables are bisimilar from their start rows.
+
+`Task.nStep` of #5347 is proved and removed, with its conditional
+theorems.
 
 ## Size three
 
 * `cycleN_source`: the cycle of #5344 is the table `cycleN l` of the
-  grammar.
-* `cycleN_step`: its step equations, from #5344's fixed-size proof and
-  `tags_ext`.
-* `cycleN_hasCert`: so the cycle has its certificate through the uniform
-  construction: rows, entry and tag map are the instances at size three
-  of the theorems above.
+  grammar, so the theorems above apply to it.
 
 ## Not covered
 
-* `Task.nStep` for a variable size, and so the certificate and the iff
-  for every table of the grammar without a hypothesis.
 * Typing of `NTable.flat` in the flat judgment, and a reader for more
   than two blocks.
-* Blocks that use the captured input, and completeness in default Paper.
+* Blocks that use the captured input, request-free blocks, and
+  completeness in default Paper.
 -/
 
 public section
@@ -169,24 +177,44 @@ theorem readback_tags :
       ofRegion (bitTag_typed d.start) ≫ iterate (freeDisp _ (freeOfBlocks d.free d.free_typed)) :=
   Tables.nreadback_tags d
 
-/-! ## The certificate from the step equations -/
+/-! ## The step equation, and every table of the grammar -/
 
-/-- The step equations of the rows give the certificate of the table. -/
-theorem cert_of_step (h : Task.nStep d) :
-    Nonempty (TagCert d.entry_typed d.blocks_typed d.router d.start) :=
-  ⟨Tables.ncert d h⟩
+/-- The capture-free row of every block, with its tags sent to states,
+is the row of the router table. Default Paper, every size. -/
+theorem step (i : Fin (K + 1)) :
+    ofRegion (d.free_typed i) ≫
+        ((sumIso (Φ := signature.Instr) Bit (BitTags K)).hom ≫ coprod.map (𝟙 _) (toStatesN K)) =
+      (ofRegion bitState_typed ≫ ofRegion (d.router.rows_typed i)) ≫
+        (sumIso (Φ := signature.Instr) Bit (States K)).hom :=
+  Tables.nstep d i
 
-/-- And the certificate at the two constant inputs. -/
-theorem bitPointed_of_step (h : Task.nStep d) :
-    BitPointed d.source (fun i => some (d.label i)) d.act (fun _ => d.start) :=
-  Tables.nbitPointed d h
+/-- Every table of the grammar has its certificate. -/
+theorem hasCert : Nonempty (TagCert d.entry_typed d.blocks_typed d.router d.start) :=
+  ⟨Tables.ntableCert d⟩
 
-/-- Two tables of any two sizes whose rows satisfy the step equations are
-equal at the source entry exactly when they are valid in every supported
-model. -/
-theorem complete_of_step (h : Task.nStep d) (h' : Task.nStep d') :
+/-- The table is its router table entered at the start row, in the
+table-packing quotient. -/
+theorem source_eqv_entered :
+    WithGuardedTablePacking.Eqv false [Bit] d.source
+      (seqRegion (.br 0 (.inl (.var 0))) (d.router.entered d.start)) [Bit] :=
+  (Tables.ntableCert d).source_eqv_entered
+
+/-- The certificate at the two constant inputs. -/
+theorem bitPointed : BitPointed d.source (fun i => some (d.label i)) d.act (fun _ => d.start) :=
+  Tables.nbitPointed d
+
+/-- Two tables of any two sizes are equal at the source entry exactly
+when they are valid in every supported model. -/
+theorem complete :
     Eqv false [Bit] d.source d'.source [Bit] ↔ Valid d.source_typed.hasType d'.source_typed.hasType :=
-  Tables.ncomplete d d' h h'
+  Tables.ncomplete d d'
+
+/-- Exactly when the two tables are bisimilar from their start rows. -/
+theorem eqv_iff_bisimulation :
+    Eqv false [Bit] d.source d'.source [Bit] ↔
+      ∃ R : Fin (K + 1) → Fin (K' + 1) → Prop, (∀ x y, R x y → d.label x = d'.label y) ∧
+        (∀ x y, R x y → ∀ tag pl, Act.Rel R (d.act x tag pl) (d'.act y tag pl)) ∧ R d.start d'.start :=
+  Tables.nbisim d d'
 
 end NTable
 
@@ -195,14 +223,5 @@ end NTable
 /-- The cycle of #5344 is a table of the grammar. -/
 theorem cycleN_source (l : Bool) : (cycleN l).source = cycleSource l :=
   Tables.cycleN_source l
-
-/-- The step equations of the cycle. -/
-theorem cycleN_step (l : Bool) : Task.nStep (cycleN l) :=
-  Tables.cycleN_step l
-
-/-- The cycle has its certificate through the uniform construction. -/
-theorem cycleN_hasCert (l : Bool) :
-    Nonempty (TagCert (cycleN l).entry_typed (cycleN l).blocks_typed (cycleN l).router (cycleN l).start) :=
-  (cycleN l).cert_of_step (cycleN_step l)
 
 end Silmaril.Isotope.LambdaSSA.Region.Paper.WithAdministrativeReturns.WithGuardedTablePacking.WithPhaseUniformity.BitTable
