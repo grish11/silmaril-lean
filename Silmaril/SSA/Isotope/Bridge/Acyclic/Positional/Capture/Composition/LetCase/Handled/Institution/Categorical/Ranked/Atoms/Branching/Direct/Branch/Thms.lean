@@ -22,7 +22,8 @@ Every path ends in its own inspection of the stored reply with its own
 arms. The arms of a branch are not joined, and no continuation is shared
 between them: a term in which two branches meet again before the stored
 reply is inspected is not of this form, and writing its continuation once
-in each arm is a different term. A branch cases on the reply of a request
+in each arm is a different term. The `Join` headers beside these relate
+the two terms by a native equation. A branch cases on the reply of a request
 at that request. No request and no scrutinee of the prefix reads the
 stored reply. No law is added and no two requests are exchanged: on each
 path the specializations have the requests of that path, in their order.
