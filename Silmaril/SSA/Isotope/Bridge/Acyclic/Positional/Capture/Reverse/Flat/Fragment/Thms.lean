@@ -35,6 +35,10 @@ no bound term has to be pure.
 
 The equality is native equality of the two terms. The fragment is not
 widened: a block that is not a row has no table.
+
+Whether a witness is in the fragment depends on the flat graph only.
+`delimitedShape` is that check on the flat graph, and a witness of a flat
+graph of that shape is in the fragment.
 -/
 
 public section
@@ -95,6 +99,12 @@ theorem Witness.table_localTargets (w : Witness g β R D) (h : w.Delimited) (i :
 theorem Witness.table_check (w : Witness g β R D) (h : w.Delimited)
     (ranked : Rank.check (localTargets g) = true) : (w.table h).check = true :=
   table_check_proof w h ranked
+
+/-- Whether a witness is in the fragment depends on the flat graph only: a
+witness of a flat graph of the shape of the fragment is in the fragment. -/
+theorem Witness.delimited_of_shape (w : Witness g β R D) (shape : delimitedShape g = true) :
+    w.Delimited :=
+  delimited_of_shape_proof w shape
 
 /-! ## Readback -/
 

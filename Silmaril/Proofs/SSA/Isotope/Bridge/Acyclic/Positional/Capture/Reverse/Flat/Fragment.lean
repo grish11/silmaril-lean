@@ -176,4 +176,76 @@ theorem entry_jumps_proof (w : Witness g β R D) (h : w.Delimited) :
     · rw [line_jumps_proof w.entry r hl, hr]
     · simp [hr] at he
 
+/-! ## The shape of the fragment -/
+
+section Shape
+
+variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ] {labels : Nat}
+  {L : Fin labels → τ}
+
+/-- The label of the line of a witnessed body is the label of the flat
+body. -/
+theorem line_label_proof : {m : Nat} → {γ : BoundCtx τ m} → {t : Flat Φ labels m} →
+    (b : Body Φ L γ t) → b.line.map (·.1) = lineLabel t
+  | _, _, _, .br _ _ => rfl
+  | _, _, _, .let₁ _ tail => by
+    simp only [Body.line, lineLabel, Option.map_map, ← line_label_proof tail]
+    rfl
+  | _, _, _, .let₂ _ tail => by
+    simp only [Body.line, lineLabel, Option.map_map, ← line_label_proof tail]
+    rfl
+  | _, _, _, .case _ _ _ => rfl
+
+/-- A witnessed body is a fork exactly when the flat body has the shape of
+one. -/
+theorem fork_shape_proof : {m : Nat} → {γ : BoundCtx τ m} → {t : Flat Φ labels m} →
+    (b : Body Φ L γ t) → b.fork.isSome = forkShape t
+  | _, _, _, .br _ _ => rfl
+  | _, _, _, .let₁ _ tail => by
+    simp only [Body.fork, forkShape, Option.isSome_map, fork_shape_proof tail]
+  | _, _, _, .let₂ _ tail => by
+    simp only [Body.fork, forkShape, Option.isSome_map, fork_shape_proof tail]
+  | _, _, _, .case _ left right => by
+    simp only [Body.fork, forkShape, ← line_label_proof left, ← line_label_proof right,
+      Option.isSome_map]
+    cases left.line <;> cases right.line <;> rfl
+
+end Shape
+
+section ShapeTable
+
+variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ] {size exits n : Nat}
+  {β : BoundCtx τ n} {R : Fin (size + 1) → τ} {D : Fin exits → τ}
+  {g : FiniteCFG Φ (size + 1) exits n}
+
+/-- A witness of a flat graph of the shape of the fragment is in the
+fragment. -/
+theorem delimited_of_shape_proof (w : Witness g β R D) (shape : delimitedShape g = true) :
+    w.Delimited := by
+  simp only [delimitedShape, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true,
+    Bool.or_eq_true] at shape
+  refine ⟨fun i => ?_, ?_⟩
+  · have here := shape.2 i (List.mem_finRange i)
+    have label := line_label_proof (w.block i)
+    have fork := fork_shape_proof (w.block i)
+    unfold Body.row
+    cases found : (w.block i).line with
+    | some r => rfl
+    | none =>
+      rw [found] at label
+      have absent : lineLabel (g.block i) = none := label.symm
+      simp only [absent, Option.isSome_none, Bool.false_eq_true, false_or] at here
+      simp only [Option.isSome_map, fork, here]
+  · have label := line_label_proof w.entry
+    rw [shape.1] at label
+    unfold Witness.entryOperand
+    cases found : w.entry.line with
+    | none => simp [found] at label
+    | some r =>
+      rw [found] at label
+      have first : r.1 = Fin.castAdd exits 0 := Option.some.inj label
+      simp only [Option.bind_some, first, dite_true, Option.isSome_some]
+
+end ShapeTable
+
 end Silmaril.Isotope.LambdaSSA.Acyclic.FlatLetCase

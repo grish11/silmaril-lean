@@ -2318,11 +2318,54 @@ The continuation cannot jump back to its own label.
   by hand; nothing is evaluated on a normalized, lowered or elaborated
   graph. The square is not connected here to the ranked institution of
   the atom regressions, whose arrows are about the table read back from
-  the elaborated graph: that needs the existing readback of that table
-  to be related to the packed program at this interface, which is a
-  separate statement.
+  the elaborated graph; the next item relates the readback of that table
+  to the packed program, and says what is still missing.
   [The source square](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemantics/Thms.lean) ·
   [Proofs](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemantics.lean) ·
+  [Both diamonds](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemanticsRegression.lean)
+- The checked table reified from the elaborated graph is compared with
+  the typed packed program of the same graph, and the comparison is
+  composed with the source square. The common observable is a weak tree
+  over the events of one model, at the same decoded captures, that
+  returns one value: the payload of the exit taken, injected at the
+  position of that exit in the packed sum of the ordered exits. The
+  readback of the table is a LetCase term of that packed type and its
+  tree returns the packed value; the packed program is a region with one
+  label and its tree returns the packed value at label zero. So the
+  trees are equal after the exit adapter that puts the value at label
+  zero, and not as written. The model is a model of the ordered
+  weak-tree semantics: a typed interpretation of the primitives, an
+  erased one, and their compatibility. Three statements are proved. The
+  first is that native equality is sound for the tree of an erased term
+  in such a model, at an environment that encodes a typed one; the
+  equations treat only instructions of bottom effect as pure and the
+  typed interpretation gives those as functions, and the proof is the
+  existing soundness of the Kleisli denotation with the existing
+  agreement of the typed denotation and the erased tree. The second is
+  that the readback of the checked table of a flat graph in the fragment
+  has the tree of the flat graph with the exit packed, by the readback
+  theorem of the fragment and the existing tree of the flat compile. The
+  third is the comparison with the packed program. Whether a witness is
+  in the fragment depends on the flat graph only, and a shape check on
+  the flat graph gives it; the fragment is not widened. Composed with
+  the source square: under the checks on the original graph, and when
+  the elaborated graph has the shape of the fragment and passes the rank
+  check, there is a witness of the elaborated graph in the fragment, and
+  the φ run of the original graph at the ordered exits is the tree of
+  the readback of its checked table, up to the exit adapter. The shape
+  and the rank check are evaluated on the elaborated graph; no theorem
+  derives them from the φ graph. Both direct diamonds are instantiated,
+  on the declarations of the previous item. One edge of the diagram
+  remains. The ranked institution gives the table an arrow in a
+  category, for a model of regions over a signature in the lowest
+  universe, with the packed sum unpacked into the ordered exits; here
+  the table has a weak tree, over sorts one universe higher, with the
+  exits packed. Relating the two needs the weak-tree Kleisli category as
+  a model of regions at one signature and universe, and the existing
+  equation between the arrow of a table and the denotation of its
+  readback, read in that model. It is not attempted here.
+  [Shape of the fragment](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Defs.lean) ·
+  [Readback and packed program](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceReadback/Thms.lean) ·
   [Both diamonds](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemanticsRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
