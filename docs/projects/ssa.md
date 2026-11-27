@@ -1949,8 +1949,8 @@ The continuation cannot jump back to its own label.
   checked table, and with them the two-capture entry, the ordered exits,
   the rank, the readback and the ranked arrow of the previous item; the
   graph with the changed φ operand gets the other table, and the two
-  arrows differ. What remains open: the table is supplied, not inferred
-  from liveness; no theorem says that a table makes the lowered graph
+  arrows differ. In this item the table is supplied; the next item
+  computes it. No theorem says that a table makes the lowered graph
   elaborate at given captures, which is checked by running the existing
   elaborator; and the arrival certificate is stated again for the names
   of the normalized graph. The statement is about φ graphs as written,
@@ -1958,6 +1958,52 @@ The continuation cannot jump back to its own label.
   [Forwarding registers through φ rows](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Defs.lean) ·
   [It keeps the run](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Thms.lean) ·
   [The direct diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- The forwarding table is computed from the φ graph, its declared exits
+  and its declared inputs, by the demand of each block on its edges and
+  not from a support of the whole graph. The demand is read off the
+  existing routes of a block, which list the reads and definitions of
+  each path through the block in order: its φ destinations, its body,
+  and at the end the φ operands that the block supplies on that edge, or
+  the payload of an exit. A route that jumps to a block also needs the
+  demand of that block. Walking a route backwards, a read adds its
+  registers and a definition removes them, so the demand of a successor
+  stops at the definitions of the block. The registers a block defines
+  and the declared inputs are then left out: the captures of the entry
+  are never forwarded. The demand is computed by as many rounds as there
+  are blocks. The inferred table passes the check of the normalization
+  when the labels of the blocks are distinct, which the normalization
+  check of φ graphs includes; so with it the normalized graph has the
+  run of the original graph. That validates the table and is proved for
+  every graph. Whether the table is enough to keep the entry is a
+  separate statement, given exactly and left open. A table is closed
+  when the existing check accepts the normalized graph with every block
+  arriving with the declared inputs only: on each path through a block,
+  every read is then of an input, a φ destination of the block or an
+  earlier definition of the block. The entry is kept when the lowered
+  and versioned entry reads no register at its initial version except
+  the declared inputs. Both are decidable. The open statement is that a
+  closed table keeps the entry; it is recorded as a proposition, with
+  the conditional theorem, and is not used elsewhere. On the direct
+  diamond and on the graph with the changed φ operand, the inferred
+  table gives `classify` and `join` the stored reply, `reply` and
+  `payload` their value and the stored reply, and `leaf` its two values.
+  It is closed, the entry is kept, and the existing lowering elaborates
+  at the two captures; the record on every edge now holds the two
+  captures only. The lowered graph has the jumps of the named graph and
+  a typed witness in the fragment, and the readback theorem, the
+  administrative moves and one sequencing law take the readback of its
+  table to the tree of the named graph. So its table has the ranked
+  arrow of the named table and of the table of the φ graph with explicit
+  rows, and the two direct graphs are told apart. Leaving the stored
+  reply to the record as well gives the registers of the table written
+  by hand; that table keeps the entry though it is not closed, so
+  closure is sufficient on these graphs and not necessary. The typed
+  witness is supplied. Nothing is claimed for graphs with cycles beyond
+  the validity of the table, and nothing says that the inferred table
+  is closed for every acyclic graph.
+  [Demand and the inferred table](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Demand/Defs.lean) ·
+  [The inferred table is valid](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Demand/Thms.lean) ·
+  [The direct diamond, inferred](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
