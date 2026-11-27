@@ -1,8 +1,10 @@
 module
 
 public import Silmaril.Formats.Parquet.MixedV1Writer.FromIpc.Defs
+public import Silmaril.Formats.Parquet.MixedV1Writer.FromIpc.SchemaOnly.Defs
 public import Silmaril.Formats.Parquet.Int32ByteArrayGroup.ToIpc.Defs
 import Silmaril.Formats.Parquet.MixedV1Writer.FromIpc.Thms
+import Silmaril.Formats.Parquet.MixedV1Writer.FromIpc.SchemaOnly.Thms
 import Silmaril.Formats.Parquet.Int32ByteArrayGroup.File.Thms
 import Silmaril.Formats.Parquet.Int32ByteArrayGroup.ToIpc.Thms
 import Silmaril.Formats.Parquet.MixedV1Writer.Multi.Thms
@@ -188,5 +190,35 @@ theorem read_roundTripOrdered {source returned : MixedIpc.Limits} {sink : MixedV
         _ = _ := by rw [← List.map_map, groupsExact]
     exact MixedIpc.Export.read_of_observed carrier returnedOk fields exactBatches
   · simp [metadata, MixedV1Writer.Multi.metadataOrdered, List.map_map, Function.comp_def]
+
+theorem read_roundTripSchemaOnly {source returned : MixedIpc.Limits} {sink : MixedV1Writer.Multi.Limits}
+    {reverse : File.Limits} {input output : KBytes} {parquet : MixedV1Writer.Multi.Encoded}
+    {descriptor : MixedIpc.Descriptor}
+    (original : MixedIpc.read source input = .ok ⟨descriptor, []⟩)
+    (forward : SchemaOnly.convert source sink input = .ok parquet)
+    (groupLimits : reverse.group = sink.writer.readback)
+    (footerLimits : reverse.group.snapshot.footer = sink.writer.footer)
+    (backward : ToIpc.convertOrdered reverse returned.mixed parquet.bytes
+      (field descriptor.integer) (field descriptor.binary) = .ok output)
+    (carrier : output.len ≤ returned.inputBytes) :
+    MixedIpc.read returned output = .ok ⟨descriptor, []⟩ ∧ parquet.footer.start = 4 ∧
+    Footer.readFooter sink.writer.footer parquet.bytes = .ok (parquet.footer, SchemaOnly.metadata descriptor) := by
+  obtain ⟨actual, read, emitted⟩ := SchemaOnly.convert_checked forward
+  rw [original] at read
+  cases read
+  obtain ⟨_, start, footer, projection, opened, zero⟩ := SchemaOnly.emit_checked emitted
+  obtain ⟨checked, groups, decoded, reverseOpen, reads, returnedOk, fields, batches, _⟩ :=
+    ToIpc.convertOrdered_readback backward
+  have sameProjection := File.openFile_projection reverseOpen
+  rw [groupLimits, opened] at sameProjection
+  have project := (Except.ok.inj sameProjection).symm
+  rw [project, zero] at reads
+  have groupsEmpty : groups = [] := Except.ok.inj reads.symm
+  have snapshot := (File.openFile_snapshot reverseOpen).1
+  have checkedFooter := Snapshot.check_metadata snapshot (by rw [footerLimits]; exact footer)
+  have order := selectedOrder_exact checked.projection (congrArg Footer.Metadata.schema checkedFooter)
+  rw [order, fields_exact] at fields
+  rw [groupsEmpty] at batches
+  exact ⟨MixedIpc.Export.read_of_observed carrier returnedOk fields batches, start, footer⟩
 
 end Silmaril.Proofs.Formats.Parquet.MixedV1Writer.FromIpc.RoundTrip

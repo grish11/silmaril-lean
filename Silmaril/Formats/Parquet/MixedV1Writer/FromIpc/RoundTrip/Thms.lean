@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Parquet.MixedV1Writer.FromIpc.Defs
+public import Silmaril.Formats.Parquet.MixedV1Writer.FromIpc.SchemaOnly.Defs
 public import Silmaril.Formats.Parquet.Int32ByteArrayGroup.ToIpc.Defs
 import Silmaril.Proofs.Formats.Parquet.MixedV1Writer.FromIpc.RoundTrip.Correctness
 
@@ -57,6 +58,25 @@ theorem read_roundTripOrdered {source returned : MixedIpc.Limits} {sink : MixedV
             (pages.index.ints.metadata pages.index.rows)
             (MixedV1Writer.byteChunk pages.index.octets pages.index.rows)) :=
   Proofs.Formats.Parquet.MixedV1Writer.FromIpc.RoundTrip.read_roundTripOrdered
+    original forward groupLimits footerLimits backward carrier
+
+/-- Schema-only IPC returns the same descriptor with zero batches through EOS.
+The native Parquet carrier has its exact zero-group footer immediately after PAR1.
+The reverse conversion uses the declared group and footer policies and the
+returned bytes must fit the separate IPC carrier cap. -/
+theorem read_roundTripSchemaOnly {source returned : MixedIpc.Limits} {sink : MixedV1Writer.Multi.Limits}
+    {reverse : File.Limits} {input output : KBytes} {parquet : MixedV1Writer.Multi.Encoded}
+    {descriptor : MixedIpc.Descriptor}
+    (original : MixedIpc.read source input = .ok ⟨descriptor, []⟩)
+    (forward : SchemaOnly.convert source sink input = .ok parquet)
+    (groupLimits : reverse.group = sink.writer.readback)
+    (footerLimits : reverse.group.snapshot.footer = sink.writer.footer)
+    (backward : ToIpc.convertOrdered reverse returned.mixed parquet.bytes
+      (field descriptor.integer) (field descriptor.binary) = .ok output)
+    (carrier : output.len ≤ returned.inputBytes) :
+    MixedIpc.read returned output = .ok ⟨descriptor, []⟩ ∧ parquet.footer.start = 4 ∧
+    Footer.readFooter sink.writer.footer parquet.bytes = .ok (parquet.footer, SchemaOnly.metadata descriptor) :=
+  Proofs.Formats.Parquet.MixedV1Writer.FromIpc.RoundTrip.read_roundTripSchemaOnly
     original forward groupLimits footerLimits backward carrier
 
 end Silmaril.Formats.Parquet.MixedV1Writer.FromIpc.RoundTrip
