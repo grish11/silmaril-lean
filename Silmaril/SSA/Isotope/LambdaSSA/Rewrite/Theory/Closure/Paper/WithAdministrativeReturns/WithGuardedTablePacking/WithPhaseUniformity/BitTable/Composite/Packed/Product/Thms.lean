@@ -60,7 +60,8 @@ returned and becomes the second component of the next state.
 with the step equation as a hypothesis.
 
 These use unit η and the phase-uniformity quotient. No source flat CFG is
-treated, and nothing is claimed for default Paper.
+treated here; `Flat/Thms.lean` treats a flat source with one header block.
+Nothing is claimed for default Paper.
 -/
 
 public section
