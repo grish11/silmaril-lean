@@ -50,8 +50,9 @@ computed with bit operations on the operands and the wrapped result `r`:
 * `v` is set when `x` and `y` have the same sign and `r` has the other sign.
 
 ADDS is `addWithCarry x y false`. SUBS and CMP are `addWithCarry x (~~~y) true`.
-`Spec.addWithCarry` is Arm's arithmetic definition; `addWithCarry_eq_spec` proves the
-two equal at every width greater than zero. -/
+`Spec.addWithCarry` is Arm's arithmetic definition; `addWithCarry_eq_spec_of_pos` proves
+the two equal at every width greater than zero (`addWithCarry_eq_spec` and
+`addWithCarry_eq_spec_64` are the 32-bit and 64-bit cases). -/
 def addWithCarry {w : Nat} (x y : BitVec w) (carryIn : Bool) : BitVec w × NZCV :=
   let r := x + y + (BitVec.ofBool carryIn).setWidth w
   (r, { n := r.msb
@@ -83,13 +84,16 @@ namespace Spec
 ```
 let unsigned_sum : integer = UInt(x) + UInt(y) + UInt(carry_in);
 let signed_sum : integer = SInt(x) + SInt(y) + UInt(carry_in);
-let result : bits(N) = unsigned_sum[N-1:0];
+let result : bits(N) = unsigned_sum[N-1:0]; // same value as signed_sum[N-1:0]
+...  // two lines omitted here: `let n : bit = ...` and `let z : bit = ...`, see below
 let c : bit = if UInt(result) == unsigned_sum then '0' else '1';
 let v : bit = if SInt(result) == signed_sum then '0' else '1';
 ```
 
-N and Z are stated by their meaning in Arm ARM B1.3 (the result is negative as a two's
-complement integer; the result is zero), not through `result[N-1]` and `IsZero`. -/
+The two omitted lines are `let n : bit = result[N-1];` and
+`let z : bit = if IsZero(result) then '1' else '0';`. Here N and Z are stated by their
+meaning in Arm ARM B1.3 instead (the result is negative as a two's complement integer;
+the result is zero). -/
 def addWithCarry {w : Nat} (x y : BitVec w) (carryIn : Bool) : BitVec w × NZCV :=
   let unsignedSum : Nat := x.toNat + y.toNat + carryIn.toNat
   let signedSum : Int := x.toInt + y.toInt + carryIn.toNat

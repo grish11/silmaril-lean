@@ -77,6 +77,13 @@ theorem addWithCarry_not_true_c {w : Nat} (hw : 0 < w) (x y : BitVec w) :
   simp only [Bool.toNat_true, decide_eq_decide]
   omega
 
+/-- C after ADDS is the unsigned overflow of `x + y`, at every width. -/
+theorem addWithCarry_false_c {w : Nat} (x y : BitVec w) :
+    (addWithCarry x y false).2.c = decide (2 ^ w ≤ x.toNat + y.toNat) := by
+  cases w with
+  | zero => rw [BitVec.eq_nil x, BitVec.eq_nil y]; rfl
+  | succ k => rw [addWithCarry_eq_spec_of_pos (Nat.succ_pos k), spec_c]; rfl
+
 /-- `x + NOT y + 1` is `x - y`. -/
 theorem addWithCarry_not_true_fst {w : Nat} (x y : BitVec w) :
     (addWithCarry x (~~~y) true).1 = x - y := by
