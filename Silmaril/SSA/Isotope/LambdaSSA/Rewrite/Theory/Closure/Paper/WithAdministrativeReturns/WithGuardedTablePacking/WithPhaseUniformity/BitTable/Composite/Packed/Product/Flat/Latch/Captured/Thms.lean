@@ -3,7 +3,7 @@ module
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithAdministrativeReturns.WithGuardedTablePacking.WithPhaseUniformity.BitTable.Composite.Packed.Product.Flat.Latch.Captured.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithAdministrativeReturns.WithGuardedTablePacking.WithPhaseUniformity.BitTable.Composite.Packed.Product.Flat.Latch.Thms
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Singleton.Iteration.Strength.Thms
-import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.WithAdministrativeReturns.GuardedTablePacking.PhaseUniformity.CapturedSource
+import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.WithAdministrativeReturns.GuardedTablePacking.PhaseUniformity.CaptStep
 
 /-! # A two-block cyclic flat source whose header uses the captured input
 
@@ -47,28 +47,43 @@ named tables gives a block only its parameter.
 `captSource_eqv_loop`: so the source equals `captLoop l` at the source
 entry, in the table-packing quotient.
 
-## The router table: not transferred
+## The router table and completeness
 
-The supported-model iff is **not** established for this source. What is
-landed is conditional.
+`captRouter l` is the two-row router table of the loop: the row is the
+captured input and the carried Bit is the header parameter.
 
-* `captRouter l` is a two-row router table given by `Router.ofLabels`,
-  as `pairRouter` is.
-* `Task.captStep l` is the equation between the step `captBody l`,
-  conjugated by the encoding of pairs, and the dispatcher step of
-  `captRouter l`. It is not proved. It is a new equation: #5306 proves
-  the corresponding equation for `pairBody`, a different step.
-* `captLoop_factors_of`, `captLoop_complete_of`: given the step
-  equation, the loop of `captBody` factors through the packed loop of
-  the table, and two such loops are equal at the product-state entry
-  exactly when valid in every supported model.
-* `captSource_eqv_of_loops`: two sources are equal at the source entry
-  when their loops are equal at the product-state entry.
+* `captBody_step`: the step `captBody l`, conjugated by the encoding of
+  pairs, is the dispatcher step of `captRouter l`. The proof follows
+  #5306's for `pairBody`: packed row extensionality; product β with the
+  captured Bit as the constant of the row; congruence under the request.
+  On the right reply the encoding at a constant first Bit and the case of
+  a Bit on its constructors suffice, in default Paper. On the left reply
+  unit η discards the reply. Unit η is the only opt-in rule used.
+* `captLoop_factors`, `captLoop_complete`: the loop of `captBody`
+  factors through the packed loop of the table, and two such loops are
+  equal at the product-state entry exactly when valid in every supported
+  model.
 
-Two things remain for the iff at the source entry: the step equation
-`Task.captStep`, and the converse of `captSource_eqv_of_loops`. The
-source enters the loop only at pairs with equal components, so validity
-at the source entry constrains the loops only there.
+At the source entry the loop is entered only at pairs with equal
+components, so the iff is proved for this family directly, not from an
+abstract principle about diagonal states.
+
+* `captSource_pointed`: at each constant input `q` the source is the
+  router table entered at the row of `q`, carrying `q`. It uses the
+  factoring above and unit η for the constant of the row.
+* `captSource_label_of_valid`: validity at the source entry determines
+  the request label. In the query-aware model of #5290 the first request
+  of the table at that state shows its label.
+* `captSource_complete`: two sources are equal at the source entry
+  exactly when they are valid in every supported model. Equal labels give
+  the same source.
+* `captSource_eqv_iff`: they are equal exactly when their requests have
+  the same label.
+
+These use the opt-in quotient: the packing seed, unit η and phase
+uniformity.
+
+The `_of` forms with the step equation as a hypothesis remain.
 
 ## Not covered
 
@@ -200,5 +215,46 @@ theorem captSource_eqv_of_loops (l l' : Bool)
     (e : Eqv false [Pair] (loopRegion Pair (captBody l)) (loopRegion Pair (captBody l')) [Bit]) :
     Eqv false [Bit] (captSource l) (captSource l') [Bit] :=
   Tables.capt_source_of_loops l l' e
+
+/-! ## The router table and completeness -/
+
+/-- The step that keeps the captured input, conjugated by the encoding of
+pairs, is the dispatcher step of its router table. -/
+theorem captBody_step (l : Bool) : Task.captStep l :=
+  Tables.capt_step l
+
+/-- The loop on the pair factors through the packed loop of its router table. -/
+theorem captLoop_factors (l : Bool) : Factors pairDec (loopRegion Pair (captBody l)) (captRouter l) :=
+  captLoop_factors_of l (captBody_step l)
+
+/-- Two loops on the pair are equal at the product-state entry exactly
+when they are valid in every supported model. -/
+theorem captLoop_complete (l l' : Bool) :
+    Eqv false [Pair] (loopRegion Pair (captBody l)) (loopRegion Pair (captBody l')) [Bit] ↔
+      Valid (loopRegion_typed (captBody_typed l)).hasType (loopRegion_typed (captBody_typed l')).hasType :=
+  captLoop_complete_of l l' (captBody_step l) (captBody_step l')
+
+/-- At each constant input the source is the router table entered at the
+row of that constant, carrying that constant. -/
+theorem captSource_pointed (l : Bool) :
+    SpinPointed (seqRegion (unpackExits [Bit]) (captSource l)) (fun _ => some l) captAct pairIdx :=
+  Tables.capt_pointed l
+
+/-- Validity at the source entry determines the request label. -/
+theorem captSource_label_of_valid (l l' : Bool)
+    (v : Valid (captSource_typed l).hasType (captSource_typed l').hasType) : l = l' :=
+  Tables.capt_label_of_valid l l' v
+
+/-- Two sources are equal at the source entry exactly when they are
+valid in every supported model. -/
+theorem captSource_complete (l l' : Bool) :
+    Eqv false [Bit] (captSource l) (captSource l') [Bit] ↔
+      Valid (captSource_typed l).hasType (captSource_typed l').hasType :=
+  Tables.capt_source_complete l l'
+
+/-- They are equal exactly when their requests have the same label. -/
+theorem captSource_eqv_iff (l l' : Bool) :
+    Eqv false [Bit] (captSource l) (captSource l') [Bit] ↔ l = l' :=
+  Tables.capt_source_eqv_iff l l'
 
 end Silmaril.Isotope.LambdaSSA.Region.Paper.WithAdministrativeReturns.WithGuardedTablePacking.WithPhaseUniformity.BitTable
