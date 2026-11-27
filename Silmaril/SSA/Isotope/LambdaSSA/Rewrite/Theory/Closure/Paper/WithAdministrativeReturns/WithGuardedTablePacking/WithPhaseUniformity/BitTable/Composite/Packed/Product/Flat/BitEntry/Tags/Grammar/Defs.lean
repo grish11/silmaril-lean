@@ -20,8 +20,6 @@ and the router table `d.router`.
 and `toStatesN K` is the map from the tags of `K + 1` blocks to the states
 of `K + 1` rows that sends each tag to its row.
 
-`Task.nStep d` is the step equation of every row of `d`. It is the one
-field of the certificate of `d` that is not proved for every size.
 -/
 
 @[expose] public section
@@ -173,14 +171,6 @@ def act (i : Fin (K + 1)) (tag pl : Bool) : Act K :=
 def router : Router K := Router.ofLabels d.label d.act
 
 end NTable
-
-/-- The step equation of every row: the capture-free row, with its tags
-sent to states, is the row of the router table. -/
-def Task.nStep (d : NTable K) : Prop :=
-  ∀ i, ofRegion (d.free_typed i) ≫
-      ((sumIso (Φ := signature.Instr) Bit (BitTags K)).hom ≫ coprod.map (𝟙 _) (toStatesN K)) =
-    (ofRegion bitState_typed ≫ ofRegion (d.router.rows_typed i)) ≫
-      (sumIso (Φ := signature.Instr) Bit (States K)).hom
 
 /-- The cycle of three blocks, as a table of the grammar. -/
 def cycleN (l : Bool) : NTable 2 where

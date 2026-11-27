@@ -68,8 +68,8 @@ for each row. Given a certificate:
 
 The certificate of the cycle is proved for that table. `Grammar/Thms.lean`
 proves the entry, the rows and the map from tags to states for every
-table of the request and reply grammar at every size. The step equations
-of the rows remain, for a variable size.
+table of the request and reply grammar at every size, and the step
+equations of the rows, so every table of that grammar has a certificate.
 
 The reader of #5340 is not extended. Tables that are not tidy, blocks
 that use the captured input, and completeness in default Paper are not

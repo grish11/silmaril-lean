@@ -201,7 +201,11 @@ theorem nreadback_tags (d : NTable K) :
     (freeOfBlocks d.free d.free_typed) (nrow_cert d) (tagArg_value (atBit d.start)) (nentry d)
 
 /-- The certificate of a table, from the step equations of its rows. -/
-noncomputable def ncert (d : NTable K) (h : Task.nStep d) :
+noncomputable def ncert (d : NTable K)
+    (h : ∀ i, ofRegion (d.free_typed i) ≫
+        ((sumIso (Φ := signature.Instr) Bit (BitTags K)).hom ≫ coprod.map (𝟙 _) (toStatesN K)) =
+      (ofRegion bitState_typed ≫ ofRegion (d.router.rows_typed i)) ≫
+        (sumIso (Φ := signature.Instr) Bit (States K)).hom) :
     TagCert d.entry_typed d.blocks_typed d.router d.start where
   free := d.free
   free_typed := d.free_typed
@@ -221,29 +225,5 @@ theorem toStates3_eq : toStatesN 2 = ofRegion toStates3.property :=
   tags_ext _ (fun i A hi => by
     obtain rfl := eq_of_atBit hi
     exact (toStatesN_tag ⟨i, lt_of_atBit hi⟩).trans (cyc_tags ⟨i, lt_of_atBit hi⟩).symm)
-
-/-- The step equations of the cycle, from its fixed-size proof. -/
-theorem cycleN_step (l : Bool) : Task.nStep (cycleN l) := fun i => by
-  rw [toStates3_eq]
-  exact cyc_step l i
-
-section Conditional
-
-variable {K K' : Nat}
-
-theorem ntable_spin (d : NTable K) : Router.ofSpin (fun i => some (d.label i)) d.act = d.router := rfl
-
-theorem nbitPointed (d : NTable K) (h : Task.nStep d) :
-    BitPointed d.source (fun i => some (d.label i)) d.act (fun _ => d.start) :=
-  cert_bitPointed (label := fun i => some (d.label i)) (act := d.act) (ncert d h)
-
-open Paper.WithAdministrativeReturns.WithGuardedTablePacking (Valid) in
-theorem ncomplete (d : NTable K) (d' : NTable K') (h : Task.nStep d) (h' : Task.nStep d') :
-    Eqv false [Bit] d.source d'.source [Bit] ↔ Valid d.source_typed.hasType d'.source_typed.hasType :=
-  bit_source_complete (tidy_of_labelled fun _ => Option.some_ne_none _)
-    (tidy_of_labelled fun _ => Option.some_ne_none _) d.source_typed d'.source_typed
-    (nbitPointed d h) (nbitPointed d' h')
-
-end Conditional
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.WithAdministrativeReturns.GuardedTablePacking.PhaseUniformity.Tables
