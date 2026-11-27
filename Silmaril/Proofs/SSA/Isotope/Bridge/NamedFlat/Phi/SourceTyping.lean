@@ -360,4 +360,173 @@ theorem version_body_typed_proof (graph : Graph V K F) (types : V → Ty Base)
 
 end VersionedBody
 
+/-! ## The prefix of a versioned block -/
+
+section Prefix
+
+variable {Base V K : Type u} {F : Type v} [DecidableEq Base] [HasTy F (Ty Base)]
+
+/-- Unpacking a record is typed, when the source has the type of the
+record, each register is bound at its declared type, and each temporary
+is bound at the type of the rest of the record. -/
+theorem unpack_typed_proof {W L : Type u} (ty : W × Nat → Ty Base) (lt : W → Ty Base)
+    (labelType : L → Ty Base) (inner : Region (W × Nat) L F)
+    (innerOk : regionTyped ty labelType inner = true) :
+    (ys : List W) → (src : W × Nat) → (d : Nat) → ty src = recordType lt ys →
+    (∀ i (h : i < ys.length), ty (ys[i], d + 2 * i + 1) = lt ys[i] ∧
+      ty (ys[i], d + 2 * i + 2) = recordType lt (ys.drop (i + 1))) →
+    regionTyped ty labelType (Version.unpack ys src d inner) = true
+  | [], _, _, _, _ => innerOk
+  | y :: rest, src, d, source, temps => by
+    have head := temps 0 (by simp)
+    simp only [List.getElem_cons_zero, Nat.mul_zero, Nat.add_zero, List.drop_succ_cons,
+      List.drop_zero] at head
+    simp only [Version.unpack, regionTyped, opType, valueType, source, recordType, head.1, head.2,
+      decide_true, Bool.true_and]
+    exact unpack_typed_proof ty lt labelType inner innerOk rest (y, d + 2) (d + 2) head.2
+      fun i h => by
+        have step := temps (i + 1) (by simp; omega)
+        simp only [List.getElem_cons_succ, List.drop_succ_cons] at step
+        have first : d + 2 * (i + 1) + 1 = d + 2 + 2 * i + 1 := by omega
+        have second : d + 2 * (i + 1) + 2 = d + 2 + 2 * i + 2 := by omega
+        rw [first, second] at step
+        exact step
+
+/-- Decoding the φ operands is typed, when the packet register holds
+what remains of the operands, each temporary is bound at the type of the
+rest of the operands, and the current and later versions of source
+registers have their declared types. -/
+theorem decode_typed_proof [DecidableEq V] [DecidableEq (Option K)]
+    (ty : Option V × Nat → Ty Base) (types : V → Ty Base) (labelType : Option K → Ty Base)
+    (lenv : Option K → Option (List (Option V))) (live : List (Option V))
+    (inner : Body (Option V) (Option K) F)
+    (innerOk : ∀ cur d, (∀ r, ty (some r, cur (some r)) = types r) →
+      (∀ r v, d < v → ty (some r, v) = types r) →
+      regionTyped ty labelType (Version.version lenv live cur d inner.toRegion) = true) :
+    (rows : List (Row V K)) → (cur : Option V → Nat) → (d : Nat) →
+    ty (none, cur none) = argsType types rows →
+    (∀ j, j < rows.length → ty (none, d + 2 * j + 2) = argsType types (rows.drop (j + 1))) →
+    (∀ r, ty (some r, cur (some r)) = types r) → (∀ r v, d < v → ty (some r, v) = types r) →
+    regionTyped ty labelType (Version.version lenv live cur d (Phi.decode rows inner).toRegion) =
+      true
+  | [], cur, d, _, _, current, fresh => innerOk cur d current fresh
+  | row :: rest, cur, d, packet, tails, current, fresh => by
+    have head := tails 0 (by simp)
+    simp only [Nat.mul_zero, Nat.add_zero, List.drop_succ_cons, List.drop_zero] at head
+    simp only [Phi.decode, Body.toRegion, Version.version, Version.rnOp, Version.rn, regionTyped,
+      opType, valueType, packet, argsType, fresh row.dst (d + 1) (by omega), head, decide_true,
+      Bool.true_and]
+    exact decode_typed_proof ty types labelType lenv live inner innerOk rest _ (d + 2)
+      (by simpa [Version.setv] using head)
+      (fun j h => by
+        have step := tails (j + 1) (by simp; omega)
+        simp only [List.drop_succ_cons] at step
+        have shift : d + 2 * (j + 1) + 2 = d + 2 + 2 * j + 2 := by omega
+        rw [shift] at step
+        exact step)
+      (fun r => by
+        by_cases same : r = row.dst
+        · subst same
+          simpa [Version.setv] using fresh row.dst (d + 1) (by omega)
+        · simpa [Version.setv, same] using current r)
+      (fun r v later => fresh r v (by omega))
+
+/-- The current version of a name after unpacking a record: its earlier
+version, or the version at which a position of the record was bound. -/
+theorem unpackCur_range_proof {W : Type u} [DecidableEq W] (z : W) : (ys : List W) →
+    (cur : W → Nat) → (d : Nat) →
+    Version.unpackCur ys cur d z = cur z ∨
+      ∃ i, i < ys.length ∧ Version.unpackCur ys cur d z = d + 2 * i + 1
+  | [], _, _ => .inl rfl
+  | y :: rest, cur, d => by
+    rcases unpackCur_range_proof z rest (Version.setv cur y (d + 1)) (d + 2) with kept | ⟨i, h, at_⟩
+    · by_cases same : z = y
+      · exact .inr ⟨0, by simp, by
+          rw [Version.unpackCur, kept]
+          simp [Version.setv, same]⟩
+      · exact .inl (by
+          rw [Version.unpackCur, kept]
+          simp [Version.setv, same])
+    · exact .inr ⟨i + 1, by simp; omega, by rw [Version.unpackCur, at_]; omega⟩
+
+/-- A name outside an unpacked record keeps its version. -/
+theorem unpackCur_outside_proof {W : Type u} [DecidableEq W] (z : W) : (ys : List W) →
+    (cur : W → Nat) → (d : Nat) → z ∉ ys → Version.unpackCur ys cur d z = cur z
+  | [], _, _, _ => rfl
+  | y :: rest, cur, d, absent => by
+    simp only [List.mem_cons, not_or] at absent
+    rw [Version.unpackCur, unpackCur_outside_proof z rest _ _ absent.2]
+    simp [Version.setv, absent.1]
+
+variable [DecidableEq V] [DecidableEq K]
+
+/-- A versioned block of the lowering of a certified graph is typed, from
+its packet at the computed packet type. -/
+theorem block_typed_proof (graph : Graph V K F) (types : V → Ty Base)
+    (exitType : Option K → Ty Base) (certificate : certified graph types exitType = true)
+    (item : K × Block V K F) (member : item ∈ graph.blocks) :
+    regionTyped (blockTyping graph types item.1 item.2) (targetType graph types exitType)
+      (Versioning.compileBlock (Phi.OrderedExits.lower graph)
+        (Phi.OrderedExits.lowerBlock graph item.1 item.2)).body.toRegion = true := by
+  simp only [certified, Bool.and_eq_true, List.all_eq_true] at certificate
+  have bodyOk := certificate.2 item member
+  rw [compileBlock_toRegion]
+  generalize slotsEq : Versioning.slots (Phi.OrderedExits.lower graph)
+    (Phi.OrderedExits.lowerBlock graph item.1 item.2) = slots
+  have sources : ∀ y ∈ slots, ∃ r, y = some r := slotsEq ▸ slots_some_proof graph item.1 item.2
+  -- the typing at the names the prefix and the body use
+  have atSource : ∀ r v, (v % 2 = 1 ∨ v < 4 ∨ 2 + 2 * slots.length < v) →
+      blockTyping graph types item.1 item.2 (some r, v) = types r := by
+    intro r v side
+    simp only [blockTyping, slotsEq]
+    split
+    · omega
+    · rfl
+  have atTail : ∀ r i, i < slots.length →
+      blockTyping graph types item.1 item.2 (some r, 2 + 2 * i + 2) =
+        recordType (lifted types) (slots.drop (i + 1)) := by
+    intro r i h
+    have inside : (2 + 2 * i + 2) % 2 = 0 ∧ 4 ≤ 2 + 2 * i + 2 ∧
+        2 + 2 * i + 2 ≤ 2 + 2 * slots.length := by omega
+    simp only [blockTyping, slotsEq, inside, and_self, ↓reduceIte]
+    rw [show (2 + 2 * i + 2 - 2) / 2 = i + 1 by omega]
+  have atArgs : ∀ j, blockTyping graph types item.1 item.2
+      (none, 2 + 2 * slots.length + 2 * j + 2) = argsType types (item.2.rows.drop (j + 1)) := by
+    intro j
+    have shape : 2 + 2 * slots.length + 2 * j + 2 = (2 * slots.length + 2 * j + 1) + 3 := by omega
+    rw [shape]
+    simp only [blockTyping, slotsEq]
+    rw [show (2 * slots.length + 2 * j + 1 + 3 - (2 + 2 * slots.length)) / 2 = j + 1 by omega]
+  show regionTyped _ _ (.let2 (none, 1) (none, 2) (.val (.var (none, 0)))
+    (Version.unpack slots (none, 2) 2 (Version.version _ _ _ (2 + 2 * slots.length)
+      (Phi.decode item.2.rows (Phi.liftBody (Phi.OrderedExits.branchValue graph (some item.1))
+        item.2.body)).toRegion))) = true
+  have packet : blockTyping graph types item.1 item.2 (none, 0) =
+      .product (blockTyping graph types item.1 item.2 (none, 1))
+        (blockTyping graph types item.1 item.2 (none, 2)) := rfl
+  simp only [regionTyped, opType, valueType, packet, decide_true, Bool.true_and]
+  refine unpack_typed_proof _ (lifted types) _ _ ?_ slots (none, 2) 2
+    (by simp only [blockTyping, slotsEq]) (fun i h => ?_)
+  · refine decode_typed_proof _ types _ _ _ _ (fun cur d current fresh =>
+      version_body_typed_proof graph types exitType (some item.1) _ _ item.2.body cur d bodyOk
+        current fresh) item.2.rows _ (2 + 2 * slots.length) ?_ (fun j _ => atArgs j) (fun r => ?_)
+      (fun r v later => atSource r v (.inr (.inr later)))
+    · have outside : (none : Option V) ∉ slots := fun listed => by
+        obtain ⟨r, impossible⟩ := sources none listed
+        cases impossible
+      rw [unpackCur_outside_proof none slots _ _ outside]
+      simp only [Version.setv]
+      rfl
+    · rcases unpackCur_range_proof (some r) slots (Version.setv (fun _ => 0) none 1) 2 with
+        kept | ⟨i, _, at_⟩
+      · exact (congrArg (fun v => blockTyping graph types item.1 item.2 (some r, v)) kept).trans
+          (atSource r _ (.inr (.inl (by simp [Version.setv]))))
+      · exact (congrArg (fun v => blockTyping graph types item.1 item.2 (some r, v)) at_).trans
+          (atSource r _ (.inl (by omega)))
+  · obtain ⟨r, here⟩ := sources slots[i] (List.getElem_mem h)
+    rw [here]
+    exact ⟨atSource r _ (.inl (by omega)), atTail r i h⟩
+
+end Prefix
+
 end Silmaril.Isotope.Bridge.NamedFlat.Phi.SourceTyping

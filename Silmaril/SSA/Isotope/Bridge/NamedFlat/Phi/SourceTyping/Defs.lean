@@ -28,6 +28,11 @@ of the row types and of the types of the record.
 The typed elaboration checks the elaborated graph against a packet type
 for every block. `Task.certifiedChecks` states that the computed packet
 types pass that check for a certified graph; it is open.
+
+The named typing `regionTyped` gives one type to every name and one to
+every label. The versioned entry is typed in the canonical typing
+`canon`, and each versioned block in its own `blockTyping`, whose packet
+has the computed packet type.
 -/
 
 @[expose] public section
@@ -168,6 +173,39 @@ def regionTyped {N L : Type u} (ty : N → Ty Base) (labelType : L → Ty Base) 
     decide (opType ty operand = some (.coprod (ty x) (ty y))) &&
       regionTyped ty labelType left && regionTyped ty labelType right
   | .join _ _ _ _ => false
+
+omit [DecidableEq Base] [HasTy F (Ty Base)] in
+/-- The typing of the names of a versioned block of the lowering.
+
+A versioned block binds temporary names before its body. It takes the
+packet `(none, 0)` apart into the φ operands `(none, 1)` and the record
+`(none, 2)`. It unpacks the record: for the register at position `i` of
+the layout it binds the register at version `2 i + 3` and, at version
+`2 i + 4`, the rest of the record. It then decodes the φ operands: after
+the record, of length `m`, row `j` binds its destination at version
+`2 m + 2 j + 3` and, as `(none, 2 m + 2 j + 4)`, the rest of the
+operands.
+
+So a version of the packet register has the type of what remains of the
+φ operands, and an even version of a source register from `4` to
+`2 m + 2` has the type of what remains of the record. Every other version
+of a source register has the declared type of the register: its initial
+version, every odd version, and every version above `2 m + 2`. -/
+def blockTyping (graph : Graph V K F) (types : V → Ty Base) (key : K) (block : Block V K F) :
+    Option V × Nat → Ty Base
+  | (none, 0) => packetType graph types key block
+  | (none, 1) => argsType types block.rows
+  | (none, 2) => recordType (lifted types)
+      (Versioning.slots (Phi.OrderedExits.lower graph) (Phi.OrderedExits.lowerBlock graph key block))
+  | (none, version + 3) => argsType types (block.rows.drop
+      ((version + 3 - (2 + 2 * (Versioning.slots (Phi.OrderedExits.lower graph)
+        (Phi.OrderedExits.lowerBlock graph key block)).length)) / 2))
+  | (some register, version) =>
+    if version % 2 = 0 ∧ 4 ≤ version ∧ version ≤ 2 + 2 * (Versioning.slots
+        (Phi.OrderedExits.lower graph) (Phi.OrderedExits.lowerBlock graph key block)).length then
+      recordType (lifted types) ((Versioning.slots (Phi.OrderedExits.lower graph)
+        (Phi.OrderedExits.lowerBlock graph key block)).drop ((version - 2) / 2))
+    else types register
 
 /-- Open: the elaborated lowering of a certified φ graph passes the typing
 check at the computed packet types, when the capture context has the
