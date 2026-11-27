@@ -45,33 +45,18 @@ def body(nullable, slots, physical):
     return prefix + b"".join(struct.pack("<i", len(slot)) + slot for slot in slots if slot is not None)
 
 
-def check_wire(thrift, wire, columns):
-    assert wire[:4] == wire[-4:] == b"PAR1"
-    size, = struct.unpack_from("<I", wire, len(wire) - 8)
-    start = len(wire) - 8 - size
-    footer_memory = TMemoryBuffer(wire[start:-8])
-    footer = thrift["read_struct"](TCompactProtocol(footer_memory))
-    assert footer_memory.cstringio_buf.tell() == size
-
-    count = len(columns[0][2])
-    root, *leaves = thrift["list_field"](footer, 2)
-    assert footer[1] == (TType.I32, 1) and footer[3] == (TType.I64, count)
-    assert root == {4: (TType.STRING, b"schema"), 5: (TType.I32, 2)}
-    (group,) = thrift["list_field"](footer, 4)
-    assert group[2] == (TType.I64, start - 4) and group[3] == (TType.I64, count)
+def check_group(thrift, wire, cursor, group, fields, slots):
+    count = len(slots[0])
+    assert len(slots[1]) == count and group[3] == (TType.I64, count)
     chunks = thrift["list_field"](group, 1)
-
-    cursor = 4
-    assert len(chunks) == len(leaves) == 2
-    for leaf, chunk, (name, nullable, slots), physical in zip(leaves, chunks, columns, (1, 6), strict=True):
-        label = name.encode()
-        assert leaf == {1: (TType.I32, physical), 3: (TType.I32, int(nullable)), 4: (TType.STRING, label)}
+    start = cursor
+    for chunk, (name, nullable), values, physical in zip(chunks, fields, slots, (1, 6), strict=True):
         assert chunk[2] == (TType.I64, 0)
         column = chunk[3][1]
         page_size = column[7][1]
         assert column == {
             1: (TType.I32, physical), 2: (TType.LIST, (TType.I32, [0, 3])),
-            3: (TType.LIST, (TType.STRING, [label])), 4: (TType.I32, 0),
+            3: (TType.LIST, (TType.STRING, [name.encode()])), 4: (TType.I32, 0),
             5: (TType.I64, count), 6: (TType.I64, page_size), 7: (TType.I64, page_size),
             9: (TType.I64, cursor),
         }
@@ -84,25 +69,47 @@ def check_wire(thrift, wire, columns):
             5: (TType.STRUCT, {1: (TType.I32, count), 2: (TType.I32, 0),
                                3: (TType.I32, 3), 4: (TType.I32, 3)}),
         }
-        assert payload == body(nullable, slots, physical)
+        assert payload == body(nullable, values, physical)
         cursor = stop
+    assert group[2] == (TType.I64, cursor - start)
+    return cursor
+
+
+def check_wire_groups(thrift, wire, fields, expected_groups):
+    assert wire[:4] == wire[-4:] == b"PAR1"
+    size, = struct.unpack_from("<I", wire, len(wire) - 8)
+    start = len(wire) - 8 - size
+    footer_memory = TMemoryBuffer(wire[start:-8])
+    footer = thrift["read_struct"](TCompactProtocol(footer_memory))
+    assert footer_memory.cstringio_buf.tell() == size
+
+    count = sum(len(slots[0]) for slots in expected_groups)
+    root, *leaves = thrift["list_field"](footer, 2)
+    assert footer[1] == (TType.I32, 1) and footer[3] == (TType.I64, count)
+    assert root == {4: (TType.STRING, b"schema"), 5: (TType.I32, 2)}
+    for leaf, (name, nullable), physical in zip(leaves, fields, (1, 6), strict=True):
+        assert leaf == {1: (TType.I32, physical), 3: (TType.I32, int(nullable)), 4: (TType.STRING, name.encode())}
+    cursor = 4
+    for group, slots in zip(thrift["list_field"](footer, 4), expected_groups, strict=True):
+        cursor = check_group(thrift, wire, cursor, group, fields, slots)
     assert cursor == start
 
 
-def check_arrow(wire, columns):
+def check_arrow_groups(wire, fields, expected_groups):
     schema = pa.schema([
         pa.field(name, kind, nullable=nullable)
-        for (name, nullable, _), kind in zip(columns, (pa.int32(), pa.binary()), strict=True)
+        for (name, nullable), kind in zip(fields, (pa.int32(), pa.binary()), strict=True)
     ])
     with pq.ParquetFile(pa.BufferReader(wire)) as source:
-        assert source.num_row_groups == 1 and source.schema_arrow.equals(schema)
+        assert source.num_row_groups == len(expected_groups) and source.schema_arrow.equals(schema)
         for index in range(2):
             leaf = source.schema.column(index)
             assert leaf.logical_type.type == "NONE" and leaf.max_repetition_level == 0
-            assert leaf.max_definition_level == int(columns[index][1])
-        table = source.read_row_group(0)
-        table.validate(full=True)
-        assert [column.to_pylist() for column in table.columns] == [slots for _, _, slots in columns]
+            assert leaf.max_definition_level == int(fields[index][1])
+        for ordinal, slots in enumerate(expected_groups):
+            table = source.read_row_group(ordinal)
+            table.validate(full=True)
+            assert [column.to_pylist() for column in table.columns] == list(slots)
 
 
 def main():
@@ -120,8 +127,10 @@ def main():
     for name, columns in CASES.items():
         path = out / f"{name}.parquet"
         wire = path.read_bytes()
-        check_wire(thrift, wire, columns)
-        check_arrow(wire, columns)
+        fields = [(name, nullable) for name, nullable, _ in columns]
+        groups = [[slots for _, _, slots in columns]]
+        check_wire_groups(thrift, wire, fields, groups)
+        check_arrow_groups(wire, fields, groups)
         digest = sha256(wire).hexdigest()
         print(f"{digest}  {path.name} ({len(columns[0][2])} rows)")
         assert digest == PINS[name], f"{path.name}: fixture hash changed"

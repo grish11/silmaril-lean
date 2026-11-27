@@ -88,7 +88,23 @@ def byteLeaf (column : ColumnIndex) : Write Unit := do
   text column.name
   octet 0
 
-def footer (rows : Nat) (ints octets : ColumnIndex) : Write Unit := do
+structure GroupIndex where
+  rows : Nat
+  ints : ColumnIndex
+  octets : ColumnIndex
+
+def writeGroup (group : GroupIndex) : Write Unit := do
+  field 1 9
+  listHeader 12 2
+  chunkFor 1 group.rows group.ints
+  chunkFor 6 group.rows group.octets
+  field 1 6
+  integer .i64 (group.ints.size + group.octets.size)
+  field 1 6
+  integer .i64 group.rows
+  octet 0
+
+def footerGroups (ints octets : ColumnIndex) (groups : List GroupIndex) : Write Unit := do
   field 1 5
   integer .i32 1
   field 1 9
@@ -97,22 +113,21 @@ def footer (rows : Nat) (ints octets : ColumnIndex) : Write Unit := do
   leaf ints
   byteLeaf octets
   field 1 6
-  integer .i64 rows
+  integer .i64 (groups.map GroupIndex.rows).sum
   field 1 9
-  listHeader 12 1
-  field 1 9
-  listHeader 12 2
-  chunkFor 1 rows ints
-  chunkFor 6 rows octets
-  field 1 6
-  integer .i64 (ints.size + octets.size)
-  field 1 6
-  integer .i64 rows
-  octet 0
+  listHeader 12 groups.length
+  for group in groups do writeGroup group
   octet 0
 
+def footer (rows : Nat) (ints octets : ColumnIndex) : Write Unit :=
+  footerGroups ints octets [⟨rows, ints, octets⟩]
+
+def encodeGroups (limit : Nat) (ints octets : ColumnIndex) (groups : List GroupIndex) :
+    Except FlatInt32Writer.Compact.Error Bytes :=
+  ((footerGroups ints octets groups).run ⟨limit, .empty⟩).map (·.2.bytes)
+
 def encode (limit rows : Nat) (ints octets : ColumnIndex) : Except FlatInt32Writer.Compact.Error Bytes :=
-  ((footer rows ints octets).run ⟨limit, .empty⟩).map (·.2.bytes)
+  encodeGroups limit ints octets [⟨rows, ints, octets⟩]
 
 end Compact
 
