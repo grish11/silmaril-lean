@@ -119,3 +119,41 @@ lake build --wfail +Silmaril.Formats.Hive.PartitionPath.Filename.Render.Checks
 lake env lean -DautoImplicit=false -DwarningAsError=true --run scripts/hive-filename-render-oracle/Generate.lean > /tmp/rendered-filenames.txt
 python -I scripts/hive-filename-render-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet /tmp/rendered-filenames.txt
 ```
+
+## Scan of rendered files
+
+`Manifest.RenderedFilename.scan` admits supplied relative filenames through
+the shared ordered inventory, binds virtual columns in typed schema order,
+and runs the bounded skip-open scan for the paired INT32 and opaque BYTE_ARRAY
+Parquet profile. Its resolver receives the entire original relative path.
+Exact controls bypass filename parsing after lexical validation, and duplicate
+data occurrences survive stable sorting. Typed admission happens before filtering,
+so a malformed filename or a failed cast still reports its original input index.
+The existing binder supplies the declared missing-field policy.
+
+`prepareFile_of_render` identifies the exact typed cells obtained by binding
+the original render entries and preserves the literal filename and lookup path.
+`scan_eq_reference` replaces parsing with the independently supplied render
+entries for every affordable, lexically valid data occurrence in the bounded
+prefix. It preserves the full admission result or exact bounded trace, including
+ordered projected batches, explicit zero-width row counts, budget cutoff and
+the first reached retained error. The reference performs stable ordering and
+partition filtering before traversal, so rejected occurrences spend no scan
+actions and their resolver results are irrelevant. `scan_eq_denotation_of_cost`
+identifies the trace with the existing checked row-group denotation when the
+budget covers the retained actions through EOS or first failure.
+
+`RenderedFilename.Checks` scans the pinned Parquet fixture under filenames
+produced by the Lean renderer. It verifies typed field order, repeated virtual
+projection, repeated file occurrences, empty groups, zero-column counts,
+indexed admission failures and cutoff before the explicit EOS pull. The pinned
+PyArrow rendering oracle also reads a supplied sorted listing with a repeated
+filename, compares the ordered rows with and without a partition filter, and
+checks duplicate projected columns and the zero-width count. It uses valid
+files under both distinct rendered names. Lean exercises skip-open and retained
+lookup failures separately. The action budget models checked opens and pulls
+over immutable supplied snapshots. It does not bound bytes or file I/O.
+
+```sh
+lake build --wfail +Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.RenderedFilename.Checks
+```

@@ -52,6 +52,37 @@ with tempfile.TemporaryDirectory() as temp:
             assert table["year"].to_pylist() == [year for _, year in values for _ in range(5)]
         print(f"{[file.name for file in selected]!r}: exact readback {values!r}")
 
+with tempfile.TemporaryDirectory() as temp:
+    root = Path(temp)
+    retained = root / "literal=parent" / names[0]
+    rejected = root / "another" / names[1]
+    for file in (retained, rejected):
+        file.parent.mkdir()
+        file.write_bytes(payload)
+
+    # Supply the stable literal order explicitly. Inventory admission, control
+    # classification, and logical action budgets are checked on the Lean side.
+    ordered = sorted([retained, rejected, retained])
+    assert ordered == [rejected, retained, retained]
+    dataset = ds.dataset([str(file) for file in ordered], format="parquet",
+                         partitioning=uri, partition_base_dir=str(root))
+    ordinals = [-2147483648, 0, 17, 2147483647, -1]
+    all_rows = dataset.to_table(columns=["region", "ordinal", "year"], use_threads=False)
+    assert list(zip(*(column.to_pylist() for column in all_rows.columns))) == [
+        (region, ordinal, year)
+        for region, year in [("café/x%5F", 8), ("a_b", 7), ("a_b", 7)]
+        for ordinal in ordinals
+    ]
+    projected = dataset.to_table(columns=["region", "ordinal", "year", "region"],
+                                 filter=ds.field("year") == 7, use_threads=False)
+    assert projected.column_names == ["region", "ordinal", "year", "region"]
+    assert list(zip(*(column.to_pylist() for column in projected.columns))) == [
+        ("a_b", ordinal, 7, "a_b") for ordinal in ordinals * 2
+    ]
+    zero = dataset.to_table(columns=[], filter=ds.field("year") == 7, use_threads=False)
+    assert zero.num_columns == 0 and zero.num_rows == 10
+    print("Ordered rendered scan: three file occurrences, two retained, ten projected rows.")
+
 assert uri.format((ds.field("region") == "a_b") & (ds.field("year") == 7)) == ("", "a_b_7_")
 print("PyArrow's own formatter leaves the underscore in the value raw.")
 print(f"CPython {sys.version.split()[0]}, PyArrow {pa.__version__}, NumPy {np.__version__}, fixture {digest}")
