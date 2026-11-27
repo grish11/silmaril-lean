@@ -45,6 +45,10 @@ inductive Error where
   | segmentArity (expected actual : Nat)
   | filenameByteLimit (maximum actual : Nat)
   | missingFilenameSuffix
+  | unsafeFilenameSuffix
+  | filenameKeyOrder
+  | filenameNull (key : String)
+  | unsafeLiteralFilenameValue (key : String)
   deriving BEq, Repr
 
 /-- The outer option distinguishes a missing key from a present null value. -/
@@ -68,11 +72,16 @@ def hexValue (b : UInt8) : Option Nat :=
   else if 97 ≤ n ∧ n ≤ 102 then some (n - 87)
   else none
 
-def escapeByte (b : UInt8) : List UInt8 :=
-  if unreserved b then [b] else [37, hexDigit (b.toNat / 16), hexDigit (b.toNat % 16)]
+def escapeByteWith (escapeUnderscore : Bool) (b : UInt8) : List UInt8 :=
+  if unreserved b && !(escapeUnderscore && b == 95) then [b]
+  else [37, hexDigit (b.toNat / 16), hexDigit (b.toNat % 16)]
 
-def escape (bytes : List UInt8) : List UInt8 :=
-  bytes.flatMap escapeByte
+def escapeWith (escapeUnderscore : Bool) (bytes : List UInt8) : List UInt8 :=
+  bytes.flatMap (escapeByteWith escapeUnderscore)
+
+def escapeByte (b : UInt8) : List UInt8 := escapeByteWith false b
+
+def escape (bytes : List UInt8) : List UInt8 := escapeWith false bytes
 
 def unescapeRev : List UInt8 → List UInt8 → Except Error (List UInt8)
   | [], acc => .ok acc.reverse
@@ -90,8 +99,10 @@ def unescapeRev : List UInt8 → List UInt8 → Except Error (List UInt8)
 def unescape (bytes : List UInt8) : Except Error (List UInt8) :=
   unescapeRev bytes []
 
-def encode (value : String) : String :=
-  String.ofList ((escape value.toUTF8.data.toList).map (fun b => Char.ofNat b.toNat))
+def encodeWith (escapeUnderscore : Bool) (value : String) : String :=
+  String.ofList ((escapeWith escapeUnderscore value.toUTF8.data.toList).map (fun b => Char.ofNat b.toNat))
+
+def encode (value : String) : String := encodeWith false value
 
 def decode (value : String) : Except Error String := do
   let bytes ← unescape value.toUTF8.data.toList

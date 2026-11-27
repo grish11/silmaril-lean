@@ -11,7 +11,7 @@ namespace Silmaril.Formats.Hive.PartitionPath.Filename
 /-- The last literal underscore separates the prefix from the opaque suffix.
 With no underscore there are zero prefix tokens. -/
 def prefixTokens (leaf : String) : Except Error (List String) :=
-  match (leaf.splitOn "_").reverse with
+  match (leaf.split '_').toList.reverse.map String.Slice.copy with
   | [] => .error .missingFilenameSuffix
   | suffix :: revPrefix =>
     if suffix.isEmpty then .error .missingFilenameSuffix else .ok revPrefix.reverse

@@ -22,6 +22,13 @@ theorem escape_safe {bytes : List UInt8} {c : UInt8} (h : c ∈ escape bytes) :
 theorem decode_encode (value : String) : decode (encode value) = .ok value :=
   Proofs.Formats.Hive.PartitionPath.Percent.decode_encode value
 
+theorem decode_encodeWith (escapeUnderscore : Bool) (value : String) :
+    decode (encodeWith escapeUnderscore value) = .ok value :=
+  Proofs.Formats.Hive.PartitionPath.Percent.decode_encodeWith escapeUnderscore value
+
+theorem encodeWith_avoids_underscore (value : String) : '_' ∉ (encodeWith true value).toList :=
+  Proofs.Formats.Hive.PartitionPath.Percent.encodeWith_avoids_underscore value
+
 end Percent
 
 /-- Lookup exactly represents membership when decoded keys are unique. -/

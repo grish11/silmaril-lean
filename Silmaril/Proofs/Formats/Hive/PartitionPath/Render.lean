@@ -70,7 +70,7 @@ private theorem splitOn_slash (value : String) :
 
 private theorem encode_avoids (text : String) (sep : Char) (hsep : sep.toNat = 47 ∨ sep.toNat = 61) :
     sep ∉ (encode text).toList := by
-  simp only [encode, String.toList_ofList, List.mem_map]
+  simp only [encode, Percent.encodeWith, String.toList_ofList, List.mem_map]
   rintro ⟨byte, hit, rfl⟩
   obtain ⟨ascii, notSlash, notEquals⟩ := Percent.escape_safe hit
   have valid : byte.toNat.isValidChar := Or.inl (by omega)

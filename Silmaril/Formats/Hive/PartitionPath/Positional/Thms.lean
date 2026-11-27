@@ -7,6 +7,14 @@ public section
 
 namespace Silmaril.Formats.Hive.PartitionPath.Positional
 
+theorem parseSegments_ok_iff (keys : List String) (encoding : Encoding)
+    (options : Options) (raw : List String) (entries : Partition) :
+    parseSegments keys encoding options raw = .ok entries ↔
+      raw.length = keys.length ∧
+        ∃ values, raw.mapM (decodeSegment encoding) = .ok values ∧
+          entries = keys.zip (values.map some) ∧ validate options entries = .ok () :=
+  Proofs.Formats.Hive.PartitionPath.Positional.parseSegments_ok_iff keys encoding options raw entries
+
 theorem parseSegments_keys_present {keys : List String} {encoding : Encoding}
     {options : Options} {raw : List String} {entries : Partition}
     (parsed : parseSegments keys encoding options raw = .ok entries) :

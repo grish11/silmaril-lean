@@ -72,3 +72,50 @@ The profile reads caller-supplied lists and bytes.
 python -I scripts/hive-filename-path-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet
 lake build --wfail +Silmaril.Formats.Hive.PartitionPath.Filename.Checks
 ```
+
+## Canonical filename serialization
+
+[`Filename.render`](../../Silmaril/Formats/Hive/PartitionPath/Filename/Render/Defs.lean)
+takes the same byte cap, ordered keys, encoding, and options as the
+parser, plus ordered entries and a caller-supplied suffix. The suffix
+must be nonempty ASCII letters, digits, hyphens or dots, with `.` and
+`..` excluded. In particular, a suffix containing an underscore
+is ambiguous because it changes the split at the final underscore.
+
+URI mode uses the existing uppercase percent encoder with underscore
+also escaped. It emits one token per value and only uses literal
+underscores between tokens and before the suffix. Literal mode preserves
+text and refuses underscores, slashes, backslashes, colons and NUL.
+Both modes reject null entries, empty text, text equal to the configured
+canonical null marker, and key-order mismatches. They enforce the shared
+key checks and apply the byte cap to the final rendered UTF-8 filename,
+including separators and suffix. The cap describes output size.
+
+`Filename.parse_render_of_ok` proves that a successful render parsed with
+the same cap, keys, encoding and options yields exactly the ordered input
+entries for any parent. The filename parser uses the single-character
+split interface so the proof can reuse its split/intercalate law. The
+directory percent encoder still uses the original unreserved set.
+For file admission, the existing
+`prepareInventoryWithFileParser_paths` law preserves the exact lookup
+spelling supplied by the caller, including escape case. Canonical
+output applies to generated names. It does not rewrite an admitted
+existing literal filename.
+
+[The rendering oracle](../../scripts/hive-filename-render-oracle/Oracle.py)
+reads the actual output of
+[`Generate.lean`](../../scripts/hive-filename-render-oracle/Generate.lean).
+It places the pinned Parquet payload under those names, then uses
+PyArrow FilenamePartitioning in URI and literal modes. It verifies
+escaped underscores, slash and percent, non-ASCII values, a zero-key
+filename and repeated explicit reads. The oracle also checks that
+PyArrow's own formatter leaves the underscore in a value raw.
+Use the same [image and wheel pins](hive-manifest-inventory.md#independent-fixture)
+and [Parquet fixture](../../data/parquet-int32-byte-array-file/empty-middle-v2.parquet)
+as the read-profile oracle.
+
+```sh
+lake build --wfail +Silmaril.Formats.Hive.PartitionPath.Filename.Render.Checks
+lake env lean -DautoImplicit=false -DwarningAsError=true --run scripts/hive-filename-render-oracle/Generate.lean > /tmp/rendered-filenames.txt
+python -I scripts/hive-filename-render-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet /tmp/rendered-filenames.txt
+```
