@@ -1974,16 +1974,29 @@ The continuation cannot jump back to its own label.
   when the labels of the blocks are distinct, which the normalization
   check of φ graphs includes; so with it the normalized graph has the
   run of the original graph. That validates the table and is proved for
-  every graph. Whether the table is enough to keep the entry is a
-  separate statement, given exactly and left open. A table is closed
-  when the existing check accepts the normalized graph with every block
-  arriving with the declared inputs only: on each path through a block,
-  every read is then of an input, a φ destination of the block or an
-  earlier definition of the block. The entry is kept when the lowered
-  and versioned entry reads no register at its initial version except
-  the declared inputs. Both are decidable. The open statement is that a
-  closed table keeps the entry; it is recorded as a proposition, with
-  the conditional theorem, and is not used elsewhere. On the direct
+  every graph. Whether a table keeps the entry is a separate statement,
+  about any table. A table is closed when the existing check accepts the
+  normalized graph with every block arriving with the declared inputs
+  only: on each path through a block, every read is then of an input, a
+  φ destination of the block or an earlier definition of the block. The
+  entry is kept when the lowered and versioned entry reads no register
+  at its initial version except the declared inputs. Both are decidable,
+  and a closed table keeps the entry. The proof is about the record of
+  the versioning, which carries on every edge the registers that some
+  lowered body reads freely. A lowered block binds its φ destinations
+  from its packet, so under the closed check its free reads are the
+  packet and inputs; the entry is in scope over the inputs in the same
+  way; so every record holds declared inputs only, and the versioned
+  entry reads its operands and the record at the initial version of
+  inputs. This is proved for any φ graph that the existing check accepts
+  with every block arriving with the given registers only, and it does
+  not depend on how the table was found. It is a statement about initial
+  reads: it does not say that the lowered graph elaborates or is typed
+  at given captures, and it does not say that the inferred table is
+  closed. Small graphs mark the edges of the hypothesis: a φ operand on
+  the edge from the entry is an initial read, so it has to be declared;
+  a jump to a label that is neither a block nor a declared exit, and a
+  declared input that is defined again, are not closed. On the direct
   diamond and on the graph with the changed φ operand, the inferred
   table gives `classify` and `join` the stored reply, `reply` and
   `payload` their value and the stored reply, and `leaf` its two values.
@@ -1997,7 +2010,7 @@ The continuation cannot jump back to its own label.
   rows, and the two direct graphs are told apart. Leaving the stored
   reply to the record as well gives the registers of the table written
   by hand; that table keeps the entry though it is not closed, so
-  closure is sufficient on these graphs and not necessary. The typed
+  closure is sufficient and not necessary. The typed
   witness is supplied. Nothing is claimed for graphs with cycles beyond
   the validity of the table, and nothing says that the inferred table
   is closed for every acyclic graph.

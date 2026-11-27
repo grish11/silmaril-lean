@@ -94,10 +94,4 @@ def entryKept (graph : Graph V K F) (table : Table V K) (inputs : List V) : Bool
   (Versioning.compile (OrderedExits.lower (forward graph table))).entry.toRegion.fvList.all
     fun name => (inputs.map fun register => (some (Sum.inl register), 0)).contains name
 
-/-- Open: a table under which every block is closed over the declared
-inputs keeps the entry. It holds on the checked instances. -/
-def Task.closedKeepsEntry (V K : Type w) (F : Type v) [DecidableEq V] [DecidableEq K] : Prop :=
-  ∀ (graph : Graph V K F) (table : Table V K) (exits : List (Option K)) (inputs : List V),
-    closed graph table exits inputs = true → entryKept graph table inputs = true
-
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward
