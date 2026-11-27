@@ -2100,6 +2100,48 @@ The continuation cannot jump back to its own label.
   [Source checks](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Elaborates/Defs.lean) ·
   [The elaboration succeeds](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Elaborates/Thms.lean) ·
   [Both diamonds](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- A typing certificate on the φ source, and the typed packet of an
+  edge. The certificate is for φ graphs in the fragment of the
+  elaboration. It declares a type for every register, the inputs among
+  them, and for every exit label, and it uses the existing typing of
+  primitives. A binder has the type of its operand; a pattern let binds
+  the components of a product and a case the sides of a sum; a jump to a
+  declared exit carries a payload of the type of the exit; and on a jump
+  to a block every φ row of the block takes from that predecessor an
+  operand of the declared type of its destination. Declared types are
+  compared by equality: nothing is inferred for a register and no
+  uniqueness of types is used. The packet type of a block is computed
+  from the certificate, as the product of the destination types of its φ
+  rows, in order, and of the types of the registers in the record that
+  the versioning carries to it, in the order of its layout; it is not a
+  field of the certificate, and the typing check of the elaborated graph
+  is not one either. One theorem follows a certified jump through the
+  lowering and the versioning. On a jump to a block the versioned jump
+  carries the packed φ operands paired with the record of the target,
+  and that value has the computed packet type; the record holds source
+  registers only. On a jump to a label that is not a block there is no
+  record and the payload has the declared type of the label. Both are
+  for any typing of the versioned names in which the current version of
+  every source register has its declared type. The typed elaboration is
+  not derived. The remaining statement is recorded as an open
+  proposition with its conditional theorems: the elaborated lowering of
+  a certified graph passes the typing check at the computed packet
+  types, when the capture context has the declared types of the
+  captures. It needs that the versioned bodies keep the current versions
+  at their declared types, binder by binder; that a versioned block,
+  which takes its packet apart and unpacks the φ operands and the
+  record, restores that state from the computed packet type; and that
+  the elaboration to positional terms turns the named typing into the
+  typing check. On the direct diamond and the changed-operand variant,
+  with both tables, and on the graph with explicit rows, the certificate
+  holds, the computed packet types are the packet types of the typed
+  witnesses written by hand, and the elaborated graphs pass the typing
+  check at the computed types, so the typed elaboration returns them;
+  that check is evaluated there. A wrong declared type fails the
+  certificate.
+  [Certificate and packet types](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Defs.lean) ·
+  [The typed edge](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Thms.lean) ·
+  [Both diamonds, typed](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
