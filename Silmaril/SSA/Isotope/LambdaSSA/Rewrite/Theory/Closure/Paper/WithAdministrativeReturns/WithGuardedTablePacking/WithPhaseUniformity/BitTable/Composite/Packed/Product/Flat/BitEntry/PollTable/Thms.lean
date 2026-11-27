@@ -67,12 +67,8 @@ Every row of `d.router` is labelled, so the table is `Tidy`.
 
 ## Not covered
 
-* **Recognition of syntax.** There is no function from a scoped flat
-  graph to a `PollTable`. It needs a reader `read` on
-  `FiniteCFG signature.Instr 2 1 1` that matches the entry jump and the
-  two blocks, with the soundness statement `read g = some d → g = d.flat`.
-  Nothing in the certificate depends on it. The flat syntax has no
-  decidable equality, so the reader has to match constructors.
+* Recognition of syntax is in `Read/Thms.lean`: a reader from scoped flat
+  graphs to `PollTable` that accepts exactly the graphs `d.flat`.
 * More than two blocks. The reduction of the readback uses the two-row
   lemma of #5314 and the packed state `States 1`.
 * Request-free blocks (silent forwarding), a block that uses the captured
