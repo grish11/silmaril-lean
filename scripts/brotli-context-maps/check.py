@@ -16,21 +16,29 @@ HEADER = runpy.run_path(str(ROOT / "scripts/brotli-context-header/check.py"))
 PIN, check, run = HEADER["PIN"], HEADER["check"], HEADER["run"]
 
 
-def setup_trace(source, work):
+def setup_trace(source, work, script=HERE / "trace-reference.py"):
     traced = work / "traced"
     traced.mkdir()
     run("tar", "-x", "-C", traced, data=run("git", "-C", source, "archive", PIN).stdout)
-    run("python3", "-I", HERE / "trace-reference.py", traced)
+    run("python3", "-I", script, traced)
     build = work / "trace-build"
     run("cmake", "-S", traced, "-B", build, "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_TESTING=OFF")
     run("cmake", "--build", build, "--target", "brotli", "--parallel", "4")
     return build / "brotli"
 
 
-def trace(wire, reference, traced, full):
+def native_trace(wire, reference, traced):
     native = run(traced, "-d", "-c", data=wire)
     check(native.stdout == run(reference, "-d", "-c", data=wire).stdout, "native output")
-    lines = iter(native.stderr.decode().splitlines())
+    return native.stderr.decode().splitlines()
+
+
+def trace(wire, reference, traced, full):
+    return parse_maps(wire, native_trace(wire, reference, traced), full)
+
+
+def parse_maps(wire, records, full):
+    lines = iter(records)
     extent = 8 * len(wire)
     first = next(lines).split()
     check(first[:2] == ["start", "0"], "native header start")
