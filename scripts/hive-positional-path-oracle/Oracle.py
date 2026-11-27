@@ -95,14 +95,14 @@ print(f"CPython {sys.version.split()[0]}, PyArrow {pa.__version__}, NumPy {np.__
 
 if len(sys.argv) > 2:
     rendered = Path(sys.argv[2]).read_text(encoding="utf-8").splitlines()
-    assert rendered == [
+    assert rendered[:4] == [
         "caf%C3%A9%2Fblue%3D%255F%3Awest%5Cx/7",
         "café=blue%5F_west/7",
         "__HIVE_DEFAULT_PARTITION__/7",
         "",
     ]
     for directory, profile, expected in zip(
-        rendered,
+        rendered[:4],
         (uri, literal, uri, ds.DirectoryPartitioning(pa.schema([]))),
         ("café/blue=%5F:west\\x", "café=blue%5F_west", marker, None),
         strict=True,
@@ -123,3 +123,37 @@ if len(sys.argv) > 2:
                 assert table["region"].to_pylist() == [expected] * 5
                 assert table["year"].to_pylist() == [7] * 5
             print(f"Lean directory {directory!r}: five exact physical rows, region {expected!r}")
+
+    if len(rendered) > 4:
+        assert rendered[4:] == ["apart/8", "zebra/7"]
+        canonical = rendered[0] + "/part.parquet"
+        lower_escape = rendered[0].replace("%2F", "%2f") + "/B%2Eparquet"
+        pruned = rendered[4] + "/skip.parquet"
+        last = rendered[5] + "/z.parquet"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for path in (canonical, lower_escape, pruned, last):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(payload)
+
+            # The explicit sorted data listing matches Lean admission. The
+            # bad lookup and selected corruption controls belong to Lean.
+            ordered = sorted([last, canonical, pruned, lower_escape, canonical], key=str.encode)
+            assert ordered == [pruned, canonical, canonical, lower_escape, last]
+            dataset = ds.dataset([str(root / path) for path in ordered], format="parquet",
+                                 partitioning=uri, partition_base_dir=str(root))
+            predicate = ds.field("year") == 7
+            columns = ["region", "ordinal", "year", "region", "payload"]
+            projected = dataset.to_table(columns=columns, filter=predicate, use_threads=False)
+            assert projected.column_names == columns
+            ordinals = [-2147483648, 0, 17, 2147483647, -1]
+            values = [None, b"", b"\xff\x00", b"\x80", b"xy"]
+            assert list(zip(*(column.to_pylist() for column in projected.columns))) == [
+                (region, ordinal, 7, region, value)
+                for region in ["café/blue=%5F:west\\x"] * 3 + ["zebra"]
+                for ordinal, value in zip(ordinals, values, strict=True)
+            ]
+            zero = dataset.to_table(columns=[], filter=predicate, use_threads=False)
+            assert zero.num_columns == 0 and zero.num_rows == 20
+            print("Ordered positional scan: five data occurrences, four retained, twenty projected rows.")

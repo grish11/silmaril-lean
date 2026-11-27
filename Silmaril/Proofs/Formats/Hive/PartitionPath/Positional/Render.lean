@@ -112,4 +112,15 @@ theorem render_spec {limits : RenderLimits} {keys : List String} {encoding : Enc
         exact ⟨limit, arity, texts, read, by simpa only [named] using ordered, by cases accepted; exact valid⟩
   · simp [Positional.render, emptyMarker, named, bind, Except.bind] at rendered
 
+theorem parse_of_rendered_spelling {limits : RenderLimits} {keys : List String} {encoding : Encoding}
+    {options : Options} {entries : Partition} {directory canonical : String}
+    (rendered : Positional.render limits keys encoding options entries = .ok canonical)
+    (fits : directory.utf8ByteSize ≤ limits.maxDirectoryBytes)
+    (spelling : SameDecodedSegments encoding directory canonical) :
+    parse limits.maxDirectoryBytes keys encoding options directory = .ok entries := by
+  obtain ⟨_, arity, values, decoded, ordered, valid⟩ :=
+    (parse_ok_iff _ _ _ _ _ _).mp (render_spec rendered).1
+  exact (parse_ok_iff _ _ _ _ _ _).mpr
+    ⟨fits, spelling.1.trans arity, values, spelling.2.trans decoded, ordered, valid⟩
+
 end Silmaril.Proofs.Formats.Hive.PartitionPath.Positional

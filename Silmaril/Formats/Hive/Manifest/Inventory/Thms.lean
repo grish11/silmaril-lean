@@ -21,6 +21,22 @@ theorem prepareInventoryWithFileParser_eq_reference (physical : Scan.Schema Stri
       prepareInventoryReferenceWithFileParser physical schema limits parse options convert paths :=
   Proofs.Formats.Hive.Manifest.Inventory.prepareInventoryWithFileParser_eq_reference physical schema limits parse options convert paths
 
+/-- The reference only calls the parser on lexically valid noncontrol paths
+within its indexed entry and byte limits. Agreement there preserves the
+entire result, including original indices, errors and data occurrences. -/
+theorem prepareInventoryReferenceWithFileParser_congr
+    (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
+    (limits : Inventory.Limits) (left right : FileParser)
+    (options : PartitionPath.Options) (convert : Convert Value Failure) (paths : List String)
+    (agree : ∀ path ∈ paths.take limits.maxEntries, path.utf8ByteSize ≤ limits.maxPathBytes →
+      ∀ directory leaf, splitFile path = .ok (directory, leaf) →
+        Inventory.isControlLeaf leaf = false →
+        left options directory leaf = right options directory leaf) :
+    prepareInventoryReferenceWithFileParser physical schema limits left options convert paths =
+      prepareInventoryReferenceWithFileParser physical schema limits right options convert paths :=
+  Proofs.Formats.Hive.Manifest.Inventory.prepareInventoryReferenceWithFileParser_congr
+    physical schema limits left right options convert paths agree
+
 /-- Successful admission preserves the exact data paths and their original
 occurrence order, including duplicates. -/
 theorem prepareInventoryWithFileParser_paths (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)

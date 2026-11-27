@@ -117,3 +117,44 @@ lake build --wfail +Silmaril.Formats.Hive.PartitionPath.Positional.Render.Checks
 lake env lean -DautoImplicit=false -DwarningAsError=true --run scripts/hive-positional-path-oracle/Generate.lean > /tmp/positional-directories.txt
 python -I scripts/hive-positional-path-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet /tmp/positional-directories.txt
 ```
+
+## Bounded scan of rendered directories
+
+`Manifest.RenderedPositional.scan` is a specialization of the shared
+ordered inventory and bounded paired INT32 and opaque BYTE_ARRAY scanner.
+The inventory first checks the original listing, skipping exact controls
+after lexical validation. On success it stably sorts the complete literal
+keys, retaining repetitions. The partition predicate then removes rejected
+occurrences before any Parquet actions are charged.
+
+`Positional.parse_of_rendered_spelling` proves that an input directory within
+its byte cap decodes to the original render entries when its segment count
+and ordered segment decoding agree with the canonical directory. This
+covers alternate percent escape case without changing the original parent
+or leaf spelling. The renderer's per-segment output cap applies to the
+canonical render. The reader applies its existing directory and full-path
+input caps to the supplied spelling.
+
+`RenderedPositional.scan_eq_reference` compares the full bounded result
+to binding independently supplied original entries, then ordering and
+pruning the resulting file occurrences. Its render witness is only needed
+for lexically valid, affordable data paths in the inventory prefix, and
+the reference still reports the indexed directory byte error when that cap
+fails. The equality includes aligned projected batches, empty groups,
+the exact selected prefix at budget cutoff and a reached retained error
+with its original path. Invalid casts and marker collisions are admission
+errors even for an occurrence the scan would have pruned.
+
+The optional `--scan` generator argument adds directories for the ordered
+comparison. PyArrow reads an explicit sorted listing with a repeated file,
+an alternate escape spelling and a filtered partition. It checks all
+twenty projected rows, including repeated virtual columns, nullable binary
+payloads and the zero-column row count. Lean also checks a missing pruned
+path, exact EOS and cutoff, and corruption in a later retained row group.
+The action budget describes checked opens and pulls on supplied snapshots.
+
+```sh
+lake build --wfail +Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.RenderedPositional.Checks
+lake env lean -DautoImplicit=false -DwarningAsError=true --run scripts/hive-positional-path-oracle/Generate.lean --scan > /tmp/positional-scan-directories.txt
+python -I scripts/hive-positional-path-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet /tmp/positional-scan-directories.txt
+```

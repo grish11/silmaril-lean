@@ -57,6 +57,45 @@ theorem prepareInventoryWithFileParser_eq_reference (physical : Scan.Schema Stri
     cases Manifest.Inventory.referenceFromWithFileParser (schema := schema) parse limits.maxPathBytes options convert
       limits.maxEntries 0 paths <;> rfl
 
+private theorem mapM_agree {α β ε : Type*} (left right : α → Except ε β) (xs : List α)
+    (agree : ∀ x ∈ xs, left x = right x) :
+    xs.mapM left = xs.mapM right := by
+  induction xs with
+  | nil => rfl
+  | cons x xs ih =>
+    rw [List.mapM_cons, List.mapM_cons, agree x (by simp)]
+    rw [ih (fun item member => agree item (List.mem_cons_of_mem _ member))]
+
+theorem prepareInventoryReferenceWithFileParser_congr
+    (physical : Scan.Schema String Kind) (schema : PartitionSchema Kind)
+    (limits : Silmaril.Formats.Hive.Manifest.Inventory.Limits) (left right : FileParser)
+    (options : PartitionPath.Options) (convert : Convert Value Failure) (paths : List String)
+    (agree : ∀ path ∈ paths.take limits.maxEntries, path.utf8ByteSize ≤ limits.maxPathBytes →
+      ∀ directory leaf, splitFile path = .ok (directory, leaf) →
+        Silmaril.Formats.Hive.Manifest.Inventory.isControlLeaf leaf = false →
+        left options directory leaf = right options directory leaf) :
+    prepareInventoryReferenceWithFileParser physical schema limits left options convert paths =
+      prepareInventoryReferenceWithFileParser physical schema limits right options convert paths := by
+  unfold prepareInventoryReferenceWithFileParser
+  split
+  · rfl
+  · unfold Manifest.Inventory.referenceFromWithFileParser
+    congr 1
+    apply mapM_agree
+    intro ⟨path, index⟩ member
+    have included : path ∈ paths.take limits.maxEntries := List.fst_mem_of_mem_zipIdx member
+    by_cases fits : path.utf8ByteSize ≤ limits.maxPathBytes
+    · cases lexical : splitFile path with
+      | error reason => simp [Manifest.Inventory.checkEntryWithFileParser, Nat.not_lt.mpr fits, lexical]
+      | ok parts =>
+        obtain ⟨directory, leaf⟩ := parts
+        cases control : Manifest.Inventory.isControlLeaf leaf
+        · simp [Manifest.Inventory.checkEntryWithFileParser, Nat.not_lt.mpr fits, lexical, control,
+            prepareFileWithFileParser, Except.bind, Except.mapError,
+            agree path included fits directory leaf lexical control]
+        · simp [Manifest.Inventory.checkEntryWithFileParser, Nat.not_lt.mpr fits, lexical, control]
+    · simp [Manifest.Inventory.checkEntryWithFileParser, Nat.lt_of_not_ge fits]
+
 private theorem checkEntryWithFileParser_path (parse : FileParser) (limit : Nat)
     (options : PartitionPath.Options) (convert : Convert Value Failure)
     (index : Nat) (path : String) {entry : Option (File schema Value)}

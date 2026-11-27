@@ -12,10 +12,13 @@ private def emit (keys : List String) (encoding : Encoding) (options : Options)
   | .ok directory => IO.println directory
   | .error reason => throw (IO.userError (reprStr reason))
 
-public def main : IO Unit := do
+public def main (args : List String) : IO Unit := do
   let keys := ["region", "year"]
   let entries := fun region => [("region", some region), ("year", some "7")]
   emit keys .uri {} (entries "café/blue=%5F:west\\x")
   emit keys .literal {} (entries "café=blue%5F_west")
   emit keys .uri {nullMarker := "different"} (entries "__HIVE_DEFAULT_PARTITION__")
   emit [] .uri {} []
+  if args == ["--scan"] then
+    emit keys .uri {} [("region", some "apart"), ("year", some "8")]
+    emit keys .uri {} (entries "zebra")

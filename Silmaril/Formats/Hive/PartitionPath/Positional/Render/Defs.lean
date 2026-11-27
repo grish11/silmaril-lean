@@ -61,4 +61,10 @@ def render (limits : RenderLimits) (keys : List String) (encoding : Encoding)
     throw (.partition (.directoryByteLimit limits.maxDirectoryBytes directory.utf8ByteSize))
   return directory
 
+/-- Two directory spellings have the same number of positions and the same
+ordered segment decoding under one declared encoding. -/
+def SameDecodedSegments (encoding : Encoding) (left right : String) : Prop :=
+  (segments left).length = (segments right).length ∧
+    (segments left).mapM (decodeSegment encoding) = (segments right).mapM (decodeSegment encoding)
+
 end Silmaril.Formats.Hive.PartitionPath.Positional
