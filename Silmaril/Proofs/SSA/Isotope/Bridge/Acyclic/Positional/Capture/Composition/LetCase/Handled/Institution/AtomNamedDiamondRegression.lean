@@ -5,7 +5,7 @@ import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Reverse.Flat.Fragm
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Defs
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Reverse.Defs
 import Silmaril.SSA.Isotope.LetCase.Administrative.Thms
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Demand.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
 
@@ -2266,5 +2266,375 @@ example : ∃ (w : FlatLetCase.Witness phiForwardedFlat older phiRowTypes exitTy
   refine ⟨w, d, c, w', d', c', ?_⟩
   rw [same, same']
   exact phi_arrows_apart
+
+/-! ## Inferring the forwarded registers
+
+The table above was written by hand. Here it is computed from the direct
+graph, its two declared exits and its two declared inputs, by the demand
+of each block on its routes. The inputs are never forwarded. Every other
+register that a block needs from a predecessor is forwarded, so the
+stored reply is forwarded too, from the entry through `classify` and the
+two arms to `join`.
+
+The inferred table passes the check of the normalization by its theorem,
+so the normalized graph runs like the direct graph. Every block of the
+normalized graph is closed over the two inputs, the entry is kept, and
+the existing lowering elaborates at the two captures. The record that the
+lowering carries on every edge now holds the two captures only. -/
+
+private abbrev phiInputs : List PhiReg := [.later, .earlier]
+
+/-- The inferred table of the direct graph. -/
+private abbrev phiInferred (incoming : PhiReg) : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Table PhiReg Lbl :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer (phiDirect incoming) phiExits phiInputs
+
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    phiInferred incoming =
+      [(.classify, [.s]), (.reply, [.a, .s]), (.payload, [.b, .s]), (.join, [.s]),
+        (.leaf, [.u, .f])] := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- Leaving the stored reply to the record as well gives the registers of
+the table written by hand. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer (phiDirect .e) phiExits [.later, .earlier, .s] =
+    [(.classify, []), (.reply, [.a]), (.payload, [.b]), (.join, []), (.leaf, [.u, .f])] := by
+  decide +kernel
+
+private theorem phiDirect_labels (incoming : PhiReg) :
+    ((phiDirect incoming).blocks.map Prod.fst).Nodup := by
+  show ([.classify, .reply, .payload, .join, .leaf] : List Lbl).Nodup
+  decide
+
+/-- The inferred table passes the check of the normalization, by the
+theorem of the inference. -/
+private theorem phiInferred_checked (incoming : PhiReg) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.check (phiDirect incoming) (phiInferred incoming) = true :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.check_infer (phiDirect incoming) phiExits phiInputs (phiDirect_labels incoming)
+
+/-- No input is forwarded. -/
+example (incoming : PhiReg) (key : Lbl) (register : PhiReg)
+    (received : register ∈ (phiInferred incoming).received key) : register ∉ phiInputs :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.infer_input (phiDirect incoming) phiExits phiInputs received
+
+/-- The direct graph with the inferred registers forwarded. -/
+private abbrev phiDemanded (incoming : PhiReg) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl) Lbl Op :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.forward (phiDirect incoming) (phiInferred incoming)
+
+/-- It runs like the direct graph, in any model with iteration, on the
+original part of any input. -/
+example {M : Type → Type} {α : Type} [Monad M] [LawfulMonad M] [Elgot.Iterate M]
+    [Elgot.LawfulElgotMonad M] (model : Silmaril.SSA.LambdaRTL.Model Op M α) (incoming : PhiReg)
+    (input : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Name PhiReg Lbl → α) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.run model (phiDemanded incoming) input =
+      Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.run model (phiDirect incoming) (input ∘ Sum.inl) :=
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.run_infer model (phiDirect incoming) phiExits phiInputs (phiDirect_labels incoming)
+    input
+
+/-- Every block of the normalized graph is closed over the two inputs:
+the existing check accepts it when every block arrives with the inputs
+only. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed (phiDirect incoming) (phiInferred incoming) phiExits phiInputs = true := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- The entry is kept: the lowered and versioned entry reads no register
+at its initial version except the two inputs. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept (phiDirect incoming) (phiInferred incoming) phiInputs = true := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- With no register forwarded, the entry is not kept. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept (phiDirect .e) [] phiInputs = false := by decide +kernel
+
+/-- The table written by hand keeps the entry, though its blocks are not
+closed over the inputs: they read the stored reply. Closure is sufficient
+for the entry on these graphs, not necessary. -/
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept (phiDirect .e) phiForwards phiInputs = true ∧
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.closed (phiDirect .e) phiForwards phiExits phiInputs = false := by
+  decide +kernel
+
+/-- The existing lowering of the normalized graph elaborates at the two
+captures. -/
+private theorem phiDemanded_elaborates (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming)) phiExits
+      phiForwardedCaptures).isSome = true := by
+  rcases h with rfl | rfl <;> decide +kernel
+
+/-- The scoped flat graph of the direct graph with the inferred registers
+forwarded. -/
+private def demFlat : FiniteCFG Op 5 2 2 :=
+  (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e)) phiExits
+    phiForwardedCaptures).get (phiDemanded_elaborates .e (.inl rfl))
+
+/-- The same when the φ of `join` takes the register that `reply` reads. -/
+private def demFlatPayload : FiniteCFG Op 5 2 2 :=
+  (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .a)) phiExits
+    phiForwardedCaptures).get (phiDemanded_elaborates .a (.inr rfl))
+
+/-- It has the jumps of the named graph, block by block. -/
+example : ∀ i : Fin 5, FlatLetCase.jumps (demFlat.block i) = FlatLetCase.jumps (flat.block i) := by
+  decide +kernel
+
+/-! ### The typed witness and the table
+
+A block now receives the stored reply among its φ operands, and the
+record holds the two captures. -/
+
+private abbrev demRecord : Ty Unit := .product tok oneArg
+private abbrev demRowTypes : Fin 5 → Ty Unit :=
+  ![.product record2 demRecord, .product record1 demRecord, .product record1 demRecord,
+    .product record1 demRecord, .product leafArgs demRecord]
+private abbrev demLabelTypes : Fin (5 + 2) → Ty Unit := SSA.FiniteSum.append demRowTypes exitTypes
+
+/-- The contexts of a block with φ operands of type `args`: under the
+parameter, and after each of the three pattern lets that take the
+parameter and the record apart. -/
+private abbrev demParam (args : Ty Unit) : BoundCtx (Ty Unit) 3 := older.snoc (.product args demRecord)
+private abbrev demPair (args : Ty Unit) : BoundCtx (Ty Unit) 5 := ((demParam args).snoc args).snoc demRecord
+private abbrev demTail (args : Ty Unit) : BoundCtx (Ty Unit) 7 := ((demPair args).snoc tok).snoc oneArg
+private abbrev demDecoded (args : Ty Unit) : BoundCtx (Ty Unit) 9 := ((demTail args).snoc tok).snoc .unit
+
+/-- The witness of the three pattern lets at the head of every block. -/
+private def demDecode {args : Ty Unit} {t : Flat Op 7 9}
+    (tail : FlatLetCase.Body Op demLabelTypes (demDecoded args) t) :
+    FlatLetCase.Body Op demLabelTypes (demParam args)
+      (.let₂ (.bv 0) (.let₂ (.bv 0) (.let₂ (.bv 0) t))) :=
+  .let₂ (⟨.bv 0, .bv⟩ : Operand Op (demParam args) (.product args demRecord))
+    (.let₂ (⟨.bv 0, .bv⟩ : Operand Op (demPair args) (.product tok oneArg))
+      (.let₂ (⟨.bv 0, .bv⟩ : Operand Op (demTail args) (.product tok .unit)) tail))
+
+/-- The contexts after the φ operands are taken apart. -/
+private abbrev demStoredOnly : BoundCtx (Ty Unit) 11 := ((demDecoded record2).snoc sumTy).snoc .unit
+private abbrev demFirst : BoundCtx (Ty Unit) 11 := ((demDecoded record1).snoc tok).snoc record2
+private abbrev demBoth : BoundCtx (Ty Unit) 13 := (demFirst.snoc sumTy).snoc .unit
+private abbrev demBound : BoundCtx (Ty Unit) 14 := demBoth.snoc tok
+private abbrev demLeafFirst : BoundCtx (Ty Unit) 11 := ((demDecoded leafArgs).snoc pairTy).snoc oneArg
+private abbrev demLeafSecond : BoundCtx (Ty Unit) 13 := (demLeafFirst.snoc tok).snoc .unit
+private abbrev demLeafOpen : BoundCtx (Ty Unit) 15 := (demLeafSecond.snoc tok).snoc tok
+
+/-- The literal operands of the lowered flat graph, with their typings. -/
+private def demEntryArg : Operand Op (older.snoc sumTy) (.product record2 demRecord) :=
+  ⟨.pair (.pair (.bv 0) .unit) (.pair (.bv 1) (.pair (.bv 2) .unit)),
+    .pair (.pair .bv .unit) (.pair .bv (.pair .bv .unit))⟩
+private def demStoredArgs : Operand Op (demDecoded record2) record2 := ⟨.bv 5, .bv⟩
+private def demTest : Operand Op demStoredOnly testTy := ⟨.op Op.test (.bv 3), .op .bv⟩
+private def demArm : Operand Op (demStoredOnly.snoc tok) (.product record1 demRecord) :=
+  ⟨.pair (.pair (.bv 0) (.pair (.bv 2) .unit)) (.pair (.bv 6) (.pair (.bv 4) .unit)),
+    .pair (.pair .bv (.pair .bv .unit)) (.pair .bv (.pair .bv .unit))⟩
+private def demArgs : Operand Op (demDecoded record1) record1 := ⟨.bv 5, .bv⟩
+private def demRest : Operand Op demFirst record2 := ⟨.bv 0, .bv⟩
+private def demEcho : Operand Op demBoth tok := ⟨.op Op.echo (.bv 3), .op .bv⟩
+private def demMark : Operand Op demBoth tok := ⟨.op Op.mark (.bv 3), .op .bv⟩
+private def demReplyOut : Operand Op demBound (.product record1 demRecord) :=
+  ⟨.pair (.pair (.bv 0) (.pair (.bv 2) .unit)) (.pair (.bv 8) (.pair (.bv 6) .unit)),
+    .pair (.pair .bv (.pair .bv .unit)) (.pair .bv (.pair .bv .unit))⟩
+private def demReplyOwn : Operand Op demBound (.product record1 demRecord) :=
+  ⟨.pair (.pair (.bv 4) (.pair (.bv 2) .unit)) (.pair (.bv 8) (.pair (.bv 6) .unit)),
+    .pair (.pair .bv (.pair .bv .unit)) (.pair .bv (.pair .bv .unit))⟩
+private def demOwn : Operand Op demBoth (.product record1 demRecord) :=
+  ⟨.pair (.pair (.bv 3) (.pair (.bv 1) .unit)) (.pair (.bv 7) (.pair (.bv 5) .unit)),
+    .pair (.pair .bv (.pair .bv .unit)) (.pair .bv (.pair .bv .unit))⟩
+private def demStored : Operand Op demBound sumTy := ⟨.bv 2, .bv⟩
+private def demLeafArg : Operand Op (demBound.snoc pairTy) (.product leafArgs demRecord) :=
+  ⟨.pair (.pair (.bv 0) (.pair (.bv 1) .unit)) (.pair (.bv 9) (.pair (.bv 7) .unit)),
+    .pair (.pair .bv (.pair .bv .unit)) (.pair .bv (.pair .bv .unit))⟩
+private def demDoneArg : Operand Op (demBound.snoc tok) pairTy := ⟨.pair (.bv 0) (.bv 5), .pair .bv .bv⟩
+private def demLeafArgs : Operand Op (demDecoded leafArgs) leafArgs := ⟨.bv 5, .bv⟩
+private def demLeafRest : Operand Op demLeafFirst oneArg := ⟨.bv 0, .bv⟩
+private def demInner : Operand Op demLeafSecond pairTy := ⟨.bv 3, .bv⟩
+private def demResult : Operand Op demLeafOpen pairTy := ⟨.pair (.bv 1) (.bv 3), .pair .bv .bv⟩
+
+/-- The typed witnesses of the five blocks of the lowered graph. -/
+private def demClassify : FlatLetCase.Body Op demLabelTypes (demParam record2) (demFlat.block 0) :=
+  demDecode (.let₂ demStoredArgs (.case demTest
+    (FlatLetCase.Body.br (L := demLabelTypes) (1 : Fin 7) demArm)
+    (FlatLetCase.Body.br (L := demLabelTypes) (2 : Fin 7) demArm)))
+
+private def demReply : FlatLetCase.Body Op demLabelTypes (demParam record1) (demFlat.block 1) :=
+  demDecode (.let₂ demArgs (.let₂ demRest (.let₁ demEcho
+    (FlatLetCase.Body.br (L := demLabelTypes) (3 : Fin 7) demReplyOut))))
+
+private def demPayload : FlatLetCase.Body Op demLabelTypes (demParam record1) (demFlat.block 2) :=
+  demDecode (.let₂ demArgs (.let₂ demRest
+    (FlatLetCase.Body.br (L := demLabelTypes) (3 : Fin 7) demOwn)))
+
+private def demJoin : FlatLetCase.Body Op demLabelTypes (demParam record1) (demFlat.block 3) :=
+  demDecode (.let₂ demArgs (.let₂ demRest (.let₁ demMark (.case demStored
+    (FlatLetCase.Body.br (L := demLabelTypes) (4 : Fin 7) demLeafArg)
+    (FlatLetCase.Body.br (L := demLabelTypes) (5 : Fin 7) demDoneArg)))))
+
+private def demLeaf : FlatLetCase.Body Op demLabelTypes (demParam leafArgs) (demFlat.block 4) :=
+  demDecode (.let₂ demLeafArgs (.let₂ demLeafRest (.let₂ demInner
+    (FlatLetCase.Body.br (L := demLabelTypes) (5 : Fin 7) demResult))))
+
+/-- The typed witness of the lowered graph. -/
+private def demWitness : FlatLetCase.Witness demFlat older demRowTypes exitTypes where
+  entry := .let₁ opPick (FlatLetCase.Body.br (L := demLabelTypes) (0 : Fin 7) demEntryArg)
+  block := fun i =>
+    (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j)) (demFlat.block j))
+        demClassify
+        (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j.succ)) (demFlat.block j.succ))
+        demReply
+        (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j.succ.succ)) (demFlat.block j.succ.succ))
+        demPayload
+        (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j.succ.succ.succ)) (demFlat.block j.succ.succ.succ))
+        demJoin
+        (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j.succ.succ.succ.succ)) (demFlat.block j.succ.succ.succ.succ))
+        demLeaf
+        (fun j => j.elim0) j) j) j) j) j) i
+
+private theorem demDelimited : demWitness.Delimited := ⟨by decide +kernel, by decide +kernel⟩
+
+private theorem demRanked : Rank.check (FlatLetCase.localTargets demFlat) = true := by
+  decide +kernel
+
+private theorem demTableChecked : (demWitness.table demDelimited).check = true :=
+  FlatLetCase.Witness.table_check demWitness demDelimited demRanked
+
+/-- The checked table of the direct graph with the inferred registers
+forwarded: the translation of its lowered graph. -/
+private def demSource : CheckedTable Op older exits :=
+  demWitness.checkedTable demDelimited demTableChecked
+
+/-- The typed witnesses of the five blocks of the lowered graph in which the φ of `join` takes the register that `reply` reads. -/
+private def demClassifyPayload : FlatLetCase.Body Op demLabelTypes (demParam record2) (demFlatPayload.block 0) :=
+  demDecode (.let₂ demStoredArgs (.case demTest
+    (FlatLetCase.Body.br (L := demLabelTypes) (1 : Fin 7) demArm)
+    (FlatLetCase.Body.br (L := demLabelTypes) (2 : Fin 7) demArm)))
+
+private def demReplyPayload : FlatLetCase.Body Op demLabelTypes (demParam record1) (demFlatPayload.block 1) :=
+  demDecode (.let₂ demArgs (.let₂ demRest (.let₁ demEcho
+    (FlatLetCase.Body.br (L := demLabelTypes) (3 : Fin 7) demReplyOwn))))
+
+private def demPayloadPayload : FlatLetCase.Body Op demLabelTypes (demParam record1) (demFlatPayload.block 2) :=
+  demDecode (.let₂ demArgs (.let₂ demRest
+    (FlatLetCase.Body.br (L := demLabelTypes) (3 : Fin 7) demOwn)))
+
+private def demJoinPayload : FlatLetCase.Body Op demLabelTypes (demParam record1) (demFlatPayload.block 3) :=
+  demDecode (.let₂ demArgs (.let₂ demRest (.let₁ demMark (.case demStored
+    (FlatLetCase.Body.br (L := demLabelTypes) (4 : Fin 7) demLeafArg)
+    (FlatLetCase.Body.br (L := demLabelTypes) (5 : Fin 7) demDoneArg)))))
+
+private def demLeafPayload : FlatLetCase.Body Op demLabelTypes (demParam leafArgs) (demFlatPayload.block 4) :=
+  demDecode (.let₂ demLeafArgs (.let₂ demLeafRest (.let₂ demInner
+    (FlatLetCase.Body.br (L := demLabelTypes) (5 : Fin 7) demResult))))
+
+/-- The typed witness of the lowered graph in which the φ of `join` takes the register that `reply` reads. -/
+private def demWitnessPayload : FlatLetCase.Witness demFlatPayload older demRowTypes exitTypes where
+  entry := .let₁ opPick (FlatLetCase.Body.br (L := demLabelTypes) (0 : Fin 7) demEntryArg)
+  block := fun i =>
+    (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j)) (demFlatPayload.block j))
+        demClassifyPayload
+        (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j.succ)) (demFlatPayload.block j.succ))
+        demReplyPayload
+        (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j.succ.succ)) (demFlatPayload.block j.succ.succ))
+        demPayloadPayload
+        (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j.succ.succ.succ)) (demFlatPayload.block j.succ.succ.succ))
+        demJoinPayload
+        (fun j => Fin.cases (motive := fun j => FlatLetCase.Body Op demLabelTypes
+          (older.snoc (demRowTypes j.succ.succ.succ.succ)) (demFlatPayload.block j.succ.succ.succ.succ))
+        demLeafPayload
+        (fun j => j.elim0) j) j) j) j) j) i
+
+private theorem demDelimitedPayload : demWitnessPayload.Delimited := ⟨by decide +kernel, by decide +kernel⟩
+
+private theorem demRankedPayload : Rank.check (FlatLetCase.localTargets demFlatPayload) = true := by
+  decide +kernel
+
+private theorem demTableCheckedPayload : (demWitnessPayload.table demDelimitedPayload).check = true :=
+  FlatLetCase.Witness.table_check demWitnessPayload demDelimitedPayload demRankedPayload
+
+/-- The checked table of the direct graph with the inferred registers
+forwarded in which the φ of `join` takes the register that `reply` reads: the translation of its lowered graph. -/
+private def demSourcePayload : CheckedTable Op older exits :=
+  demWitnessPayload.checkedTable demDelimitedPayload demTableCheckedPayload
+
+/-! ### Readback and ranked arrows
+
+As for the φ graph with explicit rows: the readback theorem of the
+fragment, the administrative moves, and one sequencing law reach the
+tree of the named graph. -/
+
+private theorem dem_clean :
+    LetCase.LocallyNameless.Tm.administrative^[6]
+      (FlatLetCase.compile demWitness demRanked).toLetCase.1 = phiCleanTerm 0 2 := by
+  decide +kernel
+
+private theorem demPayload_clean :
+    LetCase.LocallyNameless.Tm.administrative^[6]
+      (FlatLetCase.compile demWitnessPayload demRankedPayload).toLetCase.1 = phiCleanTerm 1 3 := by
+  decide +kernel
+
+/-- The readback of the table is natively equal to the expansion of the
+join of the named graph. -/
+private theorem dem_expanded :
+    Equiv false Γ₀ older demSource.toLetCase.1 (around join.expand.term) (packedExitType exits) := by
+  have moves := Equiv.administrative_iterate false
+    (fun h => LetCase.LocallyNameless.products_ty h) 6
+    (FlatLetCase.compile demWitness demRanked).toLetCase.2.toHasType
+  rw [dem_clean] at moves
+  rw [expanded_term]
+  exact (FlatLetCase.Witness.checkedTable_readback false demWitness demDelimited demRanked
+    demTableChecked).symm.trans (moves.trans phiClean_expanded)
+
+private theorem demPayload_expanded :
+    Equiv false Γ₀ older demSourcePayload.toLetCase.1 (around joinPayload.expand.term)
+      (packedExitType exits) := by
+  have moves := Equiv.administrative_iterate false
+    (fun h => LetCase.LocallyNameless.products_ty h) 6
+    (FlatLetCase.compile demWitnessPayload demRankedPayload).toLetCase.2.toHasType
+  rw [demPayload_clean] at moves
+  rw [expandedPayload_term]
+  exact (FlatLetCase.Witness.checkedTable_readback false demWitnessPayload demDelimitedPayload
+    demRankedPayload demTableCheckedPayload).symm.trans (moves.trans phiPayloadClean_expanded)
+
+/-- The table of the direct graph with the inferred registers forwarded
+and the table of the named graph are one sentence. -/
+example : RankedValid false (sentenceOf (entryOf demSource) (entryOf source)) :=
+  (rankedValid_sources_iff separable demSource source (expanded join) (expanded join) dem_expanded
+    source_expanded).mpr rfl
+
+/-- They have the same original-entry, original-exit arrow at the ordered
+trace model with atoms, and so does the table of the φ graph with
+explicit rows. -/
+example : denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op) (entryOf demSource) =
+    denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op) (entryOf source) :=
+  (denoteRanked_entries_iff separable (entryOf demSource) (entryOf source) (expanded join)
+    (expanded join) dem_expanded source_expanded).mpr rfl
+
+example : denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op) (entryOf demSource) =
+    denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op) (entryOf phiSource) :=
+  (denoteRanked_entries_iff separable (entryOf demSource) (entryOf phiSource) (expanded join)
+    (expanded join) dem_expanded phi_expanded).mpr rfl
+
+/-- The tables of the two direct graphs are not one sentence, and their
+arrows differ. -/
+example : ¬ RankedValid false (sentenceOf (entryOf demSource) (entryOf demSourcePayload)) :=
+  fun valid => by
+    have same : normalWith 0 0 1 = normalWith 1 1 2 :=
+      (expanded_normal.symm.trans ((rankedValid_sources_iff separable demSource demSourcePayload
+        (expanded join) (expanded joinPayload) dem_expanded demPayload_expanded).mp valid)).trans
+        expandedPayload_normal
+    simp at same
+
+example : denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op) (entryOf demSource) ≠
+    denoteRanked (traceJ (α := Unit) (Φ := Op)) (atomTraceModel Unit Op)
+      (entryOf demSourcePayload) :=
+  fun same => by
+    have terms : normalWith 0 0 1 = normalWith 1 1 2 :=
+      (expanded_normal.symm.trans ((denoteRanked_entries_iff separable (entryOf demSource)
+        (entryOf demSourcePayload) (expanded join) (expanded joinPayload) dem_expanded
+        demPayload_expanded).mp same)).trans expandedPayload_normal
+    simp at terms
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
