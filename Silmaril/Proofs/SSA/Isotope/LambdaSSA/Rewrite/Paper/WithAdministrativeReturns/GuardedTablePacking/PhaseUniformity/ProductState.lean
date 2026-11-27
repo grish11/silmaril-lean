@@ -284,6 +284,269 @@ theorem conjugate_factors {S : Ty Empty} {K : Nat} {enc dec body : Region signat
       ((((π).map_comp _ _).symm.trans (congrArg (π).map roll.symm)).trans
         (q_iter conj (dispatch_typed K t.rows_typed) step)))
 
+/-! ## The step equation for the body on pairs -/
+
+theorem litBit_any {Γ : VCtx (Ty Empty)} (c : Bool) : Tm.BranchValue (Φ := signature.Instr) Γ (litBit c) Bit := by
+  cases c
+  · exact .inl .unit
+  · exact .inr .unit
+
+/-- A region on a state is determined, in the quotient, by the region on
+its Bit. -/
+theorem q_state_ext {D : Ty Empty} {k k' : Region signature.Instr} (h : ValueBranches [State] k [D])
+    (h' : ValueBranches [State] k' [D])
+    (e : QLit (seqValueBranches bitState_typed h) = QLit (seqValueBranches bitState_typed h')) :
+    QLit h = QLit h' := by
+  have split : ∀ {k : Region signature.Instr} (h : ValueBranches [State] k [D]), ofRegion h =
+      ofRegion (caseValueBranches (seqValueBranches bitState_typed h) (seqValueBranches emptyState_typed h)) :=
+    fun h => by
+      apply state_ext_bit
+      have red := case_inl_arrow (X := Bit) (B := Silmaril.empty) (t := (.var 0 : Tm signature.Instr))
+        (.var (i := 0) rfl) (seqValueBranches bitState_typed h) (seqValueBranches emptyState_typed h)
+      have a := ofRegion_comp bitState_typed
+        (caseValueBranches (seqValueBranches bitState_typed h) (seqValueBranches emptyState_typed h))
+        (seqValueBranches bitState_typed
+          (caseValueBranches (seqValueBranches bitState_typed h) (seqValueBranches emptyState_typed h)))
+      have b := (ofRegion_comp idBit (seqValueBranches bitState_typed h)
+        (seqValueBranches idBit (seqValueBranches bitState_typed h))).symm
+      have c := (ofRegion_comp bitState_typed h (seqValueBranches bitState_typed h)).symm
+      exact ((a.trans (red.trans (b.trans (by rw [ofRegion_id, Category.id_comp])))).trans c).symm
+  exact (congrArg (π).map (split h)).trans
+    ((q_case_congr (seqValueBranches bitState_typed h) (seqValueBranches emptyState_typed h)
+      (seqValueBranches bitState_typed h') (seqValueBranches emptyState_typed h') e
+      (congrArg (π).map (empty_ext (seqValueBranches emptyState_typed h)
+        (seqValueBranches emptyState_typed h')))).trans (congrArg (π).map (split h')).symm)
+
+/-- A dispatcher followed by a region is the dispatcher of the composites. -/
+theorem seq_dispatch {K : Nat} {D E : Ty Empty} {rows : Fin (K + 1) → Region signature.Instr}
+    {g : Region signature.Instr} (h : ∀ i, ValueBranches [State] (rows i) [D]) (hg : ValueBranches [D] g [E]) :
+    ofRegion (seqValueBranches (dispatch_typed K h) hg) =
+      ofRegion (dispatch_typed K fun i => seqValueBranches (h i) hg) := by
+  apply inj_ext K
+  intro i
+  rw [inj_dispatch K (fun i => seqValueBranches (h i) hg) i,
+    ← ofRegion_comp (dispatch_typed K h) hg (seqValueBranches (dispatch_typed K h) hg), ← Category.assoc,
+    inj_dispatch K h i]
+  exact ofRegion_comp (h i) hg (seqValueBranches (h i) hg)
+
+section Post
+
+variable {X Y W : Ty Empty} {d : Region signature.Instr} (hx : ValueBranches [X] d [Y])
+
+/-- `postRegion` keeps a returned Bit. -/
+theorem postR_inl {t : Tm signature.Instr} (ht : Tm.BranchValue [W] t Bit) :
+    ofRegion (r := .br 0 (.inl t)) (.br (L := [Silmaril.coprod Bit X]) rfl (.inl ht)) ≫
+        ofRegion (postRegion_typed (B := Bit) hx) =
+      ofRegion (r := .br 0 (.inl t)) (.br (L := [Silmaril.coprod Bit Y]) rfl (.inl ht)) := by
+  rw [br_inl ht, br_inl ht, post_arrow hx]
+  simp
+
+/-- `postRegion` applies its region to a repeated state. -/
+theorem postR_inr {t : Tm signature.Instr} (ht : Tm.BranchValue [W] t X) :
+    ofRegion (r := .br 0 (.inr t)) (.br (L := [Silmaril.coprod Bit X]) rfl (.inr ht)) ≫
+        ofRegion (postRegion_typed (B := Bit) hx) =
+      (ofRegion (r := .br 0 t) (.br rfl ht) ≫ ofRegion hx) ≫
+        (coprod.inr ≫ (sumIso (Φ := signature.Instr) Bit Y).inv) := by
+  rw [br_inr ht, post_arrow hx]
+  simp
+
+end Post
+
+theorem inlLit_typed (c : Bool) :
+    ValueBranches [Bit] (.br 0 (.inl (litBit c)) : Region signature.Instr) [Silmaril.coprod Bit Pair] :=
+  .br rfl (.inl (litBit_any c))
+
+theorem retLit_typed (c : Bool) :
+    ValueBranches [Bit] (.br 0 (.inl (litBit c)) : Region signature.Instr) [Silmaril.coprod Bit (States 1)] :=
+  .br rfl (.inl (litBit_any c))
+
+theorem pairVar_typed (c : Bool) :
+    ValueBranches [Bit] (.br 0 (.pair (.var 0) (litBit c)) : Region signature.Instr) [Pair] :=
+  .br rfl (.pair (.var rfl) (litBit_any c))
+
+theorem inrPair_typed (c : Bool) :
+    ValueBranches [Bit] (.br 0 (.inr (.pair (.var 0) (litBit c))) : Region signature.Instr)
+      [Silmaril.coprod Bit Pair] :=
+  .br rfl (.inr (.pair (.var rfl) (litBit_any c)))
+
+theorem inrSt_typed :
+    ValueBranches [States 1] (.br 0 (.inr (.var 0)) : Region signature.Instr) [Silmaril.coprod Bit (States 1)] :=
+  .br rfl (.inr (.var rfl))
+
+theorem rowLit_typed (j : Fin 2) (c : Bool) :
+    ValueBranches [U] (.br 0 (injTm 1 j (.inl (litBit c))) : Region signature.Instr) [States 1] :=
+  .br rfl (injTm_typed (.inl (litBit_any c)) 1 j)
+
+/-- The body with the first Bit of its pair a constant. -/
+theorem bodyLit_typed (l c : Bool) :
+    ValueBranches [Bit]
+      (.case (.op (.ask l) (.var 0)) (.br 0 (.inl (litBit c))) (.br 0 (.inr (.pair (.var 0) (litBit c)))) :
+        Region signature.Instr) [Silmaril.coprod Bit Pair] :=
+  .case (A := Bit) (B := Bit) (.op (.var (i := 0) rfl)) (.br rfl (.inl (litBit_any c)))
+    (.br rfl (.inr (.pair (.var rfl) (litBit_any c))))
+
+/-- Product β on the body entered with a pair whose first Bit is a constant. -/
+theorem body_lit (l c : Bool) :
+    ofRegion (seqValueBranches (pairLit_typed c) (pairBody_typed l)) = ofRegion (bodyLit_typed l c) := by
+  have hbody : Region.HasType [Bit, Bit, Bit]
+      (.case (.op (.ask l) (.var 0)) (.br 0 (.inl (.var 2))) (.br 0 (.inr (.pair (.var 0) (.var 2)))) :
+        Region signature.Instr) [Silmaril.coprod Bit Pair] :=
+    (ValueBranches.case (A := Bit) (B := Bit) (.op (.var (i := 0) rfl)) (.br rfl (.inl (.var rfl)))
+      (.br rfl (.inr (.pair (.var rfl) (.var rfl))))).hasType
+  have beta := Paper.Eqv.productBeta
+    (ProductBeta.Step.let₂Beta (Γ := [Bit]) (a := litBit c) (b := (.var 0 : Tm signature.Instr))
+      (litBit_typed c) (.var rfl) hbody)
+  cases c <;> exact (Paper.TypeCategory.ofRegion_eq_iff _ _).mpr beta
+
+/-- Product β on the encoding of a pair whose second Bit is a constant:
+a case on the first Bit. -/
+theorem enc_var (c : Bool) :
+    ofRegion (seqValueBranches (pairVar_typed c) pairEnc_typed) =
+      ofRegion (caseValueBranches (rowLit_typed 0 c) (rowLit_typed 1 c)) := by
+  have hbody : Region.HasType [Bit, Bit, Bit]
+      (.case (.var 1) (.br 0 (.inl (.inl (.var 1)))) (.br 0 (.inr (.inl (.var 1)))) : Region signature.Instr)
+      [States 1] :=
+    (ValueBranches.case (A := Ty.unit) (B := Ty.unit) (.var rfl) (.br rfl (.inl (.inl (.var rfl))))
+      (.br rfl (.inr (.inl (.var rfl))))).hasType
+  have beta := Paper.Eqv.productBeta
+    (ProductBeta.Step.let₂Beta (Γ := [Bit]) (a := (.var 0 : Tm signature.Instr)) (b := litBit c)
+      (.var rfl) (litBit_typed c) hbody)
+  cases c <;> exact (Paper.TypeCategory.ofRegion_eq_iff _ _).mpr beta
+
+/-- The left reply: the conjugated body returns the constant, and so does
+the router row. Unit η discards the reply. -/
+theorem step_left (c : Bool) :
+    QLit (seqValueBranches (inlLit_typed c) (postRegion_typed (B := Bit) pairEnc_typed)) =
+      QLit (seqValueBranches brInl_typed (routerRoute_typed 1 (pairAct (pairIdx c)))) := by
+  have l₁ : ofRegion (seqValueBranches (inlLit_typed c) (postRegion_typed (B := Bit) pairEnc_typed)) =
+      ofRegion (retLit_typed c) :=
+    (ofRegion_comp (inlLit_typed c) (postRegion_typed (B := Bit) pairEnc_typed) _).symm.trans
+      (postR_inl pairEnc_typed (litBit_any c))
+  have l₂ : QLit (retLit_typed c) =
+      QLit (caseValueBranches (act_typed 1 (.ret c)) (act_typed 1 (.ret c))) :=
+    (q_region_congr (by cases c <;> rfl) (retLit_typed c)
+      (seqValueBranches bitDiscard (act_typed 1 (.ret c)))).trans (q_discard (act_typed 1 (.ret c)))
+  have l₃ : ofRegion (seqValueBranches brInl_typed (routerRoute_typed 1 (pairAct (pairIdx c)))) =
+      ofRegion (caseValueBranches (act_typed 1 (.ret c)) (act_typed 1 (.ret c))) := by
+    cases c <;>
+      exact (case_inl_arrow (X := Bit) (B := State) (t := (.var 0 : Tm signature.Instr)) (.var (i := 0) rfl)
+        (bitSplit_typed 1 _ _) (stateSplit_typed 1 _ _)).trans
+        ((ofRegion_comp idBit (bitSplit_typed 1 _ _) (seqValueBranches idBit (bitSplit_typed 1 _ _))).symm.trans
+          (by rw [ofRegion_id, Category.id_comp]))
+  exact (congrArg (π).map l₁).trans (l₂.trans (congrArg (π).map l₃).symm)
+
+/-- The right reply: the conjugated body encodes the pair of the reply
+and the constant, and the router row goes to the row of the reply with
+the constant. Unit η builds the constant on the payload of the case. -/
+theorem step_right (c : Bool) :
+    QLit (seqValueBranches (inrPair_typed c) (postRegion_typed (B := Bit) pairEnc_typed)) =
+      QLit (seqValueBranches brInrInl_typed (routerRoute_typed 1 (pairAct (pairIdx c)))) := by
+  have r₁ : ofRegion (seqValueBranches (inrPair_typed c) (postRegion_typed (B := Bit) pairEnc_typed)) =
+      ofRegion (caseValueBranches (seqValueBranches (rowLit_typed 0 c) inrSt_typed)
+        (seqValueBranches (rowLit_typed 1 c) inrSt_typed)) := by
+    have inr_arrow : ofRegion inrSt_typed = coprod.inr ≫ (sumIso (Φ := signature.Instr) Bit (States 1)).inv :=
+      (br_inr (.var rfl)).trans ((congrArg (· ≫ _) (ofRegion_id (States 1))).trans (Category.id_comp _))
+    refine (ofRegion_comp (inrPair_typed c) (postRegion_typed (B := Bit) pairEnc_typed) _).symm.trans ?_
+    refine (postR_inr pairEnc_typed (.pair (.var (i := 0) rfl) (litBit_any c))).trans ?_
+    rw [← inr_arrow, ofRegion_comp (pairVar_typed c) pairEnc_typed (seqValueBranches (pairVar_typed c) pairEnc_typed),
+      enc_var]
+    exact case_seq_arrow (rowLit_typed 0 c) (rowLit_typed 1 c) inrSt_typed
+  have fillAt : ∀ (j : Fin 2) (t : Tm signature.Instr) (ht : Tm.BranchValue [U, U] t Bit),
+      Eqv false [U] ((Region.br 0 (.inr (injTm 1 j (.inl t)))).substVars (Tm.singleSubst .unit))
+        ((Region.br 0 (.inr (injTm 1 j (.inl t)))).substVars (Tm.singleSubst (.var 0)))
+        [Silmaril.coprod Bit (States 1)] := fun j t ht =>
+    unit_fill (Γ := [U]) (i := 0) rfl (.inr (injTm 1 j (.inl t))) (.inr (injTm_typed (.inl ht) 1 j))
+  have fill : ∀ j : Fin 2,
+      QLit (seqValueBranches (rowLit_typed j c) inrSt_typed) = QLit (act_typed 1 (.go j c)) := fun j => by
+    apply (Paper.Extension.Singleton.ofRegion_eq_iff N (seqValueBranches (rowLit_typed j c) inrSt_typed)
+      (act_typed 1 (.go j c))).2
+    cases c
+    · match j with
+      | 0 => exact fillAt 0 (.inl (.var 0)) (.inl (.var rfl))
+      | 1 => exact fillAt 1 (.inl (.var 0)) (.inl (.var rfl))
+    · match j with
+      | 0 => exact fillAt 0 (.inr (.var 0)) (.inr (.var rfl))
+      | 1 => exact fillAt 1 (.inr (.var 0)) (.inr (.var rfl))
+  have r₂ : QLit (caseValueBranches (seqValueBranches (rowLit_typed 0 c) inrSt_typed)
+        (seqValueBranches (rowLit_typed 1 c) inrSt_typed)) =
+      QLit (caseValueBranches (act_typed 1 (.go 0 c)) (act_typed 1 (.go 1 c))) :=
+    q_case_congr (seqValueBranches (rowLit_typed 0 c) inrSt_typed) (seqValueBranches (rowLit_typed 1 c) inrSt_typed)
+      (act_typed 1 (.go 0 c)) (act_typed 1 (.go 1 c)) (fill 0) (fill 1)
+  have r₃ : ofRegion (seqValueBranches brInrInl_typed (routerRoute_typed 1 (pairAct (pairIdx c)))) =
+      ofRegion (caseValueBranches (act_typed 1 (.go 0 c)) (act_typed 1 (.go 1 c))) := by
+    cases c <;>
+      exact (case_inr_arrow (X := Bit) (A := Bit) (t := (.inl (.var 0) : Tm signature.Instr))
+        (.inl (.var (i := 0) rfl)) (bitSplit_typed 1 _ _) (stateSplit_typed 1 _ _)).trans
+        ((case_inl_arrow (X := Bit) (B := Silmaril.empty) (t := (.var 0 : Tm signature.Instr)) (.var (i := 0) rfl)
+          (bitSplit_typed 1 _ _) (dead_typed 1)).trans
+          ((ofRegion_comp idBit (bitSplit_typed 1 _ _) (seqValueBranches idBit (bitSplit_typed 1 _ _))).symm.trans
+            (by rw [ofRegion_id, Category.id_comp])))
+  exact (congrArg (π).map r₁).trans (r₂.trans (congrArg (π).map r₃).symm)
+
+/-- One row on a Bit: the conjugated body under its request is the packed
+labelled request followed by the routing of the row. Congruence under the
+request. -/
+theorem step_bit (l c : Bool) :
+    QLit (seqValueBranches (bodyLit_typed l c) (postRegion_typed (B := Bit) pairEnc_typed)) =
+      QLit (seqValueBranches (labelPoll l).program.typed.packExits (routerRoute_typed 1 (pairAct (pairIdx c)))) := by
+  have left := Paper.Extension.Eqv.substVars (Δ := [Bit, Bit]) (θ := fun i => (.var i : Tm signature.Instr))
+    ((Paper.Extension.Singleton.ofRegion_eq_iff N _ _).1 (step_left c)) (fun _ _ h => weaken h)
+  have right := Paper.Extension.Eqv.substVars (Δ := [Bit, Bit]) (θ := fun i => (.var i : Tm signature.Instr))
+    ((Paper.Extension.Singleton.ofRegion_eq_iff N _ _).1 (step_right c)) (fun _ _ h => weaken h)
+  have hop : Tm.HasType [Bit] (.op (.ask l) (.var 0) : Tm signature.Instr) (Silmaril.coprod Bit Bit) :=
+    .op (.var (i := 0) rfl)
+  cases c <;>
+    exact (Paper.Extension.Singleton.ofRegion_eq_iff N _ _).2 (Paper.Extension.Eqv.case hop left right)
+
+/-- One row: the conjugated body at the row of the constant `c` is the
+router row. -/
+theorem step_row (l c : Bool) :
+    QLit (seqValueBranches (pairDecRow_typed c)
+        (seqRegion_typed (pairBody_typed l) (postRegion_typed (B := Bit) pairEnc_typed))) =
+      QLit (routerRow_typed 1 (labelPoll l).program (pairAct (pairIdx c))) := by
+  apply q_state_ext
+  have dL : ofRegion (seqValueBranches bitState_typed (seqValueBranches (pairDecRow_typed c)
+        (seqRegion_typed (pairBody_typed l) (postRegion_typed (B := Bit) pairEnc_typed)))) =
+      ofRegion (seqValueBranches (bodyLit_typed l c) (postRegion_typed (B := Bit) pairEnc_typed)) := by
+    have hX := seqRegion_typed (pairBody_typed l) (postRegion_typed (B := Bit) pairEnc_typed)
+    have e₁ := (ofRegion_comp bitState_typed (seqValueBranches (pairDecRow_typed c) hX)
+      (seqValueBranches bitState_typed (seqValueBranches (pairDecRow_typed c) hX))).symm
+    have e₂ := (ofRegion_comp (pairDecRow_typed c) hX (seqValueBranches (pairDecRow_typed c) hX)).symm
+    have e₃ := (ofRegion_comp (pairBody_typed l) (postRegion_typed (B := Bit) pairEnc_typed) hX).symm
+    have e₄ := ofRegion_comp (pairLit_typed c) (pairBody_typed l)
+      (seqValueBranches (pairLit_typed c) (pairBody_typed l))
+    rw [e₁, e₂, e₃, ← Category.assoc, bit_decRow, ← Category.assoc, e₄, body_lit]
+    exact ofRegion_comp (bodyLit_typed l c) (postRegion_typed (B := Bit) pairEnc_typed) _
+  have dR : ofRegion (seqValueBranches bitState_typed
+        (routerRow_typed 1 (labelPoll l).program (pairAct (pairIdx c)))) =
+      ofRegion (seqValueBranches (labelPoll l).program.typed.packExits
+        (routerRoute_typed 1 (pairAct (pairIdx c)))) := by
+    rw [← ofRegion_comp bitState_typed (routerRow_typed 1 (labelPoll l).program (pairAct (pairIdx c)))
+        (seqValueBranches bitState_typed (routerRow_typed 1 (labelPoll l).program (pairAct (pairIdx c)))),
+      ← ofRegion_comp (step_typed (labelPoll l).program) (routerRoute_typed 1 (pairAct (pairIdx c)))
+        (routerRow_typed 1 (labelPoll l).program (pairAct (pairIdx c))),
+      ← ofRegion_comp unpack_typed (labelPoll l).program.typed.packExits (step_typed (labelPoll l).program),
+      ← Category.assoc, ← Category.assoc, pack_unpack, Category.id_comp]
+    exact ofRegion_comp (labelPoll l).program.typed.packExits (routerRoute_typed 1 (pairAct (pairIdx c))) _
+  exact (congrArg (π).map dL).trans ((step_bit l c).trans (congrArg (π).map dR).symm)
+
+/-- The body on pairs, conjugated by the encoding, is the dispatcher step
+of its router table. -/
+theorem pair_step (l : Bool) : Task.pairStep l := by
+  apply (Paper.Extension.Singleton.ofRegion_eq_iff N
+    (seqRegion_typed pairDec_typed
+      (seqRegion_typed (pairBody_typed l) (postRegion_typed (B := Bit) pairEnc_typed)))
+    (dispatch_typed 1 (pairRouter l).rows_typed)).1
+  refine (congrArg (π).map (seq_dispatch (fun i => pairDecRow_typed (pairBit i))
+    (seqRegion_typed (pairBody_typed l) (postRegion_typed (B := Bit) pairEnc_typed)))).trans ?_
+  exact q_dispatch_congr 1
+    (fun i => seqValueBranches (pairDecRow_typed (pairBit i))
+      (seqRegion_typed (pairBody_typed l) (postRegion_typed (B := Bit) pairEnc_typed)))
+    (pairRouter l).rows_typed (fun i => by
+      match i with
+      | 0 => exact step_row l false
+      | 1 => exact step_row l true)
+
 /-! ## A loop written on pairs -/
 
 open Paper.WithAdministrativeReturns.WithGuardedTablePacking (Valid) in
@@ -296,5 +559,31 @@ theorem pair_complete_of (l l' : Bool) (h : Task.pairStep l) (h' : Task.pairStep
     (loopRegion_typed (pairBody_typed l')) enc_dec (pairRouter l) (pairRouter l')
     (conjugate_factors pairEnc_typed pairDec_typed (pairBody_typed l) enc_dec (pairRouter l) h)
     (conjugate_factors pairEnc_typed pairDec_typed (pairBody_typed l') enc_dec (pairRouter l') h')
+
+theorem pair_factors (l : Bool) : Factors pairDec (loopRegion Pair (pairBody l)) (pairRouter l) :=
+  conjugate_factors pairEnc_typed pairDec_typed (pairBody_typed l) enc_dec (pairRouter l) (pair_step l)
+
+/-- Two loops on pairs are equal at the product-state entry exactly when
+their requests have the same label. -/
+theorem pair_eqv_iff (l l' : Bool) :
+    Eqv false [Pair] (loopRegion Pair (pairBody l)) (loopRegion Pair (pairBody l')) [Bit] ↔ l = l' := by
+  constructor
+  · intro e
+    have packed : Eqv false [States 1] (seqRegion pairDec (loopRegion Pair (pairBody l)))
+        (seqRegion pairDec (loopRegion Pair (pairBody l'))) [Bit] :=
+      (Paper.Extension.Singleton.ofRegion_eq_iff N
+        (seqRegion_typed pairDec_typed (loopRegion_typed (pairBody_typed l)))
+        (seqRegion_typed pairDec_typed (loopRegion_typed (pairBody_typed l')))).1
+        ((q_comp pairDec_typed (loopRegion_typed (pairBody_typed l))).trans
+          ((congrArg (QLit pairDec_typed ≫ ·)
+            ((Paper.Extension.Singleton.ofRegion_eq_iff N (loopRegion_typed (pairBody_typed l))
+              (loopRegion_typed (pairBody_typed l'))).2 e)).trans
+            (q_comp pairDec_typed (loopRegion_typed (pairBody_typed l'))).symm))
+    have loops : Eqv false [States 1] (pairRouter l).loop (pairRouter l').loop [Bit] :=
+      (pair_factors l).symm.trans (packed.trans (pair_factors l'))
+    obtain ⟨R, hl, -, r⟩ := (Router.labels_eqv_iff _ _ _ _ _ _).1 ((loop_eqv_iff_entries _ _).1 loops 0)
+    exact hl 0 0 r
+  · rintro rfl
+    exact Paper.Extension.Eqv.refl (loopRegion_typed (pairBody_typed l)).hasType
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.WithAdministrativeReturns.GuardedTablePacking.PhaseUniformity.Tables

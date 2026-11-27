@@ -32,27 +32,35 @@ then the loop factors through the packed loop: `Factors dec (loopRegion S
 body) t`. The proof is the roll law of iteration in default Paper, and
 the section in the quotient. It is not specific to pairs.
 
-## A body written on pairs: what is proved and what is open
+## A body written on pairs
 
 `pairBody l` is written on a pair `(x, y)`: it sends a request with `y`,
 returns `x` on the left reply, and repeats with `(r, x)` on the right
 reply `r`. Both Bits are used: one is observed in the query, the other is
 returned and becomes the second component of the next state.
 
-`Task.pairStep l` is the equation above for this body and `pairRouter l`.
-**It is not proved.** It is an equation between two explicit regions on
-`States 1`; row by row it needs product β under the request, the encoding
-of a pair whose first Bit is a variable, and unit η for the constants of
-the router's actions.
+* `pairBody_step`: the body, conjugated by the encoding, is the
+  dispatcher step of `pairRouter l`. The proof splits on the packed row.
+  At a row the decoded pair has a constant first Bit, and product β
+  exposes the request. Under the request, the left reply returns the
+  constant and the right reply encodes the pair of the reply and the
+  constant, by product β again. Both continuations are compared with the
+  router's actions: unit η discards the left reply and builds the
+  constant on the unit payload of the case on the right reply. The two
+  are joined by congruence under the request and the rows by the
+  dispatcher.
+* `pairLoop_factors`: so the loop on pairs factors through the packed
+  loop of `pairRouter l`.
+* `pairLoop_complete`: two loops on pairs are equal at the product-state
+  entry exactly when they are valid in every supported model.
+* `pairLoop_eqv_iff`: they are equal exactly when their requests have the
+  same label.
 
-* `pairLoop_factors_of`: given `Task.pairStep l`, the loop on pairs
-  factors through the packed loop of `pairRouter l`.
-* `pairLoop_complete_of`: given it for `l` and `l'`, the two loops on
-  pairs are equal at the product-state entry exactly when they are valid
-  in every supported model.
+`pairLoop_factors_of` and `pairLoop_complete_of` are the earlier forms
+with the step equation as a hypothesis.
 
-So no completeness is established for a loop on pairs here. No source
-flat CFG is treated, and nothing is claimed for default Paper.
+These use unit η and the phase-uniformity quotient. No source flat CFG is
+treated, and nothing is claimed for default Paper.
 -/
 
 public section
@@ -112,5 +120,26 @@ theorem pairLoop_complete_of (l l' : Bool) (h : Task.pairStep l) (h' : Task.pair
     Eqv false [Pair] (loopRegion Pair (pairBody l)) (loopRegion Pair (pairBody l')) [Bit] ↔
       Valid (loopRegion_typed (pairBody_typed l)).hasType (loopRegion_typed (pairBody_typed l')).hasType :=
   Tables.pair_complete_of l l' h h'
+
+/-- The body on pairs, conjugated by the encoding, is the dispatcher step
+of its router table. -/
+theorem pairBody_step (l : Bool) : Task.pairStep l :=
+  Tables.pair_step l
+
+/-- The loop on pairs factors through the packed loop of its router table. -/
+theorem pairLoop_factors (l : Bool) : Factors pairDec (loopRegion Pair (pairBody l)) (pairRouter l) :=
+  pairLoop_factors_of l (pairBody_step l)
+
+/-- Two loops on pairs are equal at the product-state entry exactly when
+they are valid in every supported model. -/
+theorem pairLoop_complete (l l' : Bool) :
+    Eqv false [Pair] (loopRegion Pair (pairBody l)) (loopRegion Pair (pairBody l')) [Bit] ↔
+      Valid (loopRegion_typed (pairBody_typed l)).hasType (loopRegion_typed (pairBody_typed l')).hasType :=
+  pairLoop_complete_of l l' (pairBody_step l) (pairBody_step l')
+
+/-- They are equal exactly when their requests have the same label. -/
+theorem pairLoop_eqv_iff (l l' : Bool) :
+    Eqv false [Pair] (loopRegion Pair (pairBody l)) (loopRegion Pair (pairBody l')) [Bit] ↔ l = l' :=
+  Tables.pair_eqv_iff l l'
 
 end Silmaril.Isotope.LambdaSSA.Region.Paper.WithAdministrativeReturns.WithGuardedTablePacking.WithPhaseUniformity.BitTable
