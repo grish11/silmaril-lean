@@ -158,3 +158,29 @@ lake build --wfail +Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArra
 lake env lean -DautoImplicit=false -DwarningAsError=true --run scripts/hive-positional-path-oracle/Generate.lean --scan > /tmp/positional-scan-directories.txt
 python -I scripts/hive-positional-path-oracle/Oracle.py data/parquet-int32-byte-array-file/empty-middle-v2.parquet /tmp/positional-scan-directories.txt
 ```
+
+## Atomic named-table import
+
+[`NamedTable.FromRenderedPositional.importScan`](../../Silmaril/Formats/Relational/NamedTable/FromRenderedPositional/Defs.lean)
+feeds the bounded positional scan into the shared Arrow named-table
+import at the exact projected schema. It returns a new packed database
+only after EOS at a vacant name. The destination conflict has the
+existing named-table error precedence. Admission failures are tagged
+as open errors, retained read and close failures keep their original
+causes, and budget exhaustion returns `.closed` even when all projected
+rows have been emitted. Each failure returns an error without a new
+database.
+
+`importScan_ok_iff` identifies the exact single-name update.
+`importScan_observe` proves the ordered named observation and equality
+at every other key. The stored row count is the sum of the trace's
+batch counts, including when the projection has zero columns.
+`importScan_eq_reference` lifts the rendered scan's original-entry
+law through the same import.
+
+The rendered positional scan checks load the same Parquet listing into
+a vacant name and compare its schema, ordered nullable rows, and
+zero-column count against the same expectations as the pinned PyArrow
+oracle. They also load an empty manifest at zero budget and verify
+conflict, indexed admission failure, cutoff just before EOS, and a
+retained read failure after emitted groups.

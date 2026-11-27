@@ -5,7 +5,10 @@ import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.RenderedPos
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Ingress.Defs
 import Silmaril.Formats.Hive.Manifest.Inventory.Thms
 import Silmaril.Formats.Hive.PartitionPath.Positional.Render.Thms
+import Silmaril.Formats.Relational.NamedTable.FromRenderedPositional.Thms
+import Silmaril.Formats.Relational.NamedTable.Thms
 meta import Silmaril.Data.IncludeBytes
+meta import Silmaril.Formats.Relational.NamedTable.FromRenderedPositional.Defs
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.RenderedPositional.Defs
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Int32ByteArray.Ingress.Defs
 
@@ -79,19 +82,23 @@ private def run (budget : Nat) (paths : List String)
   scan (int32 := ordinal) (byteArray := payload) admission maxDirectoryBytes keys .uri {}
     Int32ByteArray.Ingress.convert paths {} lookup projection keep budget
 
+private def projectedRows (table : Scan.Table projection.schema Value) : List ProjectedRow :=
+  table.map fun row =>
+    ((row ⟨0, by decide⟩ : Option Bytes), (row ⟨1, by decide⟩ : Option Int32),
+      (row ⟨2, by decide⟩ : Option Int32), (row ⟨3, by decide⟩ : Option Bytes),
+      (row ⟨4, by decide⟩ : Option Bytes))
+
 private def observes (budget : Nat) (extra : List String) (expectedCounts : List Nat)
     (expected : List ProjectedRow) (termination : Events.Termination RuntimeError) : Bool := Id.run do
   let .ok paths := listing | return false
   let .ok trace := run budget (paths ++ extra) | return false
   return trace.batches.map (·.rowCount) == expectedCounts &&
-    trace.rows.map (fun row =>
-      ((row ⟨0, by decide⟩ : Option Bytes), (row ⟨1, by decide⟩ : Option Int32),
-        (row ⟨2, by decide⟩ : Option Int32), (row ⟨3, by decide⟩ : Option Bytes),
-        (row ⟨4, by decide⟩ : Option Bytes))) == expected &&
-    decide (trace.termination = termination)
+    projectedRows trace.rows == expected && decide (trace.termination = termination)
 
-private def lateFailure : Events.Termination RuntimeError :=
-  .readError (.source late (.parquet (.groupFailure 2 (.byteArray (.page 2 1 "payload" 0 108 (.encoding 3))))))
+private def lateCause : RuntimeError :=
+  .source late (.parquet (.groupFailure 2 (.byteArray (.page 2 1 "payload" 0 108 (.encoding 3)))))
+
+private def lateFailure : Events.Termination RuntimeError := .readError lateCause
 
 #guard listing.toOption == some [zebra, canonical, controls, pruned, lowerEscape, canonical]
 #guard (path "zz-later" "7" "late.parquet").toOption == some late
@@ -142,5 +149,74 @@ private def lateFailure : Events.Termination RuntimeError :=
 #print axioms scan_eq_reference
 #print axioms PartitionPath.Positional.parse_of_rendered_spelling
 #print axioms prepareInventoryReferenceWithFileParser_congr
+
+
+open Silmaril.Formats.Relational
+open NamedTable.FromRenderedPositional (Database importScan)
+
+private def storedSchema : Scan.Schema String Kind := ⟨0, Fin.elim0⟩
+
+private def database : Database String := fun name =>
+  if name == "other" then some ⟨storedSchema, [fun i => nomatch i]⟩ else none
+
+private def load (name : String) (selected : Scan.Projection (partitions.extend physical))
+    (budget : Nat) (paths : List String) :=
+  importScan (int32 := ordinal) (byteArray := payload) database name admission
+    renderLimits.maxDirectoryBytes keys .uri {} Int32ByteArray.Ingress.convert paths {} lookup selected keep budget
+
+private def otherPreserved (loaded : Database String) : Bool :=
+  match Scan.observePacked loaded "other", Scan.observePacked loaded "unrelated" with
+  | some table, none => table.schema.width == 0 && table.rowCount == 1
+  | _, _ => false
+
+#guard Id.run do
+  let .ok paths := listing | return false
+  let .ok loaded := load "dest" projection 20 paths | return false
+  let some table := Scan.observePacked loaded "dest" | return false
+  if same : NamedTable.schemaMatches projection.schema table.schema = true then
+    let exactSchema := (NamedTable.schemaMatches_eq_true_iff _ _).mp same
+    let actual : Scan.Table projection.schema Value :=
+      cast (congrArg (fun schema => Scan.Table schema Value) exactSchema.symm) table.rows
+    return projectedRows actual == rows && table.rowCount == 20 && otherPreserved loaded
+  else return false
+
+#guard Id.run do
+  let .ok paths := listing | return false
+  let .ok loaded := load "dest" zero 20 paths | return false
+  let some table := Scan.observePacked loaded "dest" | return false
+  return table.schema.width == 0 && table.rowCount == 20 && otherPreserved loaded
+
+#guard match load "dest" zero 0 [] with
+  | .ok loaded =>
+    match Scan.observePacked loaded "dest" with
+    | some table => table.schema.width == 0 && table.rowCount == 0 && otherPreserved loaded
+    | none => false
+  | .error _ => false
+
+#guard Id.run do
+  let .ok paths := listing | return false
+  let .error .closed := load "dest" projection 19 paths | return false
+  return true
+
+#guard Id.run do
+  let .ok paths := listing | return false
+  let .error (.readError (.runtime cause)) := load "dest" projection 24 (paths ++ [late]) | return false
+  return decide (cause = lateCause)
+
+#guard
+  let bad := "apart/not-int/skip.parquet"
+  match load "dest" projection 0 [controls, bad] with
+  | .error (.openError (.admission reason)) =>
+    reason == .entry 1 (.binding bad (.conversion "year" (.invalidInt32 "not-int")))
+  | _ => false
+
+#guard match load "other" projection 0 ["../invalid.parquet"] with
+  | .error .nameConflict => true
+  | _ => false
+
+#print axioms NamedTable.FromRenderedPositional.importResult_outcome
+#print axioms NamedTable.FromRenderedPositional.importScan_ok_iff
+#print axioms NamedTable.FromRenderedPositional.importScan_observe
+#print axioms NamedTable.FromRenderedPositional.importScan_eq_reference
 
 end Silmaril.Formats.Hive.Manifest.RenderedPositional
