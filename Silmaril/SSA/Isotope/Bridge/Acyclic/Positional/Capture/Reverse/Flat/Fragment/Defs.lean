@@ -117,4 +117,32 @@ def Witness.checkedTable (w : Witness g β R D) (h : w.Delimited)
     (checked : (w.table h).check = true) : CheckedTable Φ β (List.ofFn D) :=
   ⟨size, w.table h, checked, w.entryOperand.get h.entry⟩
 
+/-! ## The shape of the fragment
+
+Whether a witnessed flat graph is in the fragment depends on the flat
+graph only, not on the typings of its witness. The shape is a check on
+the flat graph. -/
+
+omit [TypeFormers τ] [HasTy Φ τ] in
+/-- The label of a line: lets that end in one jump. -/
+def lineLabel : {m : Nat} → Flat Φ labels m → Option (Fin labels)
+  | _, .br i _ => some i
+  | _, .let₁ _ tail | _, .let₂ _ tail => lineLabel tail
+  | _, .case _ _ _ => none
+
+omit [TypeFormers τ] [HasTy Φ τ] in
+/-- Lets that end in one case whose arms are lines. -/
+def forkShape : {m : Nat} → Flat Φ labels m → Bool
+  | _, .br _ _ => false
+  | _, .let₁ _ tail | _, .let₂ _ tail => forkShape tail
+  | _, .case _ left right => (lineLabel left).isSome && (lineLabel right).isSome
+
+omit [TypeFormers τ] [HasTy Φ τ] in
+/-- Every block is a line or a fork, and the entry is a line that jumps to
+the first block. -/
+def delimitedShape (g : FiniteCFG Φ (size + 1) exits n) : Bool :=
+  decide (lineLabel g.entry = some (Fin.castAdd exits 0)) &&
+    (List.finRange (size + 1)).all fun i =>
+      (lineLabel (g.block i)).isSome || forkShape (g.block i)
+
 end Silmaril.Isotope.LambdaSSA.Acyclic.FlatLetCase

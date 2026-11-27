@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.SourceSemantics.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.SourceReadback.Thms
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Split.Defs
 
 /-! # The two direct diamonds through the source square
@@ -169,5 +169,47 @@ holds for each with its own run on the left. -/
 example : direct .e ≠ direct .a := by decide
 
 example : Phi.Forward.infer (direct .e) exits inputs ≠ handTable := by decide +kernel
+
+/-! ## The readback of the checked table
+
+The same two diamonds, to the readback of the checked table that is
+reified from the elaborated graph. The hypotheses on the φ graph are the
+checks on the direct graph used above. The elaborated graph has five
+blocks, the shape of the fragment, and passes the rank check; those two
+are evaluated on the elaborated graph. The conclusion is not an equality
+of trees as written: the readback returns the packed exit value, and the
+φ run is observed at the single label of the packed program, so the
+readback side has the exit adapter. -/
+
+open Silmaril.Isotope.LambdaSSA.Acyclic in
+open Silmaril.Isotope.Bridge.NamedFlat.Phi.SourceReadback in
+example (incoming : Reg) (h : incoming = .e ∨ incoming = .a) :
+    ∃ (code : FiniteCFG Op (Versioning.compile (Phi.OrderedExits.lower
+          (Phi.Forward.forward (direct incoming)
+            (Phi.Forward.infer (direct incoming) exits inputs)))).blocks.length exits.length 2)
+      (w : FlatLetCase.Witness (recount (b := 4 + 1) rfl code) context
+        (fun i => internal (Phi.Forward.forward (direct incoming)
+          (Phi.Forward.infer (direct incoming) exits inputs)) (forwardTypes types)
+          (Fin.cast rfl i)) (external exits exitType))
+      (delimited : w.Delimited)
+      (ranked : Positional.Rank.check
+        (FlatLetCase.localTargets (recount (b := 4 + 1) rfl code)) = true),
+      NamedFlat.compile (Phi.OrderedExits.lower (Phi.Forward.forward (direct incoming)
+          (Phi.Forward.infer (direct incoming) exits inputs))) exits captures.names = some code ∧
+      ∀ {Events : Type → Type} (M : Model (κ := SortName) Events signature.Instr)
+        (record : Input context),
+        (Phi.OrderedExits.run (treeModel M.raw) (direct incoming)
+            (captures.store record ∘ Sum.inl) >>= fun p =>
+            pure (FiniteCFG.packedTreeOutput (treeExitNumber exits p))) =
+          (LambdaSSA.Semantics.Interaction.term M.raw (NamedFlat.Entry.inputEnv context record)
+            (Morphism.CaseSSA.erase (w.checkedTable delimited
+              (FlatLetCase.Witness.table_check w delimited ranked)).toLetCase.1) >>=
+            fun value => pure (0, value)) :=
+  source_readback_infer (P := signature) (direct incoming) exits inputs arrivals rank types exitType
+    captures (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel) (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel) (by decide)
+    (by rcases h with rfl | rfl <;> decide +kernel) (by decide) rfl
+    (by rcases h with rfl | rfl <;> decide +kernel)
 
 end Silmaril.Isotope.Bridge.NamedFlat.Phi.SourceSemantics.Tests
