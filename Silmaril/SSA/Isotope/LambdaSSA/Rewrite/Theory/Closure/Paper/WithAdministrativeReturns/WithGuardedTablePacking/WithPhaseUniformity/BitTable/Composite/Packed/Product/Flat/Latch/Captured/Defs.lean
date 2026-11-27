@@ -28,7 +28,7 @@ the input in both places.
 
 `captRouter l` is the two-row router table that `captBody l` should
 correspond to, and `Task.captStep l` the equation between the conjugated
-step and the dispatcher step of that table. It is not proved.
+step and the dispatcher step of that table. `Thms.lean` proves it.
 -/
 
 @[expose] public section
@@ -207,7 +207,8 @@ def captAct (i : Fin 2) (x pl : Bool) : Act 1 :=
 def captRouter (l : Bool) : Router 1 := Router.ofLabels (fun _ => l) captAct
 
 /-- The step equation for `captBody`: conjugated by the encoding of
-pairs, the step is the dispatcher step of `captRouter l`. Not proved. -/
+pairs, the step is the dispatcher step of `captRouter l`. It keeps the
+`Task` name; `captBody_step` proves it. -/
 def Task.captStep (l : Bool) : Prop :=
   Eqv false [States 1] (seqRegion pairDec (seqRegion (captBody l) (postRegion pairEnc)))
     (dispatch 1 (captRouter l).rows) [Silmaril.coprod Bit (States 1)]
