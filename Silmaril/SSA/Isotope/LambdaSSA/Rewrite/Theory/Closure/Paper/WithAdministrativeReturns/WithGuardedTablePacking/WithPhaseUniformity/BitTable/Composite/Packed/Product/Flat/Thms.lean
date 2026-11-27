@@ -66,15 +66,14 @@ through #5306.
 
 For this source the native equation does not use the seed. No equation
 between the readback loop on `ReadbackState` and a loop on the header
-parameter is proved here except through the source.
+parameter is proved here except through the source. `Latch/Thms.lean`
+proves such an equation for a table of two blocks.
 
 ## Not covered
 
 * A table with more than one block. `flatLoop_eqv_loop` is congruence on
-  one block; for several blocks the checked route is the packed readback,
-  whose loop carries the captured input and the tags of all blocks.
-  Relating that loop to a loop on the parameters is not proved, and
-  nothing is claimed about whether it can be.
+  one block. `Latch/Thms.lean` treats a table of two capture-free blocks
+  through the packed readback.
 * A header block that uses the captured input, an entry other than the
   jump to the header with the input, and more than one exit.
 * The flat judgment accepts any typed argument at a jump; a guarded table
