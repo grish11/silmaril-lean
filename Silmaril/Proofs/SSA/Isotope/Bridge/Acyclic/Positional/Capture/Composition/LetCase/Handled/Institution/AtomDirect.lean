@@ -760,6 +760,164 @@ theorem let_case_comm_proof {m : Nat} {Δ : BoundCtx (Ty α) m} {X Y Z C : Ty α
   exact split.trans (Equiv.case (.refl hs)
     (Equiv.let₁ (.refl hEX) (caseL.trans substL)) (Equiv.let₁ (.refl hEY) (caseR.trans substR)))
 
+/-- The arm of a case on the first injection of a slot, under one more
+slot `Z`, is the first arm with the payload beneath `Z`. Case beta at the
+injection and pure-let beta at the payload slot. -/
+theorem sum_arm_inl_proof {m : Nat} {Δ : BoundCtx (Ty α) m} {X Y Z C : Ty α}
+    {l r : LetCase.LocallyNameless.Tm Empty Φ (m + 2)} (hl : HasType Φ Γ₀ ((Δ.snoc Z).snoc X) l C)
+    (hr : HasType Φ Γ₀ ((Δ.snoc Z).snoc Y) r C) :
+    Equiv false Γ₀ ((Δ.snoc X).snoc Z)
+      (.case (.inl (.bv 1)) (l.rename (((BoundCtx.Renaming.succ Δ X).up Z).up X).toFun)
+        (r.rename (((BoundCtx.Renaming.succ Δ X).up Z).up Y).toFun))
+      (l.rename (swapRenaming Δ Z X).toFun) C := by
+  let insX2 := ((BoundCtx.Renaming.succ Δ X).up Z).up X
+  let insYX := ((BoundCtx.Renaming.succ Δ X).up Z).up Y
+  have hlX : HasType Φ Γ₀ (((Δ.snoc X).snoc Z).snoc X) (l.rename insX2.toFun) C := HasType.rename insX2 hl
+  have hrX : HasType Φ Γ₀ (((Δ.snoc X).snoc Z).snoc Y) (r.rename insYX.toFun) C := HasType.rename insYX hr
+  have hpX : HasType Φ Γ₀ ((Δ.snoc X).snoc Z) (.bv 1) X := .bv (ι := (1 : Fin (m + 2)))
+  have caseL := Equiv.caseBetaL (pureEff := false) hpX hlX hrX
+  have substL := Equiv.letBeta (pureEff := false) Pure.bv hpX hlX
+  have movedL : LetCase.LocallyNameless.Tm.instantiate (l.rename insX2.toFun) (.bv (1 : Fin (m + 2))) =
+      l.rename (swapRenaming Δ Z X).toFun := by
+    simp only [LetCase.LocallyNameless.Tm.instantiate, LetCase.LocallyNameless.Tm.bsubst_rename]
+    refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) l).trans
+      (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename (swapRenaming Δ Z X).toFun l)
+    refine Fin.cases rfl (fun i => ?_) i
+    exact Fin.cases rfl (fun i => rfl) i
+  rw [movedL] at substL
+  exact caseL.trans substL
+
+/-- The arm of a case on the second injection of a slot, under one more
+slot `Z`, is the second arm with the payload beneath `Z`. -/
+theorem sum_arm_inr_proof {m : Nat} {Δ : BoundCtx (Ty α) m} {X Y Z C : Ty α}
+    {l r : LetCase.LocallyNameless.Tm Empty Φ (m + 2)} (hl : HasType Φ Γ₀ ((Δ.snoc Z).snoc X) l C)
+    (hr : HasType Φ Γ₀ ((Δ.snoc Z).snoc Y) r C) :
+    Equiv false Γ₀ ((Δ.snoc Y).snoc Z)
+      (.case (.inr (.bv 1)) (l.rename (((BoundCtx.Renaming.succ Δ Y).up Z).up X).toFun)
+        (r.rename (((BoundCtx.Renaming.succ Δ Y).up Z).up Y).toFun))
+      (r.rename (swapRenaming Δ Z Y).toFun) C := by
+  let insXY := ((BoundCtx.Renaming.succ Δ Y).up Z).up X
+  let insY2 := ((BoundCtx.Renaming.succ Δ Y).up Z).up Y
+  have hlY : HasType Φ Γ₀ (((Δ.snoc Y).snoc Z).snoc X) (l.rename insXY.toFun) C := HasType.rename insXY hl
+  have hrY : HasType Φ Γ₀ (((Δ.snoc Y).snoc Z).snoc Y) (r.rename insY2.toFun) C := HasType.rename insY2 hr
+  have hpY : HasType Φ Γ₀ ((Δ.snoc Y).snoc Z) (.bv 1) Y := .bv (ι := (1 : Fin (m + 2)))
+  have caseR := Equiv.caseBetaR (pureEff := false) hpY hlY hrY
+  have substR := Equiv.letBeta (pureEff := false) Pure.bv hpY hrY
+  have movedR : LetCase.LocallyNameless.Tm.instantiate (r.rename insY2.toFun) (.bv (1 : Fin (m + 2))) =
+      r.rename (swapRenaming Δ Z Y).toFun := by
+    simp only [LetCase.LocallyNameless.Tm.instantiate, LetCase.LocallyNameless.Tm.bsubst_rename]
+    refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) r).trans
+      (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename (swapRenaming Δ Z Y).toFun r)
+    refine Fin.cases rfl (fun i => ?_) i
+    exact Fin.cases rfl (fun i => rfl) i
+  rw [movedR] at substR
+  exact caseR.trans substR
+
+/-- A case on a slot of sum type whose two arms case on an older stored
+slot of sum type is natively equal to the case on the stored slot around
+the case on the first slot:
+
+`case y (case s L₁ R₁) (case s L₂ R₂) = case s (case y L₁′ L₂′) (case y R₁′ R₂′)`
+
+where the arms have the payload of `s` moved beneath the payload of `y`.
+Both scrutinees are slots, so both tag tests are pure, and no request is
+moved. It is not an axiom of the native theory. It follows from the
+equation that splits a term on a slot of sum type, case beta at an
+injection and pure-let beta. -/
+theorem case_case_comm_proof {m : Nat} {Δ : BoundCtx (Ty α) m} {X Y A B C : Ty α} (i y : Fin m)
+    (hi : Δ.get i = .coprod X Y) (hy : Δ.get y = .coprod A B)
+    {l₁ r₁ l₂ r₂ : LetCase.LocallyNameless.Tm Empty Φ (m + 2)}
+    (hl₁ : HasType Φ Γ₀ ((Δ.snoc A).snoc X) l₁ C) (hr₁ : HasType Φ Γ₀ ((Δ.snoc A).snoc Y) r₁ C)
+    (hl₂ : HasType Φ Γ₀ ((Δ.snoc B).snoc X) l₂ C) (hr₂ : HasType Φ Γ₀ ((Δ.snoc B).snoc Y) r₂ C) :
+    Equiv false Γ₀ Δ (.case (.bv y) (.case (.bv i.succ) l₁ r₁) (.case (.bv i.succ) l₂ r₂))
+      (.case (.bv i)
+        (.case (.bv y.succ) (l₁.rename (swapRenaming Δ A X).toFun) (l₂.rename (swapRenaming Δ B X).toFun))
+        (.case (.bv y.succ) (r₁.rename (swapRenaming Δ A Y).toFun) (r₂.rename (swapRenaming Δ B Y).toFun)))
+      C := by
+  let S : Ty α := .coprod X Y
+  let insAX := ((BoundCtx.Renaming.succ Δ S).up A).up X
+  let insAY := ((BoundCtx.Renaming.succ Δ S).up A).up Y
+  let insBX := ((BoundCtx.Renaming.succ Δ S).up B).up X
+  let insBY := ((BoundCtx.Renaming.succ Δ S).up B).up Y
+  let K : LetCase.LocallyNameless.Tm Empty Φ (m + 1) := .case (.bv y.succ)
+    (.case (.bv 1) (l₁.rename insAX.toFun) (r₁.rename insAY.toFun))
+    (.case (.bv 1) (l₂.rename insBX.toFun) (r₂.rename insBY.toFun))
+  have hK : HasType Φ Γ₀ (Δ.snoc S) K C :=
+    .case (slot_typed (Γ := Δ.snoc S) y.succ hy)
+      (.case (.bv (ι := (1 : Fin (m + 2)))) (HasType.rename insAX hl₁) (HasType.rename insAY hr₁))
+      (.case (.bv (ι := (1 : Fin (m + 2)))) (HasType.rename insBX hl₂) (HasType.rename insBY hr₂))
+  have split := slot_sum_split_proof i hi hK
+  have inst_eq : LetCase.LocallyNameless.Tm.instantiate K (.bv i) =
+      .case (.bv y) (.case (.bv i.succ) l₁ r₁) (.case (.bv i.succ) l₂ r₂) := by
+    simp only [K, LetCase.LocallyNameless.Tm.instantiate, LetCase.LocallyNameless.Tm.bsubst, LetCase.LocallyNameless.Tm.bsubst_rename]
+    congr 1
+    · congr 1
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) l₁).trans (LetCase.LocallyNameless.Tm.bsubst_id l₁)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) r₁).trans (LetCase.LocallyNameless.Tm.bsubst_id r₁)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+    · congr 1
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) l₂).trans (LetCase.LocallyNameless.Tm.bsubst_id l₂)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) r₂).trans (LetCase.LocallyNameless.Tm.bsubst_id r₂)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+  rw [inst_eq] at split
+  have eqL : LetCase.LocallyNameless.Tm.instantiate K.underBinder (.inl (.bv 0)) =
+      .case (.bv y.succ)
+        (.case (.inl (.bv 1)) (l₁.rename (((BoundCtx.Renaming.succ Δ X).up A).up X).toFun)
+          (r₁.rename (((BoundCtx.Renaming.succ Δ X).up A).up Y).toFun))
+        (.case (.inl (.bv 1)) (l₂.rename (((BoundCtx.Renaming.succ Δ X).up B).up X).toFun)
+          (r₂.rename (((BoundCtx.Renaming.succ Δ X).up B).up Y).toFun)) := by
+    simp only [K, LetCase.LocallyNameless.Tm.instantiate, LetCase.LocallyNameless.Tm.underBinder, LetCase.LocallyNameless.Tm.rename_comp, LetCase.LocallyNameless.Tm.rename, LetCase.LocallyNameless.Tm.bsubst, LetCase.LocallyNameless.Tm.bsubst_rename]
+    congr 1
+    · congr 1
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) l₁).trans (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename _ l₁)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) r₁).trans (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename _ r₁)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+    · congr 1
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) l₂).trans (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename _ l₂)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) r₂).trans (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename _ r₂)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+  have eqR : LetCase.LocallyNameless.Tm.instantiate K.underBinder (.inr (.bv 0)) =
+      .case (.bv y.succ)
+        (.case (.inr (.bv 1)) (l₁.rename (((BoundCtx.Renaming.succ Δ Y).up A).up X).toFun)
+          (r₁.rename (((BoundCtx.Renaming.succ Δ Y).up A).up Y).toFun))
+        (.case (.inr (.bv 1)) (l₂.rename (((BoundCtx.Renaming.succ Δ Y).up B).up X).toFun)
+          (r₂.rename (((BoundCtx.Renaming.succ Δ Y).up B).up Y).toFun)) := by
+    simp only [K, LetCase.LocallyNameless.Tm.instantiate, LetCase.LocallyNameless.Tm.underBinder, LetCase.LocallyNameless.Tm.rename_comp, LetCase.LocallyNameless.Tm.rename, LetCase.LocallyNameless.Tm.bsubst, LetCase.LocallyNameless.Tm.bsubst_rename]
+    congr 1
+    · congr 1
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) l₁).trans (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename _ l₁)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) r₁).trans (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename _ r₁)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+    · congr 1
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) l₂).trans (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename _ l₂)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+      · refine (LetCase.LocallyNameless.Tm.bsubst_congr (fun i => ?_) r₂).trans (LetCase.LocallyNameless.Tm.bsubst_bv_eq_rename _ r₂)
+        refine Fin.cases rfl (fun i => ?_) i
+        exact Fin.cases rfl (fun i => rfl) i
+  rw [eqL, eqR] at split
+  have hs : HasType Φ Γ₀ Δ (.bv i) (.coprod X Y) := hi ▸ .bv
+  exact split.trans (Equiv.case (.refl hs)
+    (Equiv.case (.refl (slot_typed (Γ := Δ.snoc X) y.succ hy)) (sum_arm_inl_proof hl₁ hr₁)
+      (sum_arm_inl_proof hl₂ hr₂))
+    (Equiv.case (.refl (slot_typed (Γ := Δ.snoc Y) y.succ hy)) (sum_arm_inr_proof hl₁ hr₁)
+      (sum_arm_inr_proof hl₂ hr₂)))
+
 end CaseSlot
 /-- A native equation between terms equal to the given ones. -/
 theorem equiv_cast [HasTy Φ (Ty α)] {k : Nat} {Γ : BoundCtx (Ty α) k} {C : Ty α}
@@ -789,6 +947,15 @@ theorem hasType_let_inv [HasTy Φ (Ty α)] {k : Nat} {β : BoundCtx (Ty α) k} {
     ∃ A : Ty α, HasType Φ Γ₀ β a A ∧ HasType Φ Γ₀ (β.snoc A) b C := by
   cases h with
   | let₁ ha hb => exact ⟨_, ha, hb⟩
+
+omit [TaggedSignature α Φ] in
+/-- A typed case has a typed scrutinee and typed arms. -/
+theorem hasType_case_inv [HasTy Φ (Ty α)] {k : Nat} {β : BoundCtx (Ty α) k} {a : LetCase.LocallyNameless.Tm Empty Φ k}
+    {l r : LetCase.LocallyNameless.Tm Empty Φ (k + 1)} {C : Ty α} (h : HasType Φ Γ₀ β (.case a l r) C) :
+    ∃ A B : Ty α, HasType Φ Γ₀ β a (.coprod A B) ∧ HasType Φ Γ₀ (β.snoc A) l C ∧
+      HasType Φ Γ₀ (β.snoc B) r C := by
+  cases h with
+  | case ha hl hr => exact ⟨_, _, ha, hl, hr⟩
 
 omit [TaggedSignature α Φ] in
 /-- A typed pattern let has a typed scrutinee and a typed body. -/
@@ -864,6 +1031,27 @@ theorem deferred_equiv_proof {X Y C : Ty α} : {k : Nat} → {Γ : BoundCtx (Ty 
     exact (Equiv.let₂ (.refl (slot_typed x.1 x.2)) ih).trans (equiv_cast comm.symm
       (congrArg₂ (fun a b => LetCase.LocallyNameless.Tm.let₂ (.bv x.1) (.case (.bv s.succ.succ) a b))
         (before_after_rename l) (before_after_rename r)) rfl)
+  | _, Γ, s, _, _, _, .split (l₁ := l₁) (r₁ := r₁) (l₂ := l₂) (r₂ := r₂) y left right, hl, hr => by
+    have hs : Γ.get s = .coprod X Y := left.slot
+    obtain ⟨Al, Bl, hvl, hl₁', hl₂'⟩ := hasType_case_inv hl
+    obtain ⟨Ar, Br, hvr, hr₁', hr₂'⟩ := hasType_case_inv hr
+    obtain ⟨hAl, hBl⟩ := Ty.coprod.inj ((hasType_bv_type hvl).trans y.2)
+    obtain ⟨hAr, hBr⟩ := Ty.coprod.inj ((hasType_bv_type hvr).trans y.2)
+    subst hAl hBl hAr hBr
+    have hl₁ : HasType Φ Γ₀ ((Γ.snoc Ar).snoc X) l₁ C := by
+      have h := HasType.rename (swapRenaming Γ X Ar) hl₁'
+      rwa [swap_swap_rename] at h
+    have hl₂ : HasType Φ Γ₀ ((Γ.snoc Br).snoc X) l₂ C := by
+      have h := HasType.rename (swapRenaming Γ X Br) hl₂'
+      rwa [swap_swap_rename] at h
+    have hr₁ : HasType Φ Γ₀ ((Γ.snoc Ar).snoc Y) r₁ C := by
+      have h := HasType.rename (swapRenaming Γ Y Ar) hr₁'
+      rwa [swap_swap_rename] at h
+    have hr₂ : HasType Φ Γ₀ ((Γ.snoc Br).snoc Y) r₂ C := by
+      have h := HasType.rename (swapRenaming Γ Y Br) hr₂'
+      rwa [swap_swap_rename] at h
+    exact (Equiv.case (.refl (slot_typed y.1 y.2)) (deferred_equiv_proof left hl₁ hr₁)
+      (deferred_equiv_proof right hl₂ hr₂)).trans (case_case_comm_proof s y.1 hs y.2 hl₁ hr₁ hl₂ hr₂)
 
 end Prefix
 

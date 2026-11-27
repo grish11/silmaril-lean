@@ -122,8 +122,8 @@ in order, as in the case trees, except that a pending tuple may be held
 and starts a chain over a stack as above. A chain may also start with the
 stack empty. Outside it are: a request whose reply is destructured or
 cased on at the request itself while a tuple is packed; a reply with
-several tags whose inspection is delayed across a prefix that branches,
-that is, a prefix with a case of its own; and arbitrary LetCase terms. The
+several tags whose inspection is delayed across a prefix whose branches
+join again or share a continuation; and arbitrary LetCase terms. The
 specializations of a delayed tree across a prefix are given to its
 constructor, with the equations between their terms and the terms the
 shape computes. The renaming actions on spelled trees and on prefixes, in
@@ -426,6 +426,29 @@ theorem let_case_comm {m : Nat} {Δ : BoundCtx (Ty α) m} {X Y Z C : Ty α} (i :
         (.let₁ (E.rename Fin.succ) (r.rename (swapRenaming Δ Z Y).toFun))) C :=
   let_case_comm_proof i hi hE hl hr
 
+/-- A case on a slot of sum type whose two arms case on an older stored
+slot of sum type is natively equal to the case on the stored slot around
+the case on the first slot:
+
+`case y (case s L₁ R₁) (case s L₂ R₂) = case s (case y L₁′ L₂′) (case y R₁′ R₂′)`
+
+where `s` and `y` are slots of sum type and the arms have the payload of
+`s` moved beneath the payload of `y`. Both scrutinees are slots, so both
+tag tests are pure. The four arms are kept, each on the same pair of tags;
+nothing is shared or joined, and no request is moved. This is not an axiom
+of the native theory. It follows from the equation that splits a term on a
+slot of sum type, case beta at an injection and pure-let beta. -/
+theorem case_case_comm {m : Nat} {Δ : BoundCtx (Ty α) m} {X Y A B C : Ty α} (i y : Fin m)
+    (hi : Δ.get i = .coprod X Y) (hy : Δ.get y = .coprod A B) {l₁ r₁ l₂ r₂ : LetCase.LocallyNameless.Tm Empty Φ (m + 2)}
+    (hl₁ : HasType Φ Γ₀ ((Δ.snoc A).snoc X) l₁ C) (hr₁ : HasType Φ Γ₀ ((Δ.snoc A).snoc Y) r₁ C)
+    (hl₂ : HasType Φ Γ₀ ((Δ.snoc B).snoc X) l₂ C) (hr₂ : HasType Φ Γ₀ ((Δ.snoc B).snoc Y) r₂ C) :
+    Equiv false Γ₀ Δ (.case (.bv y) (.case (.bv i.succ) l₁ r₁) (.case (.bv i.succ) l₂ r₂))
+      (.case (.bv i)
+        (.case (.bv y.succ) (l₁.rename (swapRenaming Δ A X).toFun) (l₂.rename (swapRenaming Δ B X).toFun))
+        (.case (.bv y.succ) (r₁.rename (swapRenaming Δ A Y).toFun) (r₂.rename (swapRenaming Δ B Y).toFun)))
+      C :=
+  case_case_comm_proof i y hi hy hl₁ hr₁ hl₂ hr₂
+
 end Commute
 
 /-! ## Spelled trees -/
@@ -577,7 +600,13 @@ sum type, so it may use older captures and earlier replies of the prefix
 and neither the stored slot nor its payload, and it is one term for both
 tags. The proof is an induction on the prefix with `let_case_comm` at a
 request and `case_pair_comm` at a pattern let. No two requests are
-exchanged, and on every run each request is asked once. -/
+exchanged, and on every run each request is asked once.
+
+The prefix may be a tree. At a case on another slot of sum type it
+continues with a prefix of its own in each arm, each ending in its own
+case on `s`; the induction uses `case_case_comm` there. The arms are not
+joined and share nothing, so on each path the requests are the ones
+written on that path, in their order. -/
 theorem deferred_equiv {X Y C : Ty α} {k : Nat} {Γ : BoundCtx (Ty α) k} {s : Fin k}
     {t : LetCase.LocallyNameless.Tm Empty Φ k} {l r : LetCase.LocallyNameless.Tm Empty Φ (k + 1)} (w : Deferred X Y Γ s t l r)
     (hl : HasType Φ Γ₀ (Γ.snoc X) l C) (hr : HasType Φ Γ₀ (Γ.snoc Y) r C) :

@@ -141,6 +141,22 @@ def Deferred.renamed {X Y : Ty α} : {k : Nat} → {Γ : BoundCtx (Ty α) k} →
         ((congrArg (fun x => x.rename beforePair) q.left_eq).trans (before_rename_square ρ.toFun l)),
       congrArg (LetCase.LocallyNameless.Tm.let₂ (.bv (ρ.toFun x.1).succ))
         ((congrArg (fun x => x.rename beforePair) q.right_eq).trans (before_rename_square ρ.toFun r))⟩
+  | _, _, _, _, _, _, .split (A := A) (B := B) (l₁ := l₁) (r₁ := r₁) (l₂ := l₂) (r₂ := r₂) y left right, _, Γ',
+      ρ =>
+    let ql := left.renamed (ρ.up A)
+    let qr := right.renamed (ρ.up B)
+    ⟨_, _, _, .split (y.rename ρ) ql.shape qr.shape,
+      congrArg₂ (LetCase.LocallyNameless.Tm.case (.bv (ρ.toFun y.1))) ql.term_eq qr.term_eq,
+      congrArg₂ (LetCase.LocallyNameless.Tm.case (.bv (ρ.toFun y.1).succ))
+        ((congrArg (fun x => x.rename (swapRenaming Γ' A X).toFun) ql.left_eq).trans
+          (swap_rename_square ρ A X l₁))
+        ((congrArg (fun x => x.rename (swapRenaming Γ' B X).toFun) qr.left_eq).trans
+          (swap_rename_square ρ B X l₂)),
+      congrArg₂ (LetCase.LocallyNameless.Tm.case (.bv (ρ.toFun y.1).succ))
+        ((congrArg (fun x => x.rename (swapRenaming Γ' A Y).toFun) ql.right_eq).trans
+          (swap_rename_square ρ A Y r₁))
+        ((congrArg (fun x => x.rename (swapRenaming Γ' B Y).toFun) qr.right_eq).trans
+          (swap_rename_square ρ B Y r₂))⟩
 
 mutual
 

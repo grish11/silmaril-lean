@@ -1539,7 +1539,7 @@ The continuation cannot jump back to its own label.
   a delayed tree. The constructor takes its specializations as given
   trees and takes the two term equations as proofs; the next item
   computes them for two tags. A prefix that branches, with a case of its
-  own, is outside the class. The
+  own, is added to the shape in a later item. The
   regression delays a two-tag reply across two requests, where the
   second takes a component of the reply of the first, opened by a
   pattern let of the prefix, and an older capture. The delayed tree and
@@ -1575,8 +1575,8 @@ The continuation cannot jump back to its own label.
   Its term is natively equal to the case on the reply slot around the
   two computed specializations, and its normal form is the normal form
   of the eager spelling. No law is added and no requests are exchanged.
-  This definition has two tags; the next item removes that limit. A
-  branching prefix stays outside. The
+  This definition has two tags; the next item removes that limit. Its
+  prefix does not branch. The
   regression builds the delayed tree of the previous item from its
   prefix of two dependent requests with the pattern let between them and
   from its two arms. It has the term of the original tree, the normal
@@ -1621,7 +1621,8 @@ The continuation cannot jump back to its own label.
   computed specializations, its normal form is that of the eager
   spelling on them, and with two tags it is the definition of the
   previous item. No law is added and no requests are exchanged. The
-  prefix does not branch and its requests have replies with one tag.
+  prefix of this definition does not branch and its requests have
+  replies with one tag; the next item has a branching prefix.
   There is no general theorem that the computed specializations are the
   trees one would write by hand for the eager spelling; that is checked
   on the instance. The regression has a reply with three tags, carrying
@@ -1640,6 +1641,59 @@ The continuation cannot jump back to its own label.
   [Tag spines and the general constructor](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Spine/Defs.lean) ·
   [Native equation and coverage](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Spine/Thms.lean) ·
   [Three tags after two dependent requests](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomPrefixSpineRegression.lean)
+- The prefix may branch. While a reply with two tags is stored as one
+  slot, the prefix may ask a request and case on its reply at once, and
+  each arm continues on its own. The scope is a tree-shaped prefix with
+  branch-specific continuations: every path ends in its own inspection
+  of the stored reply, with its own two arms. The arms of a branch are
+  not joined and no continuation is shared between them; a term in which
+  two branches meet again before the stored reply is inspected is not of
+  this form. The native step is
+  `case y (case s L₁ R₁) (case s L₂ R₂) = case s (case y L₁′ L₂′) (case y R₁′ R₂′)`
+  for two slots of sum type, with the payload of `s` moved beneath the
+  payload of `y` in the four arms. Both tag tests are pure and no
+  request is moved. It is not an axiom: it follows from the equation
+  that splits a term on a slot of sum type, case beta at an injection
+  and pure-let beta, as the equation that moves a case in front of a
+  binding does. The checked shape of a prefix gets a case on a slot of
+  sum type with a shape in each arm, and the finite-prefix equation
+  `P[case s L R] = case s (P↑[L′]) (P↑[R′])` holds for these trees by
+  the same induction, with the new step at a case. In the
+  specializations the case on the branching reply is kept under the
+  payload and each of its arms is the specialization of that arm, so on
+  each path the requests are the ones written on that path, in their
+  order, and each is asked once. The checked constructor of the grammar
+  takes such a shape unchanged, so the native equation with the normal
+  form, naturality, ranked validity and equality of ordered-exit arrows
+  at the original exits follow as before. The original input is one
+  tree over the stack: requests, pattern lets, selections, branches on
+  the reply of a request of the tree with any number of tags, and at
+  each leaf the case on the stored slot with the two arms of that leaf.
+  No request and no scrutinee of the tree reads the stored reply, since
+  requests are assembled from atom slots and a branch cases on the reply
+  bound just before it. From the tree alone the shape and the two
+  specializations are computed; at a branch both arms are specialized,
+  renamed beneath the reply slot by the renaming action, and the payload
+  is selected back to the top of the stack. One definition returns the
+  checked delayed case. Limits: the stored reply has two tags here, and
+  there is no general theorem that the computed specializations are the
+  trees one would write by hand. The regression has one binary branch.
+  After the stored request, a second request is asked and cased on; one
+  arm asks a request on the payload of its tag, the other destructures
+  its payload and asks the same primitive on a capture; each arm then
+  inspects the stored reply with its own arms. From the tree alone it
+  has the original term and the same normal form as the eager spelling
+  written by hand, with the branching request asked and cased on in each
+  arm of the stored reply. The two terms are natively equal, the trees
+  are valid together, and they have the same ordered-exit arrow at the
+  original exits. Changing the request after the branching reply,
+  changing an arm of the first stored tag and changing an arm of the
+  second stored tag are each told apart. The renaming action goes
+  through the tree-shaped shape.
+  [Case exchange and the tree-shaped prefix equation](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Thms.lean) ·
+  [Trees with computed specializations](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Branch/Defs.lean) ·
+  [Native equation and scope](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Branch/Thms.lean) ·
+  [A stored reply after one binary branch](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomBranchPrefixRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,

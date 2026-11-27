@@ -179,10 +179,18 @@ the two tags: the same prefix, weakened past the payload, followed by the
 arm of that tag with the payload beneath the slots of the prefix.
 
 A step of the prefix asks a request and binds its reply, or destructures
-a slot of pair type. A request is assembled from the atom slots of the
-context in which `s` has sum type. So it may use older captures and the
-atoms of earlier replies of the prefix, and neither the stored slot nor its
-payload; and it is the same request in both specializations. -/
+a slot of pair type, or cases on a slot of sum type. A request is assembled
+from the atom slots of the context in which `s` has sum type. So it may use
+older captures and the atoms of earlier replies of the prefix, and neither
+the stored slot nor its payload; and it is the same request in both
+specializations.
+
+With `split` the prefix is a tree: it cases on a slot `y` of sum type and
+continues with a prefix of its own in each arm, each ending in its own
+case on `s` with its own arms. The arms of `y` are not joined, and nothing
+is shared between them. In the specializations the case on `y` is kept,
+under the payload, and each of its arms is the specialization of that
+arm. -/
 inductive Deferred (X Y : Ty α) : {k : Nat} → (Γ : BoundCtx (Ty α) k) → Fin k →
     LetCase.LocallyNameless.Tm Empty Φ k → LetCase.LocallyNameless.Tm Empty Φ (k + 1) → LetCase.LocallyNameless.Tm Empty Φ (k + 1) → Type where
   | here {k : Nat} {Γ : BoundCtx (Ty α) k} {s : Fin k} (hs : Γ.get s = .coprod X Y)
@@ -200,6 +208,12 @@ inductive Deferred (X Y : Ty α) : {k : Nat} → (Γ : BoundCtx (Ty α) k) → F
       (rest : Deferred X Y ((Γ.snoc A).snoc B) s.succ.succ t l r) :
       Deferred X Y Γ s (.let₂ (.bv x.1) t) (.let₂ (.bv x.1.succ) (l.rename beforePair))
         (.let₂ (.bv x.1.succ) (r.rename beforePair))
+  | split {k : Nat} {Γ : BoundCtx (Ty α) k} {s : Fin k} {A B : Ty α} (y : Slot Γ (.coprod A B))
+      {t₁ t₂ : LetCase.LocallyNameless.Tm Empty Φ (k + 1)} {l₁ r₁ l₂ r₂ : LetCase.LocallyNameless.Tm Empty Φ (k + 1 + 1)}
+      (left : Deferred X Y (Γ.snoc A) s.succ t₁ l₁ r₁) (right : Deferred X Y (Γ.snoc B) s.succ t₂ l₂ r₂) :
+      Deferred X Y Γ s (.case (.bv y.1) t₁ t₂)
+        (.case (.bv y.1.succ) (l₁.rename (swapRenaming Γ A X).toFun) (l₂.rename (swapRenaming Γ B X).toFun))
+        (.case (.bv y.1.succ) (r₁.rename (swapRenaming Γ A Y).toFun) (r₂.rename (swapRenaming Γ B Y).toFun))
 
 /-- The stored slot of a prefix has sum type. -/
 theorem Deferred.slot {X Y : Ty α} : {k : Nat} → {Γ : BoundCtx (Ty α) k} → {s : Fin k} →
@@ -207,6 +221,7 @@ theorem Deferred.slot {X Y : Ty α} : {k : Nat} → {Γ : BoundCtx (Ty α) k} �
   | _, _, _, _, _, _, .here hs _ _ => hs
   | _, _, _, _, _, _, .ask _ _ rest => rest.slot
   | _, _, _, _, _, _, .unpack _ rest => rest.slot
+  | _, _, _, _, _, _, .split _ left _ => left.slot
 
 /-- The parts of the typing of a let. -/
 def letTypingInv {k : Nat} {β : BoundCtx (Ty α) k} {a : LetCase.LocallyNameless.Tm Empty Φ k} {b : LetCase.LocallyNameless.Tm Empty Φ (k + 1)} {C : Ty α} :
@@ -218,6 +233,13 @@ def pairTypingInv {k : Nat} {β : BoundCtx (Ty α) k} {a : LetCase.LocallyNamele
     Derivation Φ Γ₀ β (.let₂ a c) C →
       (A : Ty α) × (B : Ty α) × Derivation Φ Γ₀ β a (.product A B) × Derivation Φ Γ₀ ((β.snoc A).snoc B) c C
   | .let₂ ha hc => ⟨_, _, ha, hc⟩
+
+/-- The parts of the typing of a case. -/
+def caseTypingInv {k : Nat} {β : BoundCtx (Ty α) k} {a : LetCase.LocallyNameless.Tm Empty Φ k} {l r : LetCase.LocallyNameless.Tm Empty Φ (k + 1)} {C : Ty α} :
+    Derivation Φ Γ₀ β (.case a l r) C →
+      (A : Ty α) × (B : Ty α) × Derivation Φ Γ₀ β a (.coprod A B) × Derivation Φ Γ₀ (β.snoc A) l C ×
+        Derivation Φ Γ₀ (β.snoc B) r C
+  | .case ha hl hr => ⟨_, _, ha, hl, hr⟩
 
 /-- A request is typed at its reply type. -/
 theorem opTypingType {k : Nat} {β : BoundCtx (Ty α) k} {g : Φ} {a : LetCase.LocallyNameless.Tm Empty Φ k} {A : Ty α} :
@@ -263,6 +285,30 @@ def Deferred.typing {X Y C : Ty α} : {k : Nat} → {Γ : BoundCtx (Ty α) k} �
           (renameTyping (afterPairRenaming Γ Y A B)
             (cast (congrArg₂ (fun a b => Derivation Φ Γ₀ (((Γ.snoc Y).snoc a).snoc b) _ C)
               (Ty.product.inj er).1 (Ty.product.inj er).2) pr.2.2.2))))
+  | _, Γ, _, _, _, _, .split (A := A) (B := B) (l₁ := l₁) (r₁ := r₁) (l₂ := l₂) (r₂ := r₂) y left right, dl, dr =>
+    let pl := caseTypingInv dl
+    let pr := caseTypingInv dr
+    have el : Ty.coprod pl.1 pl.2.1 = Ty.coprod A B := (bvTypingType pl.2.2.1).trans y.2
+    have er : Ty.coprod pr.1 pr.2.1 = Ty.coprod A B := (bvTypingType pr.2.2.1).trans y.2
+    .case (slotTyping y)
+      (left.typing
+        (cast (congrArg (fun u => Derivation Φ Γ₀ ((Γ.snoc A).snoc X) u C) (swap_swap_rename Γ A X l₁))
+          (renameTyping (swapRenaming Γ X A)
+            (cast (congrArg (fun a => Derivation Φ Γ₀ ((Γ.snoc X).snoc a) _ C) (Ty.coprod.inj el).1)
+              pl.2.2.2.1)))
+        (cast (congrArg (fun u => Derivation Φ Γ₀ ((Γ.snoc A).snoc Y) u C) (swap_swap_rename Γ A Y r₁))
+          (renameTyping (swapRenaming Γ Y A)
+            (cast (congrArg (fun a => Derivation Φ Γ₀ ((Γ.snoc Y).snoc a) _ C) (Ty.coprod.inj er).1)
+              pr.2.2.2.1))))
+      (right.typing
+        (cast (congrArg (fun u => Derivation Φ Γ₀ ((Γ.snoc B).snoc X) u C) (swap_swap_rename Γ B X l₂))
+          (renameTyping (swapRenaming Γ X B)
+            (cast (congrArg (fun a => Derivation Φ Γ₀ ((Γ.snoc X).snoc a) _ C) (Ty.coprod.inj el).2)
+              pl.2.2.2.2)))
+        (cast (congrArg (fun u => Derivation Φ Γ₀ ((Γ.snoc B).snoc Y) u C) (swap_swap_rename Γ B Y r₂))
+          (renameTyping (swapRenaming Γ Y B)
+            (cast (congrArg (fun a => Derivation Φ Γ₀ ((Γ.snoc Y).snoc a) _ C) (Ty.coprod.inj er).2)
+              pr.2.2.2.2))))
 
 /-- The native typing of the pattern lets that unpack a tuple slot. -/
 def unpackTyping : (atoms : List α) → {k : Nat} → {Γ : BoundCtx (Ty α) k} → (s : Slot Γ (tupleTy atoms)) →
