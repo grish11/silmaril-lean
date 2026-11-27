@@ -2245,13 +2245,46 @@ The continuation cannot jump back to its own label.
   explicit rows, the typing check of the elaborated graph is now a
   consequence of the certificate and is not evaluated, also at the
   packet types written by hand, which are equal to the computed ones;
-  the two graphs with overlapping names are treated the same way. There
-  is no theorem that the normalization keeps the certificate: the
-  certificate is evaluated on the normalized graph. The default
+  the two graphs with overlapping names are treated the same way. In
+  this item the certificate is evaluated on the normalized graph; the
+  next item shows that the normalization keeps it. The default
   elaborator is unchanged.
   [From names to positions](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Thms.lean) ·
   [Proofs](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping.lean) ·
   [Diamonds by proof](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- The forwarding normalization keeps the typing certificate, for any
+  table, with each copy at the declared type of its register. No
+  condition is needed: not closedness, not the fragment, and no
+  compatibility of forwarded operands with their destinations, so there
+  is no counterexample to the plain statement. The normalization changes
+  three things and reorders nothing. The reads of a body are renamed by
+  the reader of its block, and each φ operand of an original row by the
+  reader of its predecessor; a reader sends a register to itself or to a
+  copy of it, which has the same declared type, so operands, payloads
+  and φ operands keep their types, and the binders are unchanged. After
+  the original rows of a block, in the order of the table, there is one
+  new row for each register the block receives, with one operand for
+  each listed predecessor: the register as that predecessor reads it,
+  which has the type of the copy. The one fact about the graph that the
+  proof uses is that the entry or block that runs a body is a listed
+  predecessor of every block the body jumps to; otherwise the operand of
+  a copy row would be the unit default. That holds by the definition of
+  the predecessors, also when two blocks have the same label. The local
+  statement is for one body and is exported. With the theorem of the
+  previous item this gives the typed elaboration from checks on the
+  original graph and the table: the table is closed, the graph is in the
+  fragment and certified, and the captures cover the inputs at their
+  declared types. With the inferred table everything is a check on the
+  original graph: the scope check with arrival claims, the condition on
+  claims, a rank, the fragment and the typing certificate. On the direct
+  diamond and the changed-operand variant the certificate is evaluated
+  on the direct graph only, for both tables, and the typed elaboration
+  follows with no elaboration run or assumed. The packet types are still
+  those computed on the normalized graph; nothing here relates them to
+  types computed on the original graph, whose blocks receive no copies.
+  [Certificate preservation](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping/Thms.lean) ·
+  [Proofs](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceTyping.lean) ·
+  [Diamonds from source checks](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,

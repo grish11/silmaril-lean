@@ -87,6 +87,25 @@ every hypothesis is a check on the φ graphs.
 Nothing about names is assumed beyond the certificate. Overlapping names
 do not invalidate the statement: typing is by name, a name has one type,
 and the positional context follows the names through every binder.
+
+The forwarding normalization keeps the certificate, for any table, with
+the copies at the declared types of their registers. It changes three
+things and reorders nothing. The reads of a body are renamed by the
+reader of its block, and each φ operand by the reader of its
+predecessor; a reader sends a register to itself or to a copy of it, so
+it keeps types. The rows of a block get, after the original rows and in
+the order of the table, one row for each register the block receives,
+with one operand for each listed predecessor: the register as that
+predecessor reads it, which has the type of the copy. The one fact about
+the graph that is used is that a body is a listed predecessor of every
+block it jumps to; otherwise the operand of a copy row would be the unit
+default. That is so by the definition of the predecessors.
+
+So the typed elaboration follows from checks on the original graph: its
+certificate, its fragment, a closed table, and captures that cover the
+inputs at their declared types. With the inferred table the closedness
+comes from the scope check with claims, the condition on claims and a
+rank.
 -/
 
 public section
@@ -331,6 +350,26 @@ theorem compileTyped_of_certified (graph : Graph V K F)
     (certified_checks graph exits types exitType captures captureTypes target certificate declared
       elaborated)
 
+/-- A certified body stays certified under the forwarding normalization,
+when the entry or block that runs it is a listed predecessor of every
+block it jumps to. -/
+theorem body_forward_typed (graph : Graph V K F) (table : Phi.Forward.Table V K)
+    (types : V → Ty Base) (exitType : Option K → Ty Base) (pred : Option K)
+    (source : CFG.Body V (Option K) F)
+    (listed : ∀ key, some key ∈ source.targets → pred ∈ graph.predecessors key)
+    (typed : bodyTyped graph types exitType pred source = true) :
+    bodyTyped (Phi.Forward.forward graph table) (forwardTypes types) exitType pred
+      (Phi.Forward.body (Phi.Forward.reader table pred) source) = true :=
+  forward_body_typed_proof graph table types exitType pred source listed typed
+
+/-- The forwarding normalization keeps the certificate, for any table,
+with the copies at the declared types of their registers. -/
+theorem certified_forward (graph : Graph V K F) (table : Phi.Forward.Table V K)
+    (types : V → Ty Base) (exitType : Option K → Ty Base)
+    (certificate : certified graph types exitType = true) :
+    certified (Phi.Forward.forward graph table) (forwardTypes types) exitType = true :=
+  certified_forward_proof graph table types exitType certificate
+
 /-- The typed elaboration succeeds for the normalized graph of a closed
 forwarding table, from checks on the φ graphs only: the table is closed,
 the graph is in the fragment, the normalized graph is certified, and the
@@ -353,5 +392,51 @@ theorem compileTyped_of_closed (graph : Graph V K F)
     exits types exitType captures captureTypes certificate declared elaborated
   rw [typed]
   rfl
+
+/-- The typed elaboration of the normalized graph of a closed forwarding
+table succeeds, from checks on the original graph and the table: the
+table is closed, the graph is in the fragment and certified, and the
+captures cover the declared inputs at their declared types. -/
+theorem compileTyped_of_source (graph : Graph V K F) (table : Phi.Forward.Table V K)
+    (exits : List (Option K)) (inputs : List V) (types : V → Ty Base)
+    (exitType : Option K → Ty Base) {n : Nat}
+    (captures : Fin n → Option (Phi.Forward.Name V K)) (captureTypes : BoundCtx (Ty Base) n)
+    (isClosed : Phi.Forward.closed graph table exits inputs = true)
+    (fragment : NamedFlat.Phi.plain graph = true)
+    (covered : ∀ z ∈ inputs, ∃ i, captures i = some (Sum.inl z))
+    (certificate : certified graph types exitType = true)
+    (declared : ∀ i, captureTypes.get i = lifted (forwardTypes types) (captures i)) :
+    (compileTyped (Phi.OrderedExits.lower (Phi.Forward.forward graph table)) exits captures
+      captureTypes (internal (Phi.Forward.forward graph table) (forwardTypes types))
+      (external exits exitType)).isSome = true :=
+  compileTyped_of_closed graph table exits inputs (forwardTypes types) exitType captures
+    captureTypes isClosed fragment covered (certified_forward graph table types exitType certificate)
+    declared
+
+/-- The typed elaboration after the inferred normalization succeeds, from
+checks on the original graph only: the existing scope check with arrival
+claims, claims that list no register of their block, a rank, the
+fragment, the typing certificate, and captures that cover the declared
+inputs at their declared types. -/
+theorem compileTyped_infer_of_ranked (graph : Graph V K F) (exits : List (Option K))
+    (inputs : List V) (arrivals : CFG.Cyclic.Phi.GlobalSSA.Certificate V K) (rank : K → Nat)
+    (types : V → Ty Base) (exitType : Option K → Ty Base) {n : Nat}
+    (captures : Fin n → Option (Phi.Forward.Name V K)) (captureTypes : BoundCtx (Ty Base) n)
+    (inScope : Phi.OrderedExits.check graph exits inputs arrivals = true)
+    (claims : Phi.Forward.claimed graph arrivals = true)
+    (acyclic : Phi.Forward.ranked graph rank = true)
+    (fragment : NamedFlat.Phi.plain graph = true)
+    (covered : ∀ z ∈ inputs, ∃ i, captures i = some (Sum.inl z))
+    (certificate : certified graph types exitType = true)
+    (declared : ∀ i, captureTypes.get i = lifted (forwardTypes types) (captures i)) :
+    (compileTyped (Phi.OrderedExits.lower
+        (Phi.Forward.forward graph (Phi.Forward.infer graph exits inputs))) exits captures
+      captureTypes
+      (internal (Phi.Forward.forward graph (Phi.Forward.infer graph exits inputs))
+        (forwardTypes types))
+      (external exits exitType)).isSome = true :=
+  compileTyped_of_source graph _ exits inputs types exitType captures captureTypes
+    (Phi.Forward.closed_infer_of_ranked graph exits inputs arrivals rank inScope claims acyclic)
+    fragment covered certificate declared
 
 end Silmaril.Isotope.Bridge.NamedFlat.Phi.SourceTyping

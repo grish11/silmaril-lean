@@ -2830,8 +2830,9 @@ The packet types that it computes, from the φ rows and the record of the
 versioning, are the packet types of the typed witnesses written by hand
 above. With them the elaborated graph passes the typing check, and the
 typed elaboration returns it. The check of the elaborated graph is not
-evaluated: it follows from the certificate by the theorem. Only the
-certificate and the types of the two captures are evaluated. -/
+evaluated: it follows from the certificate by the theorem. The
+certificate is evaluated on the direct graph only; the normalization
+keeps it. -/
 
 /-- The declared types of the registers. -/
 private def phiTypes : PhiReg → Ty Unit
@@ -2847,13 +2848,40 @@ private def phiExitType : Option Lbl → Ty Unit
 
 example : Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType = exitTypes := by decide
 
-/-- The direct graph, the normalized graphs of both tables and the graph
-with explicit rows are certified, for both operands of the φ of `join`. -/
-example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
-    Bridge.NamedFlat.Phi.SourceTyping.certified (phiDirect incoming) phiTypes phiExitType = true ∧
-    Bridge.NamedFlat.Phi.SourceTyping.certified (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true ∧
-    Bridge.NamedFlat.Phi.SourceTyping.certified (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true := by
+/-- The direct graph is certified, for both operands of the φ of `join`.
+This is the only certificate that is evaluated for the direct diamonds. -/
+private theorem phiDirect_certified (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phiDirect incoming) phiTypes phiExitType = true := by
   rcases h with rfl | rfl <;> decide +kernel
+
+/-- The normalized graphs of both tables are certified, with the copies at
+the declared types of their registers, because the normalization keeps
+the certificate. Nothing is evaluated on the normalized graphs. -/
+private theorem phiDemanded_certified (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.certified_forward (phiDirect incoming) (phiInferred incoming) phiTypes phiExitType
+    (phiDirect_certified incoming h)
+
+private theorem phiForwarded_certified (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.certified_forward (phiDirect incoming) phiForwards phiTypes phiExitType
+    (phiDirect_certified incoming h)
+
+/-- The same by evaluation, as a check of the theorem on these graphs. -/
+example : Bridge.NamedFlat.Phi.SourceTyping.certified (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true ∧
+    Bridge.NamedFlat.Phi.SourceTyping.certified (phiForwarded .a) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true := by
+  decide +kernel
+
+/-- The normalization keeps the certificate for any table, closed or not:
+here every block receives a register that it never reads. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    Bridge.NamedFlat.Phi.SourceTyping.certified
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.forward (phiDirect incoming)
+        [(.classify, [.later]), (.reply, [.later, .earlier]), (.payload, [.later]),
+          (.join, [.earlier, .later]), (.leaf, [.later])])
+      (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.certified_forward (phiDirect incoming) _ phiTypes phiExitType
+    (phiDirect_certified incoming h)
 
 example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .ra) :
     Bridge.NamedFlat.Phi.SourceTyping.certified (phi incoming) phiTypes phiExitType = true := by
@@ -2870,21 +2898,23 @@ example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .ra) :
   rcases h with rfl | rfl <;> decide +kernel
 
 /-- With the computed packet types the elaborated graphs pass the typing
-check, by the theorem for certified graphs: the certificate holds and the
-capture context has the declared types of the two captures. -/
+check, by the theorem for certified graphs: the normalized graph is
+certified because the direct graph is, and the capture context has the
+declared types of the two captures. -/
 private theorem demFlat_checked :
     Bridge.NamedFlat.check demFlat older
       (Bridge.NamedFlat.Phi.SourceTyping.internal (phiDemanded .e) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
       (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType) = true :=
   Bridge.NamedFlat.Phi.SourceTyping.certified_checks (phiDemanded .e) phiExits (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
-    phiForwardedCaptures older demFlat (by decide +kernel) (by decide) (Option.some_get _).symm
+    phiForwardedCaptures older demFlat (phiDemanded_certified .e (.inl rfl)) (by decide)
+    (Option.some_get _).symm
 
 private theorem demFlatPayload_checked :
     Bridge.NamedFlat.check demFlatPayload older
       (Bridge.NamedFlat.Phi.SourceTyping.internal (phiDemanded .a) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
       (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType) = true :=
   Bridge.NamedFlat.Phi.SourceTyping.certified_checks (phiDemanded .a) phiExits (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
-    phiForwardedCaptures older demFlatPayload (by decide +kernel) (by decide)
+    phiForwardedCaptures older demFlatPayload (phiDemanded_certified .a (.inr rfl)) (by decide)
     (Option.some_get _).symm
 
 /-- The same for the graph with explicit rows. -/
@@ -2926,19 +2956,35 @@ example : ∃ result, Bridge.NamedFlat.compileTyped
     phiForwardedCaptures older demRowTypes exitTypes (target := demFlatPayload)
     (Option.some_get _).symm (demPackets .a (.inr rfl) ▸ demExits ▸ demFlatPayload_checked)
 
-/-- From checks on the φ graphs only, with no elaboration run or assumed:
-the inferred table is closed, the direct graph is in the fragment, the
-normalized graph is certified, and the two captures cover the inputs at
-their declared types. -/
+/-- From checks on the direct graph and the table, with no elaboration
+run or assumed and nothing evaluated on the normalized graph: the
+inferred table is closed, the direct graph is in the fragment and
+certified, and the two captures cover the inputs at their declared
+types. -/
 example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
     (Bridge.NamedFlat.compileTyped (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming)) phiExits
       phiForwardedCaptures older
       (Bridge.NamedFlat.Phi.SourceTyping.internal (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
       (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType)).isSome = true :=
-  Bridge.NamedFlat.Phi.SourceTyping.compileTyped_of_closed (phiDirect incoming) (phiInferred incoming) phiExits phiInputs
-    (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType phiForwardedCaptures older
-    (phiInferred_closed incoming h) (by rcases h with rfl | rfl <;> decide +kernel) phiCovered
-    (by rcases h with rfl | rfl <;> decide +kernel) (by decide)
+  Bridge.NamedFlat.Phi.SourceTyping.compileTyped_of_source (phiDirect incoming) (phiInferred incoming) phiExits phiInputs
+    phiTypes phiExitType phiForwardedCaptures older (phiInferred_closed incoming h)
+    (by rcases h with rfl | rfl <;> decide +kernel) phiCovered (phiDirect_certified incoming h)
+    (by decide)
+
+/-- From checks on the direct graph only: the existing scope check with
+its arrival claims, the condition on claims, the rank, the fragment, the
+typing certificate, and the two captures at their declared types. The
+table is inferred. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    (Bridge.NamedFlat.compileTyped (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming)) phiExits
+      phiForwardedCaptures older
+      (Bridge.NamedFlat.Phi.SourceTyping.internal (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
+      (Bridge.NamedFlat.Phi.SourceTyping.external phiExits phiExitType)).isSome = true :=
+  Bridge.NamedFlat.Phi.SourceTyping.compileTyped_infer_of_ranked (phiDirect incoming) phiExits phiInputs phiDirectArrivals
+    phiRank phiTypes phiExitType phiForwardedCaptures older
+    (by rcases h with rfl | rfl <;> decide +kernel) (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel) (by rcases h with rfl | rfl <;> decide +kernel)
+    phiCovered (phiDirect_certified incoming h) (by decide)
 
 /-- The typed elaboration of the direct diamond with the inferred table,
 at the computed packet types, returns the lowered graph. -/
@@ -3002,10 +3048,6 @@ declared type of the register. The entry of the versioned lowering is
 typed in it, by the theorem for certified bodies; nothing is evaluated
 but the certificate. -/
 
-private theorem phiDemanded_certified (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
-    Bridge.NamedFlat.Phi.SourceTyping.certified (phiDemanded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType = true := by
-  rcases h with rfl | rfl <;> decide +kernel
-
 /-- The versioned entry of both diamonds with the inferred table. -/
 example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
     Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes))
@@ -3023,7 +3065,7 @@ example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
       (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Versioning.compile
         (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiForwarded incoming))).entry.toRegion = true :=
   Bridge.NamedFlat.Phi.SourceTyping.entry_typed (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
-    (by rcases h with rfl | rfl <;> decide +kernel)
+    (phiForwarded_certified incoming h)
 
 example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .ra) :
     Bridge.NamedFlat.Phi.SourceTyping.regionTyped (Bridge.NamedFlat.Phi.SourceTyping.canon phiTypes) (Bridge.NamedFlat.Phi.SourceTyping.targetType (phi incoming) phiTypes phiExitType)
@@ -3112,7 +3154,7 @@ example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a)
         (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lowerBlock (phiForwarded incoming) item.1 item.2)).body.toRegion =
       true :=
   Bridge.NamedFlat.Phi.SourceTyping.block_typed (phiForwarded incoming) (Bridge.NamedFlat.Phi.SourceTyping.forwardTypes phiTypes) phiExitType
-    (by rcases h with rfl | rfl <;> decide +kernel) item member
+    (phiForwarded_certified incoming h) item member
 
 example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .ra)
     (item : Lbl × Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Block PhiReg Lbl Op) (member : item ∈ (phi incoming).blocks) :

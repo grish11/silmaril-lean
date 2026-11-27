@@ -826,4 +826,187 @@ theorem certified_checks_proof (graph : Graph V K F) (exits : List (Option K))
 
 end Assembly
 
+/-! ## The forwarding normalization keeps the certificate
+
+The normalization renames the reads of a body by the reader of its block,
+renames each φ operand by the reader of its predecessor, and appends to
+the rows of a block one row for each register that the block receives,
+with one operand for each predecessor. It reorders nothing. A copy has
+the declared type of its register, so every reader keeps types. -/
+
+section Forwarded
+
+open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi (Forward.Name Forward.Table Forward.forward
+  Forward.reader Forward.row Forward.copyRow Forward.block)
+
+variable {Base V K : Type u} {F : Type v}
+
+/-- A renamed value has the type of the value, when the renaming keeps
+types. -/
+theorem valueType_rename_proof {W : Type u} (types : V → Ty Base) (renamed : W → Ty Base)
+    (read : V → W) (keeps : ∀ z, renamed (read z) = types z) : (value : Val V) →
+    valueType renamed (value.rename read) = valueType types value
+  | .var x => keeps x
+  | .unit => rfl
+  | .pair a b => by
+    simp only [Val.rename, valueType, valueType_rename_proof types renamed read keeps a,
+      valueType_rename_proof types renamed read keeps b]
+
+/-- A renamed operand has the type of the operand, when the renaming keeps
+types. -/
+theorem opType_rename_proof [DecidableEq Base] [HasTy F (Ty Base)] {W : Type u}
+    (types : V → Ty Base) (renamed : W → Ty Base) (read : V → W)
+    (keeps : ∀ z, renamed (read z) = types z) (operand : Op V F) :
+    opType renamed (operand.rename read) = opType types operand := by
+  cases operand <;>
+    simp only [Op.rename, opType, valueType_rename_proof types renamed read keeps]
+
+variable [DecidableEq V] [DecidableEq K]
+
+/-- Every reader keeps types: a copy has the declared type of its
+register. -/
+theorem forwardTypes_reader_proof (types : V → Ty Base) (table : Forward.Table V K)
+    (pred : Option K) (z : V) : forwardTypes types (Forward.reader table pred z) = types z := by
+  cases pred with
+  | none => rfl
+  | some key =>
+    simp only [Forward.reader]
+    split <;> rfl
+
+omit [DecidableEq V] in
+/-- The operand of an original row for a predecessor is the original
+operand, read as the predecessor reads it. -/
+theorem row_operand_proof [DecidableEq V] (table : Forward.Table V K) (source : Option K)
+    (r : Row V K) :
+    (Forward.row table r).operand source =
+      (r.operand source).rename (Forward.reader table source) := by
+  have inner : ∀ incoming : List (Option K × Val V),
+      (incoming.map fun item => (item.1, item.2.rename (Forward.reader table item.1))).lookup
+          source =
+        (incoming.lookup source).map (·.rename (Forward.reader table source)) := by
+    intro incoming
+    induction incoming with
+    | nil => rfl
+    | cons item rest ih =>
+      rcases item with ⟨pred, value⟩
+      simp only [List.map_cons, List.lookup_cons]
+      split
+      · rename_i same
+        rw [eq_of_beq same]
+        rfl
+      · exact ih
+  simp only [Row.operand, Forward.row]
+  rw [inner]
+  cases r.incoming.lookup source <;> rfl
+
+omit [DecidableEq V] in
+/-- The operand of a copy row for a listed predecessor is the register as
+the predecessor reads it. -/
+theorem copy_operand_listed_proof [DecidableEq V] (table : Forward.Table V K) (key : K)
+    (register : V) (source : Option K) : (predecessors : List (Option K)) →
+    source ∈ predecessors →
+    (Forward.copyRow table predecessors key register).operand source =
+      .var (Forward.reader table source register)
+  | [], member => by cases member
+  | pred :: rest, member => by
+    simp only [Row.operand, Forward.copyRow, List.map_cons, List.lookup_cons]
+    split
+    · rename_i same
+      rw [eq_of_beq same]
+      rfl
+    · rename_i other
+      have differs : source ≠ pred := fun eq => by simp [eq] at other
+      exact copy_operand_listed_proof table key register source rest
+        ((List.mem_cons.mp member).resolve_left differs)
+
+variable [DecidableEq Base] [HasTy F (Ty Base)]
+
+/-- A certified terminator stays certified under the normalization, when
+its block is a listed predecessor of every block it jumps to. -/
+theorem forward_term_typed_proof (graph : Graph V K F) (table : Forward.Table V K)
+    (types : V → Ty Base) (exitType : Option K → Ty Base) (pred : Option K) :
+    (tail : Term V (Option K) F) →
+    (∀ key, some key ∈ tail.targets → pred ∈ graph.predecessors key) →
+    termTyped graph types exitType pred tail = true →
+    termTyped (Forward.forward graph table) (forwardTypes types) exitType pred
+      (Phi.Forward.term (Forward.reader table pred) tail) = true
+  | .br target value, listed, typed => by
+    cases target with
+    | none =>
+      have absent : Phi.OrderedExits.lookup (Forward.forward graph table) none = none := rfl
+      have source : Phi.OrderedExits.lookup graph none = none := rfl
+      simp only [termTyped, source, decide_eq_true_eq] at typed
+      simp only [Phi.Forward.term, termTyped, absent, decide_eq_true_eq,
+        valueType_rename_proof types _ _ (forwardTypes_reader_proof types table pred), typed]
+    | some key =>
+      have looked : Phi.OrderedExits.lookup (Forward.forward graph table) (some key) =
+          (graph.blocks.lookup key).map (Forward.block table graph key) :=
+        Phi.Forward.lookup_forward graph table key
+      have source : Phi.OrderedExits.lookup graph (some key) = graph.blocks.lookup key := rfl
+      cases found : graph.blocks.lookup key with
+      | none =>
+        rw [found] at looked source
+        simp only [termTyped, source, decide_eq_true_eq] at typed
+        simp only [Phi.Forward.term, termTyped, looked, Option.map_none, decide_eq_true_eq,
+          valueType_rename_proof types _ _ (forwardTypes_reader_proof types table pred), typed]
+      | some block =>
+        rw [found] at looked source
+        simp only [termTyped, source, List.all_eq_true, decide_eq_true_eq] at typed
+        have member := listed key (by simp [Term.targets])
+        simp only [Phi.Forward.term, termTyped, looked, Option.map_some, List.all_eq_true,
+          decide_eq_true_eq, Forward.block, List.mem_append, List.mem_map]
+        rintro row (⟨original, inRows, rfl⟩ | ⟨register, _, rfl⟩)
+        · rw [row_operand_proof,
+            valueType_rename_proof types _ _ (forwardTypes_reader_proof types table pred)]
+          exact typed original inRows
+        · rw [copy_operand_listed_proof table key register pred _ member]
+          exact forwardTypes_reader_proof types table pred register
+  | .case operand x left y right, listed, typed => by
+    simp only [termTyped, Bool.and_eq_true, decide_eq_true_eq] at typed
+    simp only [Phi.Forward.term, termTyped, Bool.and_eq_true, decide_eq_true_eq,
+      opType_rename_proof types _ _ (forwardTypes_reader_proof types table pred)]
+    exact ⟨⟨typed.1.1, forward_term_typed_proof graph table types exitType pred left
+        (fun key member => listed key (by simp [Term.targets, member])) typed.1.2⟩,
+      forward_term_typed_proof graph table types exitType pred right
+        (fun key member => listed key (by simp [Term.targets, member])) typed.2⟩
+
+/-- A certified body stays certified under the normalization, when its
+block is a listed predecessor of every block it jumps to. -/
+theorem forward_body_typed_proof (graph : Graph V K F) (table : Forward.Table V K)
+    (types : V → Ty Base) (exitType : Option K → Ty Base) (pred : Option K) :
+    (source : Body V (Option K) F) →
+    (∀ key, some key ∈ source.targets → pred ∈ graph.predecessors key) →
+    bodyTyped graph types exitType pred source = true →
+    bodyTyped (Forward.forward graph table) (forwardTypes types) exitType pred
+      (Phi.Forward.body (Forward.reader table pred) source) = true
+  | .term tail, listed, typed =>
+    forward_term_typed_proof graph table types exitType pred tail listed typed
+  | .let1 x operand rest, listed, typed => by
+    simp only [bodyTyped, Bool.and_eq_true, decide_eq_true_eq] at typed
+    simp only [Phi.Forward.body, bodyTyped, Bool.and_eq_true, decide_eq_true_eq,
+      opType_rename_proof types _ _ (forwardTypes_reader_proof types table pred)]
+    exact ⟨typed.1, forward_body_typed_proof graph table types exitType pred rest listed typed.2⟩
+  | .let2 x y operand rest, listed, typed => by
+    simp only [bodyTyped, Bool.and_eq_true, decide_eq_true_eq] at typed
+    simp only [Phi.Forward.body, bodyTyped, Bool.and_eq_true, decide_eq_true_eq,
+      opType_rename_proof types _ _ (forwardTypes_reader_proof types table pred)]
+    exact ⟨typed.1, forward_body_typed_proof graph table types exitType pred rest listed typed.2⟩
+
+/-- The normalization keeps the certificate, for any table. -/
+theorem certified_forward_proof (graph : Graph V K F) (table : Forward.Table V K)
+    (types : V → Ty Base) (exitType : Option K → Ty Base)
+    (certificate : certified graph types exitType = true) :
+    certified (Forward.forward graph table) (forwardTypes types) exitType = true := by
+  simp only [certified, Bool.and_eq_true, List.all_eq_true] at certificate ⊢
+  refine ⟨?_, fun item member => ?_⟩
+  · exact forward_body_typed_proof graph table types exitType none graph.entry
+      (fun key target => by simp [Graph.predecessors, target]) certificate.1
+  · obtain ⟨source, original, rfl⟩ := List.mem_map.mp member
+    exact forward_body_typed_proof graph table types exitType (some source.1) source.2.body
+      (fun key target => List.mem_append_right _
+        (List.mem_filterMap.mpr ⟨source, original, by simp [target]⟩))
+      (certificate.2 source original)
+
+end Forwarded
+
 end Silmaril.Isotope.Bridge.NamedFlat.Phi.SourceTyping
