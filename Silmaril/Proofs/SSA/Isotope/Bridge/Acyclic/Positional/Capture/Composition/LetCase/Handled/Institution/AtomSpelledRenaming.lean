@@ -218,4 +218,171 @@ theorem SpelledLaterTags.renamed_opened_proof : {stack : List (List α)} → {ta
 
 end
 
+/-! ## The renamed prefix
+
+The end renaming of a renamed prefix commutes with the weakenings of the
+two prefixes, and the term of the renamed prefix around a term renamed
+along the end renaming is the renamed term of the prefix. -/
+
+mutual
+
+theorem SpelledPrefix.renamed_weaken_proof : {stack : List (List α)} → {m : Nat} → {Δ : BoundCtx (Ty α) m} →
+    {holds : Holds Δ stack} → {stack' : List (List α)} → {m' : Nat} → {Δ' : BoundCtx (Ty α) m'} →
+    {holds' : Holds Δ' stack'} → (p : SpelledPrefix (Φ := Φ) stack Δ holds stack' Δ' holds') → {k : Nat} →
+    {Θ : BoundCtx (Ty α) k} → (ρ : BoundCtx.Renaming Δ Θ) → (H : Holds Θ stack) → (h : holds.rename ρ = H) →
+    p.weaken.comp (p.renamed ρ H h).ren = ρ.comp (p.renamed ρ H h).tree.weaken
+  | _, _, _, _, _, _, _, _, .stop, _, _, _, _, _ => renaming_ext (fun _ => rfl)
+  | _, _, _, .cons _ _, _, _, _, _, .unit next, _, _, ρ, .cons _ older', h =>
+    next.renamed_weaken_proof ρ older' (Holds.cons.inj h).2
+  | _, _, _, .cons _ _, _, _, _, _, .atom next, _, _, ρ, .cons _ older', h =>
+    next.renamed_weaken_proof ρ older' (Holds.cons.inj h).2
+  | (a :: b :: rest) :: _, _, Δ, .cons _ older, _, _, _, _, .step next, _, Θ, ρ, .cons _ older', h =>
+    (congrArg (fun r => (pastPair Δ (.base a) (tupleTy (b :: rest))).comp r)
+      (next.renamed_weaken_proof ((ρ.up (.base a)).up (tupleTy (b :: rest)))
+        (.cons ⟨0, rfl⟩ (older'.rename (pastPair Θ (.base a) (tupleTy (b :: rest)))))
+        (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square older (pastPair Θ (.base a) (tupleTy (b :: rest)))
+          (Holds.cons.inj h).2 (renaming_ext (fun _ => rfl)))))).trans (renaming_ext (fun _ => rfl))
+  | _, _, _, _, _, _, _, _, .ask _ _ reply, _, _, ρ, H, h => reply.renamed_weaken_proof ρ H h
+  | _, _, _, holds, _, _, _, _, .pick sel next, _, _, ρ, H, h =>
+    next.renamed_weaken_proof ρ (H.select sel)
+      ((Holds.select_rename sel holds ρ).symm.trans (congrArg (Holds.select sel) h))
+
+theorem SpelledPrefixTags.renamed_weaken_proof : {stack : List (List α)} → {tags : List (List α)} →
+    {m : Nat} → {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} → {stack' : List (List α)} → {m' : Nat} →
+    {Δ' : BoundCtx (Ty α) m'} → {holds' : Holds Δ' stack'} →
+    (p : SpelledPrefixTags (Φ := Φ) stack tags Δ holds stack' Δ' holds') → {k : Nat} →
+    {Θ : BoundCtx (Ty α) k} → (ρ : BoundCtx.Renaming Δ Θ) → (H : Holds Θ stack) → (h : holds.rename ρ = H) →
+    p.weaken.comp (p.renamed ρ H h).ren = ρ.comp (p.renamed ρ H h).tree.weaken
+  | _, _, _, Δ, holds, _, _, _, _, .bind atoms next, _, Θ, ρ, H, h =>
+    (congrArg (fun r => (BoundCtx.Renaming.succ Δ (tupleTy atoms)).comp r)
+      (next.renamed_weaken_proof (ρ.up (tupleTy atoms))
+        (.cons ⟨0, rfl⟩ (H.rename (BoundCtx.Renaming.succ Θ (tupleTy atoms))))
+        (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square holds (BoundCtx.Renaming.succ Θ (tupleTy atoms)) h
+          (renaming_ext (fun _ => rfl)))))).trans (renaming_ext (fun _ => rfl))
+
+end
+
+mutual
+
+theorem SpelledPrefix.renamed_plug_proof : {stack : List (List α)} → {m : Nat} → {Δ : BoundCtx (Ty α) m} →
+    {holds : Holds Δ stack} → {stack' : List (List α)} → {m' : Nat} → {Δ' : BoundCtx (Ty α) m'} →
+    {holds' : Holds Δ' stack'} → (p : SpelledPrefix (Φ := Φ) stack Δ holds stack' Δ' holds') → {k : Nat} →
+    {Θ : BoundCtx (Ty α) k} → (ρ : BoundCtx.Renaming Δ Θ) → (H : Holds Θ stack) → (h : holds.rename ρ = H) →
+    (e : LetCase.LocallyNameless.Tm Empty Φ m') →
+    (p.plug e).rename ρ.toFun = (p.renamed ρ H h).tree.plug (e.rename (p.renamed ρ H h).ren.toFun)
+  | _, _, _, _, _, _, _, _, .stop, _, _, _, _, _, _ => rfl
+  | _, _, _, .cons _ _, _, _, _, _, .unit next, _, _, ρ, .cons _ older', h, e =>
+    next.renamed_plug_proof ρ older' (Holds.cons.inj h).2 e
+  | _, _, _, .cons _ _, _, _, _, _, .atom next, _, _, ρ, .cons _ older', h, e =>
+    next.renamed_plug_proof ρ older' (Holds.cons.inj h).2 e
+  | (a :: b :: rest) :: _, _, _, .cons _ older, _, _, _, _, .step next, _, Θ, ρ, .cons _ older', h, e =>
+    congrArg₂ (fun i x => LetCase.LocallyNameless.Tm.let₂ (.bv i) x) (congrArg Subtype.val (Holds.cons.inj h).1)
+      (next.renamed_plug_proof ((ρ.up (.base a)).up (tupleTy (b :: rest)))
+        (.cons ⟨0, rfl⟩ (older'.rename (pastPair Θ (.base a) (tupleTy (b :: rest)))))
+        (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square older (pastPair Θ (.base a) (tupleTy (b :: rest)))
+          (Holds.cons.inj h).2 (renaming_ext (fun _ => rfl)))) e)
+  | _, _, _, _, _, _, _, _, .ask g argument reply, _, _, ρ, H, h, e =>
+    congrArg₂ LetCase.LocallyNameless.Tm.let₁ (congrArg (LetCase.LocallyNameless.Tm.op g) (argTerm_rename argument ρ)) (reply.renamed_plug_proof ρ H h e)
+  | _, _, _, holds, _, _, _, _, .pick sel next, _, _, ρ, H, h, e =>
+    next.renamed_plug_proof ρ (H.select sel)
+      ((Holds.select_rename sel holds ρ).symm.trans (congrArg (Holds.select sel) h)) e
+
+theorem SpelledPrefixTags.renamed_plug_proof : {stack : List (List α)} → {tags : List (List α)} →
+    {m : Nat} → {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} → {stack' : List (List α)} → {m' : Nat} →
+    {Δ' : BoundCtx (Ty α) m'} → {holds' : Holds Δ' stack'} →
+    (p : SpelledPrefixTags (Φ := Φ) stack tags Δ holds stack' Δ' holds') → {k : Nat} →
+    {Θ : BoundCtx (Ty α) k} → (ρ : BoundCtx.Renaming Δ Θ) → (H : Holds Θ stack) → (h : holds.rename ρ = H) →
+    (e : LetCase.LocallyNameless.Tm Empty Φ m') →
+    (p.plug e).rename (LetCase.LocallyNameless.Tm.up ρ.toFun) = (p.renamed ρ H h).tree.plug (e.rename (p.renamed ρ H h).ren.toFun)
+  | _, _, _, _, holds, _, _, _, _, .bind atoms next, _, Θ, ρ, H, h, e =>
+    next.renamed_plug_proof (ρ.up (tupleTy atoms))
+      (.cons ⟨0, rfl⟩ (H.rename (BoundCtx.Renaming.succ Θ (tupleTy atoms))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square holds (BoundCtx.Renaming.succ Θ (tupleTy atoms)) h
+        (renaming_ext (fun _ => rfl)))) e
+
+end
+
+/-! ## The specialization term and the renamed prefix
+
+The specialization term of a prefix at a payload slot `Z`, renamed along
+any renaming `τ` of the context with `Z` newest, is the term of the prefix
+renamed along `τ` past `Z`, around the term at the end with its slots sent
+along the end renaming and `Z` sent to the weakened image of `τ 0`. The
+statement is over all `τ`, so that the induction renames each prefix once
+and never composes two renamed prefixes. -/
+
+mutual
+
+theorem SpelledPrefix.special_renamed_proof (Z : Ty α) : {stack : List (List α)} → {m : Nat} →
+    {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} → {stack' : List (List α)} → {m' : Nat} →
+    {Δ' : BoundCtx (Ty α) m'} → {holds' : Holds Δ' stack'} →
+    (p : SpelledPrefix (Φ := Φ) stack Δ holds stack' Δ' holds') → {k : Nat} → {Θ : BoundCtx (Ty α) k} →
+    (τ : BoundCtx.Renaming (Δ.snoc Z) Θ) → (ρ : BoundCtx.Renaming Δ Θ) →
+    (BoundCtx.Renaming.succ Δ Z).comp τ = ρ → (H : Holds Θ stack) → (h : holds.rename ρ = H) →
+    (e : LetCase.LocallyNameless.Tm Empty Φ (m' + 1)) →
+    (p.special Z e).rename τ.toFun = (p.renamed ρ H h).tree.plug
+      (e.rename (Fin.cases ((p.renamed ρ H h).tree.weaken.toFun (τ.toFun 0)) (p.renamed ρ H h).ren.toFun))
+  | _, _, _, _, _, _, _, _, .stop, _, _, τ, _, hρ, _, _, e => by
+    subst hρ
+    exact LetCase.LocallyNameless.Tm.rename_congr (fun i => Fin.cases rfl (fun _ => rfl) i) e
+  | _, _, _, .cons _ _, _, _, _, _, .unit next, _, _, τ, ρ, hρ, .cons _ older', h, e =>
+    next.special_renamed_proof Z τ ρ hρ older' (Holds.cons.inj h).2 e
+  | _, _, _, .cons _ _, _, _, _, _, .atom next, _, _, τ, ρ, hρ, .cons _ older', h, e =>
+    next.special_renamed_proof Z τ ρ hρ older' (Holds.cons.inj h).2 e
+  | (a :: b :: rest) :: _, _, Δ, .cons top older, _, _, _, _, .step next, _, Θ, τ, ρ, hρ, .cons _ older', h,
+      e => by
+    subst hρ
+    have ih := next.special_renamed_proof Z
+      ((beforePairRenaming Δ Z (.base a) (tupleTy (b :: rest))).comp ((τ.up (.base a)).up (tupleTy (b :: rest))))
+      ((((BoundCtx.Renaming.succ Δ Z).comp τ).up (.base a)).up (tupleTy (b :: rest)))
+      (renaming_ext (Fin.cases rfl (Fin.cases rfl (fun _ => rfl))))
+      (.cons ⟨0, rfl⟩ (older'.rename (pastPair Θ (.base a) (tupleTy (b :: rest)))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square older (pastPair Θ (.base a) (tupleTy (b :: rest)))
+        (Holds.cons.inj h).2 (renaming_ext (fun _ => rfl)))) e
+    exact congrArg₂ (fun i x => LetCase.LocallyNameless.Tm.let₂ (.bv i) x) (congrArg Subtype.val (Holds.cons.inj h).1)
+      ((LetCase.LocallyNameless.Tm.rename_comp beforePair (LetCase.LocallyNameless.Tm.up (LetCase.LocallyNameless.Tm.up τ.toFun)) (next.special Z e)).trans ih)
+  | _, _, Δ, _, _, _, _, _, .ask g argument reply, _, _, τ, ρ, hρ, H, h, e => by
+    have ih := reply.special_renamed_proof Z τ ρ hρ H h e
+    subst hρ
+    exact congrArg₂ LetCase.LocallyNameless.Tm.let₁
+      (congrArg (LetCase.LocallyNameless.Tm.op g) ((argTerm_rename (argument.rename (BoundCtx.Renaming.succ Δ Z)) τ).trans
+        (congrArg argTerm (assembly_rename_comp argument (BoundCtx.Renaming.succ Δ Z) τ)))) ih
+  | _, _, _, holds, _, _, _, _, .pick sel next, _, _, τ, ρ, hρ, H, h, e =>
+    next.special_renamed_proof Z τ ρ hρ (H.select sel)
+      ((Holds.select_rename sel holds ρ).symm.trans (congrArg (Holds.select sel) h)) e
+
+theorem SpelledPrefixTags.special_renamed_proof (Z : Ty α) : {stack : List (List α)} →
+    {tags : List (List α)} → {m : Nat} → {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} →
+    {stack' : List (List α)} → {m' : Nat} → {Δ' : BoundCtx (Ty α) m'} → {holds' : Holds Δ' stack'} →
+    (p : SpelledPrefixTags (Φ := Φ) stack tags Δ holds stack' Δ' holds') → {k : Nat} →
+    {Θ : BoundCtx (Ty α) k} → (τ : BoundCtx.Renaming (Δ.snoc Z) Θ) → (ρ : BoundCtx.Renaming Δ Θ) →
+    (BoundCtx.Renaming.succ Δ Z).comp τ = ρ → (H : Holds Θ stack) → (h : holds.rename ρ = H) →
+    (e : LetCase.LocallyNameless.Tm Empty Φ (m' + 1)) →
+    ((p.special Z e).rename (swapRenaming Δ (tagsTy tags) Z).toFun).rename (LetCase.LocallyNameless.Tm.up τ.toFun) =
+      (p.renamed ρ H h).tree.plug
+        (e.rename (Fin.cases ((p.renamed ρ H h).tree.weaken.toFun (τ.toFun 0)) (p.renamed ρ H h).ren.toFun))
+  | _, _, _, Δ, holds, _, _, _, _, .bind atoms next, _, Θ, τ, ρ, hρ, H, h, e => by
+    subst hρ
+    have ih := next.special_renamed_proof Z
+      ((swapRenaming Δ (tupleTy atoms) Z).comp (τ.up (tupleTy atoms)))
+      (((BoundCtx.Renaming.succ Δ Z).comp τ).up (tupleTy atoms))
+      (renaming_ext (Fin.cases rfl (fun _ => rfl)))
+      (.cons ⟨0, rfl⟩ (H.rename (BoundCtx.Renaming.succ Θ (tupleTy atoms))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square holds (BoundCtx.Renaming.succ Θ (tupleTy atoms)) h
+        (renaming_ext (fun _ => rfl)))) e
+    exact (LetCase.LocallyNameless.Tm.rename_comp (swapRenaming Δ (tupleTy atoms) Z).toFun (LetCase.LocallyNameless.Tm.up τ.toFun) (next.special Z e)).trans ih
+
+end
+
+/-- The specialization term of a prefix at a payload slot is the term of
+the prefix placed under the payload, around the term at the end with the
+payload moved beneath the prefix. -/
+theorem SpelledPrefix.special_eq_plug_proof (Z : Ty α) {stack : List (List α)} {m : Nat}
+    {Δ : BoundCtx (Ty α) m} {holds : Holds Δ stack} {stack' : List (List α)} {m' : Nat}
+    {Δ' : BoundCtx (Ty α) m'} {holds' : Holds Δ' stack'}
+    (p : SpelledPrefix (Φ := Φ) stack Δ holds stack' Δ' holds') (e : LetCase.LocallyNameless.Tm Empty Φ (m' + 1)) :
+    p.special Z e = (p.under Z).tree.plug (e.rename (p.past Z).toFun) :=
+  (LetCase.LocallyNameless.Tm.rename_id (p.special Z e)).symm.trans
+    (p.special_renamed_proof Z (.id (Δ.snoc Z)) (BoundCtx.Renaming.succ Δ Z) (renaming_ext (fun _ => rfl)) _ rfl e)
+
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Institution

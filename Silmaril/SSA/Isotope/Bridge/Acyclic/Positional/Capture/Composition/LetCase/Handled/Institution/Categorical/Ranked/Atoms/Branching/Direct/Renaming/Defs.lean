@@ -27,6 +27,11 @@ its end, the specialization of the prefix to the tag of the arm is
 computed as a tree: the arm is renamed past each slot of the prefix. With
 the computed shape of the prefix this gives a reply with two tags
 inspected after the prefix, from the prefix and the two arms alone.
+
+The third part renames a prefix. The renamed prefix comes with its end
+context, its end slots and its end renaming. A prefix placed under a new
+slot, and the renaming that moves a slot bound after the prefix beneath
+it, are the instances used for a reply with more tags.
 -/
 
 @[expose] public section
@@ -583,5 +588,104 @@ def SpelledStackTags.delayed {stack : List (List α)} {m : Nat} {Δ : BoundCtx (
     (p.spec atoms left (holds.rename (pastPair Δ (tagsTy [atoms, next]) (tupleTy atoms)))
       (Holds.rename_comp holds _ _)).term_eq
     (p.spec next right _ rfl).term_eq
+
+/-! ## Renaming a prefix
+
+A prefix is renamed along a renaming of the context at its start. The
+context at its end is not given: the renamed prefix comes with the context
+and the slots of the stack at its end, and with the end renaming, from the
+end of the prefix into the end of the renamed prefix. -/
+
+/-- A renaming out of a context with one more slot: a renaming of the
+context, and a slot of the target for the new one. -/
+def snocRenaming {m k : Nat} {Δ : BoundCtx (Ty α) m} {Ξ : BoundCtx (Ty α) k} (ρ : BoundCtx.Renaming Δ Ξ)
+    {Z : Ty α} (z : Slot Ξ Z) : BoundCtx.Renaming (Δ.snoc Z) Ξ where
+  toFun := Fin.cases z.1 ρ.toFun
+  typed := Fin.cases z.2 ρ.typed
+
+/-- A tree of a family over an end context and end slots of a stack, with
+the renaming from a given end context into that one, which carries the
+given end slots to those. The result of renaming a prefix. -/
+structure EndRenamed {stack' : List (List α)}
+    (F : {j : Nat} → (Ξ : BoundCtx (Ty α) j) → Holds Ξ stack' → Type) {m' : Nat}
+    (Δ' : BoundCtx (Ty α) m') (holds' : Holds Δ' stack') where
+  /-- The size of the end context. -/
+  size : Nat
+  /-- The end context. -/
+  ctx : BoundCtx (Ty α) size
+  /-- The slots of the stack at the end. -/
+  slots : Holds ctx stack'
+  /-- The tree. -/
+  tree : F ctx slots
+  /-- The end renaming. -/
+  ren : BoundCtx.Renaming Δ' ctx
+  /-- The end renaming carries the given end slots to the end slots. -/
+  slots_eq : holds'.rename ren = slots
+
+mutual
+
+/-- The renaming action on a prefix, onto given slots of the stack that
+are the renamed slots. The requests are renamed, and the renaming is
+lifted under each slot the prefix binds. -/
+def SpelledPrefix.renamed : {stack : List (List α)} → {m : Nat} → {Δ : BoundCtx (Ty α) m} →
+    {holds : Holds Δ stack} → {stack' : List (List α)} → {m' : Nat} → {Δ' : BoundCtx (Ty α) m'} →
+    {holds' : Holds Δ' stack'} → SpelledPrefix (Φ := Φ) stack Δ holds stack' Δ' holds' → {k : Nat} →
+    {Θ : BoundCtx (Ty α) k} → (ρ : BoundCtx.Renaming Δ Θ) → (H : Holds Θ stack) → holds.rename ρ = H →
+    EndRenamed (fun Ξ H' => SpelledPrefix (Φ := Φ) stack Θ H stack' Ξ H') Δ' holds'
+  | _, _, _, _, _, _, _, _, .stop, _, Θ, ρ, H, h => ⟨_, Θ, H, .stop, ρ, h⟩
+  | _, _, _, .cons _ _, _, _, _, _, .unit next, _, _, ρ, .cons _ older', h =>
+    let q := next.renamed ρ older' (Holds.cons.inj h).2
+    ⟨_, _, _, .unit q.tree, q.ren, q.slots_eq⟩
+  | _, _, _, .cons _ _, _, _, _, _, .atom next, _, _, ρ, .cons _ older', h =>
+    let q := next.renamed ρ older' (Holds.cons.inj h).2
+    ⟨_, _, _, .atom q.tree, q.ren, q.slots_eq⟩
+  | (a :: b :: rest) :: _, _, _, .cons _ older, _, _, _, _, .step next, _, Θ, ρ, .cons _ older', h =>
+    let q := next.renamed ((ρ.up (.base a)).up (tupleTy (b :: rest)))
+      (.cons ⟨0, rfl⟩ (older'.rename (pastPair Θ (.base a) (tupleTy (b :: rest)))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square older (pastPair Θ (.base a) (tupleTy (b :: rest)))
+        (Holds.cons.inj h).2 (renaming_ext (fun _ => rfl))))
+    ⟨_, _, _, .step q.tree, q.ren, q.slots_eq⟩
+  | _, _, _, _, _, _, _, _, .ask g argument reply, _, _, ρ, H, h =>
+    let q := reply.renamed ρ H h
+    ⟨_, _, _, .ask g (argument.rename ρ) q.tree, q.ren, q.slots_eq⟩
+  | _, _, _, holds, _, _, _, _, .pick sel next, _, _, ρ, H, h =>
+    let q := next.renamed ρ (H.select sel)
+      ((Holds.select_rename sel holds ρ).symm.trans (congrArg (Holds.select sel) h))
+    ⟨_, _, _, .pick sel q.tree, q.ren, q.slots_eq⟩
+
+/-- The renaming action on the bound reply of a request of a prefix. -/
+def SpelledPrefixTags.renamed : {stack : List (List α)} → {tags : List (List α)} → {m : Nat} →
+    {Δ : BoundCtx (Ty α) m} → {holds : Holds Δ stack} → {stack' : List (List α)} → {m' : Nat} →
+    {Δ' : BoundCtx (Ty α) m'} → {holds' : Holds Δ' stack'} →
+    SpelledPrefixTags (Φ := Φ) stack tags Δ holds stack' Δ' holds' → {k : Nat} → {Θ : BoundCtx (Ty α) k} →
+    (ρ : BoundCtx.Renaming Δ Θ) → (H : Holds Θ stack) → holds.rename ρ = H →
+    EndRenamed (fun Ξ H' => SpelledPrefixTags (Φ := Φ) stack tags Θ H stack' Ξ H') Δ' holds'
+  | _, _, _, _, holds, _, _, _, _, .bind atoms next, _, Θ, ρ, H, h =>
+    let q := next.renamed (ρ.up (tupleTy atoms))
+      (.cons ⟨0, rfl⟩ (H.rename (BoundCtx.Renaming.succ Θ (tupleTy atoms))))
+      (congrArg (Holds.cons ⟨0, rfl⟩) (holds_square holds (BoundCtx.Renaming.succ Θ (tupleTy atoms)) h
+        (renaming_ext (fun _ => rfl))))
+    ⟨_, _, _, .bind atoms q.tree, q.ren, q.slots_eq⟩
+
+end
+
+/-- A prefix placed under a new slot `Z`: the prefix renamed along the
+weakening past `Z`, with its end context and end renaming. -/
+def SpelledPrefix.under (Z : Ty α) {stack : List (List α)} {m : Nat} {Δ : BoundCtx (Ty α) m}
+    {holds : Holds Δ stack} {stack' : List (List α)} {m' : Nat} {Δ' : BoundCtx (Ty α) m'}
+    {holds' : Holds Δ' stack'} (p : SpelledPrefix (Φ := Φ) stack Δ holds stack' Δ' holds') :
+    EndRenamed (fun Ξ H' => SpelledPrefix (Φ := Φ) stack (Δ.snoc Z)
+      (holds.rename (BoundCtx.Renaming.succ Δ Z)) stack' Ξ H') Δ' holds' :=
+  p.renamed (BoundCtx.Renaming.succ Δ Z) _ rfl
+
+/-- The renaming that moves a slot `Z` bound after a prefix beneath it:
+from the end of the prefix with `Z` newest into the end of the prefix
+placed under `Z`. The slots of the end of the prefix follow the end
+renaming, and `Z` goes to the weakened slot. -/
+def SpelledPrefix.past (Z : Ty α) {stack : List (List α)} {m : Nat} {Δ : BoundCtx (Ty α) m}
+    {holds : Holds Δ stack} {stack' : List (List α)} {m' : Nat} {Δ' : BoundCtx (Ty α) m'}
+    {holds' : Holds Δ' stack'} (p : SpelledPrefix (Φ := Φ) stack Δ holds stack' Δ' holds') :
+    BoundCtx.Renaming (Δ'.snoc Z) (p.under Z).ctx :=
+  snocRenaming (p.under Z).ren ⟨(p.under Z).tree.weaken.toFun 0, (p.under Z).tree.weaken.typed 0⟩
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Institution
