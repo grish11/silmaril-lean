@@ -74,11 +74,9 @@ with the entry Bit. Both of its replies lead into a silent cycle.
 ## Scope
 
 The request rows are rows of the environment fragment: the entry state is
-one Bit and the environment holds Bits. Written code with lets is covered
-only through `Router.eqv_envRouter_of_normal` for tables without
-request-free rows; mixed tables of such code are not stated. Nothing is
-claimed for packed dispatchers in general, and no completeness is claimed
-for default Paper.
+one Bit and the environment holds Bits. Tables of written code with lets
+are treated in `Composite.Written`. Nothing is claimed for packed
+dispatchers in general, and no completeness is claimed for default Paper.
 -/
 
 public section
