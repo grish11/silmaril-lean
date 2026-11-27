@@ -19,12 +19,16 @@ case on the reply slot around the two specializations, by the finite-prefix
 equation, and its normal form is the normal form of the eager spelling
 that cases on the reply at once.
 
-No law is added. A prefix does not branch. A stored reply with more than
-two tags needs the specialization of the other arms, which is again a
-delayed case, on the prefix placed under the slot of the remaining tags.
-That is the renaming action on the prefix itself with the equation between
-the term of the renamed prefix and the specialization term; it is not
-built here.
+A prefix is renamed as well. The renamed prefix comes with its end context
+and its end renaming. The end renaming commutes with the weakenings of the
+two prefixes, and the term of the renamed prefix around a term renamed
+along the end renaming is the renamed term of the prefix. The
+specialization term of a prefix at a payload slot is the term of the
+prefix placed under that slot, around the term at the end with the payload
+moved beneath the prefix. The `Spine` headers beside these use that
+equation to build a delayed case with any number of tags.
+
+No law is added. A prefix does not branch.
 -/
 
 public section
@@ -159,5 +163,49 @@ theorem delayed_opened {stack : List (List α)} {holds : Holds β stack} (atoms 
           (Holds.rename_comp holds _ _)).tree
         (.bind next (p.spec next right _ rfl).tree)).opened ρ :=
   rfl
+
+/-! ## Renaming a prefix -/
+
+section Prefix
+
+variable {stack stack' : List (List α)} {holds : Holds β stack} {m' : Nat} {Δ' : BoundCtx (Ty α) m'}
+  {holds' : Holds Δ' stack'}
+
+/-- The end renaming of a renamed prefix commutes with the weakenings: the
+weakening of the prefix followed by the end renaming is the renaming
+followed by the weakening of the renamed prefix. -/
+theorem spelledPrefix_renamed_weaken (p : SpelledPrefix (Φ := Φ) stack β holds stack' Δ' holds') {k : Nat}
+    {Θ : BoundCtx (Ty α) k} (ρ : BoundCtx.Renaming β Θ) (H : Holds Θ stack) (h : holds.rename ρ = H) :
+    p.weaken.comp (p.renamed ρ H h).ren = ρ.comp (p.renamed ρ H h).tree.weaken :=
+  p.renamed_weaken_proof ρ H h
+
+/-- The term of a renamed prefix around a term renamed along the end
+renaming is the renamed term of the prefix. -/
+theorem spelledPrefix_renamed_plug (p : SpelledPrefix (Φ := Φ) stack β holds stack' Δ' holds') {k : Nat}
+    {Θ : BoundCtx (Ty α) k} (ρ : BoundCtx.Renaming β Θ) (H : Holds Θ stack) (h : holds.rename ρ = H)
+    (e : LetCase.LocallyNameless.Tm Empty Φ m') :
+    (p.plug e).rename ρ.toFun = (p.renamed ρ H h).tree.plug (e.rename (p.renamed ρ H h).ren.toFun) :=
+  p.renamed_plug_proof ρ H h e
+
+/-- The specialization term of a prefix at a payload slot `Z`, renamed
+along a renaming `τ` of the context with `Z` newest, is the term of the
+prefix renamed along `τ` past `Z`, around the term at the end: its slots
+follow the end renaming and `Z` goes to the weakened image of `τ 0`. -/
+theorem spelledPrefix_special_renamed (Z : Ty α) (p : SpelledPrefix (Φ := Φ) stack β holds stack' Δ' holds')
+    {k : Nat} {Θ : BoundCtx (Ty α) k} (τ : BoundCtx.Renaming (β.snoc Z) Θ) (ρ : BoundCtx.Renaming β Θ)
+    (hρ : (BoundCtx.Renaming.succ β Z).comp τ = ρ) (H : Holds Θ stack) (h : holds.rename ρ = H)
+    (e : LetCase.LocallyNameless.Tm Empty Φ (m' + 1)) :
+    (p.special Z e).rename τ.toFun = (p.renamed ρ H h).tree.plug
+      (e.rename (Fin.cases ((p.renamed ρ H h).tree.weaken.toFun (τ.toFun 0)) (p.renamed ρ H h).ren.toFun)) :=
+  p.special_renamed_proof Z τ ρ hρ H h e
+
+/-- The specialization term of a prefix at a payload slot is the term of
+the prefix placed under the payload, around the term at the end with the
+payload moved beneath the prefix. -/
+theorem spelledPrefix_special_eq_plug (Z : Ty α) (p : SpelledPrefix (Φ := Φ) stack β holds stack' Δ' holds')
+    (e : LetCase.LocallyNameless.Tm Empty Φ (m' + 1)) : p.special Z e = (p.under Z).tree.plug (e.rename (p.past Z).toFun) :=
+  p.special_eq_plug_proof Z e
+
+end Prefix
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Institution

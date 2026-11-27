@@ -1575,13 +1575,8 @@ The continuation cannot jump back to its own label.
   Its term is natively equal to the case on the reply slot around the
   two computed specializations, and its normal form is the normal form
   of the eager spelling. No law is added and no requests are exchanged.
-  The limit is the number of tags. With three or more, the
-  specialization to the remaining tags is again a delayed case, on the
-  prefix placed under the slot of the remaining tags. That needs the
-  renaming action on the prefix itself, with its end context, and the
-  equation between the term of the renamed prefix and the specialization
-  term; it is not built, and for more tags the checked constructor with
-  given specializations is used. A branching prefix stays outside. The
+  This definition has two tags; the next item removes that limit. A
+  branching prefix stays outside. The
   regression builds the delayed tree of the previous item from its
   prefix of two dependent requests with the pattern let between them and
   from its two arms. It has the term of the original tree, the normal
@@ -1594,6 +1589,57 @@ The continuation cannot jump back to its own label.
   [Renaming action and computed specializations](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Renaming/Defs.lean) ·
   [Normal forms and coverage](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Renaming/Thms.lean) ·
   [A delayed case built from its prefix and its arms](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomPrefixBuiltRegression.lean)
+- The delayed case is built from one prefix and the original arms for
+  any number of tags. A prefix has a renaming action of its own. The end
+  context of a prefix is not an input, so the renamed prefix comes with
+  its end context, its end slots and the end renaming from the end of
+  the prefix into the end of the renamed prefix. The end renaming
+  commutes with the weakenings of the two prefixes, and the term of the
+  renamed prefix around a term renamed along the end renaming is the
+  renamed term of the prefix. The compatibility with specialization is
+  `P.special Z e = (P under Z)[e with Z moved beneath P]`: the
+  specialization term of a prefix at a payload slot is the term of the
+  prefix placed under that slot, around the term at the end with the
+  payload sent to its weakened slot and the other slots sent along the
+  end renaming. It is proved for every renaming of the context with the
+  payload newest, so that the induction renames each prefix once and
+  never composes two renamed prefixes. The arms of the remaining tags
+  are a spine: the eager cases on the slot of the remaining tags at the
+  end of the prefix, each arm with the payload of its tag newest and on
+  top of the stack. The specialization to the remaining tags is computed
+  by recursion on that spine. With one tag left it is the specialization
+  to that tag. With more it is again a delayed case: the prefix is
+  placed under the slot of the remaining tags, the arms are moved
+  beneath it by the renaming action on trees, the first is specialized,
+  and the recursion continues with the renamed prefix and the moved
+  arms. Its term is the specialization term by the compatibility
+  equation, which is what the checked constructor asks for. So one
+  definition takes the prefix, the arm of the first tag and the spine of
+  the other arms, and returns the checked delayed case with the shape
+  and all specializations computed, at every level of the spine. Its
+  term is natively equal to the case on the reply slot around the
+  computed specializations, its normal form is that of the eager
+  spelling on them, and with two tags it is the definition of the
+  previous item. No law is added and no requests are exchanged. The
+  prefix does not branch and its requests have replies with one tag.
+  There is no general theorem that the computed specializations are the
+  trees one would write by hand for the eager spelling; that is checked
+  on the instance. The regression has a reply with three tags, carrying
+  a pair, one atom and nothing, inspected after two dependent requests
+  with the pattern let between them. From the prefix and the three arms
+  alone, the tree has the original term with the nested case, and the
+  same normal form as the eager spelling written by hand with the prefix
+  repeated in three arms. The two terms are natively equal, the two
+  trees are valid together, and they have the same ordered-exit arrow at
+  the original exits. The removed dependency and a changed component
+  under each of the three tags are told apart. The renaming action on
+  trees goes through both nested delayed cases and gives the renamed
+  normal form.
+  [Prefix renaming](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Renaming/Defs.lean) ·
+  [Compatibility with specialization](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Renaming/Thms.lean) ·
+  [Tag spines and the general constructor](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Spine/Defs.lean) ·
+  [Native equation and coverage](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/Categorical/Ranked/Atoms/Branching/Direct/Spine/Thms.lean) ·
+  [Three tags after two dependent requests](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomPrefixSpineRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,

@@ -126,9 +126,9 @@ several tags whose inspection is delayed across a prefix that branches,
 that is, a prefix with a case of its own; and arbitrary LetCase terms. The
 specializations of a delayed tree across a prefix are given to its
 constructor, with the equations between their terms and the terms the
-shape computes. The renaming action on spelled trees, in the `Renaming`
-headers beside this one, computes them from the prefix and the arms for a
-reply with two tags.
+shape computes. The renaming actions on spelled trees and on prefixes, in
+the `Renaming` headers beside this one, compute them from the prefix and
+the arms; the `Spine` headers do so for any number of tags.
 
 A direct case tree is the spelled tree of a binary signature, with two
 tags of one atom each, in which every request is cased on directly. For
