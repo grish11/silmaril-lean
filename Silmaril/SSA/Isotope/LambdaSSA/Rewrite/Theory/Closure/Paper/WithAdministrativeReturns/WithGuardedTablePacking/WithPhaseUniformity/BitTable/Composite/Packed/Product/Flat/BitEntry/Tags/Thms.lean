@@ -66,18 +66,10 @@ for each row. Given a certificate:
 
 ## Not covered: a certificate for every table of a grammar, for all sizes
 
-The certificate of the cycle is proved for that table. Its four fields
-are checked by computation at the size three. A proof that produces the
-certificate for every table of the request and reply grammar and every
-`K` is not given. It needs, for a variable block index and size:
-
-* the readback row `unpackBody ((blocks i).lsubst (carryExit 1 n))` in
-  its lifted form: the conditional in `carryExit` and `packedExitArg`
-  under renaming and substitution do not compute for a variable index;
-* the parameter type `(List.ofFn R).get j` of a readback row, which is
-  `Bit` only up to a proved equality when `j` is a variable;
-* a region from tags to states for every `K`, and `injTm K j` under
-  substitution.
+The certificate of the cycle is proved for that table. `Grammar/Thms.lean`
+proves the entry, the rows and the map from tags to states for every
+table of the request and reply grammar at every size. The step equations
+of the rows remain, for a variable size.
 
 The reader of #5340 is not extended. Tables that are not tidy, blocks
 that use the captured input, and completeness in default Paper are not
