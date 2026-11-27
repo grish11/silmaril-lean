@@ -5,7 +5,7 @@ import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Reverse.Flat.Fragm
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Defs
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Reverse.Defs
 import Silmaril.SSA.Isotope.LetCase.Administrative.Thms
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.Closure.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Elaborates.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests
 
@@ -2190,12 +2190,22 @@ example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.check (phiForwarded
       (.payload, [.inl .s, .inl .b]), (.join, [.inl .s]), (.leaf, [.inl .u, .inl .f])] = true := by
   decide +kernel
 
+/-- The two captures cover the two inputs. -/
+private theorem phiCovered : ∀ register ∈ ([.later, .earlier] : List PhiReg),
+    ∃ i, phiForwardedCaptures i = some (Sum.inl register) := by decide
+
 /-- The existing lowering of the normalized graph elaborates at the two
-captures. -/
+captures, by the theorem for tables that keep the entry: the operands of
+the direct graph are in the fragment, its jumps go to blocks or declared
+exits, and the table written by hand keeps the entry. The elaboration is
+not run. -/
 private theorem phiForwarded_elaborates (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
     (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiForwarded incoming)) phiExits
-      phiForwardedCaptures).isSome = true := by
-  rcases h with rfl | rfl <;> decide +kernel
+      phiForwardedCaptures).isSome = true :=
+  Bridge.NamedFlat.Phi.compile_of_entryKept (phiDirect incoming) phiForwards phiExits
+    [.later, .earlier] phiForwardedCaptures (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel) phiCovered
 
 /-- The scoped flat graph of the normalized direct graph. -/
 private def phiForwardedFlat : FiniteCFG Op 5 2 2 :=
@@ -2393,11 +2403,27 @@ example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.entryKept (phiDirect .e)
   decide +kernel
 
 /-- The existing lowering of the normalized graph elaborates at the two
-captures. -/
+captures, by the theorem for closed tables: the inferred table is closed
+and the operands of the direct graph are in the fragment. The elaboration
+is not run. -/
 private theorem phiDemanded_elaborates (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
     (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming)) phiExits
-      phiForwardedCaptures).isSome = true := by
-  rcases h with rfl | rfl <;> decide +kernel
+      phiForwardedCaptures).isSome = true :=
+  Bridge.NamedFlat.Phi.compile_of_closed (phiDirect incoming) (phiInferred incoming) phiExits
+    phiInputs phiForwardedCaptures (phiInferred_closed incoming h)
+    (by rcases h with rfl | rfl <;> decide +kernel) phiCovered
+
+/-- The same from the source checks alone, without the closed table as a
+step: the existing check with the claims, the condition on claims, the
+rank and the fragment. -/
+example (incoming : PhiReg) (h : incoming = .e ∨ incoming = .a) :
+    (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded incoming)) phiExits
+      phiForwardedCaptures).isSome = true :=
+  Bridge.NamedFlat.Phi.compile_infer_of_ranked (phiDirect incoming) phiExits phiInputs
+    phiDirectArrivals phiRank phiForwardedCaptures
+    (by rcases h with rfl | rfl <;> decide +kernel) (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel) (by rcases h with rfl | rfl <;> decide +kernel)
+    phiCovered
 
 /-- The scoped flat graph of the direct graph with the inferred registers
 forwarded. -/
@@ -2766,6 +2792,49 @@ example :
 /-- The condition on claims rejects both. -/
 example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.claimed maskedBefore [(.join, []), (.leaf, [.u])] = false ∧
     Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Forward.claimed maskedSibling [(.join, []), (.leaf, [.s, .u])] = false := by
+  decide +kernel
+
+/-! ## The typed elaboration of the two diamonds
+
+The theorems above give the untyped elaboration from checks on the φ
+graph. The typed elaboration also checks the result against the capture
+context, a packet type for every block and the exit types. That check is
+the typed hypothesis that remains: it is evaluated here on each lowered
+graph, at the packet types of its typed witness, and the typed
+elaboration then returns the same graph. -/
+
+example : ∃ result, Bridge.NamedFlat.compileTyped
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e)) phiExits phiForwardedCaptures older demRowTypes
+      exitTypes = some result ∧ result.val = demFlat :=
+  Bridge.NamedFlat.compileTyped_of_check (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .e)) phiExits
+    phiForwardedCaptures older demRowTypes exitTypes (target := demFlat) (Option.some_get _).symm
+    (by decide +kernel)
+
+example : ∃ result, Bridge.NamedFlat.compileTyped
+      (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .a)) phiExits phiForwardedCaptures older demRowTypes
+      exitTypes = some result ∧ result.val = demFlatPayload :=
+  Bridge.NamedFlat.compileTyped_of_check (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower (phiDemanded .a)) phiExits
+    phiForwardedCaptures older demRowTypes exitTypes (target := demFlatPayload)
+    (Option.some_get _).symm (by decide +kernel)
+
+/-- A packet type that does not fit the record is rejected by the typing
+check, though the untyped elaboration succeeds: the remaining hypothesis
+is not implied by the scope checks. -/
+example : Bridge.NamedFlat.check demFlat older (fun _ => tok) exitTypes = false := by
+  decide +kernel
+
+/-! ## Outside the fragment
+
+A φ graph with an explicit injection is accepted by the existing check
+and is not in the fragment; its lowering does not elaborate. -/
+
+private def injected : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Graph PhiReg Lbl Op :=
+  ⟨.let1 .x (.inl (.var .later)) (.term (.br (some .done) (.var .x))), []⟩
+
+example : Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.check injected phiExits [.later] [] = true ∧
+    Bridge.NamedFlat.Phi.plain injected = false ∧
+    (Bridge.NamedFlat.compile (Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.OrderedExits.lower injected) phiExits
+      (![some .later] : Fin 1 → Option PhiReg)).isSome = false := by
   decide +kernel
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Composition.Handled.Free.Tests

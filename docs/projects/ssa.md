@@ -2061,6 +2061,45 @@ The continuation cannot jump back to its own label.
   [Conditions](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Closure/Defs.lean) ·
   [The inferred table is closed](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Phi/Forward/Closure/Thms.lean) ·
   [Counterexamples and the diamond](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
+- The named elaboration succeeds under checks on the source, with no
+  success assumed. For a named graph there are three: its operands are
+  values or primitives applied to values, which is the fragment of the
+  elaboration; its jumps go to blocks or declared exits; and its
+  versioned entry reads only captures at their initial version. There is
+  no condition on blocks. The versioning carries on every edge a record
+  of every register that some body reads, without the parameter of the
+  target, and the target unpacks all of it; so a versioned block reads
+  only its own parameter, whatever the graph is, and elaborates under
+  that name alone. The elaborator can fail only at an operand outside
+  the fragment, an unknown label, or a read of the entry that is not a
+  capture. For a φ graph the three checks come from the φ graph. The
+  lowering keeps the fragment and the labels, and by the item on closed
+  tables the versioned entry reads only the given registers when the
+  existing check accepts the graph with every block arriving with them
+  only. So the lowering of the normalized graph of a closed table
+  elaborates at any captures that cover the declared inputs, at exactly
+  those captures and the declared exits in their order; with the
+  previous item, a ranked graph in the fragment whose claims list no
+  register of their block elaborates after the inferred normalization.
+  The same holds for any table that keeps the entry, closed or not. On
+  the direct diamond and the changed-operand variant, with the inferred
+  table and with the table written by hand, the elaboration is now a
+  consequence and is not run; the lowered graphs, their typed witnesses,
+  tables and ranked arrows are the ones of the earlier items. This is
+  the untyped elaboration. The typed elaboration runs it and checks the
+  result against the capture context, a packet type for every block and
+  the exit types, and given that check it returns the same graph with
+  its typing. That check on the elaborated graph is the one typed
+  hypothesis that remains; it is evaluated on both diamonds, and a wrong
+  packet type fails it though the scope checks hold. No theorem derives
+  it from types on the φ graph: a packet type has to type the φ operands
+  of its block and every register of the record, and there is no typing
+  judgement for φ graphs here to state that against. The default
+  elaborator is unchanged, and a φ graph with an explicit injection is
+  outside the fragment and does not elaborate.
+  [Source checks](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Elaborates/Defs.lean) ·
+  [The elaboration succeeds](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Elaborates/Thms.lean) ·
+  [Both diamonds](../../Silmaril/Proofs/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Composition/LetCase/Handled/Institution/AtomNamedDiamondRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent
   to reflection of region typing. Once the source judgement is typable,
