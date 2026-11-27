@@ -86,6 +86,17 @@ structure Schema where
 
 end SchemaReader
 
+namespace ListInt32
+
+/-- The admitted nested field is a nullable List with one nullable signed
+Int32 child. Retain both names from the wire schema. -/
+structure Field where
+  name : String
+  childName : String
+  deriving DecidableEq, Repr
+
+end ListInt32
+
 structure FieldNode where
   length : Nat
   nullCount : Nat
@@ -516,6 +527,37 @@ public def BinaryView.readBatchMetadata (limits : Limits) (maxDataBuffers : Nat)
           word, signed, within⟩
       else throw .dataBufferLimit
     else throw .negativeCount
+
+/-- A single List (type tag 12) whose sole child uses the existing
+checked primitive field decoder. The legacy flat ASTs remain independent. -/
+private def listInt32Field (bytes : KBytes) (pos : Nat) : Except Error ListInt32.Field := do
+  let value ← table bytes pos
+  tableShape value 7
+  let name ← string bytes value 0
+  let nullable ← bool bytes value 1
+  let tag ← scalar bytes value 2 1
+  if tag ≠ 12 then throw (.unsupported (.fieldType tag))
+  if !nullable then throw (.unsupported .nested)
+  let payload ← table bytes (← require (← reference bytes value 3))
+  tableShape payload 0
+  noTable bytes value 4 .dictionary
+  let (start, count) ← vector bytes value 5 4 4
+  if count ≠ 1 then throw (.unsupported .nested)
+  let child ← field bytes (← target bytes start)
+  if !child.nullable || child.type != .int32 then throw (.unsupported .nested)
+  emptyVector bytes value 6 4 4 .customMetadata
+  return ⟨name, child.name⟩
+
+/-- Admit a bodyless, little-endian V5 List<Int32> schema message. -/
+public def ListInt32.readSchema (limits : Limits) (bytes : KBytes) : Except Error ListInt32.Field := do
+  let (tag, payload, bodyLength) ← messageParts limits bytes
+  if tag ≠ 1 then throw (.unsupported (.messageKind tag))
+  if bodyLength ≠ 0 then throw (.malformed .bodyLength)
+  let (_, fields) ← schemaWith { limits with fields := min 1 limits.fields } bytes payload
+    (fun endian => if endian = 0 then .ok () else .error (.unsupported (.endianness endian)))
+    (listInt32Field bytes)
+  let [selected] := fields | throw (.unsupported .nested)
+  return selected
 
 private def mixedFieldKind (bytes : KBytes) (tag : Nat) (payload : Table) :
     Except Error MixedFlat.Kind := do
