@@ -28,8 +28,8 @@ theorem publish_iff {session updated : Session} {table : Executor.CodeTable} {na
 
 private theorem selected {invocation : Invocation} {observation : Observation}
     (ran : invocation.finish? = some observation) :
-    Settles invocation.globals invocation.destination invocation.state observation := by
-  obtain ⟨globals, destination, state⟩ := invocation
+    Settles invocation.globals invocation.lists invocation.destination invocation.state observation := by
+  obtain ⟨globals, destination, state, lists⟩ := invocation
   cases state with
   | running heap frame body stack => simp [Invocation.finish?] at ran
   | delivering heap stack result => simp [Invocation.finish?] at ran
@@ -55,7 +55,7 @@ private theorem selected {invocation : Invocation} {observation : Observation}
         subst observation
         exact .assigned heap name value
       | «assert» =>
-        cases tested : truth value with
+        cases tested : truth value heap with
         | false =>
           simp [Invocation.finish?, tested] at ran
           subst observation
@@ -66,9 +66,9 @@ private theorem selected {invocation : Invocation} {observation : Observation}
           exact .assertTrue heap value tested
 
 private theorem of_settles {globals : Executor.GlobalLookup} {destination : Destination}
-    {state : Executor.State} {observation : Observation}
-    (delivered : Settles globals destination state observation) :
-    (Invocation.mk globals destination state).finish? = some observation := by
+    {state : Executor.State} {lists : Silmaril.Languages.Python.Core.Module.ListHeap} {observation : Observation}
+    (delivered : Settles globals lists destination state observation) :
+    (Invocation.mkWithLists globals destination state lists).finish? = some observation := by
   cases delivered with
   | assertTrue heap value tested => simp [Invocation.finish?, tested]
   | assertFalse heap value tested => simp [Invocation.finish?, tested]
@@ -76,7 +76,7 @@ private theorem of_settles {globals : Executor.GlobalLookup} {destination : Dest
 
 theorem finish_iff {invocation : Invocation} {observation : Observation} :
     invocation.finish? = some observation ↔
-      Settles invocation.globals invocation.destination invocation.state observation :=
+      Settles invocation.globals invocation.lists invocation.destination invocation.state observation :=
   ⟨selected, of_settles⟩
 
 end Silmaril.Proofs.Languages.Python.Core.Module.Functions

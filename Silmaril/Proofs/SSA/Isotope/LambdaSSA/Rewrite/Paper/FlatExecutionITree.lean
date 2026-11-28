@@ -22,7 +22,7 @@ open Silmaril.Elgot.ITree
 variable {F : Type w → Type w} {Φ : Type v} {α : Type u} (instr : Primitive F Φ α)
   {τ : Type x} [TypeFormers τ] [HasTy Φ τ]
   {blocks exits : Nat} {R : Fin blocks → τ} {E : Fin exits → τ}
-  {g : FiniteCFG Φ blocks exits 0}
+  {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
 
 private theorem split_packedTreeTransfer (p : Transfer α) :
     splitTransfer 1 (packedTreeTransfer blocks p) =
@@ -49,7 +49,7 @@ private theorem pack_iterate {A B C D : Type u} (f : A → Tree F (B ⊕ A))
       change Silmaril.Elgot.iter f' a = Silmaril.Elgot.iter g (input a)
       simpa [Bind.kleisliRight, liftPure] using congrFun (iterate_uniformity f' g input commute) a
 
-theorem packedExecution_tree (hg : FiniteCFG.HasType .nil R E g) (env : Env α) :
+theorem packedExecution_tree (hg : FiniteCFG.HasType β R E g) (env : Env α) :
     region instr env (packedExecutionRegion hg) =
       (region instr env g.erase >>= fun p => pure (packedTreeOutput p)) := by
   let source : BlockInput α blocks → Tree F (Transfer α ⊕ BlockInput α blocks) :=

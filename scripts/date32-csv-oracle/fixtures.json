@@ -1,0 +1,83 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "fixtures": {
+    "signed_slots": [
+      -719528,
+      -719469,
+      -25509,
+      -25508,
+      -1,
+      null,
+      0,
+      11016,
+      2932896
+    ],
+    "spellings": [
+      "0000-01-01",
+      "0000-02-29",
+      "1900-02-28",
+      "1900-03-01",
+      "1969-12-31",
+      null,
+      "1970-01-01",
+      "2000-02-29",
+      "9999-12-31"
+    ],
+    "adjacent_signed_slots": [
+      -719529,
+      2932897
+    ],
+    "adjacent_spellings": [
+      "-0001-12-31",
+      "10000-01-01"
+    ],
+    "csv_quote_all": {
+      "bytes": 135,
+      "sha256": "2673b8a447add16993938002d972da727eab27479081d3a495679c94e3784dea"
+    },
+    "csv_quote_minimal": {
+      "bytes": 115,
+      "sha256": "62cdafaf90b153af740ec4cffa02550a9411af8de83102400691c4871292531d"
+    },
+    "parquet": {
+      "bytes": 290,
+      "sha256": "460f876aaf12f4e235d6b89f3e2af4b252e7ec45cf37d8b3d329c58829a08689"
+    },
+    "negative_csv": {
+      "century": {
+        "bytes": 21,
+        "sha256": "b97c148de3cf4365c6c9a8207e2a81d5af36f55ffcba9dc7a962ce7f46130ad5"
+      },
+      "trailing bytes": {
+        "bytes": 22,
+        "sha256": "0eb9345f01cd053e5ebd2e0da9521ebeff6bd49208be27307bbc9c437cbb0fc4"
+      },
+      "empty present": {
+        "bytes": 11,
+        "sha256": "7dd9e2136bfa7c100912cf0419dd91048cc83a8ca4ff1b074ab2264b6787ccf3"
+      },
+      "above maximum": {
+        "bytes": 22,
+        "sha256": "292447687a873fe0dceb8cfeb54eaf5ee783b97befd8e8669555807290bb342e"
+      },
+      "below minimum": {
+        "bytes": 22,
+        "sha256": "b76d785d3100c3674b1f192e8ce1ab2b52ffd4fcb93432c65df386929d50db61"
+      },
+      "quoted comma inside date": {
+        "bytes": 24,
+        "sha256": "e3e7865e5ad06aa9a57e4fbbd8becaa69e15d1febdad4042d5ce4284085cb5f1"
+      },
+      "required null": {
+        "bytes": 11,
+        "sha256": "0f53260fa87243759d16167a7f4ac173765887d88f5d600959d23f17549a9241"
+      },
+      "unterminated quote": {
+        "bytes": 22,
+        "sha256": "ff5c03c79d28cf101d0e143f3579f69b48496d148f941c90cbfd234595272dfd"
+      }
+    }
+  }
+}

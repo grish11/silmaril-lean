@@ -3,6 +3,8 @@ module
 public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Defaults.Call
 public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Module
 
+import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Thms
+
 public section
 
 namespace Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.WithDefaults
@@ -13,7 +15,7 @@ open Silmaril.Languages.Starlark.Modules.Resolve.Block (ModuleBinders)
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace
 open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.WithDefaults
-open Silmaril.Languages.Starlark.Functions (Program)
+open Silmaril.Languages.Starlark.Functions (Program FreeName)
 open Silmaril.Languages.Starlark.Lists (Cell State)
 
 @[expose] def requiredEntries (entries : Entries) : Trace.Bindings.Environment := fun name =>
@@ -30,7 +32,7 @@ theorem required_pool {globals : List String} {program : Program} {entries : Ent
   | none => simp [slot] at tracked
   | some code =>
     cases code with
-    | defaulted => simp [slot] at tracked
+    | defaulted | escaping | sequenced | nestedBody => simp [slot] at tracked
     | required actual =>
       simp [slot] at tracked
       subst chain
@@ -45,6 +47,15 @@ theorem required_write (entries : Entries) (name : String) (value : Option Calla
 theorem required_at {entries : Entries} {name : String} {chain : Forwarding.Chain}
     (atName : entries name = some (.required chain)) : requiredEntries entries name = some chain := by
   simp [requiredEntries, atName]
+
+theorem commit_captures {state middle : State} {free : List FreeName}
+    {captures : List Silmaril.Languages.Starlark.Lists.Capture}
+    (kept : Bindings.Preserves state middle) (destination : String) (value : Silmaril.Languages.Starlark.Lists.Value)
+    (installed : Installs state free captures) (cells : Defaults.Body.CaptureCells state captures) :
+    Installs (middle.write (globalSlot destination) value) free captures ∧
+      Defaults.Body.CaptureCells (middle.write (globalSlot destination) value) captures :=
+  ⟨Silmaril.Languages.Starlark.Modules.Resolve.Capture.installs_in_same_slots ((slots_write _ _ _).trans kept.slots) installed,
+    Defaults.Body.capture_cells_written _ _ _ (Defaults.Body.capture_cells_preserved kept cells)⟩
 
 theorem keep_live {globals : List String} {program : Program} {state middle : State}
     {name destination : String} {code : Callable} (value : Silmaril.Languages.Starlark.Lists.Value)
@@ -62,6 +73,24 @@ theorem keep_live {globals : List String} {program : Program} {state middle : St
     obtain ⟨member, ⟨saved⟩⟩ := live
     have retained := unchanged.live layout member saved.live
     exact ⟨member, ⟨{ saved with live := (RootCall.write_keeps_live _ _ _ _ distinct retained other).2 }⟩⟩
+  | escaping wrapper =>
+    obtain ⟨member, ⟨root⟩⟩ := live
+    have retained := unchanged.live layout member root.live
+    exact ⟨member, ⟨{ root with live := (RootCall.write_keeps_live _ _ _ _ distinct retained other).2 }⟩⟩
+  | sequenced definition =>
+    obtain ⟨member, ⟨saved⟩⟩ := live
+    have retained := unchanged.live layout member saved.live
+    exact ⟨member, ⟨{ saved with
+      cells := Defaults.Body.capture_cells_written _ _ _ (Defaults.Body.capture_cells_preserved unchanged saved.cells)
+      live := (RootCall.write_keeps_live _ _ _ _ distinct retained other).2 }⟩⟩
+  | nestedBody spec =>
+    obtain ⟨member, ⟨root⟩⟩ := live
+    have retained := unchanged.live layout member root.live
+    obtain ⟨installed, cells⟩ := commit_captures unchanged destination value root.installed root.cells
+    exact ⟨member, ⟨{ root with
+      installed := installed
+      cells := cells
+      live := (RootCall.write_keeps_live _ _ _ _ distinct retained other).2 }⟩⟩
 
 theorem update {globals : List String} {program : Program} {entries : Entries} {state next : State}
     {destination : String} {shape : Option Callable}
@@ -79,7 +108,17 @@ theorem update {globals : List String} {program : Program} {entries : Entries} {
     · have before : entries name = some code := by simpa [Entries.write, same] using tracked
       exact keep_live value layout kept (pool name code before) (Ne.symm same)
 
-private theorem retarget {globals : List String} {program : Program} {state : State} {destination : String}
+theorem commit_cell {globals : List String} {state : State} {destination : String}
+    (member : destination ∈ globals) (layout : ModuleSlots globals state)
+    (address id : Nat) (captures : List Silmaril.Languages.Starlark.Lists.Capture)
+    (defaults : List (Silmaril.Languages.Starlark.Binding × Silmaril.Languages.Starlark.Lists.Value))
+    (cell : state.heap[address]? = some ⟨.function ⟨id, captures, defaults⟩, false⟩) :
+    RootCall.Live (state.write (globalSlot destination) (.function address)) destination address id captures false defaults := by
+  obtain ⟨slot, _, _, owned, stored⟩ := layout.usable destination member
+  exact ⟨⟨slot, by rw [slots_write]; exact owned⟩, writes_binding _ _ _ _ owned stored,
+    write_keeps_function _ _ _ _ _ _ cell⟩
+
+theorem retarget {globals : List String} {program : Program} {state : State} {destination : String}
     {definition : Defaults.Definition} (member : destination ∈ globals) (layout : ModuleSlots globals state)
     (id : Nat) (codes : List Silmaril.Languages.Starlark.Functions.Lowering.Expr)
     (address : Nat) (values : List Silmaril.Languages.Starlark.Lists.Value)
@@ -89,10 +128,8 @@ private theorem retarget {globals : List String} {program : Program} {state : St
     (cell : state.heap[address]? = some ⟨.function ⟨id, [],
       (definition.parameters.optional.map (Silmaril.Languages.Starlark.Modules.fileSlot ∘ Prod.fst)).zip values⟩, false⟩) :
     LiveBinding globals program (state.write (globalSlot destination) (.function address)) destination (.defaulted definition) := by
-  obtain ⟨slot, _, _, owned, stored⟩ := layout.usable destination member
   exact ⟨member, ⟨⟨id, codes, address, values, codeLength, valueLength, found,
-    ⟨⟨slot, by rw [slots_write]; exact owned⟩, writes_binding _ _ _ _ owned stored,
-      write_keeps_function _ _ _ _ _ _ cell⟩⟩⟩⟩
+    commit_cell member layout address id [] _ cell⟩⟩⟩
 
 theorem alias_saved {before rest : List Command} {globals : List String} {source destination : String}
     {linked : Program} {resolved : ResolvedModule}

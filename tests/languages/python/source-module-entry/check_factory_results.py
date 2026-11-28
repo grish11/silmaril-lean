@@ -357,8 +357,6 @@ if __name__ == "__main__":
     )
     with tempfile.TemporaryDirectory() as tmp:
         source_path, lean_path = Path(tmp) / "Example.py", Path(tmp) / "Example.lean"
-        for source, guard in (*fixtures, *product_fixtures):
-            shared["emit"](source_path, lean_path, source)
-            shared["check_lean"](lean_path, existing["LEAN"] + LEAN + "\n" + guard + "\n",
-                                 extra_imports=existing["IMPORTS"])
+        shared["check_lean_batch"](source_path, lean_path, (*fixtures, *product_fixtures),
+                                   existing["LEAN"] + LEAN, extra_imports=existing["IMPORTS"])
     print("CPython and Lean verified factory results, captured cells, and seeded stops.")

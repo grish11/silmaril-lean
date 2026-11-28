@@ -99,20 +99,20 @@ private theorem join_wire (op : TwoBlock.Instruction Φ K (Silmaril.coprod D A))
   rfl
 
 private theorem exit_arm (saved : TyDen (Carrier A E D))
-    (e : TyDen E) (state : σ) :
+    (out : TyDen E ⊕ TyDen D) (state : σ) :
     eval (ε := ε) (Wiring.exitArm (Φ := Φ))
       (armInput (B := B) saved ((TypeModel.coprodEquiv (ExitCode E D) B).symm
-        (.inl ((TypeModel.coprodEquiv E D).symm (.inl e)))) state) PUnit.unit =
-      Part.some (tagged (A := A) (D := D) (.inl (.inl e), state)) := by
+        (.inl ((TypeModel.coprodEquiv E D).symm out))) state) PUnit.unit =
+      Part.some (tagged (A := A) (D := D) (.inl (exitLabel out), state)) := by
   rw [Wiring.exitArm, eval_primitive]
   simp only [finishStep_after, Part.bind_eq_bind, Part.bind_some_right]
   change Part.map (OrderedRuntime.Structured.decode (ts := results (Carrier A E D))) (Part.some
     ((match TypeModel.coprodEquiv (ExitCode E D) B ((TypeModel.coprodEquiv (ExitCode E D) B).symm
-        (.inl ((TypeModel.coprodEquiv E D).symm (.inl e)))) with
+        (.inl ((TypeModel.coprodEquiv E D).symm out))) with
       | .inl out => packChoice (.inl ((TypeModel.coprodEquiv (ExitCode E D) A).symm (.inl out)))
       | .inr _ => packChoice (.inr saved)), state)) = _
   rw [Equiv.apply_symm_apply]
-  rfl
+  cases out <;> rfl
 
 private theorem body_arm (s : Loop Φ A B K E D) (saved : TyDen (Carrier A E D))
     (b : TyDen B) (state : σ) :
@@ -153,7 +153,7 @@ private theorem activation_denote (s : Loop Φ A B K E D) (a : TyDen A) (state :
     change eval (ε := ε) (Wiring.exitArm (Φ := Φ))
       (armInput (B := B) (enter a) ((TypeModel.coprodEquiv (ExitCode E D) B).symm
         (.inl ((TypeModel.coprodEquiv E D).symm (.inl e)))) token) PUnit.unit = _
-    rw [exit_arm (Φ := Φ)]
+    rw [exit_arm (Φ := Φ) (out := .inl e)]
     rfl
   | inr b =>
     change eval (ε := ε) (Wiring.bodyArm s) (armInput (enter a) (LinearChain.bodyRoute b) token)
@@ -190,27 +190,64 @@ private theorem step_denote (s : Loop Φ A B K E D) (input : TyDen A × σ) :
   rcases p with ⟨(out | next), state⟩ <;>
     simp only [Function.comp_apply, Part.pure_eq_some, Part.bind_some] <;> rfl
 
+private theorem graph_iter (s : Loop Φ A B K E D) (input : Point (σ := σ) (Carrier A E D)) :
+    NestedTheta.Partial.observe (wireModel (ε := ε)) (graph s) input =
+      iter (stepWith (wireBody (ε := ε) (σ := σ) s)) input := by
+  unfold NestedTheta.Partial.observe graph
+  rw [NestedTheta.Term.toTerm_toGraph]
+  simp only [Wiring.loop, NestedTheta.Term.denoteOpenWith, NestedTheta.ExplicitRuntime.thetaNode,
+    NestedTheta.Kind.denoteWith, read_appended, read_cons, read_newest, read_nextRuntime]
+  have forward (output : Point (σ := σ) (Carrier A E D)) :
+      point (output.get .head) (output.get (.tail .head)) = output := by
+    cases output with
+    | cons a tail =>
+      cases tail with
+      | cons token tail => cases tail; rfl
+  change (iter (stepWith (wireBody (ε := ε) (σ := σ) s)) (point (input.get .head) (input.get (.tail .head))) >>=
+    fun output => pure (point (output.get .head) (output.get (.tail .head)))) = _
+  simp only [forward, bind_pure]
+
 theorem graph_observe (s : Loop Φ A B K E D) (a : TyDen A) (state : σ) :
     observe (ε := ε) (graph s) a state =
       Part.map (exitTuple (A := A)) ((iter (round (ε := ε) (m := StateT σ Part.{u}) s) a).run state) := by
-  let step := stepWith (wireBody (ε := ε) (σ := σ) s)
-  have normalized : observe (ε := ε) (graph s) a state = iter step (entry (a, state)) := by
-    unfold observe NestedTheta.Partial.observe graph
-    rw [NestedTheta.Term.toTerm_toGraph]
-    simp only [Wiring.loop, NestedTheta.Term.denoteOpenWith, NestedTheta.ExplicitRuntime.thetaNode,
-      NestedTheta.Kind.denoteWith, read_appended, read_cons, read_newest, read_nextRuntime]
-    change (iter step (entry (a, state)) >>= fun output =>
-      pure (point (output.get .head) (output.get (.tail .head)))) = _
-    have forward (output : Point (σ := σ) (Carrier A E D)) :
-        point (output.get .head) (output.get (.tail .head)) = output := by
-      cases output with
-      | cons a tail =>
-        cases tail with
-        | cons token tail => cases tail; rfl
-    simp only [forward, bind_pure]
-  rw [normalized, Silmaril.Elgot.StateT.run_iter]
-  rw [OrderedTheta.iter_boundary _ step entry exitTuple (step_denote s) (a, state)]
+  unfold observe
+  rw [graph_iter, Silmaril.Elgot.StateT.run_iter]
+  change iter _ (entry (a, state)) = _
+  rw [OrderedTheta.iter_boundary _ _ entry exitTuple (step_denote s) (a, state)]
   exact Part.bind_some_eq_map _ _
+
+theorem graph_completed (s : Loop Φ A B K E D) (out : TyDen E ⊕ TyDen D) (token : σ) :
+    NestedTheta.Partial.observe (wireModel (ε := ε)) (graph s) (point (finish out) token) =
+      Part.some (point (finish out) token) := by
+  let input := point (finish (A := A) out) token
+  let step := stepWith (wireBody (ε := ε) (σ := σ) s)
+  have activate : wireBody (ε := ε) (σ := σ) s input =
+      Part.some (tagged (A := A) (.inl (exitLabel out), token)) := by
+    unfold wireBody input
+    rw [Wiring.thetaBody, eval_primitive]
+    let e := (TypeModel.coprodEquiv E D).symm out
+    have head :
+        (wireModel (Φ := Φ) (ε := ε) (σ := σ)).primitive
+          (.ordered (carriedData _) (resultData (Route B E D)) (.effect (.header s.header)))
+          (point (finish out) token) =
+            Part.some (OrderedRuntime.Structured.decode (ts := headerPorts B E D)
+              (routeResult (.inl e), token)) := by
+      change Part.map _ (((match TypeModel.coprodEquiv (ExitCode E D) A (finish out) with
+        | .inl e => pure (routeResult (.inl e))
+        | .inr a => callCase (ε := ε) s.header a >>= fun xy =>
+            pure (routeResult (Sum.map (fun x => (TypeModel.coprodEquiv E D).symm (.inl x)) id xy))) :
+        StateT σ Part.{u} _).run token) = _
+      simp [finish, Equiv.apply_symm_apply, e]
+    change ((wireModel (Φ := Φ) (ε := ε) (σ := σ)).primitive _ (point (finish out) token) >>= _) = _
+    rw [head, Part.bind_eq_bind, Part.bind_some, eval_choice, read_appended, read_cons, read_cons,
+      read_newest, read_newest, read_nextRuntime]
+    simp only [finishStep_after, Part.bind_eq_bind, Part.bind_some_right]
+    exact exit_arm (B := B) (finish out) out token
+  rw [graph_iter, congrFun (Silmaril.Elgot.Part.fixpoint step) input]
+  change ((wireBody (ε := ε) (σ := σ) s input >>= _) >>= _) = _
+  rw [activate]
+  simp only [Part.bind_eq_bind, Part.bind_some, Part.pure_eq_some]
+  cases out <;> rfl
 
 theorem exitTuple_injective :
     Function.Injective (exitTuple (A := A) (E := E) (D := D) (σ := σ)) := by

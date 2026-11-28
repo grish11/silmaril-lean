@@ -16,12 +16,9 @@ open Silmaril.Thesis.LambdaIter.LocallyNameless.Tm
 open Silmaril.Thesis.LambdaIter.LocallyNameless.Syntax
 open Silmaril.Thesis.LambdaIter.Syn.SynCat
 
-local instance : Silmaril.HasTy Bool (Ty Empty) where
-  src _ := .unit
-  trg _ := .empty
+local instance : Silmaril.HasTy Bool (Ty Empty) := signature.hasTy
 
-local instance : Silmaril.HasEff Bool Bool where
-  eff _ := true
+local instance : Silmaril.HasEff Bool Bool := signature.hasEff
 
 private abbrev S : Sig := Syntactic.signature (τ := Ty Empty) (Φ := Bool) false
 local instance : Silmaril.Thesis.LambdaIter.TypeFormers (Ty Empty) := S.formers
@@ -262,13 +259,19 @@ private theorem native_denote_eq :
   let _ := Syntactic.instructionModel (τ := Ty Empty) (Φ := Bool) false
   exact (denote_let_abort_proof (values S) (Syntactic.typeModel (Φ := Bool) false) nativeScrutinee Ty.unit).symm
 
+public theorem native_unprovable :
+    ¬ LocallyNameless.Equiv (Φ := signature.Instr) false (Ctx.nil : Ctx Empty (Ty Empty)) .nil
+      (.abort (.op true .unit)) (.let₁ (.op true .unit) (.abort (.bv 0))) Ty.unit := by
+  intro h
+  apply abort_equation_unprovable
+  exact (Bridge.equiv_iff (Bridge.TypeCompat.canonical (Ty Empty))
+    (Bridge.InstrCompat.canonical Bool (Ty Empty)) (Bridge.EffCompat.canonical Bool Bool) false).mp h
+
 public theorem closedReflection_fails_proof : ¬ Syntactic.ClosedReflection := by
   intro reflection
   have eq := reflection false (.abort (C := Ty.unit) nativeScrutinee)
     (.let₁ nativeScrutinee (.abort (C := Ty.unit) (.bv (ι := 0)))) native_denote_eq
-  apply abort_equation_unprovable
-  exact (Bridge.equiv_iff (Bridge.TypeCompat.canonical (Ty Empty))
-    (Bridge.InstrCompat.canonical Bool (Ty Empty)) (Bridge.EffCompat.canonical Bool Bool) false).mp eq
+  exact native_unprovable eq
 
 public theorem closedReification_fails_proof : ¬ Syntactic.ClosedReification := by
   intro reify

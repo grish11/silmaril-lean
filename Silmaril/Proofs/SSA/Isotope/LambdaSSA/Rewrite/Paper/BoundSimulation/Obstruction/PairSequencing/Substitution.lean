@@ -16,7 +16,7 @@ open Silmaril.Isotope.LambdaSSA.Semantics (extend extend_rename)
 open scoped Paper.BoundSimulation.Obstruction
 open Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.Observer
   (UnitPayloadPolicy Env EnvTy Val ValTy Result ResultTy Frame FrameTy cfgRun
-  cfgRun_mapOut finish enter step mapOut mapTerminal shiftOut insideMap enter_insideMap
+  cfgRun_mapOut finish enter step mapOut mapOut_loopResult mapTerminal shiftOut insideMap enter_insideMap
   finish_mapTerminalOn step_typed enter_typed mapOut_liftN liftLSubstN_local liftLSubstN_out)
 
 universe u v
@@ -36,14 +36,18 @@ theorem evalRegion_renameLabels (r : Region Φ) (ρ : Nat → Nat) (env : Env) :
     cases evalTerm t env <;> rfl
   | let₁ t r ih =>
     simp only [renameLabels, evalRegionWith]
-    cases evalTerm t env with
-    | none => rfl
-    | some v => exact ih ρ _
+    split
+    · rfl
+    · cases evalTerm t env with
+      | none => rfl
+      | some v => exact ih ρ _
   | let₂ t r ih =>
     simp only [renameLabels, evalRegionWith]
-    cases evalTerm t env with
-    | none => rfl
-    | some v => cases v <;> first | rfl | exact ih ρ _
+    split
+    · rfl
+    · cases evalTerm t env with
+      | none => rfl
+      | some v => cases v <;> first | rfl | exact ih ρ _
   | case t l r ihl ihr =>
     simp only [renameLabels, evalRegionWith]
     cases evalTerm t env with
@@ -87,30 +91,34 @@ theorem evalRegion_lsubst {Γ : VCtx (Ty α)} {r : Region Φ} {L : LCtx (Ty α)}
   induction hr generalizing env σ with
   | br hi ht =>
     obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) ht h
-    rw [lsubst, evalRegion_subst _ (RealizesWith.single eq (value_startsLet ht)), evalRegionWith, eq]
+    rw [lsubst, evalRegion_subst _ (RealizesWith.single eq (value_not_computed ht)), evalRegionWith, eq]
     rfl
   | @let₁ _ t _ _ _ ht _ ih =>
-    cases eq : evalTerm t env with
-    | none => simp [lsubst, evalRegionWith, eq, mapOut]
-    | some v =>
-      have hv := evalTerm_typed ht h eq
-      simp only [lsubst, evalRegionWith, eq]
-      rw [ih (h.extend hv)]
-      congr 1
-      funext i w
-      exact eval_liftLSubstVars σ i env v w
-  | @let₂ _ t _ _ _ _ ht _ ih =>
-    cases eq : evalTerm t env with
-    | none => simp [lsubst, evalRegionWith, eq, mapOut]
-    | some v =>
-      have hv := evalTerm_typed ht h eq
-      cases hv with
-      | pair h₁ h₂ =>
-        simp only [lsubst, evalRegionWith, eq]
-        rw [ih ((h.extend h₁).extend h₂)]
+    by_cases marked : (startsLet t && observation.boundUnaryLet) = true
+    · simp [lsubst, evalRegionWith, marked, mapOut]
+    · cases eq : evalTerm t env with
+      | none => simp [lsubst, evalRegionWith, marked, eq, mapOut]
+      | some v =>
+        have hv := evalTerm_typed ht h eq
+        simp only [lsubst, evalRegionWith, marked, Bool.false_eq_true, ite_false, eq]
+        rw [ih (h.extend hv)]
         congr 1
         funext i w
-        rw [eval_liftLSubstVars, eval_liftLSubstVars]
+        exact eval_liftLSubstVars σ i env v w
+  | @let₂ _ t _ _ _ _ ht _ ih =>
+    by_cases marked : (observation.computedRegionLet₂ && computes t) = true
+    · simp [lsubst, evalRegionWith, marked, mapOut]
+    · cases eq : evalTerm t env with
+      | none => simp [lsubst, evalRegionWith, marked, eq, mapOut]
+      | some v =>
+        have hv := evalTerm_typed ht h eq
+        cases hv with
+        | pair h₁ h₂ =>
+          simp only [lsubst, evalRegionWith, marked, Bool.false_eq_true, ite_false, eq]
+          rw [ih ((h.extend h₁).extend h₂)]
+          congr 1
+          funext i w
+          rw [eval_liftLSubstVars, eval_liftLSubstVars]
   | @case _ t _ _ _ _ _ ht _ _ il ir =>
     cases eq : evalTerm t env with
     | none => simp [lsubst, evalRegionWith, eq, mapOut]
@@ -147,10 +155,11 @@ theorem evalRegion_lsubst {Γ : VCtx (Ty α)} {r : Region Φ} {L : LCtx (Ty α)}
         obtain ⟨i, v⟩ := s
         change enter n (d' i v) = mapTerminal (mapOut k) (enter n (d i v))
         rw [hd i v hs, enter_insideMap]
-    change finish d' (enter n (evalRegion (e.lsubst (liftLSubstN n σ)) env)) =
-      mapOut k (finish d (enter n start))
+    let mark := markFeedback observation n
+    change finish d' (enter n (evalRegion (e.lsubst (liftLSubstN n σ)) env)) mark =
+      mapOut k (finish d (enter n start) mark)
     rw [ihe h, mapOut_liftLSubstN, enter_insideMap]
-    exact finish_mapTerminalOn d d' (mapOut k) rfl (FrameTy R K)
+    exact finish_mapTerminalOn d d' (mapOut k) (mapOut_loopResult k mark) (FrameTy R K)
       (step_typed R K (fun i _ hv => evalRegion_typed (hb i).hasType (h.extend hv)))
       hc (enter n start) (enter_typed R (evalRegion_typed he.hasType h))
 

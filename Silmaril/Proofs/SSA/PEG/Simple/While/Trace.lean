@@ -14,6 +14,32 @@ variable {Data : Type u} {P : InstructionSet.{u,v} Data}
 variable {m : Interpretation.{u,v,w} P} {vars outs : List (Ty Data)}
 variable {guard : Expr P vars .bool} {body : Stmt P true vars vars}
 
+theorem runEnabled (s : Stmt P false vars outs) (store : Tuple m.Value vars) :
+    Exec m s.enableWhile store (s.runLoopFree m store) := by
+  induction s with
+  | assign rhs =>
+    simp only [Stmt.enableWhile, Stmt.runLoopFree]
+    cases h : rhs.eval m store with
+    | none => exact .assignFailed h
+    | some v => exact .assign h
+  | project slots => exact .project
+  | seq a b ihA ihB =>
+    simp only [Stmt.enableWhile, Stmt.runLoopFree]
+    cases h : a.runLoopFree m store with
+    | none => exact .firstFailed (h ▸ ihA store)
+    | some next => exact .seq (h ▸ ihA store) (ihB next)
+  | branch guard yes no ihYes ihNo =>
+    simp only [Stmt.enableWhile, Stmt.runLoopFree]
+    cases h : guard.eval m store with
+    | none => exact .branchFailed h
+    | some b =>
+      cases b with
+      | up flag =>
+        cases flag
+        · exact .branchFalse h (ihNo store)
+        · exact .branchTrue h (ihYes store)
+  | «while» impossible _ _ _ => nomatch impossible
+
 theorem forgetEnabled (s : Stmt P false vars outs) {store : Tuple m.Value vars}
     {outcome : Option (Tuple m.Value outs)} (h : Exec m s.enableWhile store outcome) :
     Exec m s store outcome := by

@@ -17,13 +17,15 @@ open _root_.Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.
   (TermObservation SameWith evalRegionWith evalTermWith evalReturnRegion
   extension_same)
 open _root_.Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.Observer (ValTy)
-open scoped Paper.BoundSimulation.Obstruction Observer.CanonicalUnit
+open scoped Paper.BoundSimulation.Obstruction
 
 universe u v w
 
 variable {α : Type u} {Φ : Type v} [HasTy Φ (Ty α)] {ε : Type w} [HasEff Φ ε] {pe : ε}
 
-theorem caseReturnSeed_same {observation : TermObservation (α := α) Φ} (unmarked : observation.caseTerm = false)
+set_option linter.concreteInstances false in
+theorem caseReturnSeed_same [Observer.UnitPayloadPolicy]
+    {observation : TermObservation (α := α) Φ} (unmarked : observation.caseTerm = false)
     {Γ L : List (Ty α)} {r s : Region Φ} (h : Paper.WithCaseReturns.Step pe Γ r s L) :
     SameWith observation Γ r s := by
   cases h with
@@ -51,6 +53,7 @@ theorem caseReturnSeed_same {observation : TermObservation (α := α) Φ} (unmar
         simp only [evalTermWith, evalRegionWith, unmarked, Bool.false_eq_true, ↓reduceIte, ev]
         exact (evalReturnRegion hright (he.extend hv)).symm
 
+open scoped Observer.CanonicalUnit in
 /-- Marking a let in a pair is compatible with every generator of the
 case-return extension of the projection-return and unit-η quotient. -/
 theorem caseReturnJoin_same {observation : TermObservation (α := α) Φ} (unmarked : observation.caseTerm = false)

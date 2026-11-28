@@ -24,7 +24,7 @@ theorem routedFlat_mapInstr {labels n : Nat} (blocks : Nat) (r : Flat Φ labels 
 variable {τ : Type w} [TypeFormers τ] [HasTy Φ τ] [HasTy Ψ τ]
   (profiles : InstructionMap.PreservesTypes (τ := τ) f)
   {blocks exits : Nat} {R : Fin blocks → τ} {L : Fin exits → τ}
-  {g : FiniteCFG Φ blocks exits 0} (hg : g.HasType .nil R L)
+  {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n} (hg : g.HasType β R L)
 
 theorem packedDispatcherRegion_mapInstr :
     packedDispatcherRegion (hg.mapInstr profiles) = (packedDispatcherRegion hg).mapInstr f :=

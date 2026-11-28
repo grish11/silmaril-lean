@@ -1,0 +1,10 @@
+PyArrow 26.0.1 SHA-256 cb5b8ede855189f8ff69a3437ba2adfda76f6bfc8614bae17ff71f33b2849bbc
+signed rows [0, 6) frame [4, 47) payload @21 levels [1, 1, 0, 1, 1, 1] scalar bytes 20
+signed rows [6, 12) frame [47, 90) payload @64 levels [1, 1, 1, 0, 1, 1] scalar bytes 20
+wide rows [0, 2) frame [90, 129) payload @107 levels [2, 2] scalar bytes 16
+wide rows [2, 6) frame [129, 169) payload @146 levels [0, 1, 2, 2] scalar bytes 16
+wide rows [6, 8) frame [169, 208) payload @186 levels [2, 2] scalar bytes 16
+wide rows [8, 12) frame [208, 248) payload @225 levels [1, 0, 2, 2] scalar bytes 16
+late mismatch byte 230, levels [0, 1, 2, 2], SHA-256 4b1bbf319110a9a2d8cfc18a3bf258eb3e65c14f773f9facac1515069ae8774e
+short scalar page byte 230, levels [2, 0, 2, 2], 16 original bytes for 3 INT64s, SHA-256 fbf74e64ccf884b6d467a21df43abddb4c227e44ca06b96a4ad2564f8a425c9f
+wrong total byte 216, 11 advertised right slots, SHA-256 4973e52a2b62921d616ca1a95807ed528c8afeb8f606bf1cac29e3acfcadcfe1

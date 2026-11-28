@@ -1,0 +1,7 @@
+created_by	parquet-mr version 1.16.0 (build 402c3810c372d29603e181771acebfecc71bef61)
+frame	4	21	43
+header_hex	1500152c152c2c15121500150815060000
+body_hex	b28011000000f7ffffff2c0100000000000000000080
+definition_hex	b280
+plain_suffix_hex	11000000f7ffffff2c0100000000000000000080
+pyarrow_26_0_1_readback	[None, 17, None, None, -9, 300, None, 0, None]

@@ -38,7 +38,7 @@ theorem pair_sequence_fails :
       (returnOnce (.pair (.let₁ (.var 0) (.var 0)) (.var 0)))
       (pairSequence (.let₁ (.var 0) (.var 0)) (.var 0)) [product source source] := by
   intro h
-  have obs := extended_same (observation := { pairLet := true }) h env env_typed
+  have obs := extended_same (observation := { pairLet := true }) rfl h env env_typed
   change Result.fault = .jump 0 (.pair (.inl .unit) (.inl .unit)) at obs
   cases obs
 
@@ -54,7 +54,7 @@ theorem fusion_cannot_sequence_constructors :
 theorem mixed_state_fails :
     ¬ Paper.Extension.Eqv Paper.UnaryReturn.Step [source] (returnOnce update) (.br 0 constructor) [target] := by
   intro h
-  have obs := extended_same (observation := { pairLet := true }) h env env_typed
+  have obs := extended_same (observation := { pairLet := true }) rfl h env env_typed
   change Result.fault = .jump 0 (.inl (.pair (.inl .unit) (.inl .unit))) at obs
   cases obs
 
@@ -71,7 +71,7 @@ set_option linter.concreteInstances false in
 private theorem projection_same [Observer.UnitPayloadPolicy] {observation : Observer.TermObservation (α := α) Φ} {Γ L : List (Ty α)} {r s : Region Φ}
     (h : Paper.WithProjectionReturns.Step Γ r s L) : Observer.SameWith observation Γ r s := by
   cases h <;> intro env _ <;> cases hx : env 0 <;>
-    simp [returnRegion, Observer.evalRegionWith, Observer.evalTermWith, hx, extend]
+    simp [returnRegion, Observer.evalRegionWith, Observer.evalTermWith, Observer.startsLet, Observer.computes, hx, extend]
 
 open scoped Observer.AlternateUnit in
 theorem projection_unit_eta_fails :

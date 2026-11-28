@@ -84,9 +84,11 @@ A nonidentity signature map adds an instruction label. The
 translated sentence and its source reduct hold with the returning
 probe and fail with the undefined probe. The fixture also checks
 the shared evaluator on the stored translated endpoint.
-[Checked fixture](../../tests/ssa/LetParIterInstitution.lean)
+The fixture lives in the existing `Silmaril` library scope, so
+CI selects it through its source path and imports.
+[Checked fixture](../../Silmaril/Proofs/SSA/Isotope/LetParIter/Institution/Regression.lean)
 
 ```sh
-lake build --wfail LetParIterTests
-make check CHECK_TARGETS='LetParTests LetParIterTests'
+lake build --wfail +Silmaril.Proofs.SSA.Isotope.LetParIter.Institution.Regression
+make check CHECK_TARGETS='+Silmaril.Proofs.SSA.Isotope.LetParIter.Institution.Regression'
 ```

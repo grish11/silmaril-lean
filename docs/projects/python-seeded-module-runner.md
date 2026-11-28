@@ -75,6 +75,21 @@ evaluates the arguments before invoking it. A successful closure result
 writes the module destination and records the exact descriptor and
 reached heap. Its captures keep the original cell identities.
 
+A checked closure return can construct a flat tuple from exact integer,
+Boolean and `None` literals and reads of local, captured or live global
+names. The executor visits the items in source order before checking
+that the payload is scalar. Ordinary and Finite delivery carry the
+ordered values through saved frames with the reached cell heap.
+
+Seeded result binding admits an explicitly tuple-returning body with
+the same-run publication, live callee and bounded integer argument
+checks used by the flat call adapter. The successful binding and receipt
+carry the same scalar tuple payload. This profile tracks tuple contents.
+Object identity, methods, recursive tuple contents and tuple-aware
+helper calls are separate profiles.
+Run the focused comparison with CPython 3.13.5 using
+`python3 -I scripts/check-python-closure-tuple-return.py`.
+
 A nested module call saves its outer callee before evaluating arguments.
 A direct zero-argument argument call can use the published selector.
 When the saved outer callee is the integer equality helper and its result
@@ -145,14 +160,97 @@ factory path for the lambda input.
 | 4 | `testfunctions8.py` compares named call results in assertions. `testscope1.py` immediately calls a returned closure inside an assertion. | Both complete normally in every reference. They need checked call results as comparison operands. The first also uses a standalone Boolean assignment in the seeded namespace. The second needs a call-result callee and the assertion-message evaluation rule. |
 | 5 | `testfunctions11.py` omits two trailing literal positional defaults after six supplied values. | All references finish normally. It needs a saved-default positional binder, a conjunctive assertion, and a seeded ordinary discard with the completed argument list. Larger default and unpacking rows also require tuple, mapping or exception semantics. |
 
-The two defaulted lambda rows need saved positional defaults and binding
-of omitted suffix slots. Their full supplied runs also need tuple results
-and tuple equality in the helper, variadic collection, and the
-`___assertRaises(TypeError, ...)` path with positional callback
-arguments. `lambda_stararg.py` additionally expands literal tuples in
-argument order. With the current helper names supplied, CPython first
-stops at the missing `TypeError` name. With that class also supplied,
-both original inputs complete normally.
+### Flat tuple module values
+
+The function-aware module plan can bind a flat tuple assembled from
+integer, Boolean and `None` literals and live module reads. The same
+ordered tuple product is available in linked positional operands.
+Ordinary and seeded execution share the closure tuple assembly rule.
+Both complete the reached reads before checking that every item fits
+the exact scalar profile. A failure retains the incoming target
+binding and heap. Reading or aliasing a bound tuple uses the existing
+module lookup and assignment rules. Rebinding an item name or a tuple
+name preserves the earlier value in its aliases. A successful nonempty
+display with a live item read reserves one initialized slot on the
+shared closure heap. The binding carries the tuple object's address
+and exact contents. The empty tuple has canonical identity without a
+slot. Nonempty closed displays retain their scalar contents and leave
+constant-sharing identity outside this profile. A failed assembly
+preserves the old binding and allocation frontier.
+
+The one-positional stock `tuple` rule uses the existing seeded callee
+lookup and operand order. An exact tuple argument returns unchanged
+through settlement, including its address when it has one. An alias
+or later rebinding leaves earlier references intact. Generic tuple
+identity assertions remain a separate source boundary.
+
+### Checked calls as equality-helper arguments
+
+The published-closure operand adapter accepts up to three exact integer
+arguments after confirming the closure's same-run publication. The
+current module selector uses it for admitted zero-argument published
+calls. Ordinary entry checks arity and runs the body with the reached heap. Settled inner receipts precede outer helper settlement.
+Flat tuple results retain their exact tags in the inner receipt. When the
+live callee is the equality helper and both operands are exact flat tuples,
+the helper compares lengths and corresponding items using scalar equality.
+Booleans compare numerically with integers, and None matches None.
+A mismatch raises AssertionError with both original tuples in order.
+A defined inner stop retains
+earlier receipts and skips later arguments and the outer invocation.
+Faults and exhausted prefixes retain the reached heap without a settled
+receipt for the interrupted inner call.
+
+`varargs.py` still needs checked source variadic signatures. Its
+first supplied-seed call has an empty positional list. When variadic
+metadata is linked, ordinary entry can bind the empty tail through
+this argument path using the same-run descriptor. Starred operands
+inside an inner call, tuple equality, and typed callbacks have their own
+prerequisites.
+
+The local future integration control combines #3762's linked signature
+with the #3823 operand adapter on the unchanged `varargs.py` pin. Under
+each supplied helper placement it reaches the end of the module with
+four integer-zero results alternating with four helper `None` receipts.
+The final binding is the second declaration's lambda and both heaps are
+empty. The 536-input comparison attributes the compiler admission to
+the linked source. The local selector changes only this input's two
+supplied-seed outcomes. Main still reaches the signature guard.
+
+A linked zero-argument call through the resolved stock `tuple` descriptor
+returns the canonical empty tuple. Its settled receipt carries the empty
+tuple payload, and both heaps retain their incoming state. The live
+module-first lookup lets a saved stock alias survive rebinding of `tuple`.
+In the first statement of `tuple-constructors.py`, the inner empty
+tuple receipt precedes the equality helper's successful None receipt.
+
+### Checked positional preparation and variadic binding
+
+The closure call layer can prepare a positional list from single values
+and starred scalar tuples. It saves the selected callee first, then uses
+the state reached by each operand to evaluate the next. Each tuple
+contributes its items in order. Failure retains the reached caller state,
+including effects of the failed read. Arity checking consumes the complete
+positional list.
+
+The variadic binder sends the fixed prefix to its declared slots and
+collects overflow into an exact scalar tuple. Its distinct rest
+destination can be a local or an owned cell. Core and Finite use the
+existing positional frame writer. The compiler and module dispatch still
+select fixed signatures. Source integration needs a variadic signature
+guard and a checked starred operand adapter. Saved defaults, keyword
+binding, and typed callback dispatch are separate prerequisites.
+
+CPython accepts the list, string and range operands in
+`non_tuple_starag.py`. They require other iterable value profiles,
+and the full input also needs string tuple items and a tuple-aware
+helper. The first stop for both defaulted lambda pins is saved-default
+publication. Whole execution also needs nested tuple results, tuple
+equality in the helper, and `___assertRaises(TypeError, ...)` with
+positional callback arguments. `lambda_stararg.py` additionally needs
+starred source lowering. CPython reaches a missing `TypeError` when
+given only the helper names. Both inputs complete once that class is
+supplied. Run the focused comparison with CPython 3.13.5 using
+`python3 -I scripts/check-python-variadic-positional.py`.
 
 The decorator row completes normally in CPython with no helpers. Its
 closures require call results as arithmetic operands and subtraction.

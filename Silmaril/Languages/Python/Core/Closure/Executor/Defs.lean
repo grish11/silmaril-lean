@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Python.Core.Closure.Dispatch.Defs
+public import Silmaril.Languages.Python.Core.Text.Slice.Defs
 
 /-! # Stepping fixed positional Python closure bodies -/
 
@@ -37,8 +38,19 @@ inductive Operand (layout : Layout) where
   | literal (value : Value)
   | read (slot : Slot layout)
   | readGlobal (name : String)
+  | intDivMod (op : IntDivModOp) (numerator divisor : Int)
+  | dictionaryGet (test : Core.Module.Dictionary.Get)
+  | intTrueDiv (numerator divisor : Int)
+  | floatDiv (operands : Core.Binary64.FloatOperands)
+  | floatDivMod (op : Core.Binary64.FloatDivModOp) (operands : Core.Binary64.FloatOperands)
+  | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite)
+  | floatAdd (left right : Silmaril.Numeric.Ieee754.F64.Finite)
+  | floatSub (operands : Core.Binary64.FloatOperands)
+  | floatMul (operands : Core.Binary64.FloatOperands)
   | eqInt (left : NameRead layout) (right : Int)
   | binaryInt (op : IntegerOp) (left right : Operand layout)
+  | tuple (items : List (TupleItem layout))
+  | textSlice (receiver : Core.Text) (bounds : Core.SliceBounds)
   | closure (code : CodeRef) (select : Fin code.layout.captures → CaptureSlot layout)
 
 abbrev Operand.addInt {layout : Layout} := @Operand.binaryInt layout .add
@@ -52,6 +64,7 @@ or discard their returned value. -/
 inductive Body (layout : Layout) where
   | ret (value : Operand layout)
   | store (destination : Slot layout) (value : Operand layout) (next : Body layout)
+  | storeDictionary (destination : Fin layout.locals) (entries : List Core.Module.Dictionary.Entry) (next : Body layout)
   | assert (test : Operand layout) (next : Body layout)
   | assertFreevars (test : FreevarsTest layout) (next : Body layout)
   | assertCellvars (test : CellvarsTest layout) (next : Body layout)
@@ -81,6 +94,10 @@ abbrev CodeTable := Dispatch.CodeTable Body
 
 inductive Fault where
   | danglingCell (identity : CellId)
+  | unsupportedTupleElement
+  | unsupportedFloatOperand
+  | unsupportedDictionaryOperand
+  | unsupportedCallable
   | missingCode (key : Nat)
   | layoutMismatch (expected actual : Layout)
   | unprofiledFreevars (ref : CodeRef)
@@ -175,7 +192,8 @@ def readMetadata (field : MetadataField) (table : CodeTable) : Value → Except 
       match field.select definition with
       | some names => .ok names
       | none => .error (field.unavailable fn.code definition)
-  | .int _ | .bool _ | .none => .error .nonFunction
+  | .int _ | .bool _ | .none | .float64 _ | .text _ | .exceptionClass _ | .exceptionInstance _ | .tuple _ | .tupleObject _
+  | .dictionary _ | .dictionaryData _ => .error .nonFunction
 
 abbrev readFreevars := readMetadata .freevars
 abbrev readCellvars := readMetadata .cellvars
@@ -201,11 +219,39 @@ def CodeNamesTest.evalIn (test : CodeNamesTest layout) (table : CodeTable) (glob
     (heap : Heap) (frame : Frame layout) : Except MetadataFailure Bool :=
   MetadataField.codeNames.evalIn test.receiver test.needle true table globals heap frame
 
+def TupleItem.evalIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout) :
+    TupleItem layout → Except Failure Value
+  | .literal value => .ok (Value.ofTupleElement value)
+  | .read slot => frame.read heap slot
+  | .global name => (NameRead.global name).evalIn globals heap frame
+
+/-- Resolve every reached item in order. The scalar profile check follows
+successful reads, so an earlier non-scalar value does not mask a later read error. -/
+def evalTupleContentsIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout)
+    (items : List (TupleItem layout)) : Except Failure (List Core.Module.TupleDispatch.Element) :=
+  assembleFlatTuple (TupleItem.evalIn globals heap frame) Value.tupleElement? .unsupportedTupleElement items
+
+def evalTupleIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout)
+    (items : List (TupleItem layout)) : Except Failure Value :=
+  (evalTupleContentsIn globals heap frame items).map .tuple
+
 def Operand.evalIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout) : Operand layout → Except Failure Value
   | .literal value => .ok value
   | .read slot => frame.read heap slot
   | .readGlobal name => (NameRead.global name).evalIn globals heap frame
-  | .eqInt left right => (left.evalIn globals heap frame).map fun value => .bool (value.equalInt right)
+  | .intDivMod op numerator divisor => (op.eval numerator divisor).map Value.int |>.mapError .defined
+  | .dictionaryGet test => evalDictionaryGet heap globals test
+  | .intTrueDiv numerator divisor => (trueDivideInt numerator divisor).map Value.float64 |>.mapError .defined
+  | .floatDivMod op operands => (Core.Closure.floatDivMod op operands).map Value.float64
+  | .floatDiv operands => (trueDivideFloat operands).map Value.float64
+  | .mixedAdd integer floating => Closure.mixedAdd integer floating
+  | .floatAdd left right => Closure.floatAdd left right
+  | .floatSub operands => Closure.floatSub operands
+  | .floatMul operands => Closure.floatMul operands
+  | .eqInt left right => (left.evalIn globals heap frame).bind (·.equalInt right)
+  | .tuple items => evalTupleIn globals heap frame items
+  | .textSlice receiver bounds =>
+    (receiver.slice? bounds).elim (.error (.defined .zeroSliceStep)) (fun result => .ok (.text result))
   | .binaryInt op left right =>
     (left.evalIn globals heap frame).bind fun lhs =>
       (right.evalIn globals heap frame).bind (Value.binaryInt op lhs)
@@ -227,6 +273,10 @@ def fault (heap : Heap) (stack : Stack) (error : Fault) : Transition :=
 def fail (heap : Heap) (stack : Stack) : Failure → Transition
   | .defined error => (none, .delivering heap stack (.error error))
   | .danglingCell identity => fault heap stack (.danglingCell identity)
+  | .unsupportedTupleElement => fault heap stack .unsupportedTupleElement
+  | .unsupportedFloatOperand => fault heap stack .unsupportedFloatOperand
+  | .unsupportedDictionaryOperand => fault heap stack .unsupportedDictionaryOperand
+  | .unsupportedCallable => fault heap stack .unsupportedCallable
 
 def failDispatch (heap : Heap) (stack : Stack) : Dispatch.Failure → Transition
   | .call error => fail heap stack error
@@ -263,10 +313,13 @@ def advanceIn (table : CodeTable) (globals : GlobalLookup) : State → Option Tr
     some <| match operand.evalIn globals heap frame with
     | .ok value => resumeStore heap frame destination value next stack
     | .error error => fail heap stack error
+  | .running heap frame (.storeDictionary destination entries next) stack =>
+    let (object, reached) := heap.materializeDictionary entries
+    some (resumeStore reached frame (.local destination) (.dictionary object) next stack)
   | .running heap frame (.assert test next) stack =>
     some <| match test.evalIn globals heap frame with
     | .ok value =>
-      if value.truth then (none, .running heap frame next stack)
+      if value.truth heap then (none, .running heap frame next stack)
       else (none, .delivering heap stack (.error .assertionError))
     | .error error => fail heap stack error
   | .running heap frame (.assertFreevars test next) stack =>
@@ -324,9 +377,28 @@ inductive EvaluatesIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layo
       EvaluatesIn globals heap frame (.readGlobal name) (.ok value)
   | globalMissing {name} : globals name = none →
       EvaluatesIn globals heap frame (.readGlobal name) (.error (.defined (.nameError name)))
+  | intDivMod (op : IntDivModOp) (numerator divisor : Int) :
+      EvaluatesIn globals heap frame (.intDivMod op numerator divisor)
+        ((op.eval numerator divisor).map Value.int |>.mapError .defined)
+  | dictionaryGet (test : Core.Module.Dictionary.Get) :
+      EvaluatesIn globals heap frame (.dictionaryGet test) (evalDictionaryGet heap globals test)
+  | intTrueDiv (numerator divisor : Int) : EvaluatesIn globals heap frame (.intTrueDiv numerator divisor)
+      ((trueDivideInt numerator divisor).map Value.float64 |>.mapError .defined)
+  | floatDivMod (op : Core.Binary64.FloatDivModOp) (operands : Core.Binary64.FloatOperands) :
+      EvaluatesIn globals heap frame (.floatDivMod op operands) ((Core.Closure.floatDivMod op operands).map Value.float64)
+  | floatDiv (operands : Core.Binary64.FloatOperands) : EvaluatesIn globals heap frame (.floatDiv operands)
+      ((trueDivideFloat operands).map Value.float64)
+  | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite) :
+      EvaluatesIn globals heap frame (.mixedAdd integer floating) (Closure.mixedAdd integer floating)
+  | floatAdd (left right : Silmaril.Numeric.Ieee754.F64.Finite) :
+      EvaluatesIn globals heap frame (.floatAdd left right) (Closure.floatAdd left right)
+  | floatSub (operands : Core.Binary64.FloatOperands) :
+      EvaluatesIn globals heap frame (.floatSub operands) (Closure.floatSub operands)
+  | floatMul (operands : Core.Binary64.FloatOperands) :
+      EvaluatesIn globals heap frame (.floatMul operands) (Closure.floatMul operands)
   | eqInt {left : NameRead layout} {right result} :
       EvaluatesIn globals heap frame left.operand result →
-      EvaluatesIn globals heap frame (.eqInt left right) (result.map fun value => .bool (value.equalInt right))
+      EvaluatesIn globals heap frame (.eqInt left right) (result.bind (·.equalInt right))
   | binaryLeftError {op left right error} :
       EvaluatesIn globals heap frame left (.error error) →
       EvaluatesIn globals heap frame (.binaryInt op left right) (.error error)
@@ -338,6 +410,11 @@ inductive EvaluatesIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layo
       EvaluatesIn globals heap frame left (.ok lhs) →
       EvaluatesIn globals heap frame right (.ok rhs) →
       EvaluatesIn globals heap frame (.binaryInt op left right) (Value.binaryInt op lhs rhs)
+  | tuple (items : List (TupleItem layout)) :
+      EvaluatesIn globals heap frame (.tuple items) (evalTupleIn globals heap frame items)
+  | textSlice (receiver : Core.Text) (bounds : Core.SliceBounds) :
+      EvaluatesIn globals heap frame (.textSlice receiver bounds)
+        ((receiver.slice? bounds).elim (.error (.defined .zeroSliceStep)) (fun result => .ok (.text result)))
   | closure (code : CodeRef) (select : Fin code.layout.captures → CaptureSlot layout) :
       EvaluatesIn globals heap frame (.closure code select) (.ok (.function (frame.closure code select)))
 
@@ -366,6 +443,22 @@ inductive Rejects (table : CodeTable) (arguments : List Value) (heap : Heap) :
   | nonCallableNone : Rejects table arguments heap .none (.call (.defined .notCallable))
   | nonCallable (value : Int) : Rejects table arguments heap (.int value) (.call (.defined .notCallable))
   | nonCallableBool (value : Bool) : Rejects table arguments heap (.bool value) (.call (.defined .notCallable))
+  | nonCallableFloat (value : Silmaril.Numeric.Ieee754.F64.Finite) :
+      Rejects table arguments heap (.float64 value) (.call (.defined .notCallable))
+  | nonCallableText (value : Core.Text) :
+      Rejects table arguments heap (.text value) (.call (.defined .notCallable))
+  | nonCallableTuple (items : List Core.Module.TupleDispatch.Element) :
+      Rejects table arguments heap (.tuple items) (.call (.defined .notCallable))
+  | nonCallableTupleObject (object : Core.Module.TupleDispatch.Object) :
+      Rejects table arguments heap (.tupleObject object) (.call (.defined .notCallable))
+  | nonCallableDictionary (object : Core.Module.Dictionary.Object) :
+      Rejects table arguments heap (.dictionary object) (.call (.defined .notCallable))
+  | nonCallableInstance (value : ExceptionInstance) :
+      Rejects table arguments heap (.exceptionInstance value) (.call (.defined .notCallable))
+  | dictionaryData (entries : List Core.Module.Dictionary.Entry) :
+      Rejects table arguments heap (.dictionaryData entries) (.call (.defined .notCallable))
+  | unsupportedCallable (kind : ExceptionClass) :
+      Rejects table arguments heap (.exceptionClass kind) (.call .unsupportedCallable)
   | missing (fn : Function) (absent : table fn.code.key = none) :
       Rejects table arguments heap (.function fn) (.missingCode fn.code.key)
   | mismatch (fn : Function) (entry : Dispatch.Entry Body)
@@ -403,11 +496,15 @@ inductive StepIn (table : CodeTable) (globals : GlobalLookup) : State → Option
       EvaluatesIn globals heap frame operand (.error error) →
       StepIn table globals (.running heap frame (.store destination operand next) stack)
         (fail heap stack error).1 (fail heap stack error).2
+  | storeDictionary {heap stack layout} {frame : Frame layout} {destination entries next transition} :
+      Stores (heap.materializeDictionary entries).2 frame (.local destination)
+        (.dictionary (heap.materializeDictionary entries).1) next stack transition →
+      StepIn table globals (.running heap frame (.storeDictionary destination entries next) stack) transition.1 transition.2
   | assertTrue {heap stack layout} {frame : Frame layout} {test next value} :
-      EvaluatesIn globals heap frame test (.ok value) → value.truth = true →
+      EvaluatesIn globals heap frame test (.ok value) → value.truth heap = true →
       StepIn table globals (.running heap frame (.assert test next) stack) none (.running heap frame next stack)
   | assertFalse {heap stack layout} {frame : Frame layout} {test next value} :
-      EvaluatesIn globals heap frame test (.ok value) → value.truth = false →
+      EvaluatesIn globals heap frame test (.ok value) → value.truth heap = false →
       StepIn table globals (.running heap frame (.assert test next) stack) none
         (.delivering heap stack (.error .assertionError))
   | assertError {heap stack layout} {frame : Frame layout} {test next error} :

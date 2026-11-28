@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.PEG.Simple.Structured.Defs
 public import Silmaril.SSA.PEG.Semantics.Thms
+public import Silmaril.SSA.PEG.Simple.While.Trace
 import Silmaril.Proofs.SSA.PEG.Simple.Structured.Correctness
 import Silmaril.Proofs.SSA.PEG.Simple.Structured.Structural
 
@@ -9,7 +10,7 @@ public section
 
 namespace Silmaril.SSA.PEG.Simple.Structured
 
-open RVSDG (Tuple)
+open RVSDG (Port Tuple)
 
 universe u v w
 
@@ -58,5 +59,24 @@ theorem translate_returns (p : Program P true params t) (neg : P [.bool] .bool)
     (translate p neg).observe m
       ((translate p neg).denote m env (translate_demandWellFounded p neg)) i = .cons (some value) .nil :=
   Proofs.programReturns p neg m env negSem run ((translate p neg).denote_solves m env _) i
+
+/-- Recover a finite top-level while trace from a defined Figure 11
+return. Every continuing outer store must have a successful complete
+body execution, which may include nested loops. -/
+theorem translate_while_trace_of_defined (guard : Expr P params .bool)
+    (body : Stmt P true params params) (ret : Port params t) (neg : P [.bool] .bool)
+    (m : Interpretation.{u,v,w} P) (env : Tuple m.Value params)
+    (negSem : ∀ b : Bool, m.run neg (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
+    (guardTotal : ∀ store : Tuple m.Value params, ∃ flag : Bool, guard.eval m store = some ⟨flag⟩)
+    (stepTotal : ∀ store : Tuple m.Value params, guard.eval m store = some ⟨true⟩ →
+      ∃ next, Exec m body store (some next))
+    (i : Index (program (whileProgram guard body ret) neg).nodes.length) {value : m.Value t}
+    (defined : (translate (whileProgram guard body ret) neg).observe m
+      ((translate (whileProgram guard body ret) neg).denote m env
+        (translate_demandWellFounded (whileProgram guard body ret) neg)) i =
+      .cons (some value) .nil) :
+    ∃ k final, WhileTrace m guard body k env final ∧ final.get ret = value :=
+  Proofs.whileTraceOfDefined guard body ret neg m env negSem guardTotal stepTotal
+    ((translate (whileProgram guard body ret) neg).denote_solves m env _) i defined
 
 end Silmaril.SSA.PEG.Simple.Structured

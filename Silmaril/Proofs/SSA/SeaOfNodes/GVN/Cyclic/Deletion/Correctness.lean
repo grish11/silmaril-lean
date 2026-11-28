@@ -22,7 +22,7 @@ variable {args : List (Ty Data)} {past target sigs : List (List (Ty Data))}
 variable {out : ValueSort Data}
 variable (m : Model.{u,v,w} Op) (entry : Tuple (Val m.value) args)
 
-private theorem wires_read {route : Route args past target}
+theorem wires_read {route : Route args past target}
     {old : Locals (Val m.value) past} {new : Locals (Val m.value) target}
     (agree : route.Agrees m entry old new) {ports : List (Ty Data)}
     (wires : Wires args past ports) {mapped : Wires args target ports}

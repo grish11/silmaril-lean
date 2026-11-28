@@ -36,8 +36,8 @@ private theorem prefix_get {pre tail : List PortTy} {t : PortTy} (p : Port pre t
     cases left with
     | cons _ rest => exact ih rest
 
-theorem suffix_get {pre tail : List PortTy} {t : PortTy}
-    (left : Tuple (Val model.value) pre) (right : Tuple (Val model.value) tail) (p : Port tail t) :
+theorem suffix_get {F : PortTy → Type*} {pre tail : List PortTy} {t : PortTy}
+    (left : Tuple F pre) (right : Tuple F tail) (p : Port tail t) :
     (appendTuple right left).get (suffixPort pre p) = right.get p := by
   induction left with
   | nil => rfl
@@ -107,20 +107,35 @@ theorem bindWords_get {arity : Nat} (base : Nat) (fr : Frame Reg) (values : Word
         rw [show base + (p.index + 1) = base + 1 + p.index by omega]
         exact ih _ _ tail p
 
-theorem bank_matches {payloads : Nat} {fr : Frame Reg} {input : WordTuple (payloads + 1)}
-    (agree : ArgsMatch fr input) (values : WordTuple (payloads + 1)) :
-    ArgsMatch (bindBank fr values) (appendTuple values input) := by
+theorem bank_matches_at {arity bank : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    (agree : ArgsMatch fr input) (values : WordTuple bank) :
+    ArgsMatch (bindWords arity fr values) (appendTuple values input) := by
   intro p
   rcases split_port p with ⟨q, rfl⟩ | ⟨q, rfl⟩
   · rw [prefix_index, prefix_get]
-    have before : q.index < payloads + 1 := by simpa only [wordPorts_length] using index_lt q
+    have before : q.index < arity := by simpa only [wordPorts_length] using index_lt q
     exact (bindWords_before _ _ _ _ before).trans (agree q)
   · rw [suffix_index, suffix_get, wordPorts_length]
     exact bindWords_get _ _ _ q
 
-theorem input_matches {payloads : Nat} {fr : Frame Reg} {input old : WordTuple (payloads + 1)}
+theorem input_matches_at {arity bank : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    {old : WordTuple bank}
     (agree : ArgsMatch fr (appendTuple old input)) : ArgsMatch fr input := by
   intro p
   simpa only [prefix_index, prefix_get] using agree (prefixPort p)
+
+theorem bank_matches {payloads : Nat} {fr : Frame Reg} {input : WordTuple (payloads + 1)}
+    (agree : ArgsMatch fr input) (values : WordTuple (payloads + 1)) :
+    ArgsMatch (bindBank fr values) (appendTuple values input) :=
+  bank_matches_at agree values
+
+theorem input_matches {payloads : Nat} {fr : Frame Reg} {input old : WordTuple (payloads + 1)}
+    (agree : ArgsMatch fr (appendTuple old input)) : ArgsMatch fr input :=
+  input_matches_at agree
+
+theorem bindWords_args {arity : Nat} (values : WordTuple arity) :
+    ArgsMatch (bindWords 0 Frame.empty values) values := by
+  intro p
+  simpa only [Nat.zero_add] using bindWords_get 0 Frame.empty values p
 
 end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Proofs

@@ -30,6 +30,12 @@ structure Admitted (m : MemInst) : Prop where
   aligned : m.data.size % Memory.pageSize = 0
   maxFits : ∀ max, m.max = some max → max < 2 ^ 64
 
+/-- Alignment and page limits required for the native success rule. Resource
+failure is permitted even when these conditions hold. -/
+def SizeAllows (m : MemInst) (delta : Nat) : Prop :=
+  m.data.size % Memory.pageSize = 0 ∧ Memory.size m.data + delta ≤ Memory.maxPages ∧
+    (m.max.isNone ∨ Memory.size m.data + delta ≤ m.max.getD 0)
+
 inductive Outcome (m : MemInst) : State → State → Prop where
   | grow (delta : BitVec 32) (bytes : ByteArray)
       (sized : Memory.grow? m.data m.max delta.toNat = some bytes) :

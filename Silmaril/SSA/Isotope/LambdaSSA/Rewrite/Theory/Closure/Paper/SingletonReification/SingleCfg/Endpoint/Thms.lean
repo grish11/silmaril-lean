@@ -24,6 +24,12 @@ theorem capturePair_typed :
 
 variable [HasTy Φ τ]
 
+/-- Variable substitutions that agree on the exact input context give identical typed syntax. -/
+theorem region_subst_eq {Γ : VCtx τ} {L : LCtx τ} {r : Region Φ}
+    (hr : HasType Γ r L) {θ υ : Nat → Tm Φ}
+    (h : ∀ ⦃i A⦄, At Γ i A → θ i = υ i) : r.substVars θ = r.substVars υ :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.SingleCfgEndpoint.region_subst_eq hr h
+
 /-- At a singleton input, a substitution depends only on the image of slot zero. -/
 theorem singleton_subst {P : τ} {L : LCtx τ} {r : Region Φ} (hr : HasType [P] r L)
     {θ υ : Nat → Tm Φ} (h : θ 0 = υ 0) : r.substVars θ = r.substVars υ :=

@@ -1,0 +1,114 @@
+{
+  "description": "Arrow V5 Schema message metadata and controlled mutations",
+  "fixture_license": "MIT",
+  "producer": {
+    "cpython": "3.13.5",
+    "cpython_commit": "6cb20a219a860eaf687b2d968b41c480c7461909",
+    "pyarrow": "26.0.1",
+    "arrow_commit": "9e5d6978e9acf372cc989aaaf94e863fe8582c90",
+    "wheel": "pyarrow-26.0.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+    "wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c"
+  },
+  "metadata": {
+    "dates": {
+      "bytes": 192,
+      "sha256": "8708453386c7f29cbf6cffc8348b5bf5f90c8969f01d79ce7a263e841c1cb9d1"
+    },
+    "mixed": {
+      "bytes": 280,
+      "sha256": "2ee9b6dc10832abe6279c7df03c3a3f9f47f7b527ba9aba0b81ad5afb60bd6d7"
+    },
+    "legacy": {
+      "bytes": 184,
+      "sha256": "ce7b2019e390e2d0bb535ff3469bf69e0ce772aefe428d0d536dae2fdaf10e75"
+    },
+    "explicit_millisecond": {
+      "bytes": 192,
+      "sha256": "967c4081cae78f722b1208f86a5b0bdc770132c50c8fc4542886a11a0648e73f"
+    },
+    "big_endian": {
+      "bytes": 264,
+      "sha256": "00049cab878e44c733c349fb21787cc73e43e6840c0853c55bf26035a81fad20"
+    },
+    "invalid_unit": {
+      "bytes": 192,
+      "sha256": "bc0f97857cad076b523c39e55ff2f061da4bb9bd0b67fc3292365c0960adf16b"
+    },
+    "date_tag_int_table": {
+      "bytes": 280,
+      "sha256": "390c3f541e850abd1a01cf5f3c684db88a6847fb43a0a068f9323702a299eb39"
+    },
+    "unknown_type_tag": {
+      "bytes": 192,
+      "sha256": "8b28f6b099c4a14a878a740bc625038e5ca68b4e1da068f2bebd7106e369b9f1"
+    },
+    "invalid_endian": {
+      "bytes": 264,
+      "sha256": "fdfbd4dff8beaa8955836b086e7c65c1a0ef6a84912977e61c818db439e2a8a3"
+    },
+    "schema_custom_metadata": {
+      "bytes": 264,
+      "sha256": "e3e432613310490940b2cb087071dc484a05d4d5f181c75d4ad2ee3243cddec6"
+    },
+    "record_message": {
+      "bytes": 200,
+      "sha256": "8ea6218a397ffcfae0d051d560d2f5225ea0b74ad01b85c4320da46b4b4aab47"
+    }
+  },
+  "batches": {
+    "day": {
+      "ipc": {
+        "bytes": 304,
+        "sha256": "b11ea734b10d3a6cf1b9712a61253b7d03d663241750f892f6979de37dae5f95"
+      },
+      "schema": {
+        "bytes": 120,
+        "sha256": "33cd21cc11a87ba51dabca53e2587b7147feb595a5344ebe37648753be8ce2e5"
+      },
+      "metadata": {
+        "bytes": 136,
+        "sha256": "874c189caee1fdc1a77fe3a6ac0af1ada58a0adbab3004a9b331534265a68492"
+      },
+      "body": {
+        "bytes": 24,
+        "sha256": "e6d15a664fcd50c5527a8f31408a97b870122c85dcfb3ef21b7be72c49b7a364"
+      }
+    },
+    "millisecond": {
+      "ipc": {
+        "bytes": 312,
+        "sha256": "72db388f20cccb6124c3874b1d0d15e58f7641275ef157deba441625b0e96c43"
+      },
+      "schema": {
+        "bytes": 112,
+        "sha256": "1fffec4fa573b6087171adbf790d7ce7dc77a27e0d51eb5cf4c910a36a9cac18"
+      },
+      "metadata": {
+        "bytes": 136,
+        "sha256": "6f04d6be17a886962cabf7315d52bfc0835417463006f5965dcd0bc546343b4d"
+      },
+      "body": {
+        "bytes": 40,
+        "sha256": "71956590c90897f14522bfc7f311ccd0d5d843bd4c1ef7c358794b346ca24883"
+      }
+    }
+  },
+  "batch_controls": {
+    "primitive_schema": {
+      "bytes": 120,
+      "sha256": "e4795f6fac325abe5a34c88a3fecd7c0ea4e4445bc2d96f7abe4a21b5b0af66a"
+    },
+    "big_endian_schema": {
+      "bytes": 192,
+      "sha256": "1e247726919e989d51ed01000b52679c7ab660316fb1982b8a6dbba73dc1774e"
+    },
+    "required_schema": {
+      "bytes": 120,
+      "sha256": "da68eacc6284743169ee0947a9d588fde949c248704e2a476021fe37c4a23c72"
+    },
+    "invalid_millisecond_body": {
+      "bytes": 40,
+      "sha256": "17927526f41a1c68cdc9233457230e8346087a1edc543cac0ab754b06db6811b"
+    }
+  }
+}

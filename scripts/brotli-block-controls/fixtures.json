@@ -1,0 +1,115 @@
+{
+  "libbrotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "fixtures": {
+    "producer-v1-entropy-brotli": {
+      "bytes": 3692,
+      "sha256": "95b5dd767881a635df970a200fed394eca154a6154297931aa189ac7b67ab056",
+      "controls": [
+        {
+          "start": 24,
+          "types": 1,
+          "stop": 25
+        },
+        {
+          "start": 25,
+          "types": 1,
+          "stop": 26
+        },
+        {
+          "start": 26,
+          "types": 1,
+          "stop": 27
+        }
+      ]
+    },
+    "producer-v2-entropy-brotli": {
+      "bytes": 15,
+      "sha256": "9a9cbc2c64924d1efc0f7b111a776de9a4655cbb3f63a2acf0d0a803685bf64c",
+      "controls": [
+        {
+          "start": 24,
+          "types": 1,
+          "stop": 25
+        },
+        {
+          "start": 25,
+          "types": 1,
+          "stop": 26
+        },
+        {
+          "start": 26,
+          "types": 1,
+          "stop": 27
+        }
+      ]
+    },
+    "literal-multiple": {
+      "bytes": 2633,
+      "sha256": "cb0203c2b4739b63eaefb4f7e6d76303732f2dc50b48bea07ddc5b6ff07c2c16",
+      "controls": [
+        {
+          "start": 24,
+          "types": 3,
+          "initial_count": 1899,
+          "stop": 58
+        },
+        {
+          "start": 58,
+          "types": 1,
+          "stop": 59
+        },
+        {
+          "start": 59,
+          "types": 1,
+          "stop": 60
+        }
+      ]
+    },
+    "distance-multiple": {
+      "bytes": 3385,
+      "sha256": "b6f4cc28d89176693b920d0b1109ae3d91c128b40e18074aab1d88a61c5c7f3e",
+      "controls": [
+        {
+          "start": 24,
+          "types": 1,
+          "stop": 25
+        },
+        {
+          "start": 25,
+          "types": 1,
+          "stop": 26
+        },
+        {
+          "start": 26,
+          "types": 2,
+          "initial_count": 512,
+          "stop": 59
+        }
+      ]
+    },
+    "three-multiple": {
+      "bytes": 11256,
+      "sha256": "ac8ba0851fb288df3a2ade64937504756e499e6d436a2d2623ec25f790ca2cf5",
+      "controls": [
+        {
+          "start": 24,
+          "types": 3,
+          "initial_count": 1234,
+          "stop": 68
+        },
+        {
+          "start": 68,
+          "types": 2,
+          "initial_count": 548,
+          "stop": 97
+        },
+        {
+          "start": 97,
+          "types": 2,
+          "initial_count": 1152,
+          "stop": 125
+        }
+      ]
+    }
+  }
+}

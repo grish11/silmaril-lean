@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Starlark.Modules.Resolve.Operational.Defs
+import all Silmaril.Languages.Starlark.Modules.Resolve.Defs
 import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Eval
 
 public section
@@ -23,5 +24,20 @@ theorem initializes_iff_runModule (commands : List Command) (host : Catalog)
     Initializes commands host caller linked out ↔ runModule commands host caller linked = out :=
   ⟨Proofs.Languages.Starlark.Modules.Resolve.eq_runModule_of_initializes,
     fun h => h ▸ Proofs.Languages.Starlark.Modules.Resolve.initializes_runModule commands host caller linked⟩
+
+open Functions Lowering.Resolve in
+/-- A branch resolves its test in the collected block and compiles both suites
+in order. The test introduces no declarations. -/
+theorem compileBody_plainBranch (block : BlockContext) (test : Lowering.Resolve.SourceExpr)
+    (yes no : Statement) (program middle final : Program) (condition : Lowering.Expr)
+    (reads : List Binding) (consequent alternative : ResolvedBody)
+    (operand : resolveTracked block.reads test = .ok (condition, reads))
+    (compiledYes : compileBody block yes program = .ok (consequent, middle))
+    (compiledNo : compileBody block no middle = .ok (alternative, final)) :
+    compileBody block (.branch test yes no) program =
+      .ok (⟨.branchExpr condition consequent.code alternative.code,
+        reads ++ consequent.reads ++ alternative.reads⟩, final) := by
+  simp [compileBody, readExpr, operand, compiledYes, compiledNo, Except.mapError,
+    bind, StateT.bind, Except.bind, lift_ok, pure, StateT.pure, Except.pure]
 
 end Silmaril.Languages.Starlark.Modules.Resolve

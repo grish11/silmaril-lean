@@ -20,6 +20,12 @@ variable [DecidableEq (ValueSort Data)] [∀ ins out, DecidableEq (Op ins out)]
 theorem classCount_le_vertices (p : Partition n) : classCount p ≤ n :=
   Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.FixedPoint.classCount_le p
 
+/-- A split with no merges strictly increases the number of classes. -/
+theorem classCount_lt_of_split {fine coarse : Partition n} (h : Refines fine coarse)
+    {i j : Fin n} (same : coarse i = coarse j) (different : fine i ≠ fine j) :
+    classCount coarse < classCount fine :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.FixedPoint.classCount_lt_of_split h same different
+
 /-- Each round preserves existing class separations. -/
 theorem refine_no_merges (g : Graph Op inputs sorts) (p : Partition n) : Refines (refine g p) p :=
   Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.FixedPoint.refine_refines g p

@@ -20,6 +20,7 @@ open Wasm.Numerics (intBinOp)
 open CallContinuation.Proofs.Lime1 (first first_value first_prefix first_head first_values peel wrapper_step frame_label_stays)
 
 private inductive Focus : Wasm.Lime1.Instr → Prop where
+  | drop : Focus .drop
   | get (i : LocalIdx) : Focus (.localGet i)
   | bin (t : IntType) (op : IntBinOp) : Focus (.intBinOp t op)
   | call (i : FuncIdx) : Focus (.call i)
@@ -37,6 +38,7 @@ private theorem Focus.nonvalue {op : Wasm.Lime1.Instr} (h : Focus op) :
     asValue? (AdminInstr.source op) = none := by cases h <;> rfl
 
 private inductive Redex {H : Type} (s : Store H) (f : Frame) : Wasm.Lime1.Instr → List Value → Frame → List Admin → Prop where
+  | drop {v : Value} : Redex s f .drop [v] f []
   | get {i : LocalIdx} {v : Value} (found : f.locals[i.toNat]? = some v) :
       Redex s f (.localGet i) [] f [value v]
   | bin {t : IntType} {op : IntBinOp} {x y z : BitVec t.width} (ok : intBinOp t op x y = .ok z) :
@@ -144,6 +146,9 @@ private theorem read_front {H : Type} {src dst : Config H} (step : Step CallFram
     | intBinaryTrap t oper x y e err =>
       obtain ⟨rfl, rfl, rfl⟩ := redex_shape (used := [.int t x, .int t y]) focus source.symm rfl
       exact ⟨[], _, _, _, rfl, .trap err, rfl⟩
+    | drop v =>
+      obtain ⟨rfl, rfl, rfl⟩ := redex_shape (used := [v]) focus source.symm rfl
+      exact ⟨[], _, _, _, rfl, .drop, rfl⟩
     | localTee i v =>
       obtain ⟨rfl, rfl, rfl⟩ := redex_shape (used := [v]) focus source.symm rfl
       exact ⟨[], _, _, _, rfl, .tee, rfl⟩
@@ -515,6 +520,51 @@ private theorem read_get {H : Type} {s : Store H} {f : Frame} {stack : List Valu
     rw [found] at lookup
     cases lookup
     simpa [split] using eq
+
+theorem local_get_iff {H : Type} {s : Store H} {f : Frame} {stack : List Value} {i : LocalIdx}
+    {v : Value} {rest : List Admin} {dst : Config H} (found : f.locals[i.toNat]? = some v) :
+    Step CallFrame.limeNoHost ⟨s, f, values stack ++ .source (.localGet i) :: rest⟩ dst ↔
+      dst = ⟨s, f, values stack ++ value v :: rest⟩ := by
+  refine ⟨read_get found, ?_⟩
+  rintro rfl
+  simpa only [List.append_assoc, List.singleton_append] using
+    Step.context (host := CallFrame.limeNoHost) (.localGet s f i v found) stack rest
+
+theorem drop_iff {H : Type} {s : Store H} {f : Frame} {stack : List Value} {v : Value}
+    {rest : List Admin} {dst : Config H} :
+    Step CallFrame.limeNoHost ⟨s, f, values (stack ++ [v]) ++ .source .drop :: rest⟩ dst ↔
+      dst = ⟨s, f, values stack ++ rest⟩ := by
+  constructor
+  · intro move
+    obtain ⟨saved, used, _, _, split, head, eq⟩ := read_front move .drop rfl
+    cases head
+    obtain ⟨rfl, _⟩ := List.append_inj' split rfl
+    simpa only [List.append_nil] using eq
+  · rintro rfl
+    simpa only [values_append, List.append_assoc, List.cons_append, List.nil_append, values, List.map_append, List.map_cons, List.map_nil] using
+      Step.context (host := CallFrame.limeNoHost) (.pure s f (.drop v)) stack rest
+
+theorem trap_front_iff {H : Type} {s : Store H} {f : Frame} {stack : List Value}
+    {tail : List Admin} {dst : Config H} :
+    Step CallFrame.limeNoHost ⟨s, f, values stack ++ .trap :: tail⟩ dst ↔
+      ∃ kept removed cut rest, stack = kept ++ removed ∧ tail = cut ++ rest ∧
+        (removed ≠ [] ∨ cut ≠ []) ∧ dst = ⟨s, f, values kept ++ .trap :: rest⟩ := by
+  constructor
+  · intro move
+    cases CallContinuation.Proofs.Lime1.front move .trap rfl with
+    | normal _ notTrap _ => exact (notTrap rfl).elim
+    | bubble kept removed cut rest active => exact ⟨kept, removed, cut, rest, rfl, rfl, active, rfl⟩
+  · rintro ⟨kept, removed, cut, rest, rfl, rfl, active, rfl⟩
+    cases removed with
+    | nil =>
+      cases cut with
+      | nil => simp at active
+      | cons head cut =>
+        simpa only [List.append_nil, List.append_assoc, List.cons_append, List.nil_append] using
+          Step.context (host := CallFrame.limeNoHost) (.pure s f (.trapTail head cut)) kept rest
+    | cons v removed =>
+      simpa only [values_append, List.append_assoc, List.cons_append, List.nil_append] using
+        Step.context (host := CallFrame.limeNoHost) (.pure s f (.trapValues v removed cut)) kept rest
 
 private theorem read_bin {H : Type} {s : Store H} {f : Frame} {t : IntType} {op : IntBinOp}
     {x y : BitVec t.width} {rest : List Admin} {dst : Config H}

@@ -34,6 +34,7 @@ inductive OperandTranslation {layout : Layout} : Body.Expr layout → Operand la
   | integer (value : Int) : OperandTranslation (.integer value) (.literal (.int value))
   | boolean (value : Bool) : OperandTranslation (.boolean value) (.literal (.bool value))
   | read (slot : Core.Closure.Slot layout) : OperandTranslation (.read slot) (.read slot)
+  | tuple (items : List (Core.Closure.TupleItem layout)) : OperandTranslation (.tuple items) (.tuple items)
   | globalName (name : Source.Name) : OperandTranslation (.globalName name) (.readGlobal name)
   | eqIntSlot (slot : Core.Closure.Slot layout) (right : Int) :
       OperandTranslation (.eqInt (.read slot) right) (.eqInt (.slot slot) right)
@@ -47,6 +48,7 @@ inductive OperandTranslation {layout : Layout} : Body.Expr layout → Operand la
 
 def operand? {layout : Layout} : (source : Body.Expr layout) →
     Option {target // OperandTranslation source target}
+  | .tuple items => some ⟨.tuple items, .tuple items⟩
   | .none => some ⟨.literal .none, .none⟩
   | .integer value => some ⟨.literal (.int value), .integer value⟩
   | .boolean value => some ⟨.literal (.bool value), .boolean value⟩

@@ -12,7 +12,7 @@ namespace Silmaril.SSA.SeaOfNodes.Pure.ConstantFold
 open Diamond (Dataflow Model Signature Ty Val ValueSort dataPorts sortValue)
 open GVN.Elimination (splitOrigin)
 open SubZero (model word)
-open RVSDG (Origin Tuple Wires)
+open RVSDG (Locals Origin Tuple Wires)
 
 namespace Scan
 
@@ -23,6 +23,12 @@ variable {ins : List (ValueSort Unit)} {out : ValueSort Unit}
 /-- A typed lookup of explicit literal values in the rewritten prefix. -/
 abbrev Literals (m : Model Op) (args : List (Ty Unit)) (past : List (List (Ty Unit))) :=
   ∀ {t : Ty Unit}, Origin args past t → Option (Val m.value t)
+
+/-- Each recorded literal agrees with the value at its typed origin. -/
+def Literals.Agrees (known : Literals m args past) (entry : Tuple (Val m.value) args)
+    (locals : Locals (Val m.value) past) : Prop :=
+  ∀ {t : Ty Unit} (wire : Origin args past t) {value}, known wire = some value →
+    Diamond.read m wire entry locals = value
 
 /-- Extend the lookup along the existing typed origin split. -/
 def Literals.push (known : Literals m args past) (value : Option (Val m.value (.value out))) :
@@ -77,6 +83,11 @@ def Rule.replacement? (known : Literals m args past) :
     if (operands.get .head).address = (operands.get (.tail .head)).address then some result
     else replacement? known fallback operands
   | _, _, _, .commuteLeftLiteral _ _ fallback, operands => replacement? known fallback operands
+
+/-- Advance the literal facts without rewriting the binding being analyzed. -/
+def Rule.record {op : Op ins out} (rule : Rule m op) (known : Literals m args past)
+    (operands : Wires args past (dataPorts ins)) : Literals m args (past ++ [[.value out]]) :=
+  known.push ((rule.replacement? known operands).map fun literal => m.run literal .nil)
 
 /-- Normalize a surviving binding's operand order. Only a certified
 commutative rule can move a known left literal past an unknown right wire. -/

@@ -25,6 +25,36 @@ theorem map_write {T : Type u} {F : T → Type v} {G : T → Type w}
     (write dest value bank).map f = write dest (f t value) (bank.map f) :=
   Proofs.map_write f dest value bank
 
+theorem get_write_same {T : Type u} {F : T → Type w} {ts : List T} {t : T}
+    (dest : Port ts t) (value : F t) (bank : Tuple F ts) :
+    (write dest value bank).get dest = value :=
+  Proofs.get_write_same dest value bank
+
+theorem get_write_other {T : Type u} {F : T → Type w} {ts : List T} {t s : T}
+    (dest : Port ts t) (source : Port ts s) (value : F t) (bank : Tuple F ts)
+    (different : slot source ≠ slot dest) :
+    (write dest value bank).get source = bank.get source :=
+  Proofs.get_write_other dest source value bank different
+
+/-- Reading a newly rebound version map realizes a typed write for any
+interpretation of the ports, including abstract SCCP facts. -/
+theorem read_rebind {F : Ty Data → Type w}
+    (entry : Tuple F args) (locals : Locals F past)
+    (current : Wires args past (dataPorts regs))
+    (dest : Port (dataPorts regs) (.value result)) (value : F (.value result)) :
+    (rebind current dest).read entry
+      (locals.snoc (Tuple.cons (t := PortType.value result) value .nil)) =
+      write dest value (current.read entry locals) :=
+  Proofs.read_rebind entry locals current dest value
+
+theorem read_operands {F : Ty Data → Type w} {ports : List (Ty Data)}
+    (operands : Tuple (Port (dataPorts regs)) ports)
+    (entry : Tuple F args) (locals : Locals F past)
+    (current : Wires args past (dataPorts regs)) :
+    Wires.read (operands.map (fun _ src => current.get src)) entry locals =
+      operands.map (fun _ src => (current.read entry locals).get src) :=
+  Proofs.read_operands operands entry locals current
+
 /-- Before any assignment, a use names the corresponding input. -/
 theorem initial_get {t : Ty Data} (port : Port (dataPorts regs) t) :
     (initial regs).get port = .arg port :=
@@ -62,7 +92,12 @@ theorem read_tabulate (m : Model.{u, v, w} Op) (ports : List (Ty Data))
     (entry : Tuple (Val m.value) args) (locals : Locals (Val m.value) past) :
     Wires.read (tabulate ports wires) entry locals =
       tabulate ports (fun p => Diamond.read m (wires p) entry locals) :=
-  Proofs.read_tabulate m ports wires entry locals
+  Proofs.read_tabulate ports wires entry locals
+
+theorem get_tabulate {T : Type u} {F : T → Type w} {ts : List T} {t : T}
+    (f : ∀ {s}, Port ts s → F s) (port : Port ts t) :
+    (tabulate ts f).get port = f port :=
+  Proofs.get_tabulate f port
 
 theorem tabulate_get_eq {T : Type u} {F : T → Type w} {ts : List T} (tuple : Tuple F ts) :
     tabulate ts (fun p => tuple.get p) = tuple :=
@@ -71,7 +106,12 @@ theorem tabulate_get_eq {T : Type u} {F : T → Type w} {ts : List T} (tuple : T
 /-- Reading the initial version map recovers the supplied register bank. -/
 theorem read_initial (m : Model.{u, v, w} Op) (entry : Tuple (Val m.value) (dataPorts regs)) :
     (initial regs).read entry PUnit.unit = entry :=
-  Proofs.read_initial m entry
+  Proofs.read_initial entry
+
+/-- The initial bank of argument origins reads back any supplied typed tuple. -/
+theorem read_initial_tuple {F : Ty Data → Type w} (entry : Tuple F (dataPorts regs)) :
+    (initial regs).read entry PUnit.unit = entry :=
+  Proofs.read_initial entry
 
 /-- Reading the updated map after one producer agrees with the source write. -/
 theorem Quad.step_read (quad : Quad Op regs) (m : Model.{u, v, w} Op)

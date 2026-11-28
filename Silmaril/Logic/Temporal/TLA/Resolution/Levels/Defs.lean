@@ -174,6 +174,7 @@ private def applyBinding (context : Context) (site : Site) (binding : Binding)
     applyBuiltin site name sourceArgs operands
   | _, .formal => return ⟨.parameter binding.id, []⟩
   | _, .rigid => return ⟨.fixed .constant, []⟩
+  | _, .flexible => return ⟨.fixed .state, []⟩
   | _, _ =>
     let some summary := (← get).operators.lookup binding.id
       | failAt site (.missingSummary binding.id)
@@ -283,6 +284,11 @@ private partial def checkExpr (context : Context) (site : Site) (expression : Ex
           (← retain declSite (summary.requirements.map (·.substitute defaults)))
       let result ← visit (site.child .body) body
       pure { result with requirements := requirements ++ result.requirements }
+    | .temporalQuant _ _ body => do
+      let bodySite := site.child .body
+      let checkedBody ← visit bodySite body
+      let result ← addCondition checkedBody bodySite (.nonAction checkedBody.term)
+      pure { result with term := .fixed .temporal }
     | .rigidQuant _ (.unbounded _) body => visit (site.child .body) body
     | .rigidQuant _ (.bounded bounds) body =>
       checkBounded visit site bounds body .temporal true

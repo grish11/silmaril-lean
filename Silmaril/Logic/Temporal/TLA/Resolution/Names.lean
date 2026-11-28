@@ -109,7 +109,7 @@ inductive BindingId where
   deriving DecidableEq, Repr
 
 inductive BindingKind where
-  | builtin | constant | variable | operator | formal | rigid | instanceNamespace | oldValue
+  | builtin | constant | variable | operator | formal | rigid | flexible | instanceNamespace | oldValue
   deriving DecidableEq, Repr
 
 structure Binding where

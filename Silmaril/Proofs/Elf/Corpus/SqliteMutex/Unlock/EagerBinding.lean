@@ -1,8 +1,7 @@
 module
 
 public import Silmaril.Elf.Corpus.SqliteMutex.Unlock.EagerBinding.Defs
-import Silmaril.Elf.Staged.Pinned.GlibcLibc.Thms
-import Silmaril.Elf.Staged.Corpus.Sqlite.X8664.Libsqlite3So.Thms
+import Silmaril.Elf.Staged.Reader.Thms
 import Silmaril.Elf.Link.Dyn.Elf.Thms
 
 public section
@@ -103,11 +102,6 @@ theorem absolute_relocation :
   exact (partIs_of_kbytes K.wf_true K.toByteArray_eq
     (ws := [⟨0, 568⟩, ⟨1109464, 464⟩, ⟨46744, 24⟩])
     (p := readAbsoluteReloc) (v := absoluteReloc) (by decide +kernel)).run
-
-theorem absolute_has_no_model_value (resolver : Dyn.Resolver) (info : Elf.DynInfo) :
-    Dyn.relocVal resolver Silmaril.Elf.Staged.Corpus.Sqlite.X8664.Libsqlite3So.F
-      info absoluteReloc = none :=
-  rfl
 
 theorem unlock_word (tail : List Blob) (sqliteBase glibcBase : Word) (otherBases : List Word)
     (ifunc : Word → Option Word) (resolver : Word) :

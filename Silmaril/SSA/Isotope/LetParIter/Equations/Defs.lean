@@ -43,6 +43,22 @@ def dropLeft (d : Derivation Φ Γ β p (product unit A)) :
     Derivation Φ Γ β (Parallel.Tm.dropLeft p) A :=
   .let₂ d .bv
 
+/-- Transport the continue summand of a loop body along the state map.
+The returned value passes through unchanged. -/
+def uniformityLeft {h b : Tm ν Φ (n + 1)} {A A' B : τ}
+    (db : Derivation Φ Γ (.snoc β A) b (coprod B A))
+    (dh : Derivation Φ Γ (.snoc β A) h A') :
+    Derivation Φ Γ (.snoc β A)
+      (.case hasCase b (.inl hasCase (.bv 0)) (.inr hasCase h.underBinder)) (coprod B A') :=
+  .case db (.inl newest) (.inr (underBinder dh))
+
+/-- Evaluate the other body at the mapped state in the original environment. -/
+def uniformityRight {h b' : Tm ν Φ (n + 1)} {A A' B : τ}
+    (db' : Derivation Φ Γ (.snoc β A') b' (coprod B A'))
+    (dh : Derivation Φ Γ (.snoc β A) h A') :
+    Derivation Φ Γ (.snoc β A) (b'.underBinder.instantiate h) (coprod B A') :=
+  instantiate (underBinder db') dh
+
 end Typing
 
 set_option backward.isDefEq.respectTransparency false in
@@ -122,6 +138,13 @@ inductive Equiv (pureEff : ε) (Γ : Ctx ν τ) :
       Equiv pureEff Γ (.iter (h := rfl) da db)
         (.let₁ da (.case (h := hasCase) db Typing.newest
           (.iter (h := rfl) Typing.newest (Typing.underBinder (Typing.underBinder db)))))
+  /-- A pure state change whose feedback square is a generated equation. -/
+  | iterUniformity (da : Derivation Φ Γ β a A)
+      (dh : Derivation Φ Γ (.snoc β A) h A') (hp : Pure pureEff h)
+      (db : Derivation Φ Γ (.snoc β A) b (coprod B A))
+      (db' : Derivation Φ Γ (.snoc β A') b' (coprod B A'))
+      (square : Equiv pureEff Γ (Typing.uniformityLeft db dh) (Typing.uniformityRight db' dh)) :
+      Equiv pureEff Γ (.iter (h := rfl) da db) (.iter (h := rfl) (.let₁ da dh) db')
   | iterBind (da : Derivation Φ Γ β a A) (db : Derivation Φ Γ (.snoc β A) b (coprod B A)) :
       Equiv pureEff Γ (.iter (h := rfl) da db)
         (.let₁ da (.iter (h := rfl) Typing.newest (Typing.underBinder db)))

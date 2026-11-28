@@ -36,7 +36,7 @@ private theorem coarseLabel_apply {fine coarse : Partition n} (h : Refines fine 
 theorem classCount_le (p : Partition n) : classCount p ≤ n := by
   simpa [classCount] using Finset.card_image_le (s := (Finset.univ : Finset (Fin n))) (f := p)
 
-private theorem classCount_lt_of_split {fine coarse : Partition n} (h : Refines fine coarse)
+theorem classCount_lt_of_split {fine coarse : Partition n} (h : Refines fine coarse)
     {i j : Fin n} (same : coarse i = coarse j) (different : fine i ≠ fine j) :
     classCount coarse < classCount fine := by
   have imageEq : (Finset.univ.image fine).image (coarseLabel fine coarse) =

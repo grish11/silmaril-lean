@@ -26,18 +26,20 @@ def memberPort : (members : List (Function V S)) → (i : Fin members.length) �
 /-- The λ context starts with the family's recursion references, then that
 member's own captures. Supply the actual λ wires and check each summary
 against its body's shared transfer. The reference prefix is reserved for
-checked static targets. -/
+checked static targets. `calls` indexes the body's available summaries.
+`past` indexes the actual outer capture wires. -/
 structure Family (Op : Dialect.{u, v} (ValueSort V S) S)
-    (table : MemberSummaries V S) (imports : Ports (Ty V S)) where
+    (table : MemberSummaries V S) (imports : Ports (Ty V S))
+    (calls : MemberSummaries V S := table) (past : List (Ports (Ty V S)) := []) where
   context : Ports (Ty V S)
-  captures : Wires imports [] context
+  captures : Wires imports past context
   memberWires : (i : Fin table.members.length) →
     Wires (context ++ memberPorts table.members) (memberOutputs (table.members.take i.val))
       (memberPorts table.members ++ (table.at i).captures)
   sigs : Fin table.members.length → List (Ports (Ty V S))
   body : (i : Fin table.members.length) →
     Code Op ((memberPorts table.members ++ (table.at i).captures) ++ (table.at i).fn.args)
-      [] (sigs i) (table.at i).fn.results true (some table)
+      [] (sigs i) (table.at i).fn.results true (some calls)
   closed : ∀ i demand,
     (∀ p, p < (memberPorts table.members).length → .arg p ∉ ((body i).plan demand).live) ∧
     ∀ p, .arg ((memberPorts table.members).length + p) ∈ ((body i).plan demand).live →
@@ -45,17 +47,12 @@ structure Family (Op : Dialect.{u, v} (ValueSort V S) S)
 
 namespace Family
 
-variable (family : Family Op table imports)
+variable {calls : MemberSummaries V S} {past : List (Ports (Ty V S))} (family : Family Op table imports calls past)
 
-def group : PhiTerm Op imports [] table.members :=
+def group : PhiTerm Op imports past table.members :=
   ⟨family.context, family.captures, Definitions.ofTable _ fun i =>
     ⟨memberPorts table.members ++ (table.at i).captures,
       family.memberWires i, family.sigs i, (family.body i).term⟩⟩
-
-/-- Link the whole group and export one statically designated member. -/
-def graph (i : Fin table.members.length) : Omega Op imports [(table.at i).fn.port] [memberPorts table.members] :=
-  OmegaTerm.toGraph ⟨.bind (.phi family.group)
-    (.ret (.cons (.output (0 : Fin 1) (memberPort table.members i)) .nil))⟩
 
 def memberValue (captured : Tuple m.Val family.context) (i : Fin table.members.length) :
     m.Val (table.at i).fn.port :=
@@ -92,9 +89,20 @@ def guard (captured : Tuple m.Val family.context) : MemberResolution m (some tab
 /-- Check the forwarded reference prefix and each static call against the
 actual linked member values and captures. Formal arguments can change at
 each dispatch. -/
-def Ready (captured : Tuple m.Val family.context) : Prop :=
+def ReadyWith (captured : Tuple m.Val family.context) (resolved : MemberResolution m (some calls)) : Prop :=
   ∀ i, family.readMember captured i = prependContext (family.capturedAt captured i) (family.references captured) ∧
-    ∀ args, (family.body i).ResolvedWith (family.guard captured) (family.entry captured i args)
+    ∀ args, (family.body i).ResolvedWith resolved (family.entry captured i args)
+
+/-- Readiness for a seed with calls confined to its own family. -/
+def Ready (family : Family Op table imports) (captured : Tuple m.Val family.context) : Prop :=
+  family.ReadyWith captured (family.guard captured)
+
+variable (family : Family Op table imports calls)
+
+/-- Link the whole group and export one statically designated member. -/
+def graph (i : Fin table.members.length) : Omega Op imports [(table.at i).fn.port] [memberPorts table.members] :=
+  OmegaTerm.toGraph ⟨.bind (.phi family.group)
+    (.ret (.cons (.output (0 : Fin 1) (memberPort table.members i)) .nil))⟩
 
 /-- Agreement is on the selected member's actually wired captures and
 formal arguments at the positions in its supplied summary. -/

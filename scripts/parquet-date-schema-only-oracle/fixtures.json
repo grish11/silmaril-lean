@@ -1,0 +1,84 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "optional": {
+      "name": "日付",
+      "nullable": true,
+      "pyarrow_ipc": {
+        "bytes": 136,
+        "sha256": "8df8289f4c287838eb772fa70f2b437def0867874ab290ee7da81688f7ab84d5"
+      },
+      "pyarrow_parquet": {
+        "bytes": 92,
+        "sha256": "67c18009326f835b171b6b80998fa36ad5098511927b27c575c06d7850d526ca"
+      },
+      "lean_ipc_from_parquet": {
+        "bytes": 152,
+        "sha256": "06042627b790440536b6e32af3d4ff4ab029f38c1761ec96c87aafc6b65f15c9"
+      },
+      "lean_parquet_direct": {
+        "bytes": 51,
+        "sha256": "96c073df74aca3f28072a79568f0f64fc737240b285da17bcd874e6f43f96b3d"
+      },
+      "lean_parquet_from-source": {
+        "bytes": 51,
+        "sha256": "96c073df74aca3f28072a79568f0f64fc737240b285da17bcd874e6f43f96b3d"
+      }
+    },
+    "required": {
+      "name": "époque",
+      "nullable": false,
+      "pyarrow_ipc": {
+        "bytes": 136,
+        "sha256": "06f6d1c2870400b0da4ad39965583c5f8ea0f173fd8d6ffd2f0df2425afb72f1"
+      },
+      "pyarrow_parquet": {
+        "bytes": 93,
+        "sha256": "eb50605fb67aaadbc6472d02b966ade803a979f637526848c954a5369e7d0d7b"
+      },
+      "lean_ipc_from_parquet": {
+        "bytes": 152,
+        "sha256": "0d62f78d47dd09bc08dd6a4c25a8a65bc1d7e6606f348fa4d525af284ca195ca"
+      },
+      "lean_parquet_direct": {
+        "bytes": 52,
+        "sha256": "c907b413582ab32e75c82bab045ba23c603fa347e8ad27844fcd5e206fd0f642"
+      },
+      "lean_parquet_from-source": {
+        "bytes": 52,
+        "sha256": "c907b413582ab32e75c82bab045ba23c603fa347e8ad27844fcd5e206fd0f642"
+      }
+    }
+  },
+  "controls": {
+    "explicit_empty": {
+      "ipc": {
+        "bytes": 256,
+        "sha256": "f795f7a22efc785f456fac29c87edbaf69247f6d458d6328f66ad99fe21de6ca"
+      },
+      "writer": "limits",
+      "lean_error": "(.batchCount 1)"
+    },
+    "date64": {
+      "ipc": {
+        "bytes": 128,
+        "sha256": "ebaa7c62e4f7359d3260fde04a474f7590248da9ca79ad708dbc94e0fc3368cc"
+      },
+      "writer": "limits",
+      "lean_error": "(.wrongUnit .millisecond)"
+    },
+    "missing_eos": {
+      "ipc": {
+        "bytes": 128,
+        "sha256": "da29f8e67864e8008bf0ce99ffb875588debc70a44c1751d77e314026a8fb1ad"
+      },
+      "writer": "{ limits with maxFileBytes := 0 }",
+      "lean_error": "(.reader (.batch 0 (.envelope (.malformed .truncated))))"
+    }
+  }
+}

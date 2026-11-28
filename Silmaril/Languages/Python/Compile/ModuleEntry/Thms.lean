@@ -67,6 +67,20 @@ theorem lower_closedSequenceComparison {scope : Source.Scope} {left right : Sour
       .ok ⟨.booleanResult value, .closedSequenceComparison checked⟩ :=
   operand_complete (.closedSequenceComparison checked)
 
+theorem lower_literalDictionaryGet {scope : Source.Scope} {entries : List (Option Source.Expr × Source.Expr)}
+    {arguments : List Source.Expr} {value : Core.Module.Value}
+    (checked : literalDictionaryGet? entries arguments = some value) :
+    lowerOperand scope (.call (.attribute (.dictionary entries) "get") arguments) =
+      .ok ⟨.scalarResult value, .literalDictionaryGet checked⟩ :=
+  operand_complete (.literalDictionaryGet checked)
+
+theorem lower_literalDictionaryGetWith {scope : Source.Scope} {entries : List (Option Source.Expr × Source.Expr)}
+    {arguments : List (Source.ArgumentKind × Source.Expr)} {value : Core.Module.Value}
+    (checked : literalDictionaryGetWith? entries arguments = some value) :
+    lowerOperand scope (.callWith (.attribute (.dictionary entries) "get") arguments) =
+      .ok ⟨.scalarResult value, .literalDictionaryGetWith checked⟩ :=
+  operand_complete (.literalDictionaryGetWith checked)
+
 theorem lower_checkedBooleanOp {scope : Source.Scope} {operator : Source.BooleanOperator}
     {operands : List Source.Expr} {value : Core.Module.Value}
     (checked : checkedBooleanOp? operator operands = some value) :

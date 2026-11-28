@@ -47,7 +47,7 @@ private theorem select_guard (b : Bool) (old : Word) (next : Carried) :
       (if ofBool b = 0 then Sum.inl old else Sum.inr next) := by
   cases b <;> rfl
 
-private theorem source_step (seed delta old : Word) :
+theorem source_step (seed delta old : Word) :
     p.graph.step model (entry seed delta) (.cons old .nil) =
       if p.guardWord old delta = 0 then .inl old else .inr (.cons (p.update.eval old delta) .nil) := by
   rcases p with ⟨update, limit, guard⟩
@@ -275,6 +275,20 @@ private theorem exit_step (fr : Frame Reg) (mem : Memory) (old delta : Word)
   rw [ite_eq_left hzero, ite_eq_left hzero]
   simp [transfer, Frame.readAll, get_old p fr old delta hold]
   rfl
+
+theorem header_activation (fr : Frame Reg) (mem : Memory) (old delta : Word)
+    (hold : fr.get .phi = some old) (hdelta : fr.get (.arg 1) = some delta) :
+    let after := p.headerFrame fr old delta
+    StepsNWithin p.lower [] 4 ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+      (if p.guardWord old delta = 0 then ⟨⟨0, 2, 0⟩, after.set (.node 3) old, [], mem⟩
+       else ⟨⟨0, 1, 0⟩, after.set .phi (p.update.eval old delta), [], mem⟩) := by
+  by_cases halt : p.guardWord old delta = 0
+  · simp only [ite_eq_left halt]
+    exact header_steps p fr mem old delta hold hdelta
+      (.head ⟨exit_step p fr mem old delta hold halt, List.nil_suffix⟩ .refl)
+  · simp only [ite_eq_right halt]
+    exact header_steps p fr mem old delta hold hdelta
+      (.head ⟨step_feedback p fr [] mem old delta halt, List.nil_suffix⟩ .refl)
 
 private theorem counted_header (seed delta : Word) (mem : Memory) {count : Nat}
     {latched : Carried} {result : sortValue model.value word}

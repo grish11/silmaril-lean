@@ -3,6 +3,9 @@ module
 public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Defs
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Column
 import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Execution
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.FeedbackRow
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Frame
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Fuel
 
 /-! # Exact typed column emission and routed-loop execution -/
 
@@ -12,16 +15,118 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing
 
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.RTL (Frame)
-open Silmaril.Machine.RTL.SSA (Activation Block Label Prog State Steps step transfer)
-open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg model)
-open Silmaril.SSA.SeaOfNodes.Diamond (Val read)
+open Silmaril.Machine.RTL.SSA (Activation Block Label Op Prog State Steps StepsNWithin run step transfer)
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp emitOpsWith model)
+open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow Val read)
 open Silmaril.SSA.SeaOfNodes.Loop (Incoming appendTuple)
-open Silmaril.SSA.RVSDG (Locals Origin Tuple Wires)
+open Silmaril.SSA.RVSDG (Address Locals Origin Port Tuple Wires extend)
+open Silmaril.SSA.SeaOfNodes.GVN (keepOrigin)
+
+theorem rowFrameAt_read {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (old : WordTuple arity) (updates : List (FeedbackUpdate fields)) (pc : Nat) (fr : Frame Reg)
+    (index : Fin updates.length) :
+    (rowFrameAt slot old pc fr updates).get (.node (pc + index.val)) =
+      some (updates[index].evalAt slot old) :=
+  Proofs.rowFrameAt_read slot old updates pc fr index
+
+theorem keep_register {args : List PortTy} {past sigs : List (List PortTy)} {t : PortTy}
+    (flow : Dataflow WordOp args past sigs) (wire : Origin args past t) :
+    register (keepOrigin flow wire).address = register wire.address :=
+  Proofs.keep_register flow wire
+
+theorem row_reads_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (updates : List (FeedbackUpdate fields)) (past : List (List PortTy))
+    (input old : WordTuple arity) (fr : Frame Reg) (locals : Locals (Val model.value) past)
+    (agree : ∀ wire : Origin (bankArgs arity) past wordPort,
+      fr.get (register wire.address) = some (read model wire (appendTuple old input) locals))
+    (wire : Origin (bankArgs arity) (extend past (rowSigs updates)) wordPort) :
+    (rowFrameAt slot old past.length fr updates).get (register wire.address) =
+      some (read model wire (appendTuple old input) ((rowSuffixAt slot past updates).eval model
+        (appendTuple old input) locals)) :=
+  Proofs.row_reads_at slot updates past input old fr locals agree wire
+
+theorem row_stepsN_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (p : Prog Reg) (block : Block Reg) (found : p.block? 0 1 = some block)
+    (input old : WordTuple arity) (mem : Memory)
+    (updates : List (FeedbackUpdate fields)) (past : List (List PortTy))
+    (prefixOps : List (Op Reg)) (prefixLength : prefixOps.length = past.length)
+    (tailOps : List (Op Reg))
+    (ops : block.ops = prefixOps ++ (emitOpsWith (fun p => .arg p.index) (rowSuffixAt slot past updates) ++ tailOps))
+    (fr : Frame Reg) (agree : ArgsMatch fr (appendTuple old input)) :
+    StepsNWithin p [] updates.length ⟨⟨0, 1, past.length⟩, fr, [], mem⟩
+      ⟨⟨0, 1, past.length + updates.length⟩, rowFrameAt slot old past.length fr updates, [], mem⟩ :=
+  Proofs.row_stepsN_at slot p block found input old mem updates past prefixOps prefixLength tailOps ops fr agree
+
+theorem row_steps_at {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (p : Prog Reg) (block : Block Reg) (found : p.block? 0 1 = some block)
+    (input old : WordTuple arity) (mem : Memory)
+    (updates : List (FeedbackUpdate fields)) (past : List (List PortTy))
+    (prefixOps : List (Op Reg)) (prefixLength : prefixOps.length = past.length)
+    (tailOps : List (Op Reg))
+    (ops : block.ops = prefixOps ++ (emitOpsWith (fun p => .arg p.index) (rowSuffixAt slot past updates) ++ tailOps))
+    (fr : Frame Reg) (agree : ArgsMatch fr (appendTuple old input)) :
+    Steps p ⟨⟨0, 1, past.length⟩, fr, [], mem⟩
+      ⟨⟨0, 1, past.length + updates.length⟩, rowFrameAt slot old past.length fr updates, [], mem⟩ :=
+  Proofs.row_steps_at slot p block found input old mem updates past prefixOps prefixLength tailOps ops fr agree
+
+theorem emit_row_length {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (past : List (List PortTy)) (updates : List (FeedbackUpdate fields)) :
+    (emitOpsWith (fun p => .arg p.index) (rowSuffixAt slot past updates)).length = updates.length :=
+  Proofs.emit_row_length slot past updates
+
+theorem suffix_get {F : PortTy → Type*} {pre tail : List PortTy} {t : PortTy}
+    (left : Tuple F pre) (right : Tuple F tail) (p : Port tail t) :
+    (appendTuple right left).get (suffixPort pre p) = right.get p :=
+  Proofs.suffix_get left right p
+
+theorem bindWords_write {arity : Nat} (base : Nat) (fr : Frame Reg) (values : WordTuple arity) :
+    fr.writeAll (paramRegs base arity) (words values) = some (bindWords base fr values) :=
+  Proofs.bindWords_write base fr values
+
+theorem bindWords_args {arity : Nat} (values : WordTuple arity) :
+    ArgsMatch (bindWords 0 Frame.empty values) values :=
+  Proofs.bindWords_args values
+
+theorem bank_matches_at {arity bank : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    (agree : ArgsMatch fr input) (values : WordTuple bank) :
+    ArgsMatch (bindWords arity fr values) (appendTuple values input) :=
+  Proofs.bank_matches_at agree values
+
+theorem input_matches_at {arity bank : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    {old : WordTuple bank}
+    (agree : ArgsMatch fr (appendTuple old input)) : ArgsMatch fr input :=
+  Proofs.input_matches_at agree
+
+theorem run_after_prefix {program : Prog Reg} {steps : Nat} {s finish : State Reg}
+    (prefixPath : StepsNWithin program [] steps s finish) {fuel : Nat} {returned : List Word} {final : Memory}
+    (observed : run program fuel s = .returned returned final) :
+    ∃ remaining, fuel = steps + remaining ∧ run program remaining finish = .returned returned final :=
+  Proofs.run_after_prefix prefixPath observed
+
+theorem fuel_of_steps {program : Prog Reg} {s finish : State Reg}
+    (path : Steps program s finish) {returned : List Word} {final : Memory}
+    (observed : step program finish = .returned returned final) :
+    ∃ fuel, run program fuel s = .returned returned final :=
+  Proofs.fuel_of_steps path observed
+
+theorem run_through_prefix {program : Prog Reg} {steps : Nat} {s finish : State Reg}
+    (path : StepsNWithin program [] steps s finish) (remaining : Nat) :
+    run program (steps + remaining) s = run program remaining finish :=
+  Proofs.run_through_prefix path remaining
 
 theorem checkColumn_registers {scope arity : Nat} {indices : List Nat}
     {wires : ArgumentColumn scope arity} (ok : checkColumn scope arity indices = some wires) :
     emitColumn wires = indices.map Reg.arg :=
   Proofs.checkColumn_registers ok
+
+/-- Read an ordered typed column using the predecessor's register layout. -/
+theorem readColumnWith_eq {args : List PortTy} {past : List (List PortTy)} {arity : Nat}
+    (resolve : Address → Reg) (wires : Wires args past (wordPorts arity)) (input : Tuple (Val model.value) args)
+    (locals : Locals (Val model.value) past) (fr : Frame Reg)
+    (agree : ∀ wire : Origin args past wordPort,
+      fr.get (resolve wire.address) = some (read model wire input locals)) :
+    fr.readAll (wires.addresses.map resolve) = some (words (wires.read input locals)) :=
+  Proofs.readColumnWith_eq resolve wires input locals fr agree
 
 /-- Resolve every operand in the predecessor frame before binding any
 destination. This law is independent of the number of word slots. -/
@@ -47,6 +152,22 @@ theorem transfer_column {args : List PortTy} {past : List (List PortTy)} {arity 
         .running ⟨⟨s.point.func, target, 0⟩, after, s.stack, s.mem⟩ :=
   Proofs.transfer_column wires input locals p s target block found arityEq agree
 
+/-- The bank emitter reads the whole incoming column before rebinding its
+header parameters. This transfer applies to any emitted word-bank graph. -/
+theorem transfer_bank {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
+    (s : State Reg) (column : List Reg) (values : WordTuple arity)
+    (func : s.point.func = 0) (reads : s.frame.readAll column = some (words values)) :
+    transfer (lowerBank g) s 1 column =
+      .running ⟨⟨0, 1, 0⟩, bindWords arity s.frame values, s.stack, s.mem⟩ :=
+  Proofs.transfer_bank g s column values func reads
+
+theorem step_bank_entry {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
+    (input : WordTuple arity) (fr : Frame Reg) (stk : List (Activation Reg)) (mem : Memory)
+    (agree : ArgsMatch fr input) :
+    step (lowerBank g) ⟨⟨0, 0, 0⟩, fr, stk, mem⟩ =
+      .running ⟨⟨0, 1, 0⟩, bindWords arity fr (g.initial model input), stk, mem⟩ :=
+  Proofs.step_bank_entry g input fr stk mem agree
+
 /-- The decoded positions become exactly the emitted register operands, in
 slot order, beside the fixed incoming counter operand. -/
 theorem checkRoutes_registers {entry feedback : List Nat} {r : Routes}
@@ -63,7 +184,7 @@ theorem lowerChecked_eq_some_iff (entry feedback : List Nat) (target : Prog Reg)
 theorem checked_wellFormed {entry feedback : List Nat} {target : Prog Reg}
     (ok : lowerChecked entry feedback = some target) : target.WellFormed := by
   obtain ⟨r, _, wf, rfl⟩ := (lowerChecked_eq_some_iff entry feedback target).mp ok
-  simpa [Prog.WellFormed, Routes.lower, BankRoutes.lower, BankRoutes.lowerWith, BankRoutes.lowerWithRow] using wf
+  simpa [Prog.WellFormed, Routes.lower, BankRoutes.lower, BankRoutes.lowerWith, BankRoutes.lowerWithRow, lowerBank, BankRoutes.lowerFuncWithRow] using wf
 
 /-- Checked positions are preserved in the actual operands and return port. -/
 theorem checkBankRoutes_registers {payloads : Nat} {entry feedback : List Nat} {result : Nat}
@@ -87,7 +208,7 @@ theorem bank_checked_wellFormed {payloads : Nat} {entry feedback : List Nat} {re
     {target : Prog Reg} (ok : lowerBankChecked payloads entry feedback result = some target) :
     target.WellFormed := by
   obtain ⟨r, _, wf, rfl⟩ := (lowerBankChecked_eq_some_iff payloads entry feedback result target).mp ok
-  simpa [Prog.WellFormed, BankRoutes.lower, BankRoutes.lowerWith, BankRoutes.lowerWithRow] using wf
+  simpa [Prog.WellFormed, BankRoutes.lower, BankRoutes.lowerWith, BankRoutes.lowerWithRow, lowerBank, BankRoutes.lowerFuncWithRow] using wf
 
 /-- Admission recovers the checked update, copy routes, and the machine's
 SSA well-formedness proof. -/
@@ -106,7 +227,7 @@ theorem computed_checked_wellFormed {payloads : Nat} {entry feedback : List Nat}
   obtain ⟨u, _, r, _, wf, rfl⟩ :=
     (lowerComputedChecked_eq_some_iff payloads entry feedback result spec target).mp ok
   change (r.lowerFuncWithRow [u]).WellFormed at wf
-  simpa [Prog.WellFormed, BankRoutes.lowerWith, BankRoutes.lowerWithRow] using wf
+  simpa [Prog.WellFormed, BankRoutes.lowerWith, BankRoutes.lowerWithRow, lowerBank, BankRoutes.lowerFuncWithRow] using wf
 
 section ComputedFeedback
 
@@ -170,7 +291,7 @@ theorem row_checked_wellFormed {payloads : Nat} {entry feedback : List Nat} {res
     target.WellFormed := by
   obtain ⟨_, _, _, _, wf, rfl⟩ :=
     (lowerFeedbackRowChecked_eq_some_iff payloads entry feedback result specs target).mp ok
-  simpa [Prog.WellFormed, BankRoutes.lowerWithRow] using wf
+  simpa [Prog.WellFormed, BankRoutes.lowerWithRow, lowerBank, BankRoutes.lowerFuncWithRow] using wf
 
 theorem lowerFeedbackRowChecked_nil (payloads : Nat) (entry feedback : List Nat) (result : Nat) :
     lowerFeedbackRowChecked payloads entry feedback result [] =

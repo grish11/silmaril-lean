@@ -39,21 +39,21 @@ def routedFlat {labels n : Nat} (blocks : Nat) (r : Flat Φ labels n) : Region �
   r.erase.bindBranchArguments.lsubst (routeExit blocks)
 
 /-- A guarded native arrow packs outgoing labels into the exact exit-or-state sum. -/
-def routeFamily (R E : LCtx τ) :
-    ContinuationFamily (Φ := Φ) [] (R ++ E) [Silmaril.coprod (packedExitType E) (packedExitType R)] :=
+def routeFamily (R E : LCtx τ) (Γ : VCtx τ := []) :
+    ContinuationFamily (Φ := Φ) Γ (R ++ E) [Silmaril.coprod (packedExitType E) (packedExitType R)] :=
   ⟨routeExit R.length, by
     intro i A hi
     by_cases h : i < R.length
     · rw [routeExit, ite_eq_left h]
       have hi' : At R i A := (List.getElem?_append_left h).symm.trans hi
-      cases packExits_valueFamily (Φ := Φ) [] R hi' with
+      cases packExits_valueFamily (Φ := Φ) Γ R hi' with
       | br ho hv =>
         cases Option.some.inj ho
         exact .br rfl (.inr hv)
     · rw [routeExit, ite_eq_right h]
       have hi' : At E (i - R.length) A :=
         (List.getElem?_append_right (Nat.le_of_not_gt h)).symm.trans hi
-      cases packExits_valueFamily (Φ := Φ) [] E hi' with
+      cases packExits_valueFamily (Φ := Φ) Γ E hi' with
       | br ho hv =>
         cases Option.some.inj ho
         exact .br rfl (.inl hv)⟩
@@ -61,9 +61,9 @@ def routeFamily (R E : LCtx τ) :
 /-- The native continuation arrow with one guarded representative for each
 actual flat block. Binding the branch arguments evaluates them once before
 the outgoing labels are routed. -/
-def blockFamily {g : FiniteCFG Φ blocks exits 0}
-    (hg : HasType .nil R E g) :
-    ContinuationFamily (Φ := Φ) [] (List.ofFn R) (List.ofFn R ++ List.ofFn E) :=
+def blockFamily {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
+    (hg : HasType β R E g) :
+    ContinuationFamily (Φ := Φ) β.toList (List.ofFn R) (List.ofFn R ++ List.ofFn E) :=
   ContinuationFamily.ofTyped (σ := fun i => if h : i < blocks then (g.block ⟨i, h⟩).erase else labelId i) (by
     intro i A hi
     have h : i < blocks := by simpa using (List.getElem?_eq_some_iff.mp hi).1

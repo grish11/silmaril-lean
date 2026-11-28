@@ -49,7 +49,7 @@ private theorem allocate_all_owned (names : List Binding) (initial : State) (val
   | nil => exact valid
   | cons first rest ih => exact ih _ (allocate_owned_cells _ first valid)
 
-private theorem allocate_blank (names : List Binding) (initial : State) (binding : Binding)
+theorem allocate_blank (names : List Binding) (initial : State) (binding : Binding)
     (requested : binding ∈ names ∨ ∃ address, initial.slots binding = some (.owned address) ∧
       initial.heap[address]? = some ⟨.binding none, false⟩) :
     let result := names.foldl State.allocateSlot initial
@@ -120,6 +120,34 @@ theorem checked_module_globals {commands : List Command} {globals : List String}
   (checked_of_resolve checked).2.1.trans
     (congrArg (fun block : BlockContext => block.reads.globals) (moduleBlock_eq declares))
 
+theorem entered_cells (source : Silmaril.Languages.Starlark.Modules.Source) (caller : State) :
+    (∀ binding address, (enter source caller).slots binding = some (.owned address) → caller.heap.size ≤ address) ∧
+    ∀ (address : Nat) cell, caller.heap[address]? = some cell → (enter source caller).heap[address]? = some cell := by
+  have extend (slots : List Binding) (state : State) (size : caller.heap.size ≤ state.heap.size)
+      (fresh : ∀ binding address, state.slots binding = some (.owned address) → caller.heap.size ≤ address) :
+      let next := slots.foldl State.allocateSlot state
+      (∀ binding address, next.slots binding = some (.owned address) → caller.heap.size ≤ address) ∧
+      ∀ (address : Nat) cell, state.heap[address]? = some cell → next.heap[address]? = some cell := by
+    induction slots generalizing state with
+    | nil => exact ⟨fresh, fun _ _ present => present⟩
+    | cons first rest ih =>
+      have freshNext : ∀ binding address, (state.allocateSlot first).slots binding = some (.owned address) →
+          caller.heap.size ≤ address := by
+        intro binding address found
+        by_cases same : binding = first
+        · have sameAddress : state.heap.size = address := by simpa [State.allocateSlot, same] using found
+          exact sameAddress ▸ size
+        · exact fresh _ _ (by simpa [State.allocateSlot, same] using found)
+      obtain ⟨new, kept⟩ := ih _ (by simp [State.allocateSlot]; omega) freshNext
+      exact ⟨new, fun _ cell present => kept _ cell (push_preserves_cell _ present _)⟩
+  exact extend _ _ (Nat.le_refl _) (fun _ _ no => nomatch no)
+
+theorem entered_blank (source : Silmaril.Languages.Starlark.Modules.Source) (caller : State) (binding : Binding)
+    (declared : binding ∈ source.globals.map globalSlot ++ source.fileNames.map fileSlot) :
+    ∃ address, (enter source caller).slots binding = some (.owned address) ∧
+      (enter source caller).heap[address]? = some ⟨.binding none, false⟩ :=
+  allocate_blank _ _ _ (.inl declared)
+
 theorem checked_global_cell {commands : List Command} {globals : List String}
     {linked : Program} {resolved : ResolvedModule}
     (declares : ModuleBinders commands globals) (checked : resolve commands linked = .ok resolved)
@@ -143,6 +171,22 @@ private theorem first_duplicate_none (names : List String) : firstDuplicate name
   | nil => simp [firstDuplicate]
   | cons first rest ih =>
     by_cases member : first ∈ rest <;> simp [firstDuplicate, member, ih]
+
+theorem validated_entry_names {program : Program} {source : Silmaril.Languages.Starlark.Modules.Source}
+    (checked : validateSource program source = .ok ()) : (source.globals ++ source.fileNames).Nodup := by
+  unfold validateSource at checked
+  split at checked
+  · cases checked
+  · rename_i absent
+    have noDuplicate : firstDuplicate (source.globals ++ source.fileNames) = none := by
+      cases found : firstDuplicate (source.globals ++ source.fileNames) with
+      | none => rfl
+      | some name => exact (absent name found).elim
+    exact (first_duplicate_none _).mp noDuplicate
+
+theorem validated_module_names {program : Program} {source : Silmaril.Languages.Starlark.Modules.Source}
+    (checked : validateSource program source = .ok ()) : source.globals.Nodup :=
+  (List.pairwise_append.mp (validated_entry_names checked)).1
 
 private theorem required_slots (names : List String) : (requiredSignature names).slots = names.map fileSlot := by
   simp [requiredSignature, Signature.slots, Signature.named, Function.comp_def]

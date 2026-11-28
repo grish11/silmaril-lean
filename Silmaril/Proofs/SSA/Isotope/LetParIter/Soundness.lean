@@ -119,16 +119,55 @@ private theorem letBeta_sound (da : Derivation Φ Γ β a A)
     denote (ε := ε) P (.let₁ da db) γ ρ =
       denote (ε := ε) P (Typing.instantiate db da) γ ρ := by
   obtain ⟨x, hx⟩ := denote_pure P da ha γ ρ
-  rw [denote, hx, pure_bind, Typing.instantiate]
-  symm
-  apply denote_bsubst (β := .snoc β A) (δ := β) (ξ := (ρ, x))
-  intro i
-  refine Fin.cases ?_ (fun j => ?_) i
-  · exact hx
-  · change denote (ε := ε) P (.bv (i := j)) γ ρ = pure (BoundDen.get ρ j)
-    rw [denote]
+  rw [denote, hx, pure_bind]
+  exact (denote_instantiate P γ db da ρ x hx).symm
 
 variable [Elgot.LawfulElgotMonad m]
+
+private theorem iterUniformity_sound {A' : τ} {h b b' : Tm ν Φ (n + 1)}
+    (da : Derivation Φ Γ β a A)
+    (dh : Derivation Φ Γ (.snoc β A) h A') (hp : Pure (⊥ : ε) h)
+    (db : Derivation Φ Γ (.snoc β A) b (coprod B A))
+    (db' : Derivation Φ Γ (.snoc β A') b' (coprod B A'))
+    (hsquare : ∀ x : TyDen A,
+      denote (ε := ε) P (Typing.uniformityLeft db dh) γ (ρ, x) =
+        denote (ε := ε) P (Typing.uniformityRight db' dh) γ (ρ, x)) :
+    denote (ε := ε) P (.iter (h := rfl) da db) γ ρ =
+      denote (ε := ε) P (.iter (h := rfl) (.let₁ da dh) db') γ ρ := by
+  choose k hk using fun x : TyDen A => denote_pure P dh hp γ (ρ, x)
+  let f : TyDen A → m (TyDen B ⊕ TyDen A) :=
+    fun x => denote (ε := ε) P db γ (ρ, x) >>= Elgot.liftPure (TypeModel.coprodEquiv B A)
+  let g : TyDen A' → m (TyDen B ⊕ TyDen A') :=
+    fun x => denote (ε := ε) P db' γ (ρ, x) >>= Elgot.liftPure (TypeModel.coprodEquiv B A')
+  have comm : (f >=> Elgot.liftPure (Sum.map id k)) = (Elgot.liftPure k >=> g) := by
+    funext x
+    have hs := hsquare x
+    rw [Typing.uniformityRight, denote_instantiate P γ _ dh (ρ, x) (k x) (hk x)] at hs
+    rw [Typing.underBinder, denote_rename, pull_underBinder] at hs
+    calc
+      (f >=> Elgot.liftPure (Sum.map id k)) x =
+          denote (ε := ε) P (Typing.uniformityLeft db dh) γ (ρ, x) >>=
+            Elgot.liftPure (TypeModel.coprodEquiv B A') := by
+        simp only [f, Bind.kleisliRight, Elgot.liftPure, Function.comp_apply, bind_assoc,
+          pure_bind, Typing.uniformityLeft, Typing.newest, denote, Typing.underBinder,
+          denote_rename, pull_underBinder, hk]
+        apply bind_congr
+        intro s
+        cases TypeModel.coprodEquiv B A s with
+        | inl =>
+            simp
+            rfl
+        | inr => simp
+      _ = g (k x) := congrArg (fun z => z >>= Elgot.liftPure (TypeModel.coprodEquiv B A')) hs
+      _ = (Elgot.liftPure k >=> g) x := by
+        simp only [Bind.kleisliRight, Elgot.liftPure, Function.comp_apply, pure_bind]
+  simp only [denote, evalIter, bind_assoc]
+  apply bind_congr
+  intro x
+  change Elgot.iter f x = _
+  rw [congrFun (Elgot.LawfulElgotMonad.uniformity f g k comm) x]
+  simp only [Bind.kleisliRight, Elgot.liftPure, Function.comp_apply, pure_bind, hk]
+  rfl
 
 theorem sound {da : Derivation Φ Γ β a A} {db : Derivation Φ Γ β b A}
     (h : Equiv (⊥ : ε) Γ da db) :
@@ -169,6 +208,8 @@ theorem sound {da : Derivation Φ Γ β a A} {db : Derivation Φ Γ β b A}
       apply bind_congr
       intro s
       cases TypeModel.coprodEquiv _ _ s <;> rfl
+  | iterUniformity da dh hp db db' _ ih =>
+      exact iterUniformity_sound P γ ρ da dh hp db db' (fun x => ih (ρ, x))
   | iterBind da db =>
       simp only [Typing.newest, denote, evalIter, Typing.underBinder, denote_rename, pull_underBinder,
         get_zero, pure_bind]

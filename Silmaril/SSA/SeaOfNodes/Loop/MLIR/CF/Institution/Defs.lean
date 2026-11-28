@@ -63,9 +63,14 @@ inductive TargetSentence (B : Profile) where
   | equation (lhs rhs : TargetProgram B)
   | terminates (g : TargetProgram B)
 
-/-- Observe the actual partial CFG using the checked Basic embedding. -/
-noncomputable def observe (g : TargetProgram B) (input : Env B.inputs) : Part (Outcome [B.result]) :=
+/-- The checked Basic embedding observes returns independently of the
+internal block labels and their argument profiles. -/
+noncomputable def observeCfg {Γ : List Width} {result : Width} {Label : List Width → Type}
+    (g : Cfg TargetOp Label Γ [result]) (input : Env Γ) : Part (Outcome [result]) :=
   (Silmaril.MLIR.CF.SwitchAssert.Cfg.embed g).denotePart evalOp input
+
+noncomputable def observe (g : TargetProgram B) (input : Env B.inputs) : Part (Outcome [B.result]) :=
+  observeCfg g input
 
 /-- Both undefined observations agree in a partial equation. Universal
 termination instead requires every observation to be defined. -/

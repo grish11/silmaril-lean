@@ -1,0 +1,145 @@
+{
+  "libbrotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "fixtures": {
+    "producer-v1-entropy-brotli": {
+      "sha256": "95b5dd767881a635df970a200fed394eca154a6154297931aa189ac7b67ab056",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 0,
+          "header": 37,
+          "start": 77,
+          "stop": 281,
+          "codes_sha256": "3d056400912cd136302045e5484e84fbc0cc8e8d9c00744bf76feab0923525c5",
+          "selected": [
+            [0, 6, 8],
+            [83, 504, 9],
+            [128, 131, 8],
+            [255, 251, 8]
+          ]
+        },
+        {
+          "alphabet": 704,
+          "selector": 3,
+          "header": 281,
+          "start": 313,
+          "stop": 623,
+          "codes_sha256": "05cc39926b8f00eca10ec17471bf43faef32bf95711fc504cdafb4024764996f",
+          "selected": [
+            [1, 0, 4],
+            [194, 52, 6],
+            [288, 1006, 10],
+            [504, 1023, 10]
+          ]
+        },
+        {
+          "alphabet": 64,
+          "selector": 3,
+          "header": 623,
+          "start": 650,
+          "stop": 729,
+          "codes_sha256": "91c5dccd8449b8f995c803cdf4d4b1f09308b6f232834023a72cdaaf3082d621",
+          "selected": [
+            [0, 14, 5],
+            [37, 23, 5],
+            [48, 4084, 12],
+            [59, 4095, 12]
+          ]
+        }
+      ]
+    },
+    "libbrotli-text-q4": {
+      "sha256": "ff294ead92703bc9f8387277e5a937818b313da20103db9fc0663685ac34d151",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 2,
+          "header": 37,
+          "start": 61,
+          "stop": 154,
+          "codes_sha256": "2c79cd0e8326651ff2b75b2e8226fcaeb79b8513773e6b29760c0c306e5ee993",
+          "selected": [
+            [10, 102, 7],
+            [102, 109, 7],
+            [120, 127, 7]
+          ]
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "header": 154,
+          "start": 178,
+          "stop": 269,
+          "codes_sha256": "f092dc073a7449de8261c7fce6d630028cc0f67da0131deda0465343a51eadf3",
+          "selected": [
+            [76, 4, 3],
+            [190, 124, 7],
+            [204, 14, 4],
+            [293, 127, 7]
+          ]
+        },
+        {
+          "alphabet": 64,
+          "selector": 0,
+          "header": 269,
+          "start": 288,
+          "stop": 352,
+          "codes_sha256": "255d01bee9da5bd9cb9c5060b2861ba92d8f3e3d25f8eb9c53680a89c6459307",
+          "selected": [
+            [5, 0, 1],
+            [24, 26, 5],
+            [30, 11, 4],
+            [41, 31, 5]
+          ]
+        }
+      ]
+    },
+    "libbrotli-text-q6": {
+      "sha256": "6a552bdbff1a5d0e76e4b71ab59c9121d7182142b96e0173f6be16823c2f4a11",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 2,
+          "header": 37,
+          "start": 63,
+          "stop": 193,
+          "codes_sha256": "6f2aa4804e1429e586b3f5819c8043d9233947e3d2e0ccf2c724aebb23a6f8f8",
+          "selected": [
+            [10, 120, 7],
+            [57, 13, 4],
+            [103, 250, 8],
+            [115, 255, 8]
+          ]
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "header": 193,
+          "start": 222,
+          "stop": 330,
+          "codes_sha256": "16e5756509f47c6d0ace3bddb6071d85a8cb938cca2b378e8408838bd798a2d9",
+          "selected": [
+            [76, 4, 3],
+            [196, 60, 6],
+            [206, 126, 7],
+            [258, 127, 7]
+          ]
+        },
+        {
+          "alphabet": 64,
+          "selector": 0,
+          "header": 330,
+          "start": 349,
+          "stop": 392,
+          "codes_sha256": "3c0f787dfc04efdfe32179ba80710641cf0625044d1ae154f3079d3ed993bd1c",
+          "selected": [
+            [5, 0, 1],
+            [24, 10, 4],
+            [28, 12, 4],
+            [41, 15, 4]
+          ]
+        }
+      ]
+    }
+  }
+}

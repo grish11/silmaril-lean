@@ -26,6 +26,10 @@ variable {ν : Type v} {Φ : Type w} {n : Nat}
 /-- Include the case tier with the same constructors and scoping. -/
 def ofLetParCase : LetParCase.Tm ν Φ n → Tm ν Φ n := Parallel.Tm.widen Tier.caseIter
 
+/-- Include the sequential parallel tier through the case tier. -/
+def ofLetPar : LetPar.Tm ν Φ n → Tm ν Φ n :=
+  ofLetParCase ∘ LetParCase.ofLetPar
+
 /-- Include actual native LetIter syntax. Its sequential product stays sequential. -/
 def embed {n : Nat} : LetIter.LocallyNameless.Tm ν Φ n → Tm ν Φ n
   | .fv x => .fv x
@@ -95,6 +99,11 @@ def ofLetParCaseDerivation : {n : Nat} → {β : BoundCtx τ n} →
   | _, _, _, _, .abort ha => .abort (ofLetParCaseDerivation ha)
   | _, _, .iter h _ _, _, _ => nomatch h
   | _, _, _, _, .par ha hb => .par (ofLetParCaseDerivation ha) (ofLetParCaseDerivation hb)
+
+/-- Widen sequential-tier typing along the two successive inclusions. -/
+def ofLetParDerivation {t : LetPar.Tm ν Φ n} (d : Derivation Φ Γ β t A) :
+    Derivation Φ Γ β (ofLetPar t) A :=
+  ofLetParCaseDerivation (LetParCase.ofLetParDerivation d)
 
 variable [Subtyping τ]
 

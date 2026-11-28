@@ -28,12 +28,13 @@ structure Blocks (Φ : Type u) [HasTy Φ τ] (A B : τ) where
 
 variable {A B C : τ}
 
+theorem Instruction.typingAt (op : Instruction Φ A C) {Γ : List τ} {i : Nat}
+    (h : Γ[i]? = some A) : Tm.HasType Γ (.op op.op (.var i)) C :=
+  Eq.ndrec (motive := fun t => Tm.HasType Γ (.op op.op (.var i)) t)
+    (.op (.var (h.trans (congrArg some op.input.symm)))) op.output
+
 theorem Instruction.typing (op : Instruction Φ A C) (Γ : List τ) :
-    Tm.HasType (A :: Γ) (.op op.op (.var 0)) C := by
-  have h : Tm.HasType (A :: Γ) (.var (Φ := Φ) 0) (instrSrc op.op) :=
-    .var (congrArg some op.input.symm)
-  have applied : Tm.HasType (A :: Γ) (.op op.op (.var 0)) (instrTrg op.op) := .op h
-  exact Eq.ndrec (motive := fun t => Tm.HasType (A :: Γ) (.op op.op (.var 0)) t) applied op.output
+    Tm.HasType (A :: Γ) (.op op.op (.var 0)) C := op.typingAt rfl
 
 /-- Header label 0 takes A, body label 1 takes B, and outward label 2 takes A. -/
 def header (op : Φ) : Region Φ :=

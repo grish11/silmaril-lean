@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Raw.SSA.Isotope.LambdaSSA.Embedding
 public import Silmaril.Raw.SSA.Isotope.LambdaSSA.Purity
+public import Silmaril.SSA.Isotope.LambdaSSA.Support.Defs
 
 /-! # Restricted primitive simulations and environment agreement
 
@@ -17,16 +18,6 @@ namespace Silmaril.Isotope.LambdaSSA
 
 namespace Tm
 variable {Φ : Type u} {Ψ : Type v}
-
-/-- A free variable occurrence, accounting for every local binder. -/
-def UsesVar : Tm Φ → Nat → Prop
-  | .var j, i => i = j
-  | .op _ x, i | .inl x, i | .inr x, i | .abort x, i => x.UsesVar i
-  | .let₁ x body, i => x.UsesVar i ∨ body.UsesVar (i + 1)
-  | .pair x y, i => x.UsesVar i ∨ y.UsesVar i
-  | .unit, _ => False
-  | .let₂ x body, i => x.UsesVar i ∨ body.UsesVar (i + 2)
-  | .case x left right, i => x.UsesVar i ∨ left.UsesVar (i + 1) ∨ right.UsesVar (i + 1)
 
 @[simp] theorem usesVar_mapInstr (f : Φ → Ψ) (term : Tm Φ) (i : Nat) :
     (term.mapInstr f).UsesVar i ↔ term.UsesVar i := by

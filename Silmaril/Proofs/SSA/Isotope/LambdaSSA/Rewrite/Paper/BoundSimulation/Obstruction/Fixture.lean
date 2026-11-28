@@ -68,7 +68,7 @@ private theorem repeatDiverges (v : Val) :
     rintro ⟨r, i, hi⟩
     rw [path_eq] at hi
     cases hi
-  rw [finish, dite_eq_right diverges]
+  rw [finish, dite_eq_right diverges, loopResult]
 
 theorem default_uniformity_fails : ¬ Paper.Eqv [] before after [result] := by
   intro eq

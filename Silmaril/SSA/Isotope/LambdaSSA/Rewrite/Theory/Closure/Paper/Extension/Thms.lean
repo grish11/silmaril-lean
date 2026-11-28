@@ -26,8 +26,20 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 theorem Eqv.typed (h : Eqv Seed Γ r s L) : HasType Γ r L ∧ HasType Γ s L :=
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.Extension.typed h
 
+/-- Replace each seed instance by an instance in a larger contextual relation. -/
+theorem Eqv.mapSeed {Target : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
+    (h : Eqv Seed Γ r s L) (incl : ∀ {Γ r s L}, Seed Γ r s L → Target Γ r s L) :
+    Eqv Target Γ r s L :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.Extension.mapSeed incl h
+
 theorem Eqv.refl (hr : HasType Γ r L) : Eqv Seed Γ r r L :=
   .paper (.refl hr)
+
+/-- Interpret a contextual extension in standard Paper when its seeds
+already have standard Paper proofs. -/
+theorem Eqv.toPaper (sound : ∀ {Γ L r s}, Seed Γ r s L → Paper.Eqv Γ r s L)
+    (h : Eqv Seed Γ r s L) : Paper.Eqv Γ r s L :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.Extension.toPaper sound h
 
 /-- Rename captured variables using constructor-valued substitution. -/
 theorem Eqv.renameVars {Δ : VCtx τ} {ρ : Nat → Nat}

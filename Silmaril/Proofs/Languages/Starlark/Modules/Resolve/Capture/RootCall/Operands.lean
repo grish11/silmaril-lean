@@ -180,6 +180,10 @@ private theorem fixed_read_index (receiver index : Value) : Fixed (readIndex rec
     · rfl
     · split <;> rfl
 
+theorem read_index_state (receiver index : Value) (state : State) :
+    Silmaril.Languages.Starlark.Lists.Iteration.finishState (Silmaril.Languages.Starlark.Lists.readIndex receiver index state) = state :=
+  fixed_read_index receiver index state
+
 theorem operand_total {globals : List String} {source : SourceExpr} {code : ResolvedExpr}
     (related : Operand globals source code) (state : State) :
     ∃ out, Evaluates state source out ∧ Silmaril.Languages.Starlark.Lists.Iteration.finishState out = state := by

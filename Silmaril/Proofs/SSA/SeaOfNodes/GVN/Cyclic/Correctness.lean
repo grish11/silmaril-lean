@@ -11,7 +11,7 @@ open Silmaril.SSA.SeaOfNodes.Diamond (Signature ValueSort)
 
 universe u v w
 
-private theorem classesOf_preserves_key {K : Type w} [DecidableEq K] {n : Nat}
+theorem classesOf_preserves_key {K : Type w} [DecidableEq K] {n : Nat}
     (key : Fin n → K) (i : Fin n) : key (classesOf key i) = key i := by
   unfold classesOf
   cases found : (List.finRange n).find? (fun j => decide (key i = key j)) with
@@ -20,7 +20,7 @@ private theorem classesOf_preserves_key {K : Type w} [DecidableEq K] {n : Nat}
     have accepted := List.find?_some (p := fun k => decide (key i = key k)) found
     exact (of_decide_eq_true accepted).symm
 
-private theorem classesOf_eq_iff {K : Type w} [DecidableEq K] {n : Nat}
+theorem classesOf_eq_iff {K : Type w} [DecidableEq K] {n : Nat}
     (key : Fin n → K) (i j : Fin n) : classesOf key i = classesOf key j ↔ key i = key j := by
   constructor
   · intro same

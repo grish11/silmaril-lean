@@ -17,11 +17,27 @@ namespace Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite
 
 open CategoryTheory CategoryTheory.Limits
 open scoped MonoidalCategory
+open Silmaril.DeBruijn (lift)
+open Silmaril.Isotope.LambdaSSA.Region (cfgEntryContinuations liftLSubstVars renameVars_comp)
 open Silmaril.Isotope.LambdaSSA
 open Silmaril.Isotope.LambdaSSA.Semantics.Categorical
 open Silmaril.Isotope.LetIter.Semantics.Categorical (TypeModel InstructionModel)
 open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (caseWithContext contextualLoop extend)
 open CategoryTheory.CartesianMonoidalCategory (fst snd)
+
+theorem lift_cfgEntryContinuations {Φ : Type u₄} {n : Nat} (blocks : Fin n → Region Φ) :
+    liftLSubstVars (cfgEntryContinuations blocks) =
+      cfgEntryContinuations (fun i => (blocks i).renameVars (lift Nat.succ)) := by
+  funext i
+  simp only [liftLSubstVars, cfgEntryContinuations, Region.renameVars, Tm.rename]
+  congr 1
+  funext j
+  rw [renameVars_comp, renameVars_comp]
+  congr 1
+  funext i
+  cases i with
+  | zero => rfl
+  | succ i => cases i <;> rfl
 
 variable {V : Type u₁} {C : Type u₂}
   [Category.{v₁} V] [Category.{v₂} C]

@@ -1,0 +1,118 @@
+{
+  "libbrotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "fixtures": {
+    "producer-v1-entropy-brotli": {
+      "sha256": "95b5dd767881a635df970a200fed394eca154a6154297931aa189ac7b67ab056",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 0,
+          "header": 37,
+          "start": 77,
+          "stop": 281,
+          "lengths_sha256": "37eeb9b270df9254fbfeee30359aed95f0527e83045af90f4ffc512a5b573822"
+        },
+        {
+          "alphabet": 704,
+          "selector": 3,
+          "header": 281,
+          "start": 313,
+          "stop": 623,
+          "lengths_sha256": "fc1b78c63f75100ce233412defe7a26c0240814a8779ca067b5226f03d501e11"
+        },
+        {
+          "alphabet": 64,
+          "selector": 3,
+          "header": 623,
+          "start": 650,
+          "stop": 729,
+          "lengths_sha256": "14baad3bf8cb7be88a04131b78210e734967c0cf1f1a7af0103d77c3b941bb6a"
+        }
+      ]
+    },
+    "libbrotli-text-q4": {
+      "sha256": "ff294ead92703bc9f8387277e5a937818b313da20103db9fc0663685ac34d151",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 2,
+          "header": 37,
+          "start": 61,
+          "stop": 154,
+          "lengths_sha256": "86b79cf608ba0f8e1577cf26ffcf204c1622eb699c324ff7ae4cf9f1a950c641"
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "header": 154,
+          "start": 178,
+          "stop": 269,
+          "lengths_sha256": "cb294e91c0a095c198caa4a795254eefe6559b7e37ecde7b16cc2b9fde0753c8"
+        },
+        {
+          "alphabet": 64,
+          "selector": 0,
+          "header": 269,
+          "start": 288,
+          "stop": 352,
+          "lengths_sha256": "f0c656d5605578cf334a35cd3e71a9de5cf3c5ca75f6dfa98148ff5e5447857d"
+        }
+      ]
+    },
+    "libbrotli-text-q6": {
+      "sha256": "6a552bdbff1a5d0e76e4b71ab59c9121d7182142b96e0173f6be16823c2f4a11",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 2,
+          "header": 37,
+          "start": 63,
+          "stop": 193,
+          "lengths_sha256": "209123d0130762f54aee6b0827d45dd88235fde9f14551c8c0274ddada94f28d"
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "header": 193,
+          "start": 222,
+          "stop": 330,
+          "lengths_sha256": "706bac40a569bba9bb657c77b13f5d78f64e07e34d7fdccf71ab9e9da2a990d5"
+        },
+        {
+          "alphabet": 64,
+          "selector": 0,
+          "header": 330,
+          "start": 349,
+          "stop": 392,
+          "lengths_sha256": "ef7a86e56baa4141ccdfe7930366e5d367f2a461ba4645903c045a6541556dc2"
+        }
+      ]
+    },
+    "libbrotli-singleton-8": {
+      "sha256": "b89e2135aecc325ff96fd8a5ae081f7b3dfc3576e4b483cce5a41bdba25b88bf",
+      "tables": [
+        {
+          "alphabet": 8,
+          "selector": 2,
+          "header": 0,
+          "start": 36,
+          "stop": 36,
+          "lengths_sha256": "d155d4b4a5d82abdc42ce8dcc31a7339a003b872ec0332c856f69d6ccc59c967"
+        }
+      ]
+    },
+    "libbrotli-singleton-256": {
+      "sha256": "94281398392bd09dc873ac7cf82ce6412f8a8e3f4f3c5e469fa9ed9d117caa89",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 3,
+          "header": 0,
+          "start": 34,
+          "stop": 42,
+          "lengths_sha256": "219b3d0e4c91f6e4ac9860878750b1cae9f9873946d2c70500612e4834d8a305"
+        }
+      ]
+    }
+  }
+}

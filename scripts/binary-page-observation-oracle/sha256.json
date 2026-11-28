@@ -1,0 +1,10 @@
+{
+  "paired.parquet": "03ba1b42684a65883847dc2121e69f9c670d7ab83039bff796fe3c7a22d9b46c",
+  "paired.arrows": "163b4e508d5b9ee24d382b61e30e1b48176639b9f17b90781703ea912dd2e3e0",
+  "truncated-batch.arrows": "a0f5af32875ca426647c0f0f57592a308baabed6a2e1615205bb63bb649137af",
+  "group-0-header.bin": "a54b6c5f03ef2b58630f82002ef0d4a144a610137d17a2abb1ac65ffa5016b1d",
+  "group-0-page.bin": "c0b8010f2abaa7d2b8e8a59d493591b675788b76f8e6319c8e81237908a3524d",
+  "group-1-header.bin": "60a4f34005918cc9c5e6a2a6855be4ebf8acd2f28a905ca770bc509c59c4b6a3",
+  "group-1-page.bin": "f2151bc80c0fd00d70a163341bea7d7f0646f3fd5b592efac0b13941888d6c2b",
+  "truncated-group-1-page.bin": "a3f2f4841b7f26e10f236de16c5969a5a4e25075860db4f3ee55027c5d0fc5e0"
+}

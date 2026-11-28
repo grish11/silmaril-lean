@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Flat.Thms
+import Silmaril.SSA.Isotope.LambdaSSA.Typing.Thms
 
 /-! # Weak-tree transport on finite positional scopes -/
 
@@ -24,7 +25,7 @@ private theorem lift_agrees (h : ∀ i : Fin n, env' (ρ i.val) = env i.val) (va
     ∀ i : Fin (n + 1), (extend env' value) (lift ρ i.val) = (extend env value) i.val :=
   Fin.cases rfl h
 
-private theorem erase_term_rename (a : LetCase.LocallyNameless.Tm Empty Φ n)
+theorem erase_term_rename (a : LetCase.LocallyNameless.Tm Empty Φ n)
     (agree : ∀ i : Fin n, env' (ρ i.val) = env i.val) :
     term instr env' ((erase a).rename ρ) = term instr env (erase a) := by
   induction a generalizing env env' ρ with
@@ -66,5 +67,18 @@ theorem flat_rename_tree (r : Flat Φ labels n)
     congr 1
     funext reply
     cases reply <;> first | rfl | exact hl (lift_agrees agree _) | exact hr (lift_agrees agree _)
+
+theorem cfg_tree_of_agree {blocks exits : Nat} (g : FiniteCFG Φ blocks exits n)
+    (agree : ∀ i : Fin n, env' i.val = env i.val) :
+    region instr env' g.erase = region instr env g.erase := by
+  have sameEntry : region instr env' g.entry.erase = region instr env g.entry.erase := by
+    simpa only [Region.renameVars_id] using flat_rename_tree instr g.entry (ρ := id) agree
+  have sameBlocks (p : BlockInput α blocks) :
+      region instr (extend env' p.2) (g.block p.1).erase =
+        region instr (extend env p.2) (g.block p.1).erase := by
+    simpa only [Region.renameVars_id] using
+      flat_rename_tree instr (g.block p.1) (ρ := id)
+        (env' := extend env' p.2) (env := extend env p.2) (Fin.cases rfl agree)
+  simp only [FiniteCFG.erase, region, sameEntry, sameBlocks]
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Interaction

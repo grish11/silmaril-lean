@@ -50,23 +50,27 @@ theorem SameWith.let₁ {Γ : VCtx (Ty α)} {t : Tm Φ} {A : Ty α} {r s : Regio
     (ht : Tm.HasType Γ t A) (h : Same (A :: Γ) r s) :
     Same Γ (.let₁ t r) (.let₁ t s) := by
   intro env he
-  cases eq : evalTerm t env with
-  | none => simp [evalRegionWith, eq]
-  | some v =>
-    have hv := evalTerm_typed ht he eq
-    simpa only [evalRegionWith, eq] using h (extend env v) (he.extend hv)
+  by_cases marked : (startsLet t && observation.boundUnaryLet) = true
+  · simp [evalRegionWith, marked]
+  · cases eq : evalTerm t env with
+    | none => simp [evalRegionWith, marked, eq]
+    | some v =>
+      have hv := evalTerm_typed ht he eq
+      simpa only [evalRegionWith, marked, Bool.false_eq_true, ite_false, eq] using h (extend env v) (he.extend hv)
 
 theorem SameWith.let₂ {Γ : VCtx (Ty α)} {t : Tm Φ} {A B : Ty α} {r s : Region Φ}
     (ht : Tm.HasType Γ t (.product A B)) (h : Same (B :: A :: Γ) r s) :
     Same Γ (.let₂ t r) (.let₂ t s) := by
   intro env he
-  cases eq : evalTerm t env with
-  | none => simp [evalRegionWith, eq]
-  | some v =>
-    have hv := evalTerm_typed ht he eq
-    cases hv with
-    | pair ha hb =>
-      simpa only [evalRegionWith, eq] using h _ ((he.extend ha).extend hb)
+  by_cases marked : (observation.computedRegionLet₂ && computes t) = true
+  · simp [evalRegionWith, marked]
+  · cases eq : evalTerm t env with
+    | none => simp [evalRegionWith, marked, eq]
+    | some v =>
+      have hv := evalTerm_typed ht he eq
+      cases hv with
+      | pair ha hb =>
+        simpa only [evalRegionWith, marked, Bool.false_eq_true, ite_false, eq] using h _ ((he.extend ha).extend hb)
 
 theorem SameWith.case {Γ : VCtx (Ty α)} {t : Tm Φ} {A B : Ty α} {l l' r r' : Region Φ}
     (ht : Tm.HasType Γ t (.coprod A B)) (hl : Same (A :: Γ) l l') (hr : Same (B :: Γ) r r') :
@@ -117,7 +121,7 @@ theorem cfgEquiv_same {Γ L : List (Ty α)} {r s : Region Φ}
   | @cfgBrLocal Δ K n t bs R i ht hb =>
     intro env henv
     obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) ht henv
-    simp only [evalRegionWith, eq]
+    simp only [evalRegionWith, value_startsLet ht, Bool.false_and, Bool.false_eq_true, ite_false, eq]
     exact cfgRun_local _ _ i.isLt
 
 theorem rewriteEquiv_same {Γ L : List (Ty α)} {r s : Region Φ}
@@ -133,13 +137,18 @@ theorem rewriteEquiv_same {Γ L : List (Ty α)} {r s : Region Φ}
   | letBr ht hb hi =>
     intro env henv
     obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) ht henv
-    simp only [evalRegionWith, eq, evalTerm_subst _ (RealizesWith.single eq (value_startsLet ht))]
+    simp only [evalRegionWith, value_startsLet ht, Bool.false_and, Bool.false_eq_true, ite_false,
+      eq, evalTerm_subst _ (RealizesWith.single eq (value_not_computed ht))]
   | @caseInl _ t _ _ _ _ _ ha hl hr =>
     intro env he
-    cases eq : evalTerm t env <;> simp [evalRegionWith, evalTermWith, eq]
+    by_cases marked : (startsLet t && observation.boundUnaryLet) = true
+    · simp [evalRegionWith, evalTermWith, marked]
+    · cases eq : evalTerm t env <;> simp [evalRegionWith, evalTermWith, marked, eq]
   | @caseInr _ t _ _ _ _ _ hb hl hr =>
     intro env he
-    cases eq : evalTerm t env <;> simp [evalRegionWith, evalTermWith, eq]
+    by_cases marked : (startsLet t && observation.boundUnaryLet) = true
+    · simp [evalRegionWith, evalTermWith, marked]
+    · cases eq : evalTerm t env <;> simp [evalRegionWith, evalTermWith, marked, eq]
 
 theorem caseCfg_same {Γ : List (Ty α)} {t : Tm Φ} {A B : Ty α} {l r : Region Φ}
     (ht : Tm.HasType Γ t (.coprod A B)) : Same Γ (.case t l r) (caseCfg t l r) := by
@@ -151,16 +160,16 @@ theorem caseCfg_same {Γ : List (Ty α)} {t : Tm Φ} {A B : Ty α} {l r : Region
     cases hv with
     | inl hv =>
       simp only [caseCfg, evalRegionWith, eq]
-      change _ = cfgRun 2 _ (.jump 0 _)
+      change _ = cfgRun 2 _ (.jump 0 _) (markFeedback observation 2)
       rw [cfgRun_local _ _ (show 0 < 2 by decide)]
-      change _ = cfgRun 2 _ (evalRegion (l.renameLabels (2 + ·)) _)
+      change _ = cfgRun 2 _ (evalRegion (l.renameLabels (2 + ·)) _) (markFeedback observation 2)
       rw [evalRegion_renameLabels]
       exact (cfgRun_shiftOut 2 _ _).symm
     | inr hv =>
       simp only [caseCfg, evalRegionWith, eq]
-      change _ = cfgRun 2 _ (.jump 1 _)
+      change _ = cfgRun 2 _ (.jump 1 _) (markFeedback observation 2)
       rw [cfgRun_local _ _ (show 1 < 2 by decide)]
-      change _ = cfgRun 2 _ (evalRegion (r.renameLabels (2 + ·)) _)
+      change _ = cfgRun 2 _ (evalRegion (r.renameLabels (2 + ·)) _) (markFeedback observation 2)
       rw [evalRegion_renameLabels]
       exact (cfgRun_shiftOut 2 _ _).symm
 
@@ -177,11 +186,12 @@ theorem substitutionEquiv_same {Γ L : List (Ty α)} {r s : Region Φ}
   | letValue ht hr =>
     intro env he
     obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) ht he
-    simp only [evalRegionWith, eq, evalRegion_subst _ (RealizesWith.single eq (value_startsLet ht))]
+    simp only [evalRegionWith, value_startsLet ht, Bool.false_and, Bool.false_eq_true, ite_false,
+      eq, evalRegion_subst _ (RealizesWith.single eq (value_not_computed ht))]
   | @caseValue Δ t A B r K ht hr =>
     intro env he
     obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) ht he
-    rw [evalRegion_subst r (RealizesWith.single eq (value_startsLet ht))]
+    rw [evalRegion_subst r (RealizesWith.single eq (value_not_computed ht))]
     cases hv with
     | inl hv =>
       simp only [evalRegionWith, eq]

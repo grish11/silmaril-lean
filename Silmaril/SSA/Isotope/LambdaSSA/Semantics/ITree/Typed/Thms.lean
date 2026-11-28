@@ -2,7 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Typed.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Packing.Categorical.Singleton.Defs
-import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Semantics.ITree.TypedCoherence
+import Silmaril.SSA.Isotope.LambdaSSA.Semantics.Erasure.Thms
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Semantics.ITree.TypedSingleton
 
 /-! # Typing coherence and singleton evaluation in the ITree Kleisli model -/
@@ -37,7 +37,7 @@ theorem regionTypingCoherent
     (compat : Compatible (κ' := κ) ⟨fun f x =>
       InstructionModel.denote (τ := Ty κ) (ε := Bool) (m := TM) f x⟩ raw) :
     Categorical.RegionTypingCoherent (Φ := Φ) J T :=
-  Proofs.SSA.Isotope.LambdaSSA.Interaction.Typed.coherence raw compat
+  Erasure.regionTypingCoherent (m := TM) raw Elgot.ITree.diverge Elgot.ITree.diverge compat
 
 /-- The ordinary singleton Kleisli denotation computes the erased ITree on
 encoded inputs and encodes its output at label zero. -/

@@ -66,6 +66,22 @@ theorem header_exec_iff (oracle : CallOracle) (fr done : Frame Reg) (mem final :
       done = p.headerFrame fr old delta ∧ final = mem :=
   Proofs.header_exec_iff p oracle fr done mem final old delta hold hdelta
 
+/-- The typed native guard and machine test select the same projection. -/
+theorem native_step (seed delta old : Word) :
+    p.graph.step model (entry seed delta) (.cons old .nil) =
+      if p.guardWord old delta = 0 then .inl old else .inr (.cons (p.update.eval old delta) .nil) :=
+  Proofs.source_step p seed delta old
+
+/-- Run the three emitted producers and the actual branch, preserving the
+entire memory. The two successors have their original block arguments. -/
+theorem header_activation (fr : Frame Reg) (mem : Memory) (old delta : Word)
+    (hold : fr.get .phi = some old) (hdelta : fr.get (.arg 1) = some delta) :
+    let after := p.headerFrame fr old delta
+    StepsNWithin p.lower [] 4 ⟨⟨0, 1, 0⟩, fr, [], mem⟩
+      (if p.guardWord old delta = 0 then ⟨⟨0, 2, 0⟩, after.set (.node 3) old, [], mem⟩
+       else ⟨⟨0, 1, 0⟩, after.set .phi (p.update.eval old delta), [], mem⟩) :=
+  Proofs.header_activation p fr mem old delta hold hdelta
+
 /-- The actual backedge transfer latches the newly computed word. -/
 theorem step_feedback (fr : Frame Reg) (stack : List (Activation Reg)) (mem : Memory)
     (old delta : Word) (taken : p.guardWord old delta ≠ 0) :

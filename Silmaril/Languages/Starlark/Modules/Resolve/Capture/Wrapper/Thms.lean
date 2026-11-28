@@ -186,6 +186,14 @@ theorem checked_finish {commands : List Command} {linked : Program} {resolved : 
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Wrapper.checked_finish
     checked host caller sound reached
 
+/-- Activating a declaration keeps every earlier cell in the heap. -/
+theorem activation_preserves (caller : State) (declaration : Declaration)
+    (captures : List Capture) (assigned : List (Binding × Lists.Value)) (index : Nat)
+    (low : index < caller.heap.size) :
+    (activate caller declaration captures assigned).heap[index]? = caller.heap[index]? :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Wrapper.activation_preserves
+    caller declaration captures assigned index low
+
 /-- Activation and a local write leave pre-existing heap addresses intact. -/
 theorem activated_write_preserves (caller : State) (frame : Forwarding.Frame) (captures : List Capture)
     (assigned : List (Binding × Lists.Value)) (target : Binding) (value : Lists.Value) (index : Nat)

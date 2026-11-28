@@ -121,9 +121,10 @@ theorem paper_same {Γ L : List (Ty α)} {r s : Region Φ}
       have realized : Realizes env (extend (extend env v) w) (Tm.consSubst b (Tm.singleSubst a)) := by
         intro i
         cases i with
-        | zero => exact ⟨ew, value_startsLet hb⟩
-        | succ i => exact RealizesWith.single ev (value_startsLet ha) i
-      simp [evalRegionWith, evalTermWith, ev, ew, value_startsLet ha, value_startsLet hb]
+        | zero => exact ⟨ew, value_not_computed hb⟩
+        | succ i => exact RealizesWith.single ev (value_not_computed ha) i
+      simp [evalRegionWith, evalTermWith, ev, ew, value_startsLet ha, value_startsLet hb,
+        computes, value_not_computed ha, value_not_computed hb]
       exact (evalRegion_subst _ realized).symm
   | productEta h =>
     cases h with
@@ -131,7 +132,7 @@ theorem paper_same {Γ L : List (Ty α)} {r s : Region Φ}
       intro env henv
       have hv := henv hi
       cases eq : env i with
-      | pair a b => simp [evalRegionWith, evalTermWith, startsLet, eq, extend]
+      | pair a b => simp [evalRegionWith, evalTermWith, startsLet, computes, eq, extend]
       | atom x => exact x.elim
       | unit => rw [eq] at hv; cases hv
       | inl x => rw [eq] at hv; cases hv
@@ -157,8 +158,8 @@ theorem paper_same {Γ L : List (Ty α)} {r s : Region Φ}
         evalTerm (θ i) env = some (env' i) ∧ ValTy (env' i) A := by
       obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) (hθ hi) he
       simpa [env', eq] using hv
-    rw [evalRegion_substOn h.typed.1 (fun i A hi => ⟨(ht i A hi).1, value_startsLet (hθ hi)⟩),
-        evalRegion_substOn h.typed.2 (fun i A hi => ⟨(ht i A hi).1, value_startsLet (hθ hi)⟩)]
+    rw [evalRegion_substOn h.typed.1 (fun i A hi => ⟨(ht i A hi).1, value_not_computed (hθ hi)⟩),
+        evalRegion_substOn h.typed.2 (fun i A hi => ⟨(ht i A hi).1, value_not_computed (hθ hi)⟩)]
     exact ih env' (fun {i A} hi => (ht i A hi).2)
   | renameLabels h hρ ih =>
     intro env he
@@ -188,11 +189,11 @@ theorem evalReturnRegion {Γ : VCtx (Ty α)} {t : Tm Φ} {A : Ty α}
       match evalTerm t env with
       | none => .fault
       | some v => .jump 0 v := by
-  have bound (t : Tm Φ) (env : Env) : evalRegion (.let₁ t (.br 0 (.var 0))) env =
+  have bound (t : Tm Φ) (env : Env) (shape : startsLet t = false) : evalRegion (.let₁ t (.br 0 (.var 0))) env =
       match evalTerm t env with
       | none => .fault
       | some v => .jump 0 v := by
-    rw [evalRegionWith]
+    simp only [evalRegionWith, shape, Bool.false_and, Bool.false_eq_true, ite_false]
     cases evalTerm t env <;> rfl
   induction ht generalizing env with
   | @let₁ _ a b A D ha hb ia ib =>
@@ -202,15 +203,16 @@ theorem evalReturnRegion {Γ : VCtx (Ty α)} {t : Tm Φ} {A : Ty α}
     | some v =>
       change evalRegion (returnRegion b) (extend env v) = _
       exact ib (he.extend (evalTerm_typed ha he h))
-  | _ => exact bound _ _
+  | _ => exact bound _ _ rfl
 
 theorem unary_fusion_same {Γ L : List (Ty α)} {r s : Region Φ}
+    (unmarked : observation.boundUnaryLet = false)
     (h : Paper.UnaryReturn.Step Γ r s L) : Same Γ r s := by
   cases h with
   | @fuse A D a b ha hb =>
     intro env _
     unfold Paper.RetainedLet.returnOnce
-    simp only [evalRegionWith, evalTermWith]
+    simp only [evalRegionWith, evalTermWith, unmarked, Bool.and_false, Bool.false_eq_true, ite_false]
     cases evalTerm a env <;> rfl
 
 theorem extension_same {Seed : VCtx (Ty α) → Region Φ → Region Φ → LCtx (Ty α) → Prop}
@@ -241,15 +243,16 @@ theorem extension_same {Seed : VCtx (Ty α) → Region Φ → Region Φ → LCtx
         evalTerm (θ i) env = some (env' i) ∧ ValTy (env' i) A := by
       obtain ⟨v, eq, hv⟩ := evalValue (observation := observation) (hθ hi) he
       simpa [env', eq] using hv
-    rw [evalRegion_substOn h.typed.1 (fun i A hi => ⟨(ht i A hi).1, value_startsLet (hθ hi)⟩),
-        evalRegion_substOn h.typed.2 (fun i A hi => ⟨(ht i A hi).1, value_startsLet (hθ hi)⟩)]
+    rw [evalRegion_substOn h.typed.1 (fun i A hi => ⟨(ht i A hi).1, value_not_computed (hθ hi)⟩),
+        evalRegion_substOn h.typed.2 (fun i A hi => ⟨(ht i A hi).1, value_not_computed (hθ hi)⟩)]
     exact ih env' (fun {i A} hi => (ht i A hi).2)
   | renameLabels h hρ ih =>
     intro env he
     rw [evalRegion_renameLabels, evalRegion_renameLabels, ih env he]
 
 theorem extended_same {Γ L : List (Ty α)} {r s : Region Φ}
+    (unmarked : observation.boundUnaryLet = false)
     (h : Paper.Extension.Eqv Paper.UnaryReturn.Step Γ r s L) : Same Γ r s :=
-  extension_same (fun h => unary_fusion_same h) h
+  extension_same (unary_fusion_same unmarked) h
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.PairSequencing.Observer

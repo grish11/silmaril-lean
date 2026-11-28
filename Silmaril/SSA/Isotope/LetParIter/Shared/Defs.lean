@@ -13,6 +13,14 @@ open Parallel LetIter.ProofRelevant.Semantics
 
 universe u v w q r
 
+/-- The common evaluator's iteration control over a set-valued model. -/
+def iterControl {τ : Type u} [CoproductTypeFormers τ] (D : τ → Type v)
+    [Isotope.Semantics.CoproductModel D] [Isotope.Semantics.EmptyModel D]
+    (m : Type v → Type v) [Elgot.Iterate m] : Control .iter D m where
+  sum _ := Isotope.Semantics.CoproductModel.coprodEquiv
+  zero _ := Isotope.Semantics.EmptyModel.emptyEquiv
+  loop _ := Elgot.iter
+
 variable {τ : Type u} [TypeFormers τ] [Subtyping τ] [TypeModel.{u, v} τ]
 variable {ν : Type w} [DecidableEq ν] {Φ : Type q} [HasTy Φ τ]
 variable {ε : Type r} [HasEff Φ ε] [Bot ε]

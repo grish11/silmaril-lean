@@ -41,15 +41,19 @@ def Update.eval : Update → Word → Word → Word
 inductive Guard where
   | eq
   | ne
+  /-- Strict signed i64 comparison in source operand order. -/
+  | slt
   deriving DecidableEq
 
 def Guard.source : Guard → WordOp [word, word] (.predicate : ValueSort Unit)
   | .eq => .eq
   | .ne => .ne
+  | .slt => .slt
 
 def Guard.target : Guard → Cond
   | .eq => .eq
   | .ne => .ne
+  | .slt => .lts
 
 /-- Each activation computes a new carried word, then compares it with a word
 constant. True feeds back the new word. False returns the old carried word. -/

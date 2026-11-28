@@ -14,7 +14,7 @@ open CategoryTheory CategoryTheory.Limits
 open scoped MonoidalCategory
 open Silmaril.Isotope.Theory (TypingIndex)
 open Silmaril.Isotope.LetCase.LocallyNameless
-open LambdaSSA.Acyclic (Code contextMap)
+open LambdaSSA.Acyclic (Code contextMap contextMap_isIso)
 open LetIter.Semantics.Categorical (TypeModel InstructionModel)
 open LambdaSSA.Semantics.Categorical (denoteRegion labelInject singletonLabelPayload)
 
@@ -89,16 +89,6 @@ private theorem caseAlgebra_denote (K : CoherentRegionModel J P)
     let _ := K.instructions
     Models.denote K.caseAlgebra d = Isotope.LetCase.Semantics.Categorical.denote J K.types d :=
   freydCaseAlgebra_denote_proof K.types K.instructions d
-
-omit [FreydCategory.CentralUnit J] [SymmetricCategory V] [DistributiveTensor V] in
-private theorem contextMap_isIso (M : TypeModel τ V) {n : Nat} (β : BoundCtx τ n) :
-    IsIso (contextMap M β) := by
-  induction β with
-  | nil => exact inferInstanceAs (IsIso (λ_ (𝟙_ V)).inv)
-  | snoc β A ih =>
-      let _ := ih
-      exact inferInstanceAs (IsIso ((contextMap M β ▷ M.obj A) ≫
-        (LetIter.Semantics.Categorical.envSnocIso M Γ₀ β A).hom))
 
 theorem sat_compile_iff_proof (K : CoherentRegionModel J P) (e : SSAEquation P) :
     ((LetCase.inst Γ₀).obj P).Sat K.caseAlgebra (compile e) ↔

@@ -1,0 +1,78 @@
+{
+  "oracle": "CPython",
+  "version": "3.13.5",
+  "commit": "6cb20a219a860eaf687b2d968b41c480c7461909",
+  "fixture_license": "MIT",
+  "fixtures": [
+    {
+      "kind": "int32",
+      "value": -2147483648,
+      "field_sha256": "56bb3b3a6aa1747def7c225256374c5e73f2fc46555adc47ea16e2d782159387"
+    },
+    {
+      "kind": "int32",
+      "value": -10,
+      "field_sha256": "c171d4ec282b23db89a99880cd624e9ba2940c1d894783602edab5d7481dc1ea"
+    },
+    {
+      "kind": "int32",
+      "value": -1,
+      "field_sha256": "1bad6b8cf97131fceab8543e81f7757195fbb1d36b376ee994ad1cf17699c464"
+    },
+    {
+      "kind": "int32",
+      "value": 0,
+      "field_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "kind": "int32",
+      "value": 1,
+      "field_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    {
+      "kind": "int32",
+      "value": 10,
+      "field_sha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5"
+    },
+    {
+      "kind": "int32",
+      "value": 2147483647,
+      "field_sha256": "972dcafa6fb4c2c88bce752fca4ab18c6bd88599330a4ad9813915b05bfbe76d"
+    },
+    {
+      "kind": "utf8",
+      "value": "",
+      "field_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "kind": "utf8",
+      "value": "N",
+      "field_sha256": "8ce86a6ae65d3692e7305e2c58ac62eebd97d3d943e093f577da25c36988246b"
+    },
+    {
+      "kind": "utf8",
+      "value": "T",
+      "field_sha256": "e632b7095b0bf32c260fa4c539e9fd7b852d0de454e9be26f24d0d6f91d069d3"
+    },
+    {
+      "kind": "utf8",
+      "value": "  spaces ",
+      "field_sha256": "d957a7812a23a61be3f9d2da6fae72fd4053d2c46c71b91d625ab56f611bee19"
+    },
+    {
+      "kind": "utf8",
+      "value": "a,\"b\"\r\nnext\nrow",
+      "field_sha256": "bb41487a11f40ac8384764a3ec61c3d284d03163efa8559d429846d785ff7c82"
+    },
+    {
+      "kind": "utf8",
+      "value": "x\ry",
+      "field_sha256": "029adb4e81fda56ca4173173940e5c2015e946d72ea36dc52a16db3cc3b1c810"
+    },
+    {
+      "kind": "utf8",
+      "value": "~",
+      "field_sha256": "7ace431cb61584cb9b8dc7ec08cf38ac0a2d649660be86d349fb43108b542fa4"
+    }
+  ]
+}

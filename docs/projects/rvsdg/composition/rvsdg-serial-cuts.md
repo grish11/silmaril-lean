@@ -60,6 +60,26 @@ actual denotation. A typed mutation of the second cut keeps its data
 edge and reads the entry token. The checker rejects it.
 [Fixture](../../../../tests/ssa/RVSDGLambdaSSASerialCuts.lean)
 
+## Route typed producer exits in the flat CFG
+
+`Flat.linkBy` gives each producer exit a typed destination. A route either
+enters the relocated consumer entry or returns immediately to a chosen
+external label. The producer's two payload types may differ. Local edges
+and both consumer exit labels retain their original meaning. The ordinary
+`Flat.link` sends both exits to the consumer.
+
+`Flat.denote_linkBy` proves that the actual flat `Region.denote`
+sequences the producer with just the chosen destination in coherent monadic
+Elgot models. The proof uses codiagonal for the two phases and carries state
+through the cut by ordered bind. The fixture gives the producer a unit exit
+that bypasses the consumer and a numeric exit that enters it after feedback.
+The consumer observes the producer's exact state on one input and reaches a
+selected undefined primitive on another. The numbered serial graph emitter
+still uses the homogeneous handoff described above.
+[Typed linker](../../../../Silmaril/SSA/RVSDG/LambdaSSA/Acyclic/Theta/Sequential/Flat/Defs.lean) ·
+[Denotation theorem](../../../../Silmaril/SSA/RVSDG/LambdaSSA/Acyclic/Theta/Sequential/Flat/Thms.lean) ·
+[Exit-routing fixture](../../../../Silmaril/Proofs/SSA/RVSDG/LambdaSSA/NestedFeedback/Regression.lean)
+
 ## Reproduce
 
 ```sh

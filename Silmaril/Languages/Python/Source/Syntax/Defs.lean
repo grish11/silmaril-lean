@@ -47,6 +47,7 @@ mutual
     | name (identifier : Name)
     | integer (value : Int)
     | floatBits (bits : UInt64)
+    | floatDecimal (coefficient : Nat) (exponent : Int)
     | text (codepoints : List UInt32)
     | boolean (value : Bool)
     | none_

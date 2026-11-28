@@ -55,7 +55,7 @@ private theorem update_packet (packet : α) (store : V → α) (value : α) :
   cases name <;> simp [upd, liftStore]
 
 omit [DecidableEq V] [DecidableEq K] [Monad M] [LawfulMonad M] in
-private theorem eval_liftVal (model : Model F M α) (packet : α) (store : V → α) (value : Val V) :
+theorem eval_liftVal (model : Model F M α) (packet : α) (store : V → α) (value : Val V) :
     (liftVal value).eval model (liftStore packet store) = value.eval model store := by
   induction value with
   | var | unit => rfl
@@ -65,6 +65,43 @@ omit [DecidableEq V] [DecidableEq K] [LawfulMonad M] in
 private theorem eval_liftOp (model : Model F M α) (packet : α) (store : V → α) (op : Op V F) :
     (liftOp op).eval model (liftStore packet store) = op.eval model store := by
   cases op <;> simp [liftOp, Op.eval, eval_liftVal]
+
+omit [DecidableEq K] [LawfulMonad M] in
+private theorem liftTerm_exec (model : Model F M α)
+    (branchValue : Option K → Val V → Val (Option V))
+    (payload : Option K → α → (V → α) → α)
+    (agrees : ∀ key value store, (branchValue key value).eval model (liftStore model.unit store) =
+      payload key (value.eval model store) store)
+    {R : Type w} (jump : Transfer (Option V) (Option K) α → M R)
+    (term : Term V (Option K) F) (store : V → α) :
+    (liftTerm branchValue term).exec model (fun dest value env => jump (dest, value, env))
+        (liftStore model.unit store) =
+      term.exec model (fun dest value env => jump (dest, payload dest value env, liftStore model.unit env))
+        store := by
+  induction term generalizing store with
+  | br => simp [liftTerm, Term.exec, agrees]
+  | case op x left y right ihLeft ihRight =>
+    simp only [liftTerm, Term.exec, eval_liftOp]
+    congr 1
+    funext payload
+    cases payload <;> simp [update_user, ihLeft, ihRight]
+
+omit [DecidableEq K] [LawfulMonad M] in
+theorem liftBody_exec (model : Model F M α)
+    (branchValue : Option K → Val V → Val (Option V))
+    (payload : Option K → α → (V → α) → α)
+    (agrees : ∀ key value store, (branchValue key value).eval model (liftStore model.unit store) =
+      payload key (value.eval model store) store)
+    {R : Type w} (jump : Transfer (Option V) (Option K) α → M R)
+    (body : Body V (Option K) F) (store : V → α) :
+    (liftBody branchValue body).exec model (fun dest value env => jump (dest, value, env))
+        (liftStore model.unit store) =
+      body.exec model (fun dest value env => jump (dest, payload dest value env, liftStore model.unit env))
+        store := by
+  induction body generalizing store with
+  | term term => exact liftTerm_exec model branchValue payload agrees jump term store
+  | let1 x op body ih => simp [liftBody, Body.exec, eval_liftOp, update_user, ih]
+  | let2 x y op body ih => simp [liftBody, Body.exec, eval_liftOp, update_user, ih]
 
 theorem decode_entry (model : Model F M α) (pairs : model.PairLawful)
     (source : Option K) (rows : List (Row V K)) (snapshot store : V → α)
@@ -86,23 +123,6 @@ private def next (source target : Option K) (value : α) (store : V → α) : Pe
   (target.elim (.returned value) (.jump source), store)
 
 omit [LawfulMonad M] in
-private theorem exec_term (model : Model F M α) (graph : Graph V K F) (source : Option K)
-    {R : Type w} (jump : Transfer (Option V) (Option K) α → M R)
-    (term : Term V (Option K) F) (store : V → α) :
-    (lowerTerm graph source term).exec model (fun dest value env => jump (dest, value, env))
-        (liftStore model.unit store) =
-      term.exec model (fun dest value env => jump (lowerPending model graph (next source dest value env)))
-        store := by
-  induction term generalizing store with
-  | br dest value =>
-      cases dest <;> simp [lowerTerm, lowerPending, next, Term.exec, eval_liftVal]
-  | case op x left y right ihLeft ihRight =>
-      simp only [lowerTerm, Term.exec, eval_liftOp]
-      congr 1
-      funext payload
-      cases payload <;> simp [update_user, ihLeft, ihRight]
-
-omit [LawfulMonad M] in
 private theorem exec_body (model : Model F M α) (graph : Graph V K F) (source : Option K)
     {R : Type w} (jump : Transfer (Option V) (Option K) α → M R)
     (body : Body V (Option K) F) (store : V → α) :
@@ -110,10 +130,15 @@ private theorem exec_body (model : Model F M α) (graph : Graph V K F) (source :
         (liftStore model.unit store) =
       body.exec model (fun dest value env => jump (lowerPending model graph (next source dest value env)))
         store := by
-  induction body generalizing store with
-  | term term => exact exec_term model graph source jump term store
-  | let1 x op body ih => simp [lowerBody, Body.exec, eval_liftOp, update_user, ih]
-  | let2 x y op body ih => simp [lowerBody, Body.exec, eval_liftOp, update_user, ih]
+  let payload := fun (dest : Option K) (value : α) (env : V → α) =>
+    dest.elim value (fun key => (edgePacket graph source key).eval model (liftStore model.unit env))
+  have provenance (dest : Option K) (value : α) (env : V → α) :
+      lowerPending model graph (next source dest value env) =
+        (dest, payload dest value env, liftStore model.unit env) := by
+    cases dest <;> rfl
+  simp only [provenance]
+  exact liftBody_exec model _ payload
+    (fun dest value env => by cases dest <;> simp [payload, eval_liftVal]) jump body store
 
 omit [DecidableEq K] in
 private theorem map_execute (model : Model F M α) (source : Option K)

@@ -107,9 +107,11 @@ def validateSource (program : Program) (source : Source) : Except Error Unit := 
   for command in source.commands do
     command.validate
 
+/-- Match the pinned Go LOAD instruction: resolve the symbols right to
+left, then, only on success, write the aliases in that same order. -/
 def importsOf (published : Published) (label : String) (imports : List Import) :
     Except Error (List (Binding × Lists.Value)) := do
-  imports.mapM fun item => do
+  imports.reverse.mapM fun item => do
     if !isPublic item.exportedName then
       throw (.privateImport item.exportedName)
     let some value := List.lookup item.exportedName published.exports |

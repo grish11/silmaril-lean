@@ -1,0 +1,21 @@
+PyArrow 26.0.1, SHA-256 9e7713e2b194d0a8e54da6024383b24f4ce09832ab9f3b678c9496aa87321f99
+schema [0, 184), nullable List tag 12 with nullable signed Int32 child
+child width word @176
+record [184, 440), metadata 184, body @376+64
+  nodes [(4, 1), (5, 2)], buffers [(0, 1), (8, 20), (32, 1), (40, 20)], offsets [0, 1, 1, 4, 5], children [99, -7, None, 0, None]
+  parent bits 0x0e, child bits 0x0b, rows [None, [], [-7, None, 0], [None]]
+record [440, 632), metadata 176, body @624+8
+  nodes [(0, 0), (0, 0)], buffers [(0, 0), (0, 4), (8, 0), (8, 0)], offsets [0], children []
+  parent bits 0x, child bits 0x, rows []
+record [632, 848), metadata 184, body @824+24
+  nodes [(2, 0), (2, 0)], buffers [(0, 0), (0, 12), (16, 0), (16, 8)], offsets [0, 0, 2], children [-2147483648, 2147483647]
+  parent bits 0x, child bits 0x, rows [[], [-2147483648, 2147483647]]
+EOS [848, 856)
+non-32-bit child @176 = 64, SHA-256 0b3254cde9e4d27627458a86ffb61c550fb353642fd3e95552370965a6cd4abe
+parent validity mismatch @376 = 15, SHA-256 3123e7c8a881a596444d6db8dcaa67d39942b776a4f4c639cee5a736b48cf5c2
+child validity mismatch @408 = 27, SHA-256 706087978aeb068e15453a3ea48efdd490fca57b28761d7165f31890fddb06eb
+descending offsets @388 = 2, SHA-256 c7af199008155a880895e828ef34965a637b1af0929293aef5a3bbc56dfceabc
+negative offset @391 = 128, SHA-256 843e6abddafbf3e557c727780dca3cca582d6585f95d36c85b7d4ebdaef48ce0
+out-of-bounds offset @392 = 6, SHA-256 a7a8fb0733b828a0441948c3bb6f45ffc320d904a09cef2020e3df4de7772c45
+wrong terminal child count @400 = 4, SHA-256 2b7a093cf62101f5362a33a225fb2c358847eab00e43d6b1ccb5399a0b680f37
+child data descriptor out of body @320 = 56, SHA-256 e92c2e9f6d3edd10d0ba9e12b47444a5604dd6c720e538edb576b38a86f15d0b

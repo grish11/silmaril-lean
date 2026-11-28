@@ -5,10 +5,11 @@ public import Silmaril.SSA.Isotope.LambdaSSA.Typing.Defs
 
 /-! # Scalar MLIR-style arithmetic
 
-Positive-width signless integers, `arith.constant`, and `arith.addi` and
-`arith.muli` with the empty overflow flag set. Blocks bind each operation's
-single result once and return one value. A scoped application may additionally
-evaluate a single-block region with one argument and one yield.
+Scalar `arith.constant`, `arith.addi`, `arith.subi` and `arith.muli` on
+positive-width signless integers. The binary operations have empty overflow
+flags. Blocks bind each operation's single result once and return one value.
+A scoped application may evaluate a single-block region with one argument and
+one yield.
 -/
 
 @[expose] public section
@@ -43,11 +44,13 @@ def Env.get {Γ : List Width} {w : Width} (env : Env Γ) : Var Γ w → BitVec w
 /-- Binary scalar operations with modular semantics. -/
 inductive BinOp where
   | addi
+  | subi
   | muli
 
 def BinOp.denote (op : BinOp) {w : Nat} (x y : BitVec w) : BitVec w :=
   match op with
   | .addi => x + y
+  | .subi => x - y
   | .muli => x * y
 
 /-- A primitive application consumes only existing SSA values. -/

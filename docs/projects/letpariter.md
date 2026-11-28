@@ -16,7 +16,7 @@ supplies another `A`. A parallel computation can appear in the seed or in
 the body, and either branch of a parallel computation can itself iterate.
 
 [Syntax and embedding](../../Silmaril/SSA/Isotope/LetParIter/Defs.lean) ·
-[Typed examples](../../tests/ssa/LetParIter.lean)
+[Typed examples](../../Silmaril/Proofs/SSA/Isotope/LetParIter/Regression/Terms.lean)
 
 ## Equations
 
@@ -41,16 +41,29 @@ effect bottom for soundness. Both operands of a pure parallel term have to be
 pure. An iteration has no purity constructor.
 
 The mixed syntax also has pure let beta, let eta, feedback unfolding and the
-native feedback seed-binding equation. The `native` constructor admits the
+native feedback seed-binding equation. `Equiv.iterUniformity` takes a pure
+state map and a recursive typed equation. On one side of that equation, the
+first body transports its continue result along the map. On the other side,
+the second body runs at the mapped state. The directed use of the state map
+preserves returned values. The premise can itself use parallel equations.
+Soundness uses pure Elgot uniformity.
+
+The `native` constructor admits the
 existing `LetIter.ProofRelevant.LocallyNameless.TypedEquiv` judgments at exact
 native endpoints, including the native guarded uniformity premise and the
 other sequential, case and Elgot equations there. The rule uses a proof at
-the original typing derivations. The full native axiom schemata are not
-automatically extended to mixed terms by this import. Full interchange for
+the original typing derivations. `embed_related` exposes that edge without
+restricting the native equality derivation. For raw diagrams,
+`native_uniformity_of_aligned_square` consumes a witnessed native square
+once its two typing fibers are aligned. Compatibility of the other raw
+generators and alignment for transitivity remain separate premises. The full
+native axiom schemata are not automatically extended to mixed terms by this
+import. Full interchange for
 two effectful continuations, effectful case distribution, and commuting
 parallel with feedback have no generating equations.
 
-[Equational constructors](../../Silmaril/SSA/Isotope/LetParIter/Equations/Defs.lean)
+[Equational constructors](../../Silmaril/SSA/Isotope/LetParIter/Equations/Defs.lean) ·
+[Raw uniformity under alignment](../../Silmaril/SSA/Isotope/LetParIter/Uniformity/Thms.lean)
 
 ## Interpreting programs
 
@@ -75,19 +88,107 @@ its own pairing and proves the record's fields for its chosen observations.
 
 [Pairing record](../../Silmaril/Semantics/Elgot/Parallel/Defs.lean) ·
 [Soundness](../../Silmaril/SSA/Isotope/LetParIter/Thms.lean) ·
-[Model regression](../../tests/ssa/LetParPairingModel.lean)
+[Model regression](../../Silmaril/Proofs/SSA/Isotope/LetParIter/Regression/PairingModel.lean)
 
-## Native compatibility
+## Concrete finite-success dialects
 
-`embed` is constructor-preserving and `toLetIter?` is its left inverse.
-`derivation` preserves native exact typing. The embedding commutes with type-preserving
-renaming, simultaneous bound substitution and the native inclusion from
-LetCase. `denote_embed` preserves
-native denotation in every model supplied with a pairing. The native
-denotation on these terms is therefore independent of the chosen pairing
-on that same model. This gives syntactic injectivity and conservativity of
-the interpretation on native programs. Reflection of the extended
-equational theory into native syntactic equality would require a separate
-argument.
+Import `Silmaril.SSA.Isotope.LetParIter.Models.Thms` for the typed programs
+and soundness theorems in `LetParIter.Models.ReadOnly` and
+`LetParIter.Models.Choice`. Both dialects use natural numbers as their atomic
+values and instantiate the public `LetParIter.sound` theorem for every
+generated typed equation.
 
-Run `make check CHECK_TARGETS="LetParTests LetParIterTests"` for the focused checks.
+- `ReadOnly` uses `ReaderT Env Part`. Each primitive read projects a distinct
+  slot, with an independent availability condition and its own effect bit.
+  `readPair_mem` characterizes the ordered result coordinate by coordinate.
+  `countAndRead_run` starts with the left slot, counts down through feedback,
+  and reads the right slot in the return case. Either unavailable read
+  produces an undefined result.
+- `Choice` uses `SetM`. `choosePair_mem` gives the cartesian product of two
+  binary choices. `chooseLoop_outcomes` gives exactly `{10, 20}`. The value 20 can return
+  immediately, and 10 requires taking a back edge from a positive seed. Zero
+  also has a self-loop, so the same program admits an infinite execution.
+
+The reader transformer uses the existing pointwise Elgot iteration.
+`ParallelPairing.reader` lifts any pairing pointwise, and environment
+precomposition, evaluation at a fixed environment, and constant reader
+lifting preserve pure, bind, iteration, and pairing. For `Part` and `SetM`,
+the result of parallel pairing agrees with both orders of monadic sequencing
+when the tuple coordinates are kept in branch order.
+
+These are denotational observations of finite successful results. An
+unavailable read and divergence both give no value in `Part`. `SetM` collects
+all may-outcomes of finite successful runs, with no bound on the size of an
+outcome set. It identifies runs by their returned value and records no
+multiplicity, scheduling, fairness, or must-termination information.
+
+[Dialect API](../../Silmaril/SSA/Isotope/LetParIter/Models/Thms.lean) ·
+[Pairing and preservation laws](../../Silmaril/Semantics/ElgotMonads/Parallel/Thms.lean) ·
+[Elgot laws](../../Silmaril/Semantics/ElgotMonads/Thms.lean)
+
+## Tier inclusions
+
+```mermaid
+flowchart LR
+  Seq[LetSeq] --> Case[LetCase]
+  Case --> Iter[LetIter]
+  Par[LetPar] --> ParCase[LetParCase]
+  ParCase --> ParIter[LetParIter]
+  Seq --> Par
+  Case --> ParCase
+  Iter --> ParIter
+```
+
+The vertical embeddings and the parallel-tier widenings are injective on
+constructor trees. `LetParCase.embed_seqCase` and `LetParIter.embed_caseIter`
+give the adjacent squares. `LetParIter.embed_seqIter` gives the composite
+rectangle. The widening from LetParCase and the composite widening from LetPar
+also preserve exact typing and their common monadic denotation.
+
+[LetParCase squares](../../Silmaril/SSA/Isotope/LetParCase/Thms.lean) ·
+[LetParIter squares](../../Silmaril/SSA/Isotope/LetParIter/Thms.lean)
+
+## Native compatibility and reflection
+
+`embed` preserves native constructors and `toLetIter?` is its left inverse.
+The embedding commutes with bound renaming and simultaneous bound substitution.
+`denote_embed` preserves exact native denotation independently of the choice
+of pairing in that model. These are facts about syntax, typing, and
+interpretation at fixed derivations.
+
+Equational conservativity asks whether equality between two embedded native
+typing derivations implies the original native proof-relevant equation.
+`native_denote_eq` gives the semantic step: equality of embedded endpoints
+implies native denotational equality in every model equipped with lawful
+parallel pairing.
+
+The word separation test proves this reflection for canonical closed
+straight-line programs over two effectful `unit → unit` instructions. The
+partial writer's sequential bind concatenates instruction words in order.
+Its symmetric parallel operation retains a lone nonempty word and uses a
+fixed nonempty word when both operands have output. The resulting model
+distinguishes every pair of distinct words even when a proposed equality
+uses parallel terms in the derivation. In particular, emitting the two
+instructions in opposite orders stays inequivalent.
+
+General equational reflection still needs a family of models that validates
+parallel pairing and separates all inequivalent native typed endpoints,
+including arbitrary sums, environments, and feedback. The partial writer
+argument identifies only the listed canonical programs. Its log records
+terminating output and carries no observation of an infinite run. The
+reflection target is native `TypedEquiv.Related` at exact endpoints. The
+lower tiers' raw, independently typed equations and the iteration tier's
+aligned proof-relevant equations are different judgments.
+
+[Word separation test](../../Silmaril/Proofs/SSA/Isotope/LetParIter/Regression/PairingModel.lean)
+
+The `Silmaril` library includes both LetParIter regression modules. The
+lower-tier regressions and their axiom reports run with the maintained
+`LetIterWeakTreeSoundnessTests` suite. To run both:
+
+```bash
+make check CHECK_TARGETS='LetIterWeakTreeSoundnessTests +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.Terms +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.PairingModel'
+```
+
+To include the concrete dialects, add
+`+Silmaril.SSA.Isotope.LetParIter.Models.Thms` to `CHECK_TARGETS`.

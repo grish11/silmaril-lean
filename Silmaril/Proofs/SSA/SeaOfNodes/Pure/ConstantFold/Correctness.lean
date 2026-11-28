@@ -21,15 +21,10 @@ variable {ins : List (ValueSort Unit)} {out : ValueSort Unit}
 variable {entry : Tuple (Val m.value) args}
 variable {locals : Locals (Val m.value) past} {known : Literals m args past}
 
-private def Agrees (known : Literals m args past) (entry : Tuple (Val m.value) args)
-    (locals : Locals (Val m.value) past) : Prop :=
-  ∀ {t : Ty Unit} (wire : Origin args past t) {value}, known wire = some value →
-    Diamond.read m wire entry locals = value
-
-private theorem push_agrees (agree : Agrees known entry locals)
+theorem push_agrees (agree : known.Agrees entry locals)
     {actual : Val m.value (.value out)} {hint : Option (Val m.value (.value out))}
     (sound : ∀ value, hint = some value → actual = value) :
-    Agrees (known.push hint) entry (locals.snoc (.cons actual .nil)) := by
+    Literals.Agrees (known.push hint) entry (locals.snoc (.cons actual .nil)) := by
   intro t wire value found
   have read := read_splitOrigin wire m entry locals (.cons actual .nil)
   cases part : splitOrigin (T := Ty Unit) (past := past) [.value out] wire with
@@ -45,7 +40,7 @@ private theorem push_agrees (agree : Agrees known entry locals)
         actual).trans (sound value found)
     | tail rest => nomatch rest
 
-private theorem literalInputs_sound (agree : Agrees known entry locals) {ports : List (Ty Unit)}
+theorem literalInputs_sound (agree : known.Agrees entry locals) {ports : List (Ty Unit)}
     (operands : Wires args past ports) {values : Tuple (Val m.value) ports}
     (found : literalInputs? known operands = some values) :
     operands.read entry locals = values := by
@@ -59,7 +54,7 @@ private theorem literalInputs_sound (agree : Agrees known entry locals) {ports :
     change Tuple.cons (Diamond.read m wire entry locals) (Wires.read rest entry locals) = _
     rw [agree wire knownWire, ih knownRest]
 
-private theorem replacement_sound (agree : Agrees known entry locals) {op : Op ins out}
+theorem replacement_sound (agree : known.Agrees entry locals) {op : Op ins out}
     (rule : Rule m op) (operands : Wires args past (dataPorts ins)) {literal : Op [] out}
     (found : rule.replacement? known operands = some literal) :
     m.run op (operands.read entry locals) = m.run literal .nil := by
@@ -90,6 +85,15 @@ private theorem replacement_sound (agree : Agrees known entry locals) {op : Op i
         · exact ih _ found
   | commuteLeftLiteral opcode read_swapped fallback ih => exact ih operands found
 
+theorem record_agrees (agree : known.Agrees entry locals) {op : Op ins out}
+    (rule : Rule m op) (operands : Wires args past (dataPorts ins)) :
+    Literals.Agrees (rule.record known operands) entry
+      (locals.snoc (.cons (m.run op (operands.read entry locals)) .nil)) := by
+  apply push_agrees agree
+  intro value found
+  obtain ⟨literal, computed, rfl⟩ := Option.map_eq_some_iff.mp found
+  exact replacement_sound agree rule operands computed
+
 private theorem orderOperands_sound {op : Op ins out}
     (rule : Rule m op) (operands : Wires args past (dataPorts ins)) :
     m.run op ((rule.orderOperands known operands).read entry locals) =
@@ -109,7 +113,7 @@ private theorem orderOperands_sound {op : Op ins out}
         · exact ih _
 
 private theorem dataflow_eval (rules : Rules m) (flow : Dataflow Op args past sigs)
-    (agree : Agrees known entry locals) :
+    (agree : known.Agrees entry locals) :
     (foldDataflow rules known flow).eval m entry locals = flow.eval m entry locals := by
   induction flow with
   | nil => rfl

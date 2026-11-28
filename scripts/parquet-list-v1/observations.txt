@@ -1,0 +1,13 @@
+PyArrow 26.0.1 SHA-256 e54b974102a55ace9849e3b060fb77a967309c0999c59713ccf85410530c510e
+footer [89, 574), canonical optional items / repeated list / optional INT32 element
+group rows 5, chunk slots 8, frame [4, 46), payload @21
+repetition @25: 03 b0 -> [0, 0, 0, 0, 1, 1, 0, 1]
+definition @31: 03 e4 be -> [0, 1, 2, 3, 2, 3, 3, 2]
+PLAIN @34: f9 ff ff ff 00 00 00 00 09 00 00 00
+rows [None, [], [None], [-7, None, 0], [9, None]]
+first repetition byte at 26, first definition byte at 32
+initial continuation: reps [1, 0, 0, 0, 1, 1, 0, 1], defs [2, 1, 2, 3, 2, 3, 3, 2], SHA-256 e32e761c3e94b1f61ecfea832b0a39f43f179d50281daa6bb98e8bc3031abae2
+repeated empty marker: reps [0, 1, 0, 0, 1, 1, 0, 1], defs [0, 1, 2, 3, 2, 3, 3, 2], SHA-256 438073cb1f526dc2b3d564059c71f2c739108e2d075ce5c3a3c406dd25048b4f
+continuation after empty: reps [0, 0, 1, 0, 1, 1, 0, 1], defs [0, 1, 2, 3, 2, 3, 3, 2], SHA-256 5287ba1d6442ef0695247c22b508d26365f5647a43f9add8aa03507a0f22ac84
+surplus scalar: reps [0, 0, 0, 0, 1, 1, 0, 1], defs [0, 1, 2, 2, 2, 3, 3, 2], SHA-256 8800da4f196ec779be66fedf9a97ec63ca189ce052fea09b39754a0811f09abf
+wrong slot count: header advertises 9, SHA-256 335b1607cf3c67b664d71c15200d4eb240d996199a6389c5c0af45811f0d14ab

@@ -149,6 +149,13 @@ def Outcome.refines? {m : Nat} : Outcome n b → Outcome m b → Option Bool
   | .cycle _, .cycle _ => some true
   | .unsupported _, .cycle _ | _, .unsupported _ => none
 
+/-- Dispatch a return to the next stage and embed private diagnostics. -/
+def Outcome.continueWith {m c : Nat} (embed : Fin n → Fin m) (exit : Fin b → Outcome m c) :
+    Outcome n b → Outcome m c
+  | .returns port => exit port
+  | .cycle index => .cycle (embed index)
+  | .unsupported index => .unsupported (embed index)
+
 /-- Decide inclusion between two graphs on the entry-typed fragment. -/
 def refinementBetween? (target : Graph V F a b) : Option Bool :=
   let results := (List.finRange a).map fun input =>

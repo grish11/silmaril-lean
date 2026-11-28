@@ -90,12 +90,22 @@ inductive Code (Op : Dialect.{u, v} (ValueSort V S) S) :
       (body : Code Op carried [] bodySigs (Theta.BodyResults carried) true member)
       (rest : Code Op entry (past ++ [carried]) sigs results true member) :
       Code Op entry past (carried :: sigs) results true member
-  | familyCall {entry results : Ports (Ty V S)} {past sigs : List (Ports (Ty V S))}
+  | callAt {entry results : Ports (Ty V S)} {past sigs : List (Ports (Ty V S))}
       {table : MemberSummaries V S} (i : Fin table.members.length)
-      (target : Port entry (table.at i).fn.port) (captures : Wires entry [] (table.at i).captures)
+      (target : Origin entry past (table.at i).fn.port) (captures : Wires entry past (table.at i).captures)
       (arguments : Wires entry past (table.at i).fn.args)
       (rest : Code Op entry (past ++ [(table.at i).fn.results]) sigs results true (some table)) :
       Code Op entry past ((table.at i).fn.results :: sigs) results true (some table)
+
+/-- A call whose target and witnesses come directly from the region entry. -/
+abbrev Code.familyCall {table : MemberSummaries V S} (i : Fin table.members.length)
+    (target : Port entry (table.at i).fn.port) (captures : Wires entry [] (table.at i).captures)
+    (arguments : Wires entry past (table.at i).fn.args)
+    (rest : Code Op entry (past ++ [(table.at i).fn.results]) sigs results true (some table)) :
+    Code Op entry past ((table.at i).fn.results :: sigs) results true (some table) :=
+  .callAt i (.arg target) (captures.map fun _ origin => match origin with
+    | .arg p => .arg p
+    | .output i _ => i.elim0) arguments rest
 
 /-- The original singleton call uses member zero of the supplied table. -/
 abbrev Code.memberCall {summary : MemberSummary V S}
@@ -121,8 +131,8 @@ def Code.term : {entry results : Ports (Ty V S)} → {past sigs : List (Ports (T
       (fun i => (arms i).term) rest.term
   | _, _, _, _, _, _, .theta (carried := carried) (bodySigs := bodySigs) wires body rest =>
     .bind ⟨carried, .theta carried, wires, fun _ => bodySigs⟩ (fun _ => body.term) rest.term
-  | _, _, _, _, _, _, .familyCall (table := table) i target _ arguments rest =>
-    .bind ⟨_, .base (.simple (.apply (table.at i).fn)), .cons (.arg target) arguments, fun i => i.elim0⟩
+  | _, _, _, _, _, _, .callAt (table := table) i target _ arguments rest =>
+    .bind ⟨_, .base (.simple (.apply (table.at i).fn)), .cons target arguments, fun i => i.elim0⟩
       (fun i => i.elim0) rest.term
 
 /-- Identify a returned port wired straight from the region's entry. -/
@@ -137,7 +147,7 @@ def Code.returnArg : {entry results : Ports (Ty V S)} → {past sigs : List (Por
   | _, _, _, _, _, _, .apply _ _ _ _ rest, _, p => rest.returnArg p
   | _, _, _, _, _, _, .gamma _ _ _ _ _ rest, _, p => rest.returnArg p
   | _, _, _, _, _, _, .theta _ _ rest, _, p => rest.returnArg p
-  | _, _, _, _, _, _, .familyCall _ _ _ _ rest, _, p => rest.returnArg p
+  | _, _, _, _, _, _, .callAt _ _ _ _ rest, _, p => rest.returnArg p
 
 /-- Entry origins forwarded by the actual result wires retain their values
 even when the region returns after a hypothetical primitive resumption. -/
@@ -152,28 +162,33 @@ def Code.Stable {carried : Ports (Ty V S)}
     (initial next : Tuple m.Val carried) : Prop :=
   ∀ {ty} (p : Port carried ty), body.returnArg (.tail p) = some p → next.get p = initial.get p
 
-/-- Check the static hypothesis against actual runtime values. Earlier results
-may supply arguments or γ captures. The witnesses must hold for every formal
-argument tuple and every γ capture tuple supplied by preceding locals. A θ
-checks the static targets on inputs agreeing at the entry origins that its
-body wires directly back to their original carried positions. -/
-def Code.ResolvedWith : {entry results : Ports (Ty V S)} → {past sigs : List (Ports (Ty V S))} → {loops : Bool} →
+/-- Check known targets in the actual local scope. A γ suffix may rely on
+any forwarding fact supplied by the selected arm's actual result wires. -/
+def Code.ResolvedAt : {entry results : Ports (Ty V S)} → {past sigs : List (Ports (Ty V S))} → {loops : Bool} →
     {member : Option (MemberSummaries V S)} → Code Op entry past sigs results loops member →
-    MemberResolution m member → Tuple m.Val entry → Prop
-  | _, _, _, _, _, _, .ret _, _, _ => True
-  | _, _, _, _, _, _, .primitive _ _ rest, guard, input => rest.ResolvedWith guard input
-  | _, _, _, _, _, _, .apply target captures body _ rest, guard, input =>
+    MemberResolution m member → Tuple m.Val entry → Locals m.Val past → Prop
+  | _, _, _, _, _, _, .ret _, _, _, _ => True
+  | _, _, _, _, _, _, .primitive _ _ rest, guard, input, locals =>
+    ∀ out, rest.ResolvedAt guard input (locals.snoc out)
+  | _, _, _, _, _, _, .apply target captures body _ rest, guard, input, locals =>
     let captured := captures.read input PUnit.unit
     input.get target = .closure captured body.term.toGraph ∧
-      (∀ params, body.ResolvedWith guard (prependContext params captured)) ∧ rest.ResolvedWith guard input
-  | _, _, past, _, _, _, .gamma _ _ _ wires arms rest, guard, input =>
-    (∀ (locals : Locals m.Val past) i, (arms i).ResolvedWith guard (wires.read input locals)) ∧
-      rest.ResolvedWith guard input
-  | _, _, past, _, _, _, .theta wires body rest, guard, input =>
-    (∀ (locals : Locals m.Val past) next, body.Stable (wires.read input locals) next → body.ResolvedWith guard next) ∧
-      rest.ResolvedWith guard input
-  | _, _, _, _, _, _, .familyCall i target captures _ rest, guard, input =>
-    guard i (input.get target) (captures.read input PUnit.unit) ∧ rest.ResolvedWith guard input
+      (∀ params, body.ResolvedAt guard (prependContext params captured) PUnit.unit) ∧
+      (∀ out, rest.ResolvedAt guard input (locals.snoc out))
+  | _, _, _, _, _, _, .gamma _ _ _ wires arms rest, guard, input, locals =>
+    (∀ i, (arms i).ResolvedAt guard (wires.read input locals) PUnit.unit) ∧
+      (∀ i out, (arms i).Forwards (wires.read input locals) out → rest.ResolvedAt guard input (locals.snoc out))
+  | _, _, _, _, _, _, .theta wires body rest, guard, input, locals =>
+    (∀ next, body.Stable (wires.read input locals) next → body.ResolvedAt guard next PUnit.unit) ∧
+      (∀ out, rest.ResolvedAt guard input (locals.snoc out))
+  | _, _, _, _, _, _, .callAt i target captures _ rest, guard, input, locals =>
+    guard i ((Wires.read (.cons target .nil) input locals).get .head) (captures.read input locals) ∧
+      (∀ out, rest.ResolvedAt guard input (locals.snoc out))
+
+/-- A certificate that does not presume any values for pre-existing locals. -/
+abbrev Code.ResolvedWith (code : Code Op entry past sigs results loops member)
+    (guard : MemberResolution m member) (input : Tuple m.Val entry) : Prop :=
+  ∀ locals, code.ResolvedAt guard input locals
 
 /-- Static resolution for code without an external member. -/
 abbrev Code.Resolved (code : Code Op entry past sigs results loops) (input : Tuple m.Val entry) : Prop :=
@@ -183,7 +198,8 @@ def resultDemand (pc : Nat) (next : DemandPlan) : Demand :=
   fun p => next.live.contains (.output pc p)
 
 def applyReads {context params : Ports (Ty V S)}
-    (live : List Address) (captures : Wires entry [] context) (arguments : Wires entry past params) :
+    (live : List Address) {capturePast : List (Ports (Ty V S))}
+    (captures : Wires entry capturePast context) (arguments : Wires entry past params) :
     List Address :=
   selectWires (fun _ p => live.contains (.arg p)) captures ++
     selectWires (fun _ p => live.contains (.arg (context.length + p))) arguments
@@ -212,7 +228,7 @@ def Code.plan (demand : Demand) : {entry results : Ports (Ty V S)} → {past sig
     let kind : NestedTheta.Kind (Instruction Op) carried carried := .theta carried
     next.prepend past.length (kind.demandReads past.length next.live wires
       (fun _ requested => (body.plan requested).live))
-  | _, _, past, _, _, _, .familyCall (table := table) i _ captures arguments rest =>
+  | _, _, past, _, _, _, .callAt (table := table) i _ captures arguments rest =>
     let next := rest.plan demand
     next.prepend past.length (applyReads (table.live i (resultDemand past.length next)) captures arguments)
 

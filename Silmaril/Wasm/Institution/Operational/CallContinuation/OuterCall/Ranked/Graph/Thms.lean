@@ -10,6 +10,12 @@ namespace Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranke
 
 open Execution.Runtime (FuncAddr Value)
 
+/-- Recover the ordered operand suffix selected by the top-first stack check. -/
+theorem SuffixTyped.split {stack : List Value} {params : List NumType}
+    (typed : SuffixTyped params stack) :
+    ∃ saved args, stack = saved ++ args ∧ args.map Value.type = params :=
+  Proofs.split_suffix typed
+
 theorem Program.lookup_table (program : Program) (address : FuncAddr) :
     program.table.lookup address = (program.lookup address).map Function.entry :=
   Proofs.lookup_table program address

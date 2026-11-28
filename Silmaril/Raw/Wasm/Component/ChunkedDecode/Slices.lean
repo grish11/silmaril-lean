@@ -26,7 +26,7 @@ variable {L : List UInt8} {A Z : Nat}
 theorem at_slice {s e : Nat} (hA : A ≤ s) (hse : s ≤ e) (hZ : e ≤ Z) (hL : Z ≤ L.length) :
     At (slice L A Z) (s - A) (slice L s e) := by
   refine ⟨?_, ?_⟩
-  · have := Silmaril.Wasm.Component.Chunked.slice_slice L (A := A) (B := Z) hA hse hZ
+  · have := Silmaril.Wasm.Component.Chunked.slice_slice L (A := A) (B := Z) hA hZ
     rw [← this]
     unfold slice
     rw [List.length_take, List.length_drop, List.length_take, List.length_drop]

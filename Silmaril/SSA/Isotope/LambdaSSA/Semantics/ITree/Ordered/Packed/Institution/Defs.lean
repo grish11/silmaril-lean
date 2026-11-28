@@ -15,16 +15,16 @@ universe u v
 
 variable {κ : Type (u + 1)} {P Q : FlatInstitution.Signature.{u, v} κ}
 
-/-- Compare two typed singleton programs at the packed interface of one
-ordered external profile. The programs need not be in the image of packing. -/
-structure Sentence (P : FlatInstitution.Signature.{u, v} κ) where
+/-- Compare two typed singleton programs from the same input type to
+one ordered external exit profile. The programs need not be in the image of packing. -/
+structure Sentence (P : FlatInstitution.Signature.{u, v} κ) (A : Ty κ := Silmaril.unit) where
   exits : Nat
   external : Fin exits → Ty κ
-  left : Program P.Instr Silmaril.unit (Region.packedExitType (List.ofFn external))
-  right : Program P.Instr Silmaril.unit (Region.packedExitType (List.ofFn external))
+  left : Program P.Instr A (Region.packedExitType (List.ofFn external))
+  right : Program P.Instr A (Region.packedExitType (List.ofFn external))
 
 /-- Relabel the written singleton programs without changing their endpoints. -/
-def Sentence.map (s : Sentence P) (g : P ⟶ Q) : Sentence Q :=
+def Sentence.map {A : Ty κ} (s : Sentence P A) (g : P ⟶ Q) : Sentence Q A :=
   ⟨s.exits, s.external, s.left.map g.toSignatureMap g.types, s.right.map g.toSignatureMap g.types⟩
 
 /-- Pack both actual typed flat tables at their common external profile. -/
@@ -34,13 +34,14 @@ def packSentence (s : FlatInstitution.Sentence P) : Sentence P :=
 variable [AtomValues κ] (Events : Type u → Type u)
 
 /-- Use the flat institution's model category and the existing packed order. -/
-def room (P : FlatInstitution.Signature.{u, v} κ) : Room.{max (u + 1) v, max (u + 1) v, max (u + 1) v} where
-  Sen := Sentence P
+def room (P : FlatInstitution.Signature.{u, v} κ) (A : Ty κ := Silmaril.unit) :
+    Room.{max (u + 1) v, max (u + 1) v, max (u + 1) v} where
+  Sen := Sentence P A
   Mod := (FlatInstitution.room Events P).Mod
   Sat M s := M.as.Satisfies s.left s.right
 
 /-- Primitive relabelling acts contravariantly on the shared models. -/
-def corridor (g : P ⟶ Q) : room Events P ⟶ room Events Q where
+def corridor (g : P ⟶ Q) (A : Ty κ := Silmaril.unit) : room Events P A ⟶ room Events Q A where
   sen s := s.map g
   mod := FlatInstitution.reductFunctor Events g
   sat M s := satisfies_map_iff M.as g.toSignatureMap g.types g.bottom s.left s.right

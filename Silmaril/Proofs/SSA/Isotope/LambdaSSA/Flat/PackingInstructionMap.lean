@@ -7,7 +7,7 @@ public section
 
 namespace Silmaril.Proofs.SSA.Isotope.LambdaSSA.Flat
 
-open Silmaril.Isotope.LambdaSSA
+open Silmaril.Isotope Silmaril.Isotope.LambdaSSA
 open FiniteCFG Region
 open Region.SyntacticCategory (iterationBody iterationDispatch)
 
@@ -102,7 +102,7 @@ private theorem map_iterationBody (r : Region Φ) :
 variable {τ : Type w} [TypeFormers τ] [HasTy Φ τ] [HasTy Ψ τ]
   (profiles : InstructionMap.PreservesTypes (τ := τ) f)
   {blocks exits : Nat} {R : Fin blocks → τ} {L : Fin exits → τ}
-  {g : FiniteCFG Φ blocks exits 0} (hg : g.HasType .nil R L)
+  {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n} (hg : g.HasType β R L)
 
 private theorem map_blockFamily :
     (fun i => ((blockFamily hg).val i).mapInstr f) =
@@ -113,13 +113,13 @@ private theorem map_blockFamily :
 
 theorem packedDispatcherRegion_mapInstr :
     packedDispatcherRegion (hg.mapInstr profiles) = (packedDispatcherRegion hg).mapInstr f := by
-  have routes : (fun i => ((routeFamily (Φ := Φ) (List.ofFn R) (List.ofFn L)).val i).mapInstr f) =
-      (routeFamily (Φ := Ψ) (List.ofFn R) (List.ofFn L)).val :=
+  have routes : (fun i => ((routeFamily (Φ := Φ) (List.ofFn R) (List.ofFn L) β.toList).val i).mapInstr f) =
+      (routeFamily (Φ := Ψ) (List.ofFn R) (List.ofFn L) β.toList).val :=
     funext (map_routeExit f _)
-  have blocksMap := map_compLSubst f (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn L)).val
+  have blocksMap := map_compLSubst f (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn L) β.toList).val
   rw [map_blockFamily f profiles hg, routes] at blocksMap
   have dispatcher := map_compLSubst f (fun _ => unpackExits (List.ofFn R))
-    (compLSubst (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn L)).val)
+    (compLSubst (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn L) β.toList).val)
   rw [blocksMap] at dispatcher
   simp only [map_unpackExits] at dispatcher
   exact (congrFun dispatcher 0).symm

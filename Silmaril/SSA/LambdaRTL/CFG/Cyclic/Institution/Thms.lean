@@ -2,7 +2,7 @@ module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Institution.Defs
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Comparison.Thms
-import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Institution.Renaming
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.InstructionMap.Thms
 import Silmaril.SSA.LambdaRTL.CFG.Thms
 
 @[expose] public section
@@ -31,13 +31,13 @@ variable [DecidableEq K] [Monad M] [LawfulMonad M] [Iterate M]
 including its store, by reducing the model along the same renaming. -/
 theorem run_mapOp (h : F → F') (model : Model F' M α) (graph : CFG V K F) (store : V → α) :
     Cyclic.run model (graph.mapOp h) store = Cyclic.run (model.reduct h) graph store :=
-  Proofs.SSA.LambdaRTL.CFG.CyclicRenaming.run_mapOp h model graph store
+  Cyclic.run_mapOp h model graph store
 
 /-- Changing primitive names commutes with a whole lexical execution
 under the corresponding model reduct. -/
 theorem runSSA_mapOp (h : F → F') (model : Model F' M α) (graph : CFG V K F) (input : V → α) :
     Cyclic.runSSA model (graph.mapOp h) input = Cyclic.runSSA (model.reduct h) graph input :=
-  Proofs.SSA.LambdaRTL.CFG.CyclicRenaming.runSSA_mapOp h model graph input
+  Cyclic.runSSA_mapOp h model graph input
 
 theorem rtlObserve_mapOp (h : F → F') (model : PairModel F' M α) (graph : CFG V K F) (store : V → α) :
     rtlObserve model (graph.mapOp h) store = rtlObserve (LawfulModel.reduct h model) graph store :=

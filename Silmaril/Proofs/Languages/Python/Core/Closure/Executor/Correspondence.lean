@@ -148,6 +148,10 @@ private theorem rejected_eq (rejected : Rejects table args heap callee failure) 
   | nonCallableNone => rfl
   | nonCallable value => rfl
   | nonCallableBool value => rfl
+  | nonCallableFloat value => rfl
+  | nonCallableText value => rfl
+  | nonCallableTuple items | nonCallableTupleObject items | nonCallableDictionary items | dictionaryData items => rfl
+  | unsupportedCallable kind | nonCallableInstance value => rfl
   | missing fn absent => simp [Dispatch.dispatch, Dispatch.resolve_missing absent]
   | mismatch fn entry found different => simp [Dispatch.dispatch, Dispatch.resolve_layout_mismatch found different]
   | dangling found first => simp [Dispatch.dispatch, Dispatch.resolve_iff.mpr found, Call.enter, first]
@@ -177,6 +181,38 @@ private theorem rejected_rule (rejected : Dispatch.dispatch table callee args he
     simp [Dispatch.dispatch] at rejected
     subst failure
     exact .nonCallableBool value
+  | float64 value =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .nonCallableFloat value
+  | text value =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .nonCallableText value
+  | tuple items =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .nonCallableTuple items
+  | tupleObject object =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .nonCallableTupleObject object
+  | dictionary object =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .nonCallableDictionary object
+  | exceptionInstance value =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .nonCallableInstance value
+  | dictionaryData entries =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .dictionaryData entries
+  | exceptionClass kind =>
+    simp [Dispatch.dispatch] at rejected
+    subst failure
+    exact .unsupportedCallable kind
   | function fn =>
     cases found : table fn.code.key with
     | none =>
@@ -231,6 +267,7 @@ theorem advance_of_step {source target : State} {label : Option Event}
   | retError eval => simp [advanceIn, eval_eq eval]
   | store eval wrote => simp [advanceIn, eval_eq eval, store_eq wrote]
   | storeError eval => simp [advanceIn, eval_eq eval]
+  | storeDictionary wrote => simp [advanceIn, store_eq wrote]
   | assertTrue eval holds => simp [advanceIn, eval_eq eval, holds]
   | assertFalse eval fails => simp [advanceIn, eval_eq eval, fails]
   | assertError eval => simp [advanceIn, eval_eq eval]
@@ -278,6 +315,10 @@ theorem step_of_advance {source : State} {transition : Transition}
         simp only [advanceIn, evaluated, Option.some.injEq] at advanced
         subst transition
         exact .storeError (evaluated ▸ eval_rule operand)
+    | storeDictionary destination entries next =>
+      simp only [advanceIn, Option.some.injEq] at advanced
+      subst transition
+      exact .storeDictionary (store_rule (.local destination) _ next stack)
     | assert test next =>
       cases evaluated : test.evalIn globals heap frame with
       | error error =>
@@ -285,7 +326,7 @@ theorem step_of_advance {source : State} {transition : Transition}
         subst transition
         exact .assertError (evaluated ▸ eval_rule test)
       | ok value =>
-        cases truth : value.truth with
+        cases truth : value.truth heap with
         | false =>
           simp [advanceIn, evaluated, truth] at advanced
           subst transition

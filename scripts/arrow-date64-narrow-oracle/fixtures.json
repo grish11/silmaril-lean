@@ -1,0 +1,92 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "fixtures": {
+    "admitted": {
+      "bytes": 592,
+      "sha256": "362a2b3e2fb0d39f3f0e5f6d66dc1061b790bd56a925a4e574759e526ad214b5",
+      "word_bits": 64,
+      "raw_batches": [
+        [
+          -185542587187200000,
+          -86400000,
+          null
+        ],
+        [],
+        [
+          0,
+          951782400000,
+          185542587100800000
+        ]
+      ]
+    },
+    "underflow": {
+      "bytes": 448,
+      "sha256": "64fd9f3077f14e7684c32d11d3c315339f411327a91514c8c34159f67895e925",
+      "word_bits": 64,
+      "raw_batches": [
+        [
+          -86400000
+        ],
+        [
+          null,
+          -185542587273600000
+        ]
+      ]
+    },
+    "overflow": {
+      "bytes": 448,
+      "sha256": "42479bee73a7c7e60f392aabb676255a3c67502a7ddd7bdc15244ece6ef2d2ee",
+      "word_bits": 64,
+      "raw_batches": [
+        [
+          -86400000
+        ],
+        [
+          null,
+          185542587187200000
+        ]
+      ]
+    },
+    "nonwhole": {
+      "bytes": 448,
+      "sha256": "f11d85837c44aa4f3a215d7efcdbdd6c1c9b789121887efe4d25738b55993460",
+      "word_bits": 64,
+      "raw_batches": [
+        [
+          0
+        ],
+        [
+          null,
+          -1
+        ]
+      ]
+    },
+    "precedence": {
+      "bytes": 448,
+      "sha256": "6f52e87bf5150200622fd42b63d788b83a469189a4206506e21988e3194aadb5",
+      "word_bits": 64,
+      "raw_batches": [
+        [
+          185542587187200000
+        ],
+        [
+          null,
+          -1
+        ]
+      ]
+    },
+    "wrong_unit": {
+      "bytes": 296,
+      "sha256": "0405490374c71e24f8c00e7b221e1ca3fca0658c8d540808b57f73fb2fc8b879",
+      "word_bits": 32,
+      "raw_batches": [
+        [
+          -1,
+          null
+        ]
+      ]
+    }
+  }
+}

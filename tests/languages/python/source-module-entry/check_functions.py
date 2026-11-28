@@ -25,7 +25,7 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "Example.py"
         generated = Path(tmp) / "Example.lean"
-        shared["emit"](source, generated, """
+        fixtures = [("""
 value = 1
 def read(argument):
     return value
@@ -35,8 +35,7 @@ value = 2
 observed = read(9)
 shadow(3)
 assert shadow(1)
-""")
-        shared["check_lean"](generated, LEAN + """
+""", """
 private def hasExpectedActions : Bool :=
   match check pythonSource with
   | .error _ => false
@@ -60,29 +59,27 @@ private def hasExpectedActions : Bool :=
 #guard hasExpectedActions
 #print axioms Positional.length
 #print axioms global_read_resolved
-""", extra_imports=IMPORTS)
-        shared["emit"](source, generated, """
+""")]
+        fixtures.append(("""
 def read():
     global absent
     return absent
 read()
-""")
-        shared["check_lean"](generated, LEAN + """
+""", """
 #guard (match check pythonSource with
   | .ok compiled => match compiled.actions with
     | [.define "read" _ child _ (.ret (.globalName "absent")), .call .discard "read" _ []] =>
       child.scope.access "absent" == some .declaredGlobal
     | _ => false
   | .error _ => false)
-""", extra_imports=IMPORTS)
-        shared["emit"](source, generated, """
+"""))
+        fixtures.append(("""
 def read(value):
     return value
 read(value=1)
-""")
-        shared["check_lean"](generated, LEAN + """
+""", """
 #guard (match check pythonSource with | .error .argumentProfile => true | _ => false)
-""", extra_imports=IMPORTS)
+"""))
         generator_cases = (
             ("def gen():\n    if False: yield 1\n    return 2\n", "(.unsupportedGenerator [0])"),
             ("def gen(value=0): yield value\n", ".parameterProfile"),
@@ -90,9 +87,9 @@ read(value=1)
              "(.unsupportedGenerator [0, 0])"),
         )
         for function, diagnostic in generator_cases:
-            shared["emit"](source, generated, "seed = 1\n" + function)
-            shared["check_lean"](generated, LEAN + f"""
+            fixtures.append(("seed = 1\n" + function, f"""
 #guard (match check pythonSource with
   | .error (.functionBody {diagnostic}) => true
   | _ => false)
-""", extra_imports=IMPORTS)
+"""))
+        shared["check_lean_batch"](source, generated, fixtures, LEAN, extra_imports=IMPORTS)

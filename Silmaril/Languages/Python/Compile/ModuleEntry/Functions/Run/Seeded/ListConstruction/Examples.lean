@@ -56,4 +56,22 @@ private def stock : Namespace := legacyListSeed .builtin
 #guard checkRun (stock.bindGlobal "list" (.builtin .len)) (listTest false [])
   (.error .unsupported) (.error .unsupported) #[[.bool true]]
 
+private def listTruthEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let truth value := Source.Stmt.expression (.call (.name "___assertTrue") [value])
+  let source : Source.Module := ⟨[truth (.unary .not_ (.list_ [])), truth (.list_ [.integer 42]),
+    truth (.list_ []), .assign "unreached" (.integer 9)]⟩
+  let .ok compiled := Run.compile source | return false
+  let space := legacyTupleIdentitySeed placement
+  let result := run space compiled
+  let failure : Core.Module.SeededCall.Failure := .raised (.assertionError (.listObject ⟨2, []⟩))
+  return result.completion == .error (.ofCall failure) && result.lists.objects == #[[], [.int 42], []] &&
+    result.heap.next == 0 && result.residual.moduleGlobals == space.moduleGlobals &&
+    result.residual.builtins == space.builtins &&
+    result.calls.map (fun item => (item.callee, item.observation.result, item.observation.caught)) ==
+      [("___assertTrue", .ok .none, none), ("___assertTrue", .ok .none, none),
+        ("___assertTrue", .error failure, none)]
+
+#guard listTruthEvidence .builtin
+#guard listTruthEvidence .preamble
+
 end Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded

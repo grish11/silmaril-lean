@@ -1,6 +1,8 @@
 # Sea of Nodes
 
-Start with the [source-to-Lean coverage ledger](coverage.md) for Click’s work,
+Start with the [executable loop walkthrough](../sea-of-nodes-portable-loop.md#run-the-example)
+to run one typed graph natively and after lowering to numbered θ and MLIR CF.
+The [source-to-Lean coverage ledger](coverage.md) tracks Click’s work,
 the Simple implementation, and the scope of the current Lean results.
 
 ## Pure producers

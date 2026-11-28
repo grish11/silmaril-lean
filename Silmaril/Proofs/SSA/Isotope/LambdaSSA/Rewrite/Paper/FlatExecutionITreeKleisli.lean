@@ -58,6 +58,7 @@ variable {blocks exits : Nat} {R : Fin blocks → Ty κ} {D : Fin exits → Ty �
 local notation "S" => packedExitType (List.ofFn R)
 local notation "Y" => packedExitType (List.ofFn D)
 
+set_option backward.isDefEq.respectTransparency false in
 /-- The actual guarded dispatcher, read in the exact sum coordinates supplied
 by `sumIso`, computes the literal one-step dispatcher tree. -/
 theorem packedDispatcher_kleisli_tree_proof

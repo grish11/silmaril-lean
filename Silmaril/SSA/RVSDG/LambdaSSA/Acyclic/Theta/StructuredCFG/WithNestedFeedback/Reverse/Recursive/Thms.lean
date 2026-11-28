@@ -11,6 +11,10 @@ public section
 namespace Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.WithNestedFeedback.Reverse.Recursive
 
 open Sequential
+open NestedTheta.ExplicitRuntime (Checked EntryChecked)
+open NestedTheta.ExplicitRuntime.Splice (append)
+open OrderedRuntime.Structured (Data Threaded runtime)
+open TwoBlock.TwoExit (Pure)
 open Sequential.Flat.Serial (observe returns)
 open Isotope.LetIter.ProofRelevant.Semantics
 open Isotope.LambdaSSA.Semantics.Monadic
@@ -21,6 +25,36 @@ variable {τ Φ : Type u} [TypeFormers τ] [HasTy Φ τ] [DecidableEq τ] [Decid
 variable {A X Z L E D : τ}
 variable {sigs : List (Ports (OrderedRuntime.Structured.Ty τ))}
 variable {g : Flat.Serial.Graph Φ A X Z L E D sigs}
+
+omit [DecidableEq τ] [DecidableEq Φ] in
+/-- Relocating a checked suffix changes wire origins and leaves the
+outer labels and recursively scanned child scopes intact. -/
+theorem scan_append {args middle outs : Ports (OrderedRuntime.Structured.Ty τ)}
+    {past ps qs : List (Ports (OrderedRuntime.Structured.Ty τ))}
+    {a : Data args} {b : Data middle} {c : Data outs}
+    {live : Origin (Threaded args) past runtime}
+    {p : NestedTheta.Term (Wires.Op Φ) (Threaded args) past ps (Threaded middle)}
+    {q : NestedTheta.Term (Wires.Op Φ) (Threaded middle) [] qs (Threaded outs)}
+    (first : Checked (Pure τ) (Wires.Effect Φ) a b live p)
+    (next : EntryChecked (a := b) (b := c) q) :
+    scan (append next first).1 = (do let xs ← scan p; let ys ← scan q; pure (xs ++ ys)) :=
+  Proofs.scan_append first next
+
+omit [DecidableEq τ] [DecidableEq Φ] in
+theorem weight_append (p q : Layout τ Φ) : weight (p ++ q) = weight p + weight q :=
+  Proofs.weight_append p q
+
+omit [DecidableEq τ] [DecidableEq Φ] in
+theorem scan_route_free (n : Normal Φ A X Z L E D sigs) {labels : Layout τ Φ}
+    (scanned : scan n.toSyntax.code.1 = some labels) (h e m d : τ) :
+    Entry.route h e m d ∉ labels :=
+  Proofs.scan_route_free n scanned h e m d
+
+omit [DecidableEq Φ] in
+theorem scan_parse_generated (n : Normal Φ A X Z L E D sigs) (h : n.Supported) :
+    ∃ labels, scan n.toSyntax.code.1 = some labels ∧
+      parse (weight labels) A X Z labels = some (pack n) :=
+  Proofs.scan_parse_generated n h
 
 omit [DecidableEq Φ] in
 theorem candidate_generated (n : Normal Φ A X Z L E D sigs) (h : n.Supported) :

@@ -10,8 +10,10 @@ public section
 
 namespace Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.Prune
 
-open SeaOfNodes.Diamond (Model ValueSort sortValue)
-open Join (model)
+open SeaOfNodes.Diamond (Dataflow Model Ty Val ValueSort dataPorts sortValue)
+open RVSDG (Locals Port Tuple Wires extend)
+open RVSDG.NestedTheta (Term iterate)
+open Join (Opcode model)
 open Blocks (Bank)
 open Blocks.Prune (Mask)
 
@@ -22,6 +24,38 @@ variable {regs : List (ValueSort Data)} {out : ValueSort Data} {size : Nat}
 variable {src : Source Op regs out size} {entry : Fin size}
 variable {p : Program src entry} {mask : Mask regs}
 variable (checked : Checked p mask) (m : Model.{u, v, w} Op)
+
+/-- The emitted prefix reads its result wires in the same producer scope. -/
+theorem lowerFlow_eval {args results : List (Ty Data)} {past sigs : List (List (Ty Data))}
+    (flow : Dataflow Op args past sigs) (wires : Wires args (extend past sigs) results)
+    (input : Tuple (Val m.value) args) (locals : Locals (Val m.value) past) :
+    (lowerFlow flow wires).eval (model m) input locals = wires.read input (flow.eval m input locals) :=
+  Proofs.lowerFlow_eval m flow wires input locals
+
+/-- Project the feedback values together, keeping the original stop tag. -/
+theorem routeProjectedWith_eval {args : List (Ty Data)} {past : List (List (Ty Data))}
+    (again : Port (dataPorts regs) (.value .predicate)) (wires : Wires args past (dataPorts regs))
+    (fuel : Nat) (input : Tuple (Val m.value) args) (locals : Locals (Val m.value) past) :
+    (routeProjectedWith again mask wires).eval (model m) fuel input locals =
+      some (RVSDG.Theta.bodyResult (model m) ((wires.read input locals).get again).down
+        (mask.project (wires.read input locals))) :=
+  Proofs.routeProjectedWith_eval m again wires fuel input locals
+
+/-- The numbered θ returns the chosen field from its stopping bank. -/
+theorem thetaThenReturn_eval {past sigs : List (List (Ty Data))}
+    (body : Term (Opcode Op) (dataPorts mask.kept) [] sigs (bodyPorts mask.kept))
+    (result : Port (dataPorts mask.kept) (.value out)) (wires : Wires (dataPorts regs) past (dataPorts regs))
+    (fuel : Nat) (input : Bank (regs := regs) m) (locals : Locals (Val m.value) past) :
+    (thetaThenReturn mask body result wires).eval (model m) fuel input locals =
+      (iterate (body.run (model m) fuel) (fun tag => tag.down.val == 1)
+        fuel (mask.project (wires.read input locals))).map (fun bank => .cons (bank.get result) .nil) :=
+  Proofs.thetaThenReturn_eval m body result wires fuel input locals
+
+/-- A reconstructed bank agrees with executing the original header quads. -/
+theorem HeaderProjection.header_agrees {body : Join.Block Op regs} (projected : HeaderProjection body mask)
+    (old : Bank (regs := regs) m) :
+    projected.headerBank m (mask.project old) = body.eval m old :=
+  Proofs.header_projection_agrees m projected old
 
 /-- The reconstructed bank supplies the same tests and data to the shared γ. -/
 theorem Checked.header_agrees (old : Bank (regs := regs) m) :

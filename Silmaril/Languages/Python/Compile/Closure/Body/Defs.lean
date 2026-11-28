@@ -13,7 +13,7 @@ operands so a code linker can choose the numeric key.
 namespace Silmaril.Languages.Python.Compile.Closure.Body
 
 open Source (BlockPath Name Scope ScopeTree)
-open Core.Closure (CaptureSlot Parameters Slot)
+open Core.Closure (CaptureSlot Parameters Slot TupleItem)
 
 @[expose] public section
 
@@ -33,6 +33,7 @@ inductive Expr (layout : Core.Closure.Layout) where
   | eqInt (left : Expr layout) (right : Int)
   | add (left right : Expr layout)
   | mul (left right : Expr layout)
+  | tuple (items : List (TupleItem layout))
   | call (callee : Expr layout) (arguments : List (Expr layout))
   deriving Repr
 
@@ -50,6 +51,22 @@ inductive Error where
   | captureLayout (path : BlockPath)
   deriving Repr
 
+inductive TupleItemTranslation (scope : Scope) : Source.Expr → TupleItem (frameLayout scope) → Prop where
+  | integer (value : Int) : TupleItemTranslation scope (.integer value) (.literal (.int value))
+  | boolean (value : Bool) : TupleItemTranslation scope (.boolean value) (.literal (.bool value))
+  | none_ : TupleItemTranslation scope .none_ (.literal .none)
+  | read {name slot} (translated : SlotTranslation scope name slot) :
+      TupleItemTranslation scope (.name name) (.read slot)
+  | global {name} (access : GlobalRead scope name) :
+      TupleItemTranslation scope (.name name) (.global name)
+
+inductive TupleItemsTranslation (scope : Scope) :
+    List Source.Expr → List (TupleItem (frameLayout scope)) → Prop where
+  | nil : TupleItemsTranslation scope [] []
+  | cons {item items operand operands}
+      (head : TupleItemTranslation scope item operand) (tail : TupleItemsTranslation scope items operands) :
+      TupleItemsTranslation scope (item :: items) (operand :: operands)
+
 mutual
   inductive ExprTranslation (scope : Scope) : Source.Expr → Expr (frameLayout scope) → Prop where
     | integer (value : Int) : ExprTranslation scope (.integer value) (.integer value)
@@ -60,6 +77,8 @@ mutual
     | add {left right lhs rhs} (leftTranslation : ExprTranslation scope left lhs)
         (rightTranslation : ExprTranslation scope right rhs) :
         ExprTranslation scope (.binary .add left right) (.add lhs rhs)
+    | tuple {items operands} (checked : TupleItemsTranslation scope items operands) :
+        ExprTranslation scope (.tuple items) (.tuple operands)
     | mul {left right lhs rhs} (leftTranslation : ExprTranslation scope left lhs)
         (rightTranslation : ExprTranslation scope right rhs) :
         ExprTranslation scope (.binary .mul left right) (.mul lhs rhs)
@@ -92,16 +111,26 @@ def lowerSlot (scope : Scope) (name : Name) :
   let some result := slot? scope name | throw (.unresolvedName name)
   return result
 
+def lowerNameRead (scope : Scope) (allowGlobals : Bool) (name : Name) :
+    Except Error {operand // TupleItemTranslation scope (.name name) operand} :=
+  if implicit : allowGlobals = true ∧ scope.access name = some .implicitGlobal then
+    .ok ⟨.global name, .global (.implicit implicit.2)⟩
+  else if declared : allowGlobals = true ∧ scope.access name = some .declaredGlobal then
+    .ok ⟨.global name, .global (.declared declared.2)⟩
+  else (lowerSlot scope name).map fun slot => ⟨.read slot.val, .read slot.property⟩
+
 mutual
   def lowerExprWith (scope : Scope) (allowGlobals : Bool) : (source : Source.Expr) →
       Except Error {target // ExprTranslation scope source target}
     | .integer value => .ok ⟨.integer value, .integer value⟩
-    | .name name =>
-      if implicit : allowGlobals = true ∧ scope.access name = some .implicitGlobal then
-        .ok ⟨.globalName name, .globalName (.implicit implicit.2)⟩
-      else if declared : allowGlobals = true ∧ scope.access name = some .declaredGlobal then
-        .ok ⟨.globalName name, .globalName (.declared declared.2)⟩
-      else (lowerSlot scope name).map fun slot => ⟨.read slot.val, .read slot.property⟩
+    | .name name => do
+      let read ← lowerNameRead scope allowGlobals name
+      match read with
+      | ⟨.global global, evidence⟩ =>
+        return ⟨.globalName global, by cases evidence with | global access => exact .globalName access⟩
+      | ⟨.read slot, evidence⟩ =>
+        return ⟨.read slot, by cases evidence with | read translated => exact .read translated⟩
+      | ⟨.literal _, evidence⟩ => nomatch evidence
     | .binary .add left right => do
       let lhs ← lowerExprWith scope allowGlobals left
       let rhs ← lowerExprWith scope allowGlobals right
@@ -140,6 +169,30 @@ mutual
     | _ => .error .argumentProfile
   termination_by sources => sizeOf sources
 end
+
+def lowerTupleItem (scope : Scope) (allowGlobals : Bool) : (item : Source.Expr) →
+    Except Error {operand // TupleItemTranslation scope item operand}
+  | .integer value => .ok ⟨.literal (.int value), .integer value⟩
+  | .boolean value => .ok ⟨.literal (.bool value), .boolean value⟩
+  | .none_ => .ok ⟨.literal .none, .none_⟩
+  | .name name => lowerNameRead scope allowGlobals name
+  | _ => .error .expressionShape
+
+def lowerTupleItems (scope : Scope) (allowGlobals : Bool) : (items : List Source.Expr) →
+    Except Error {operands // TupleItemsTranslation scope items operands}
+  | [] => .ok ⟨[], .nil⟩
+  | head :: tail => do
+    let first ← lowerTupleItem scope allowGlobals head
+    let remaining ← lowerTupleItems scope allowGlobals tail
+    return ⟨first.val :: remaining.val, .cons first.property remaining.property⟩
+
+/-- Tuple syntax is admitted at return sites. The ordinary operand checker
+continues to govern assignments and call arguments. -/
+def lowerReturnExpr (scope : Scope) (allowGlobals : Bool) : (source : Source.Expr) →
+    Except Error {target // ExprTranslation scope source target}
+  | .tuple items => (lowerTupleItems scope allowGlobals items).map fun checked =>
+      ⟨.tuple checked.val, .tuple checked.property⟩
+  | source => lowerExprWith scope allowGlobals source
 
 def lowerExpr (scope : Scope) := lowerExprWith scope false
 
@@ -386,7 +439,7 @@ private def lowerOrdinaryBody (tree : ScopeTree) (allowGlobals : Bool)
           else throw (.scopeTree path)
         else throw (.scopeTree path)
     else if complete : childIndex = tree.children.length then
-      let target ← lowerExprWith tree.scope allowGlobals value
+      let target ← lowerReturnExpr tree.scope allowGlobals value
       return ⟨.ret target.val, .ret ordinary complete target.property⟩
     else throw (.scopeTree tree.scope.context.path)
   | .assert_ (.boolean value) none :: rest => do

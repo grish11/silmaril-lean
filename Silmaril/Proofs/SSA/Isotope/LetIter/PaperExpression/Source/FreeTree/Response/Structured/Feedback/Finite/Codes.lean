@@ -4,6 +4,10 @@ public import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Respo
 import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.Equations.Thms
 import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Reply.Reconstruction.Thms
 
+import Mathlib.Data.Fintype.EquivFin
+import Mathlib.Basic.Finite.Sum
+import Mathlib.Logic.Equiv.Fin.Basic
+
 public section
 
 open Silmaril.Isotope
@@ -12,7 +16,9 @@ open Silmaril.Isotope.LetIter.PaperExpression.Source
 namespace Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Proofs
 
 variable {Φ ε : Type} [HasTy Φ (Ty Unit)] [HasEff Φ ε] [Preorder ε] [OrderBot ε]
-  {Γ : EffectCtx (Ty Unit) ε} {c : Code} {C : Ty Unit} {e : ε} {a : Expr Φ}
+  {Γ : EffectCtx (Ty Unit) ε} {c S T B : Code} {C : Ty Unit} {e : ε} {a : Expr Φ}
+
+local notation "slot[" c "]" => (Code.ty c, (⊥ : ε))
 
 omit [HasTy Φ (Ty Unit)] in
 theorem literal_subst (c : Code) (x : c.Value) (σ : Nat → Expr Φ) :
@@ -122,5 +128,79 @@ theorem eqv_by_codes (c : Code) {a b : Expr Φ}
     (b.subst (shape.sourceSubst ([] : EffectCtx (Ty Unit) ε)))
   rw [σ]
   exact rows v
+
+theorem stateMap_wf (h : S.Value → T.Value) :
+    Wf (slot[S] :: Γ) (stateMap S T h : Expr Φ) T.ty e :=
+  dispatch_wf S (fun _ => literal_wf _ _) (.var 0 bot_le)
+
+theorem stateMap_readback (h : S.Value → T.Value) (s : S.Value) :
+    Eqv Γ T.ty e ((stateMap S T h : Expr Φ).subst (S.literal s).subst0) (T.literal (h s)) := by
+  unfold stateMap
+  rw [dispatch_subst S (fun v => literal_subst T (h v))]
+  exact dispatch_beta S s (fun v => literal_subst T (h v)) (fun _ => literal_wf _ _)
+
+omit [HasTy Φ (Ty Unit)] [HasEff Φ ε] [Preorder ε] [OrderBot ε] in
+theorem stateMap_wk1 {h : S.Value → T.Value} :
+    (stateMap S T h : Expr Φ).wk1 = stateMap S T h := by
+  rw [Expr.wk1, Expr.wk_eq_subst, stateMap, dispatch_subst S (fun v => literal_subst _ _)]
+  rfl
+
+theorem mapControl_wf (h : S.Value → T.Value) :
+    Wf (slot[Code.sum B S] :: Γ) (mapControl (Φ := Φ) B h) (Code.sum B T).ty e :=
+  .case (.var 0 bot_le) (.inl (.var 0 bot_le)) (.inr (stateMap_wf h))
+
+omit [HasTy Φ (Ty Unit)] [HasEff Φ ε] [Preorder ε] [OrderBot ε] in
+theorem mapControl_subst (h : S.Value → T.Value) (σ : Nat → Expr Φ) :
+    (mapControl (Φ := Φ) B h).subst σ = .case (σ 0) (.inl (.var 0)) (.inr (stateMap S T h)) := by
+  simp only [mapControl, Expr.subst, Expr.liftSubst, stateMap, dispatch_subst S (fun v => literal_subst _ _)]
+
+omit [HasTy Φ (Ty Unit)] [HasEff Φ ε] [Preorder ε] [OrderBot ε] in
+theorem mapControl_wk1 {h : S.Value → T.Value} :
+    (mapControl (Φ := Φ) B h).wk1 = mapControl B h := by
+  rw [Expr.wk1, Expr.wk_eq_subst, mapControl_subst]
+  rfl
+
+theorem mapControl_readback (h : S.Value → T.Value) (v : (Code.sum B S).Value) :
+    Eqv Γ (Code.sum B T).ty e (.let₁ ((Code.sum B S).literal v) (mapControl B h) : Expr Φ)
+      ((Code.sum B T).literal (Sum.map id h v)) := by
+  have value : Wf Γ ((Code.sum B S).literal v : Expr Φ) (Code.sum B S).ty ⊥ := literal_wf _ _
+  have beta := Eqv.step (.let1_beta value (mapControl_wf (Γ := Γ) (B := B) (e := e) h))
+  rw [mapControl_subst] at beta
+  have l : Wf (slot[B] :: Γ) (.inl (.var 0) : Expr Φ) (Code.sum B T).ty e := .inl (.var 0 bot_le)
+  have r : Wf (slot[S] :: Γ) (.inr (stateMap S T h) : Expr Φ) (Code.sum B T).ty e := .inr (stateMap_wf h)
+  cases v with
+  | inl v =>
+      have p : Wf Γ (B.literal v : Expr Φ) B.ty ⊥ := literal_wf _ _
+      exact beta.trans ((Eqv.step (.reduce (.case (.inl (p.weakenEffect bot_le)) l r)
+        (.let₁ (p.weakenEffect bot_le) l) (.case_inl _ _ _))).trans (.step (.let1_beta p l)))
+  | inr v =>
+      have p : Wf Γ (S.literal v : Expr Φ) S.ty ⊥ := literal_wf _ _
+      exact beta.trans ((Eqv.step (.reduce (.case (.inr (p.weakenEffect bot_le)) l r)
+        (.let₁ (p.weakenEffect bot_le) r) (.case_inr _ _ _))).trans
+        ((Eqv.step (.let1_beta p r)).trans (.inr (stateMap_readback h v))))
+
+
+theorem finiteValue (c : Code) : _root_.Finite c.Value := by
+  induction c with
+  | unit => exact inferInstanceAs (_root_.Finite PUnit)
+  | sum l r il ir => exact inferInstanceAs (_root_.Finite (l.Value ⊕ r.Value))
+
+private theorem encodeFin (n : Nat) : ∃ c : Code, Nonempty (c.Value ≃ Fin (n + 1)) := by
+  let unitCode : Code.Value Code.unit ≃ Fin 1 := (Equiv.equivPUnit (Fin 1)).symm
+  induction n with
+  | zero => exact ⟨.unit, ⟨unitCode⟩⟩
+  | succ _ ih =>
+      obtain ⟨c, ⟨eqv⟩⟩ := ih
+      exact ⟨.sum c .unit, ⟨(eqv.sumCongr unitCode).trans finSumFinEquiv⟩⟩
+
+theorem encodeFinite (A : Type) [_root_.Finite A] (initial : A) :
+    ∃ c : Code, Nonempty (c.Value ≃ A) := by
+  obtain ⟨n, ⟨e⟩⟩ := _root_.Finite.exists_equiv_fin A
+  cases n with
+  | zero => exact (e initial).elim0
+  | succ n =>
+      obtain ⟨c, ⟨v⟩⟩ := encodeFin n
+      exact ⟨c, ⟨v.trans e.symm⟩⟩
+
 
 end Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Proofs

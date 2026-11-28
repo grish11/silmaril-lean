@@ -47,7 +47,7 @@ private def closureResult : Option (List Nat × List Nat × Int) := do
   match result with
   | .int value =>
     return (closure.captures.toList.map (·.address), fromOperands.captures.toList.map (·.address), value)
-  | .none | .bool _ | .function _ => none
+  | _ => none
 
 #guard closureResult == some ([1, 100, 2], [1, 100, 2], 13)
 

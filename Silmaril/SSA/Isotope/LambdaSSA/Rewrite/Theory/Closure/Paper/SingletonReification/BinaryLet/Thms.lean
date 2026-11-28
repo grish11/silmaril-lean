@@ -78,9 +78,24 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
   [HasFiniteCoproducts V] [HasFiniteCoproducts C]
   [DistributiveTensor V] [DistributivePremonoidalCategory C]
   [Iteration C] [ElgotCategory C] (J : V ⥤ C) [StrongElgotFreydCategory J]
-  (M : TypeModel τ V) [InstructionModel J M Φ] [RegionTypingCoherent (Φ := Φ) J M]
+  (M : TypeModel τ V) [InstructionModel J M Φ]
 
-variable [FreydCategory.CentralUnit J]
+open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (extend)
+
+/-- The literal packed binder transports the explicitly selected producer and
+body witnesses, with both context reindexings written at their value types. -/
+theorem literal_let₂_selected (ha : Tm.HasType [X] a (Silmaril.product A B))
+    (hp : ValueBranches [Silmaril.product X (Silmaril.product A B)] p [D])
+    {f : J.obj (ctxObj M [X]) ⟶ J.obj (M.obj (Silmaril.product A B))}
+    {g : J.obj (ctxObj M [Silmaril.product X (Silmaril.product A B)]) ⟶ J.obj (labelObj M [D])}
+    (df : Denotes J M ha f) (dg : RegionDenotes J M hp.hasType g) :
+    RegionDenotes J M (.let₂ ha (applyPackedPair_typed hp).hasType)
+      (extend J f ≫ J.map ((λ_ (M.obj X)).hom ▷ M.obj (Silmaril.product A B)) ≫
+        J.map (M.productIso X (Silmaril.product A B)).inv ≫
+        J.map (λ_ (M.obj (Silmaril.product X (Silmaril.product A B)))).inv ≫ g) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.SingletonReificationBinaryLet.literal_let₂_selected J M ha hp df dg
+
+variable [FreydCategory.CentralUnit J] [RegionTypingCoherent (Φ := Φ) J M]
 
 /-- Single-bind return and destructure-and-rebuild evaluate the arbitrary scrutinee with the same effects. -/
 theorem returnPair_denotation (ha : Tm.HasType [X] a (Silmaril.product A B)) :

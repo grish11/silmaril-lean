@@ -1,0 +1,19 @@
+PyArrow 26.0.1
+nullable-list-int32.arrows, SHA-256 d63521cfd912b7b60bebeb9d596ba0209321ea195005df59a06992dc9bd2eda3
+schema [0, 216), résultats: nullable List<élément: nullable signed Int32>
+record [216, 480), metadata 200, body @424+56
+  nodes [(4, 1), (4, 2)], descriptors [(0, 1), (8, 20), (32, 1), (40, 16)], offsets [0, 0, 0, 1, 4]
+  parent bits 0e, child bits 0a, rows [None, [], [None], [-7, None, 0]]
+record [480, 696), metadata 200, body @688+8
+  nodes [(0, 0), (0, 0)], descriptors [(0, 0), (0, 4), (8, 0), (8, 0)], offsets [0]
+  parent bits , child bits , rows []
+record [696, 944), metadata 200, body @904+40
+  nodes [(3, 1), (2, 0)], descriptors [(0, 1), (8, 16), (24, 1), (32, 8)], offsets [0, 2, 2, 2]
+  parent bits 05, child bits 03, rows [[-2147483648, 2147483647], None, []]
+record [944, 1176), metadata 200, body @1152+24
+  nodes [(2, 2), (0, 0)], descriptors [(0, 1), (8, 12), (24, 0), (24, 0)], offsets [0, 0, 0]
+  parent bits 00, child bits , rows [None, None]
+EOS [1176, 1184)
+schema-only.arrows, SHA-256 0cdae97844ee979f23e1f5087e6e8956375ea4538af84527729b0de4c39bc73e
+schema [0, 216), résultats: nullable List<élément: nullable signed Int32>
+EOS [216, 224)

@@ -51,6 +51,17 @@ theorem equiv_let_abort_of_pure {τ : Type u} [TypeFormers τ]
 
 end Silmaril.Isotope.LetIter.LocallyNameless
 
+namespace Silmaril.Isotope.LetIter.Semantics.Categorical.AbortCounterexample
+
+/-- Explicit sequencing of an effectful empty scrutinee is independent of
+the exact native rules in the existing counterexample signature. -/
+theorem exact_abortSequence_unprovable :
+    ¬ LocallyNameless.Equiv (Φ := signature.Instr) false (Ctx.nil : Ctx Empty (Ty Empty)) .nil
+      (.abort (.op true .unit)) (.let₁ (.op true .unit) (.abort (.bv 0))) Ty.unit :=
+  native_unprovable
+
+end Silmaril.Isotope.LetIter.Semantics.Categorical.AbortCounterexample
+
 namespace Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic
 
 /-- The existing exact quotient distinguishes closed terms with equal denotation in the

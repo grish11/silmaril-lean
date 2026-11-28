@@ -1,0 +1,145 @@
+{
+  "libbrotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "contexts_sha256": "7af4ff00fc0d670f52537dcb2014e3eb1c634e3d24da57719ebcd0e590ca3041",
+  "fixtures": {
+    "producer-v1-entropy-brotli": {
+      "provenance": "PyArrow",
+      "wire_sha256": "95b5dd767881a635df970a200fed394eca154a6154297931aa189ac7b67ab056",
+      "literal_sha256": "2a072ae9bb3bca403cb4ccebff53c799fdf1754e82dc7214e3f78f83b654a2c9",
+      "trace_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "start": 24,
+      "payload": 729,
+      "meta_length": 3719,
+      "mode": 0,
+      "trees": 1,
+      "command": [
+        176,
+        6,
+        2,
+        1
+      ],
+      "begin": 736,
+      "end": 782,
+      "history": [
+        253,
+        127
+      ],
+      "done": false,
+      "selected": [
+        0
+      ]
+    },
+    "producer-v2-entropy-brotli": {
+      "provenance": "PyArrow",
+      "wire_sha256": "9a9cbc2c64924d1efc0f7b111a776de9a4655cbb3f63a2acf0d0a803685bf64c",
+      "literal_sha256": "f2dadabeae2223ad5a889fd86b220e112bad5cc37be496a1308e2c13f21d2bf4",
+      "trace_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "start": 24,
+      "payload": 89,
+      "meta_length": 3584,
+      "mode": 2,
+      "trees": 1,
+      "command": [
+        423,
+        4,
+        3580,
+        1
+      ],
+      "begin": 113,
+      "end": 119,
+      "history": [
+        0,
+        0
+      ],
+      "done": false,
+      "selected": [
+        0
+      ]
+    },
+    "cli-alternating-case": {
+      "provenance": "libbrotli CLI quality 11",
+      "wire_sha256": "9f67786e64a51c04938120496945772a3aa43f63d890b83fdcda3f1f415aa844",
+      "literal_sha256": "8cebbc057991180fe54e674963bfbd738cc6a8122dd3c42520f471dc94318e1b",
+      "trace_sha256": "f57f0cc8ed253794efca73f600c44150a2e5b41be4a9283626fec7e9fde80205",
+      "start": 24,
+      "payload": 278,
+      "meta_length": 2048,
+      "mode": 2,
+      "trees": 2,
+      "command": [
+        450,
+        191,
+        4,
+        1
+      ],
+      "begin": 286,
+      "end": 1194,
+      "history": [
+        67,
+        117
+      ],
+      "done": false,
+      "selected": [
+        0,
+        1
+      ]
+    },
+    "cli-signed": {
+      "provenance": "libbrotli CLI quality 10",
+      "wire_sha256": "0a9c1069503862597dc58819dee78faabc2206efaccbae284af489967efa0d65",
+      "literal_sha256": "98bf39c685f9cef1d996651bf9a2b5a30df45d5cddbe42bda6065b77dad427aa",
+      "trace_sha256": "bf1f41abf424190451565fa3913375e8e43673c10cf91cea7a0fd9ae2b128943",
+      "start": 24,
+      "payload": 559,
+      "meta_length": 2048,
+      "mode": 3,
+      "trees": 4,
+      "command": [
+        268,
+        17,
+        6,
+        1
+      ],
+      "begin": 567,
+      "end": 599,
+      "history": [
+        240,
+        0
+      ],
+      "done": false,
+      "selected": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "cli-literal-only": {
+      "provenance": "libbrotli CLI quality 4",
+      "wire_sha256": "ca9335d3078b3bf2af0f9624421533d9799347f3efd351a56bf2f9e4a4b796bf",
+      "literal_sha256": "2b06f52841f4448b6fa7e9dc4c2d8d764173652195db5ab3612d2f3668f17254",
+      "trace_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "start": 24,
+      "payload": 101,
+      "meta_length": 256,
+      "mode": 2,
+      "trees": 1,
+      "command": [
+        458,
+        256,
+        4,
+        1
+      ],
+      "begin": 108,
+      "end": 1132,
+      "history": [
+        112,
+        112
+      ],
+      "done": true,
+      "selected": [
+        0
+      ]
+    }
+  }
+}

@@ -196,10 +196,11 @@ private def bindFormals (scope : Scope) (site : Site) (params : List OperatorDec
       (List.replicate arity .expression) true
     return binding :: current
 
-private def bindNames (scope : Scope) (site : Site) (names : List Ident) : ModuleM Scope := do
+private def bindNames (scope : Scope) (site : Site) (names : List Ident)
+    (kind : BindingKind := .rigid) : ModuleM Scope := do
   requireNonempty site "empty binder group" names
   names.zipIdx.foldlM (init := scope) fun current (name, index) => do
-    let binding ← declare current (site.child (.binder index)) (.ident name) .rigid [] true
+    let binding ← declare current (site.child (.binder index)) (.ident name) kind [] true
     return binding :: current
 
 private def groupNames : BoundNames → List Ident
@@ -399,8 +400,10 @@ private partial def resolveExprIn (profile : Profile) (oldValue : Option Binding
   | .fairness _ subscript action =>
     if profile = .core then throw (diagnostic site (.unsupported .actionOrTemporal))
     operands [subscript, action]
-  | .temporalQuant .. =>
-    throw (diagnostic site (.unsupported .actionOrTemporal))
+  | .temporalQuant _ names body =>
+    if profile ≠ .levelSyntax then throw (diagnostic site (.unsupported .actionOrTemporal))
+    let inner ← bindNames scope site names .flexible
+    descend inner (site.child .body) body
   | .labeled .. => throw (diagnostic site (.unsupported .labeledExpression))
 
 private def resolveExpr (profile : Profile) : Scope → Site → Expr → ModuleM Unit :=

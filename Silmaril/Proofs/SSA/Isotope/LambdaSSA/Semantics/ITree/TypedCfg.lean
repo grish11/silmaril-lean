@@ -3,7 +3,7 @@ module
 public import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Typed.Defs
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Semantics.ITree.TypedLabels
 
-/-! # Compare typed and erased dispatcher iteration -/
+/-! # Compare typed and erased Kleisli dispatcher iteration -/
 
 public section
 
@@ -16,18 +16,17 @@ open Silmaril.Isotope Silmaril.Isotope.LambdaSSA Silmaril.Isotope.LambdaSSA.Sema
 open Silmaril.Isotope.LambdaSSA.Semantics.Interaction
 open Silmaril.Isotope.LambdaSSA.Semantics.Interaction.Typed
 open Silmaril.Isotope.Semantics (encodeValue)
-open Silmaril.Elgot.ITree
 
-variable {κ : Type (v + 1)} [AtomValues κ] {E : Type v → Type v}
+variable {κ : Type v} [AtomValues κ]
+  {m : Type v → Type v} [Monad m] [LawfulMonad m] [Iterate m] [LawfulElgotMonad m]
 
 attribute [local instance] typeModel
 
 local notation "V" => AtomValues.carrier (κ := κ)
-local notation "TM" => ModelTree E
 
-/-- Re-encode output and recursive state, using the weak ITree's own Elgot laws. -/
-private theorem transport {A B C D : Type (v + 1)}
-    (f : A → TM (B ⊕ A)) (g : C → TM (D ⊕ C)) (out : B → D) (enc : A → C)
+/-- Re-encode output and recursive state, using the lawful Elgot equations. -/
+private theorem transport {A B C D : Type v}
+    (f : A → m (B ⊕ A)) (g : C → m (D ⊕ C)) (out : B → D) (enc : A → C)
     (square : ∀ a, (f a >>= fun s => pure (Sum.map out enc s)) = g (enc a)) (a : A) :
     (iter f a >>= fun b => pure (out b)) = iter g (enc a) := by
   let f' := mapReturn f (fun b => pure (out b))
@@ -37,14 +36,14 @@ private theorem transport {A B C D : Type (v + 1)}
     rw [← square a]
     exact bind_congr (fun s => by cases s <;> simp)
   calc
-    _ = iter f' a := congrFun (iterate_naturality f (fun b => pure (out b))) a
+    _ = iter f' a := congrFun (LawfulElgotMonad.naturality f (fun b => pure (out b))) a
     _ = _ := by
-      simpa [Bind.kleisliRight, liftPure] using congrFun (iterate_uniformity f' g enc commute) a
+      simpa [Bind.kleisliRight, liftPure] using congrFun (LawfulElgotMonad.uniformity f' g enc commute) a
 
-theorem cfgDenotation_tree {Γ : VCtx (Ty κ)} {n : Nat} (R : Fin n → Ty κ) (L : LCtx (Ty κ))
-    (entry : Monadic.Env Γ → TM (Monadic.LabelValue (List.ofFn R ++ L)))
-    (collective : Monadic.Env Γ × Monadic.FiniteLabelDen R → TM (Monadic.LabelValue (List.ofFn R ++ L)))
-    (rawEntry : TM (Transfer (Sigma V))) (rawBlock : BlockInput (Sigma V) n → TM (Transfer (Sigma V)))
+theorem cfgDenotation_erased {Γ : VCtx (Ty κ)} {n : Nat} (R : Fin n → Ty κ) (L : LCtx (Ty κ))
+    (entry : Monadic.Env Γ → m (Monadic.LabelValue (List.ofFn R ++ L)))
+    (collective : Monadic.Env Γ × Monadic.FiniteLabelDen R → m (Monadic.LabelValue (List.ofFn R ++ L)))
+    (rawEntry : m (Transfer (Sigma V))) (rawBlock : BlockInput (Sigma V) n → m (Transfer (Sigma V)))
     (ρ : Monadic.Env Γ)
     (he : (entry ρ >>= fun x => pure (encodeLabel (List.ofFn R ++ L) x)) = rawEntry)
     (hb : ∀ x, (collective (ρ, x) >>= fun y => pure (encodeLabel (List.ofFn R ++ L) y)) =
@@ -55,9 +54,9 @@ theorem cfgDenotation_tree {Γ : VCtx (Ty κ)} {n : Nat} (R : Fin n → Ty κ) (
   let f := fun current : Monadic.LabelValue (List.ofFn R) =>
     collective (ρ, Monadic.labelDenToFinite R current) >>= fun x =>
       (pure (Monadic.LabelValue.appendSplit (List.ofFn R) L x) :
-        TM (Monadic.LabelValue L ⊕ Monadic.LabelValue (List.ofFn R)))
+        m (Monadic.LabelValue L ⊕ Monadic.LabelValue (List.ofFn R)))
   let g := fun p : BlockInput (Sigma V) n =>
-    rawBlock p >>= fun x => (pure (splitTransfer n x) : TM _)
+    rawBlock p >>= fun x => (pure (splitTransfer n x) : m _)
   let enc := encodeBlock ∘ Monadic.labelDenToFinite R
   have loop (a : Monadic.LabelValue (List.ofFn R)) :
       (iter f a >>= fun x => pure (encodeLabel L x)) = iter g (enc a) := by

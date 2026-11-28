@@ -1,0 +1,30 @@
+{
+  "arrow": [
+    {"path": "k=a%2Fb%3Dc%25", "entries": [["k", "a/b=c%"]], "canonical": true},
+    {"path": "x%2Fy%3Dz=hello/k=a=b", "entries": [["x/y=z", "hello"], ["k", "a=b"]], "canonical": false},
+    {"path": "k=%C3%A9", "entries": [["k", "é"]], "canonical": true},
+    {"path": "k=café", "entries": [["k", "café"]], "canonical": false},
+    {"path": "k=%252F", "entries": [["k", "%2F"]], "canonical": true},
+    {"path": "k=a+b", "entries": [["k", "a+b"]], "canonical": false},
+    {"path": "k=", "entries": [["k", ""]], "canonical": true},
+    {"path": "k=__HIVE_DEFAULT_PARTITION__", "entries": [["k", null]], "canonical": true},
+    {"path": "k=%5f_HIVE_DEFAULT_PARTITION__", "entries": [["k", null]], "canonical": false}
+  ],
+  "hive": [
+    {
+      "input": [["K", "a/b=c%"], ["Label", "x:y?"]],
+      "path": "k=a%2Fb%3Dc%25/label=x%3Ay%3F",
+      "entries": [["k", "a/b=c%"], ["label", "x:y?"]]
+    },
+    {
+      "input": [["Region", ""], ["Year", null], ["Marker", "__HIVE_DEFAULT_PARTITION__"]],
+      "path": "region=__HIVE_DEFAULT_PARTITION__/year=__HIVE_DEFAULT_PARTITION__/marker=__HIVE_DEFAULT_PARTITION__",
+      "entries": [["region", null], ["year", null], ["marker", null]]
+    },
+    {
+      "input": [["City", "café"], ["Tag", "hello world"]],
+      "path": "city=café/tag=hello world",
+      "entries": [["city", "café"], ["tag", "hello world"]]
+    }
+  ]
+}

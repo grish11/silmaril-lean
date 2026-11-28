@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Defs
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.CopyChain
+import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.OutcomeLink
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Simulation.Soundness
 import Mathlib.Data.Finset.Card
 
@@ -238,18 +239,43 @@ private theorem compare_supported {n m : Nat} (left : Outcome n b) (right : Outc
     (left.refines? right).isSome ↔ Supported left ∧ Supported right := by
   cases left <;> cases right <;> simp [Outcome.refines?, Outcome.agrees?, Supported]
 
+private theorem supported_continue {n m c : Nat} (outcome : Outcome n b) (embed : Fin n → Fin m)
+    (finish : Fin b → Outcome m c) :
+    Supported (outcome.continueWith embed finish) ↔
+      Supported outcome ∧ ∀ port, outcome = .returns port → Supported (finish port) := by
+  cases outcome <;> simp [Outcome.continueWith, Supported]
+
+private theorem supported_embed {n m : Nat} (outcome : Outcome n b) (embed : Fin n → Fin m) :
+    Supported (outcome.continueWith embed Outcome.returns) ↔ ∀ i, outcome ≠ .unsupported i := by
+  cases outcome <;> simp [Outcome.continueWith, Supported]
+
+theorem entry_typed_link [Inhabited V] {c : Nat} (left : Graph V F a b) (right : Graph V F b c) :
+    EntryTyped (left.link right) ↔ EntryTyped left ∧
+      ∀ input mid, entryOutcome left input = .returns mid →
+        ∀ index, entryOutcome right mid ≠ .unsupported index := by
+  rw [all_supported (graph := left.link right), all_supported (graph := left)]
+  have stage (input : Fin a) : Supported (entryOutcome (left.link right) input) ↔
+      Supported (entryOutcome left input) ∧
+        ∀ mid, entryOutcome left input = .returns mid → ∀ index, entryOutcome right mid ≠ .unsupported index := by
+    rw [entry_link]
+    refine (supported_continue (entryOutcome left input) (fun i => (i.castAdd b).castAdd right.locals)
+      (fun mid => (entryOutcome right mid).continueWith (fun i => i.natAdd (left.locals + b)) Outcome.returns)).trans ?_
+    exact and_congr_right fun _ => forall_congr' fun mid => imp_congr_right fun _ =>
+      supported_embed (entryOutcome right mid) (fun i => i.natAdd (left.locals + b))
+  exact (forall_congr' stage).trans forall_and
+
 private theorem entry_agrees (model : PairModel F Part α) (left right : Graph V F a b) (input : Fin a)
     (leftOK : Supported (entryOutcome left input)) (rightOK : Supported (entryOutcome right input)) :
     (entryOutcome left input).refines? (entryOutcome right input) = some true ↔
-      ∀ (m : PairModel F Part α) (packet : α), left.denote m.val (input, packet) ≤ right.denote m.val (input, packet) := by
+      ∀ packet : α, left.denote model.val (input, packet) ≤ right.denote model.val (input, packet) := by
   cases source : entryOutcome left input with
   | unsupported i =>
     rw [source] at leftOK
     exact leftOK.elim
   | cycle i =>
-    have included (m : PairModel F Part α) (packet : α) :
-        left.denote m.val (input, packet) ≤ right.denote m.val (input, packet) := by
-      rw [(entry_cycle m.val (input, packet) i source).2]
+    have included (packet : α) :
+        left.denote model.val (input, packet) ≤ right.denote model.val (input, packet) := by
+      rw [(entry_cycle model.val (input, packet) i source).2]
       exact fun result member => (Part.notMem_none result member).elim
     cases target : entryOutcome right input with
     | unsupported j =>
@@ -265,18 +291,18 @@ private theorem entry_agrees (model : PairModel F Part α) (left right : Graph V
     | cycle j =>
       simp only [Outcome.refines?, Option.some.injEq, Bool.false_eq_true, false_iff]
       intro included
-      have atUnit := included model model.val.unit
+      have atUnit := included model.val.unit
       rw [entry_returns model.val (input, model.val.unit) sourcePort source,
         (entry_cycle model.val (input, model.val.unit) j target).2] at atUnit
       exact Part.notMem_none _ (atUnit _ (Part.mem_some _))
     | returns targetPort =>
       simp only [Outcome.refines?, Outcome.agrees?, Option.some.injEq, decide_eq_true_eq]
       constructor
-      · intro same m packet
-        rw [entry_returns m.val (input, packet) sourcePort source,
-          entry_returns m.val (input, packet) targetPort target, same]
+      · intro same packet
+        rw [entry_returns model.val (input, packet) sourcePort source,
+          entry_returns model.val (input, packet) targetPort target, same]
       · intro included
-        have atUnit := included model model.val.unit
+        have atUnit := included model.val.unit
         rw [entry_returns model.val (input, model.val.unit) sourcePort source,
           entry_returns model.val (input, model.val.unit) targetPort target] at atUnit
         have same := Part.mem_some_iff.mp (atUnit _ (Part.mem_some _))
@@ -285,11 +311,11 @@ private theorem entry_agrees (model : PairModel F Part α) (left right : Graph V
 private theorem all_agree (model : PairModel F Part α) (left right : Graph V F a b)
     (leftTyped : EntryTyped left) (rightTyped : EntryTyped right) :
     (∀ input, (entryOutcome left input).refines? (entryOutcome right input) = some true) ↔
-      Refines (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right) := by
+      Sat model (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right) := by
   have each := fun input =>
     entry_agrees model left right input (all_supported.mp leftTyped input) (all_supported.mp rightTyped input)
-  exact ⟨fun agrees m input => (each input.1).mp (agrees input.1) m input.2,
-    fun included input => (each input).mpr (fun m packet => included m (input, packet))⟩
+  exact ⟨fun agrees input => (each input.1).mp (agrees input.1) input.2,
+    fun included input => (each input).mpr (fun packet => included (input, packet))⟩
 
 private theorem supported_eq (left right : Graph V F a b) :
     ((List.finRange a).map (fun input => (entryOutcome left input).refines? (entryOutcome right input))).all
@@ -306,10 +332,10 @@ theorem refinement_between_none (left right : Graph V F a b) :
   · rename_i unsupported
     simp [mt (supported_eq left right).mpr unsupported]
 
-theorem refinement_between_some (model : PairModel F Part α) (left right : Graph V F a b)
+theorem refinement_between_some_sat (model : PairModel F Part α) (left right : Graph V F a b)
     (verdict : Bool) :
     refinementBetween? left right = some verdict ↔ (EntryTyped left ∧ EntryTyped right) ∧
-      (verdict = true ↔ Refines (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right)) := by
+      (verdict = true ↔ Sat model (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right)) := by
   dsimp only [refinementBetween?]
   split
   · rename_i supported
@@ -319,6 +345,26 @@ theorem refinement_between_some (model : PairModel F Part α) (left right : Grap
     cases verdict <;> simp [List.all_eq_true]
   · rename_i unsupported
     simp [mt (supported_eq left right).mpr unsupported]
+
+theorem refinement_between_some (model : PairModel F Part α) (left right : Graph V F a b)
+    (verdict : Bool) :
+    refinementBetween? left right = some verdict ↔ (EntryTyped left ∧ EntryTyped right) ∧
+      (verdict = true ↔ Refines (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right)) :=
+  (refinement_between_some_sat model left right verdict).trans <| and_congr_right fun typed =>
+    iff_congr Iff.rfl
+      ⟨fun sat m => (all_agree m left right typed.1 typed.2).mp ((all_agree model left right typed.1 typed.2).mpr sat),
+        fun uniform => uniform model⟩
+
+theorem refinement_between_named_map [Inhabited V] {F' : Type} (rename : F → F') (model : PairModel F' Part α)
+    (left right : Graph V F a b) (verdict : Bool) :
+    refinementBetween? left right = some verdict ↔ (EntryTyped left ∧ EntryTyped right) ∧
+      (verdict = true ↔ ∀ port, Cyclic.Institution.Refinement.ssaSat model
+        (namedSSAClass port (Quotient.mk _ (left.mapOp rename)))
+        (namedSSAClass port (Quotient.mk _ (right.mapOp rename)))) := by
+  rw [namedSSA_sat_iff]
+  change _ ↔ _ ∧ (_ ↔ Sat model (mapArrow rename (Quotient.mk _ left)) (mapArrow rename (Quotient.mk _ right)))
+  rw [sat_map_iff]
+  exact refinement_between_some_sat _ left right verdict
 
 private theorem entry_wiring (wire : Fin a → Fin b) (input : Fin a) :
     entryOutcome (Graph.wiring (V := V) (F := F) wire) input = .returns (wire input) := by

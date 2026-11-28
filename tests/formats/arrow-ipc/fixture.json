@@ -1,0 +1,30 @@
+{
+  "path": "nullable-int32-utf8.arrows",
+  "sha256": "9870303ab59b2f7ffaaccbc4cdd2227942fb6fd3b2acdc8771e641578cb862ae",
+  "license": "MIT",
+  "generation": "python3 -I tests/formats/arrow-ipc/fixture.py --regenerate",
+  "producer": {
+    "name": "PyArrow",
+    "version": "26.0.1",
+    "source_release_commit": "9e5d6978e9acf372cc989aaaf94e863fe8582c90",
+    "wheel": "pyarrow-26.0.1-cp314-cp314-manylinux_2_28_x86_64.whl",
+    "wheel_sha256": "7ae48ab53610b85e004b03bccff593fbdf22186d0ab48ed42c90797915dac814",
+    "numpy_version": "2.5.5"
+  },
+  "profile": "Arrow Columnar 1.5, little-endian IPC V5 stream, modern framing, uncompressed, explicit EOS",
+  "batches": [
+    [
+      {"n": -2147483648, "téxt": "é"},
+      {"n": null, "téxt": ""},
+      {"n": 2147483647, "téxt": null},
+      {"n": 0, "téxt": "雪"}
+    ],
+    [],
+    [
+      {"n": null, "téxt": null}
+    ],
+    [
+      {"n": 17, "téxt": ""}
+    ]
+  ]
+}

@@ -162,17 +162,17 @@ section Dispatcher
 
 variable {τ : Type x} [TypeFormers τ] [HasTy Φ τ]
   {blocks exits : Nat} {R : Fin blocks → τ} {E : Fin exits → τ}
-  {g : FiniteCFG Φ blocks exits 0}
+  {n : Nat} {β : BoundCtx τ n} {g : FiniteCFG Φ blocks exits n}
 
 /-- The continuations applied after decoding the packed block index. -/
-def packedBlockContinuations (hg : FiniteCFG.HasType .nil R E g) : Nat → Region Φ :=
-  compLSubst (compLSubst (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn E)).val)
+def packedBlockContinuations (hg : FiniteCFG.HasType β R E g) : Nat → Region Φ :=
+  compLSubst (compLSubst (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn E) β.toList).val)
     (fun _ => iterationDispatch)
 
-theorem iterationBody_packedDispatcher (hg : FiniteCFG.HasType .nil R E g) :
+theorem iterationBody_packedDispatcher (hg : FiniteCFG.HasType β R E g) :
     iterationBody (packedDispatcherRegion hg) =
       compLSubst (fun _ => unpackExits (List.ofFn R)) (packedBlockContinuations hg) 0 := by
-  let body := compLSubst (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn E)).val
+  let body := compLSubst (blockFamily hg).val (routeFamily (List.ofFn R) (List.ofFn E) β.toList).val
   let ret : Nat → Region Φ := fun _ => iterationDispatch
   have shift : liftLSubstVars ret = ret := rfl
   have assoc : compLSubst (liftLSubstVars body) ret = liftLSubstVars (compLSubst body ret) :=
@@ -181,7 +181,7 @@ theorem iterationBody_packedDispatcher (hg : FiniteCFG.HasType .nil R E g) :
   rw [lsubst_comp, assoc]
   rfl
 
-theorem packedBlockContinuations_at (hg : FiniteCFG.HasType .nil R E g) {i : Nat} (hi : i < blocks) :
+theorem packedBlockContinuations_at (hg : FiniteCFG.HasType β R E g) {i : Nat} (hi : i < blocks) :
     packedBlockContinuations hg i = iterationBody (routedFlat blocks (g.block ⟨i, hi⟩)) := by
   have shift : liftLSubstVars (fun _ => iterationDispatch : Nat → Region Φ) =
       fun _ => iterationDispatch := rfl
