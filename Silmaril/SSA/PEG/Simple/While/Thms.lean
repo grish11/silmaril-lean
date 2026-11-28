@@ -16,6 +16,16 @@ universe u v w
 variable {Data : Type u} {P : InstructionSet.{u,v} Data}
 variable {params : List (Ty Data)} {out : Ty Data}
 
+/-- A finite first pass has a defined false prefix and a true final sample. -/
+theorem firstTrue_eq_some_iff_samples (flags : Nat → Option Bool) (k : Nat) :
+    firstTrue flags = some k ↔ flags k = some true ∧ ∀ j < k, flags j = some false :=
+  WhileProofs.firstTrue_eq_some_iff_samples flags k
+
+theorem Stmt.runLoopFree_enableWhile {m : Interpretation.{u,v,w} P} {outs : List (Ty Data)}
+    (s : Stmt P false params outs) (store : Tuple m.Value params) :
+    Exec m s.enableWhile store (s.runLoopFree m store) :=
+  WhileProofs.runEnabled s store
+
 theorem Exec.while_trace {m : Interpretation.{u,v,w} P} {guard : Expr P params .bool}
     {body : Stmt P true params params} {input final : Tuple m.Value params}
     (run : Exec m (.while rfl guard body) input (some final)) :

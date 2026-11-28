@@ -44,3 +44,5 @@ lake build --wfail +Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.Prune
 make check CHECK_TARGETS='+Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.Prune.Regression +Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.UnequalRegression +Silmaril.Proofs.SSA.SeaOfNodes.Quads.Loop.Blocks.Prune.Regression'
 lake env leanchecker Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.Prune.Thms
 ```
+
+[Run the checked projection in typed MLIR CF](sea-of-nodes-quad-diamond-mlir-cf.md#prune-the-carried-header-arguments).

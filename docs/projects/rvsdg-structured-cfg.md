@@ -298,13 +298,40 @@ The equality concerns the actual source and recovered CFG denotations.
 The compiler emits canonical numbering for this grammar.
 [Mixed normalization API](../../Silmaril/SSA/RVSDG/LambdaSSA/Acyclic/Theta/StructuredCFG/WithNestedFeedback/Normalization/Thms.lean)
 
+## Recover through a supplied typed graph isomorphism
+
+`WithNestedFeedback.Reverse.Renumbered.recover` takes the actual
+`Flat.Serial.Graph` and a representative with an indexed
+`NestedTheta.Graph.Isomorphic` witness. The representative has its own
+signature table. The witness checks opcodes, ordered ports, every input
+and result address, and each child at its original arm or body position.
+The recursive decoder computes the source from the representative and
+returns a typed flat CFG with the correspondence to the actual graph.
+The existing partial graph transport gives agreement with actual
+`Region.denote` on the typed exit, payload, exact final token and absence
+of a finite return in coherent `StateT σ Part`.
+[Recovery API](../../Silmaril/SSA/RVSDG/LambdaSSA/Acyclic/Theta/StructuredCFG/WithNestedFeedback/Reverse/Renumbered/Thms.lean)
+
+The current indexed graph uses topological table positions as vertex
+numbers. `EntryChecked.scopeChains` shows that at every scope each
+nonfirst vertex consumes the token output of its immediate predecessor.
+Any address-preserving bijection into such a scope fixes every rank.
+The regression recovers the compiled mixed fork with a serial tail,
+checks the exact token from each selected arm and checks a path without
+a finite return. It rejects a transposition at the root and in a γ arm.
+It also proves that no vertex bijection can repair an entry token
+substituted for the fork's output token at the shared seam. Arbitrary
+external vertex IDs independent of topological positions would require
+a representation carrying those IDs.
+[Numbering theorems](../../Silmaril/SSA/RVSDG/NestedTheta/ExplicitRuntime/Isomorphism/Thms.lean)
+
 ## Reproduce
 
 ```sh
 make check CHECK_TARGETS='+Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.Normalization.Thms +Silmaril.Proofs.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.Regression'
 lake env leanchecker Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.Normalization.Thms
-make check CHECK_TARGETS='+Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.WithNestedFeedback.Normalization.Thms +Silmaril.Proofs.SSA.RVSDG.LambdaSSA.NestedFeedback.Regression'
-lake env leanchecker Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.WithNestedFeedback.Normalization.Thms
+make check CHECK_TARGETS='+Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.WithNestedFeedback.Reverse.Renumbered.Thms +Silmaril.Proofs.SSA.RVSDG.LambdaSSA.NestedFeedback.Regression'
+lake env leanchecker Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.WithNestedFeedback.Reverse.Renumbered.Thms
 ```
 
 ## Sources

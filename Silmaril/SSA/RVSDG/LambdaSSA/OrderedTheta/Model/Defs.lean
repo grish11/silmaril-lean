@@ -50,6 +50,11 @@ def stepMap {ε : Type u} [HasEff Φ ε] [Bot ε] [InstructionModel Φ τ ε m]
 
 def exit (a : TyDen A) : Isotope.LambdaSSA.Semantics.Monadic.LabelDen [A] := Sum.inl a
 
+/-- The singleton CFG's local label comes before its external exit. -/
+def bodyTarget : TyDen A ⊕ TyDen A → Isotope.LambdaSSA.Semantics.Monadic.LabelDen [A,A]
+  | .inl a => .inr (exit a)
+  | .inr a => .inl a
+
 def exitValue : Isotope.LambdaSSA.Semantics.Monadic.LabelDen [A] → TyDen A
   | .inl a => a
   | .inr bad => nomatch bad

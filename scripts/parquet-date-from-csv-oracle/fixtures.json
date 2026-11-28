@@ -1,0 +1,189 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "optional": {
+      "name": "日付",
+      "nullable": true,
+      "signed_slots": [
+        -719528,
+        -719469,
+        -25509,
+        -1,
+        null,
+        0,
+        11016,
+        2932896
+      ],
+      "cpython_csv": {
+        "bytes": 102,
+        "sha256": "5fa276536e0eed490e1f144fe8efbcb4bd4654a257aeffab8f2b55a6f6f020f7"
+      },
+      "lean_parquet": {
+        "bytes": 156,
+        "sha256": "22f1355a81848753080d125e13c84f231f86727f9dd4793b4236a83655df9a0b"
+      },
+      "v1_body": {
+        "bytes": 48,
+        "sha256": "c350969f02b9712dc156812d562f40f92fec61714c045e89fb64be35a85a30ca"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "required": {
+      "name": "date, jour",
+      "nullable": false,
+      "signed_slots": [
+        -1,
+        11016
+      ],
+      "cpython_csv": {
+        "bytes": 44,
+        "sha256": "aa5a3cb966429f33b5ae4cee4b084739fac41e7c973685c342a89ed8d72571b1"
+      },
+      "lean_parquet": {
+        "bytes": 121,
+        "sha256": "b5c2aa8ba0676e5a6c6b43441262f889a46c92d03ac06992154040a54d403bb9"
+      },
+      "v1_body": {
+        "bytes": 8,
+        "sha256": "07ddf8e346a2fa188186243278790f5ef02c76433584507a7124dfea6368d770"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 0,
+        "4": "date, jour",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "empty_optional": {
+      "name": "日付",
+      "nullable": true,
+      "signed_slots": [],
+      "cpython_csv": {
+        "bytes": 8,
+        "sha256": "9c387860d5562de10ed4fb3838e46b1e911c5040b552b6ba093509483e6207c3"
+      },
+      "lean_parquet": {
+        "bytes": 109,
+        "sha256": "f59479191a0f0dbd4c18fa508a4479a4b635ccb7faf13738e4e4f19b14161647"
+      },
+      "v1_body": {
+        "bytes": 4,
+        "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "empty_required": {
+      "name": "date, jour",
+      "nullable": false,
+      "signed_slots": [],
+      "cpython_csv": {
+        "bytes": 14,
+        "sha256": "cd18301302d8062cf982950c1e0f78c41741f3ca22bcc1b671209dc0e32b25c6"
+      },
+      "lean_parquet": {
+        "bytes": 113,
+        "sha256": "67ce20ed5ab6ba1808aebebe7d29451b44599de175cd083a5d307bc500112806"
+      },
+      "v1_body": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 0,
+        "4": "date, jour",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    }
+  },
+  "refusals": {
+    "required_null": {
+      "csv": {
+        "bytes": 11,
+        "sha256": "0f53260fa87243759d16167a7f4ac173765887d88f5d600959d23f17549a9241"
+      },
+      "error": "(.csvToIpc (.csv (.requiredNull 0 0)))"
+    },
+    "bad_header": {
+      "csv": {
+        "bytes": 10,
+        "sha256": "8adfac125a0a3d96ad4e6b7d0dc3e00293872655172be2f8f486da03a32e7cd7"
+      },
+      "error": "(.csvToIpc (.csv (.csv .headerMismatch)))"
+    },
+    "bad_width": {
+      "csv": {
+        "bytes": 13,
+        "sha256": "88f338c3023a43e799352f22e5382b68c4130585adb4c6603bdab554c4bed70b"
+      },
+      "error": "(.csvToIpc (.csv (.csv (.width 1 2))))"
+    },
+    "bad_leap_day": {
+      "csv": {
+        "bytes": 21,
+        "sha256": "b97c148de3cf4365c6c9a8207e2a81d5af36f55ffcba9dc7a962ce7f46130ad5"
+      },
+      "error": "(.csvToIpc (.csv (.csv (.parseCell 0))))"
+    },
+    "before_range": {
+      "csv": {
+        "bytes": 22,
+        "sha256": "b76d785d3100c3674b1f192e8ce1ab2b52ffd4fcb93432c65df386929d50db61"
+      },
+      "error": "(.csvToIpc (.csv (.csv (.parseCell 0))))"
+    },
+    "after_range": {
+      "csv": {
+        "bytes": 22,
+        "sha256": "292447687a873fe0dceb8cfeb54eaf5ee783b97befd8e8669555807290bb342e"
+      },
+      "error": "(.csvToIpc (.csv (.csv (.parseCell 0))))"
+    },
+    "unterminated": {
+      "csv": {
+        "bytes": 22,
+        "sha256": "ff5c03c79d28cf101d0e143f3579f69b48496d148f941c90cbfd234595272dfd"
+      },
+      "error": "(.csvToIpc (.csv (.csv .malformedWire)))"
+    }
+  }
+}

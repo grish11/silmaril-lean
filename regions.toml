@@ -57,7 +57,7 @@ deps = ["Prelude", "Semantics", "Logic", "Formats", "SSA"]
 [[region]]
 name = "Machine"
 scope = "Instruction sets (x86, RISC-V, AArch64), machine IRs, memory models, processes."
-deps = ["Prelude", "Semantics", "Numeric", "Crypto", "Formats", "SSA"]
+deps = ["Prelude", "Semantics", "Logic", "Numeric", "Crypto", "Formats", "SSA"]
 
 [[region]]
 name = "Process"

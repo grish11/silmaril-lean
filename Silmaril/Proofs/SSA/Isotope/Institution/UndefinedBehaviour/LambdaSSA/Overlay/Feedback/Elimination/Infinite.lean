@@ -67,9 +67,9 @@ private theorem first_of_positive {r : P → P → Prop} (h : TransGen r p q) :
 points with a finite suffix to a segment boundary. At a boundary the next
 segment supplies a real step, even if its endpoints coincide. Classical
 choice then selects a successor at each flat step. -/
-private theorem path_of_segments {r : P → P → Prop} (boundary : Nat → P)
+theorem path_of_segments {r : P → P → Prop} (boundary : Nat → P)
     (segments : ∀ n, TransGen r (boundary n) (boundary (n + 1))) :
-    InfinitePath r (boundary 0) := by
+    ∃ path : Nat → P, path 0 = boundary 0 ∧ ∀ n, r (path n) (path (n + 1)) := by
   apply path_of_serial (live := fun q => ∃ n, ReflTransGen r q (boundary n)) _ ⟨0, .refl⟩
   rintro q ⟨n, suffix⟩
   rcases suffix.cases_head with rfl | ⟨t, edge, rest⟩

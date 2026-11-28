@@ -288,6 +288,79 @@ theorem collective_ext_proof (n : Nat) (Γ : VCtx τ) (R : Fin (n + 1) → τ)
         erw [tailInv]
         exact h i.succ
 
+/-- The finite coproduct of nonempty contextual packets, realized by the
+tensor of the environment and the finite label coproduct. -/
+private noncomputable def finitePacketColimitImpl (n : Nat) (Γ : VCtx τ) (R : Fin (n + 1) → τ) :
+    IsColimit (Cofan.mk (f := fun i => ctxObj M Γ ⊗ M.obj (R i))
+      (ctxObj M Γ ⊗ finiteLabelObj M R)
+      (fun i => (𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i)) := by
+  induction n with
+  | zero =>
+    have : IsIso (finiteLabelInject M R 0) := finiteLabelInject_one_isIso M R
+    let leg := (𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R 0
+    have : IsIso leg := by dsimp only [leg]; infer_instance
+    refine Cofan.IsColimit.mk _ (fun s => inv leg ≫ s.inj 0) ?_ ?_
+    · intro s i
+      obtain rfl := Fin.eq_zero i
+      exact IsIso.hom_inv_id_assoc leg _
+    · intro s m h
+      apply (cancel_epi leg).mp
+      rw [IsIso.hom_inv_id_assoc]
+      exact h 0
+  | succ n ih =>
+    let E := ctxObj M Γ
+    let Rt : Fin (n + 1) → τ := fun i => R i.succ
+    let c := ih Rt
+    let split : E ⊗ finiteLabelObj M R ⟶ (E ⊗ M.obj (R 0)) ⨿ (E ⊗ finiteLabelObj M Rt) :=
+      ((𝟙 E) ⊗ₘ finiteConsTo M R) ≫
+        (DistributiveTensor.leftIso E (M.obj (R 0)) (finiteLabelObj M Rt)).inv
+    have : IsIso split := by
+      have := finiteConsTo_isIso M R
+      dsimp only [split]
+      infer_instance
+    refine Cofan.IsColimit.mk _
+      (fun s => split ≫ coprod.desc (s.inj 0) (c.desc (Cofan.mk s.pt (fun j => s.inj j.succ)))) ?_ ?_
+    · intro s i
+      refine Fin.cases ?_ (fun j => ?_) i
+      · change ((𝟙 E) ⊗ₘ finiteLabelInject M R 0) ≫ split ≫ _ = _
+        rw [← Category.assoc, show _ ≫ split = coprod.inl from finiteHead_distribute M R Γ,
+          coprod.inl_desc]
+      · change ((𝟙 E) ⊗ₘ finiteLabelInject M R j.succ) ≫ split ≫ _ = _
+        rw [← Category.assoc, show _ ≫ split =
+          ((𝟙 E) ⊗ₘ finiteLabelInject M Rt j) ≫ coprod.inr from finiteTail_distribute M R Γ j,
+          Category.assoc, coprod.inr_desc]
+        exact c.fac (Cofan.mk s.pt (fun i => s.inj i.succ)) ⟨j⟩
+    · intro s m hm
+      apply (cancel_epi (inv split)).mp
+      rw [IsIso.inv_hom_id_assoc]
+      apply coprod.hom_ext
+      · have leg : coprod.inl ≫ inv split = (𝟙 E) ⊗ₘ finiteLabelInject M R 0 := by
+          rw [← show _ ≫ split = coprod.inl from finiteHead_distribute M R Γ,
+            Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+        rw [← Category.assoc, leg, coprod.inl_desc]
+        exact hm 0
+      · rw [← Category.assoc, coprod.inr_desc]
+        apply c.hom_ext
+        intro j
+        change ((𝟙 E) ⊗ₘ finiteLabelInject M Rt j.as) ≫ (coprod.inr ≫ inv split) ≫ m =
+          ((𝟙 E) ⊗ₘ finiteLabelInject M Rt j.as) ≫ c.desc (Cofan.mk s.pt (fun i => s.inj i.succ))
+        have leg : (((𝟙 E) ⊗ₘ finiteLabelInject M Rt j.as) ≫ coprod.inr) ≫ inv split =
+            (𝟙 E) ⊗ₘ finiteLabelInject M R j.as.succ := by
+          rw [← finiteTail_distribute M R Γ j.as]
+          rw [Category.assoc]
+          change _ ≫ split ≫ inv split = _
+          rw [IsIso.hom_inv_id, Category.comp_id]
+        rw [← Category.assoc _ (coprod.inr ≫ inv split) m,
+          ← Category.assoc _ coprod.inr (inv split), leg]
+        exact (hm j.as.succ).trans (c.fac (Cofan.mk s.pt (fun i => s.inj i.succ)) j).symm
+
+omit [SymmetricCategory V] in
+theorem finitePacketColimit (n : Nat) (Γ : VCtx τ) (R : Fin (n + 1) → τ) :
+    Nonempty (IsColimit (Cofan.mk (f := fun i => ctxObj M Γ ⊗ M.obj (R i))
+      (ctxObj M Γ ⊗ finiteLabelObj M R)
+      (fun i => (𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i))) :=
+  ⟨finitePacketColimitImpl M n Γ R⟩
+
 end FiniteCollective
 
 section Region

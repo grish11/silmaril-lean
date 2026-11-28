@@ -26,8 +26,8 @@ abbrev Source (Op : SeaOfNodes.Diamond.Signature.{u, v} Data)
     (regs : List (ValueSort Data)) (out : ValueSort Data) (size : Nat := 6) :=
   Tail.Source Op regs out size
 
-/-- Two disjoint nonempty arm segments run from the header split to the
-same merge. The merge jumps to the distinct tested latch. -/
+/-- Two disjoint arm segments run from the header split to the same merge.
+One may be a direct edge. The merge jumps to the distinct tested latch. -/
 structure Program (src : Source Op regs out size) (entry : Fin size) where
   header : Fin size
   onTrue : Fin size
@@ -41,6 +41,7 @@ structure Program (src : Source Op regs out size) (entry : Fin size) where
   splitEdge : (src header).terminator = .branch condition (.jump onTrue) (.jump onFalse)
   trueArm : Chain.Segment src join onTrue
   falseArm : Chain.Segment src join onFalse
+  armsDistinct : onTrue ≠ onFalse
   joinEdge : (src join).terminator = .transfer (.jump latch)
   latchEdge : (src latch).terminator = .branch again (.jump header) (.ret result)
   distinct : ([entry, header] ++ trueArm.blocks ++ falseArm.blocks ++ [join, latch]).Nodup
@@ -65,9 +66,9 @@ def check (src : Source Op regs out size) (entry : Fin size) : Option (Program s
           match latchEdge : (src latch).terminator with
           | .branch again (.jump target) (.ret result) =>
             let order := [entry, header] ++ trueArm.blocks ++ falseArm.blocks ++ [join, latch]
-            if shape : target = header ∧ order.Nodup ∧ order.length = size then
+            if shape : target = header ∧ onTrue ≠ onFalse ∧ order.Nodup ∧ order.length = size then
               some ⟨header, onTrue, onFalse, join, latch, condition, again, result, entryEdge,
-                splitEdge, trueArm, falseArm, joinEdge, shape.1 ▸ latchEdge, shape.2.1, shape.2.2⟩
+                splitEdge, trueArm, falseArm, shape.2.1, joinEdge, shape.1 ▸ latchEdge, shape.2.2.1, shape.2.2.2⟩
             else none
           | _ => none
         | _ => none
@@ -84,10 +85,10 @@ def Program.armPath (occurrence : Fin 2) : Chain.Segment src p.join (p.armStart 
   Fin.cases (motive := fun i => Chain.Segment src p.join (p.armStart i))
     p.trueArm (fun _ => p.falseArm) occurrence
 
-/-- The incoming merge occurrences remain in true/false order and are
-identified by the last original block of each selected arm. -/
+/-- The incoming merge occurrences remain in true/false order. A direct
+edge comes from the split header, and a linear arm from its last block. -/
 def Program.predecessor (occurrence : Fin 2) : Fin size :=
-  (p.armPath occurrence).lastBlock
+  (p.armPath occurrence).predecessor p.header
 
 def Program.stage : Stage Op regs :=
   ⟨p.trueArm.quads, p.falseArm.quads, [], .test p.condition (.take 0) (.take 1)⟩
@@ -151,15 +152,25 @@ abbrev Program.bodySigs :=
   (src p.header).body.producers ++ (p.plan.producers ++ (p.tail.producers ++ [bodyPorts regs]))
 
 /-- Use the post-latch test to tag the complete updated bank. -/
+def latchNodeFor (again : Port (dataPorts regs) (.value .predicate))
+    {args : List (Ty Data)} {past : List (List (Ty Data))}
+    (bank : Wires args past (dataPorts regs)) : RVSDG.Node (Opcode Op) args past (bodyPorts regs) :=
+  ⟨_, .simple (.route (.test again (.take 1) (.take 0))), bank, Fin.elim0⟩
+
 def Program.latchNode {args : List (Ty Data)} {past : List (List (Ty Data))}
-    (bank : Wires args past (dataPorts regs)) :
-    RVSDG.Node (Opcode Op) args past (bodyPorts regs) :=
-  ⟨_, .simple (.route (.test p.again (.take 1) (.take 0))), bank, Fin.elim0⟩
+    (bank : Wires args past (dataPorts regs)) : RVSDG.Node (Opcode Op) args past (bodyPorts regs) :=
+  latchNodeFor p.again bank
+
+/-- Tag the full carried bank for the next θ activation or for exit. -/
+def routeLatchWith {args : List (Ty Data)} {past : List (List (Ty Data))}
+    (again : Port (dataPorts regs) (.value .predicate)) (bank : Wires args past (dataPorts regs)) :
+    Term (Opcode Op) args past [bodyPorts regs] (bodyPorts regs) :=
+  .bind (.ofBase (latchNodeFor again bank)) (fun i => i.elim0) (.ret (lastBank past (bodyPorts regs)))
 
 def Program.routeLatch {past : List (List (Ty Data))}
     (bank : Wires (dataPorts regs) past (dataPorts regs)) :
     Term (Opcode Op) (dataPorts regs) past [bodyPorts regs] (bodyPorts regs) :=
-  .bind (.ofBase (p.latchNode bank)) (fun i => i.elim0) (.ret (lastBank past (bodyPorts regs)))
+  routeLatchWith p.again bank
 
 /-- Feed the post-header bank to the existing γ compiler, then run the
 common merge and latch quads before the supplied tail continuation. -/
@@ -178,11 +189,18 @@ def Program.thetaBody :
   thenBase ((src p.header).body.lowerFrom (initial regs) .jump) fun current =>
     p.afterHeader current p.routeLatch
 
+/-- Link a full-bank θ body to the result port of its stopping packet. -/
+def iterateThenReturnWith {past sigs : List (List (Ty Data))}
+    (body : Term (Opcode Op) (dataPorts regs) [] sigs (bodyPorts regs))
+    (result : Port (dataPorts regs) (.value out)) (bank : Wires (dataPorts regs) past (dataPorts regs)) :
+    Term (Opcode Op) (dataPorts regs) past [dataPorts regs] [.value out] :=
+  .bind ⟨_, .theta (dataPorts regs), bank, fun _ => sigs⟩
+    (fun _ => body) (.ret (.cons ((lastBank past (dataPorts regs)).get result) .nil))
+
 def Program.iterateThenReturn {past : List (List (Ty Data))}
     (bank : Wires (dataPorts regs) past (dataPorts regs)) :
     Term (Opcode Op) (dataPorts regs) past [dataPorts regs] [.value out] :=
-  .bind ⟨_, .theta (dataPorts regs), bank, fun _ => p.bodySigs⟩
-    (fun _ => p.thetaBody) (.ret (.cons ((lastBank past (dataPorts regs)).get p.result) .nil))
+  iterateThenReturnWith p.thetaBody p.result bank
 
 /-- The preheader supplies the entry bank. The numbered θ binds the feedback
 bank atomically and returns the result slot of the stopping activation. -/

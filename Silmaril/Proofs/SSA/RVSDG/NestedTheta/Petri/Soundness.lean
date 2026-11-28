@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.RVSDG.NestedTheta.Petri.Defs
 import Silmaril.Proofs.SSA.RVSDG.Petri.Colours
+import Silmaril.Proofs.SSA.RVSDG.NestedTheta.Petri.Completeness
 
 public section
 
@@ -11,7 +12,7 @@ universe u v w
 
 open Relation (ReflTransGen)
 open RVSDG.Petri (Tokens Vertex)
-open RVSDG.Petri.Proofs (Agrees agrees_snoc agrees_present get_absent read_sound)
+open RVSDG.Petri.Proofs (Agrees agrees_snoc agrees_present get_absent read_sound full full_snoc read_full)
 
 variable {V S : Type u} {Op : Dialect.{u, v} V S}
 variable {args ins outs : Ports (PortType V S)} {past sigs : List (Ports (PortType V S))}
@@ -213,6 +214,79 @@ private theorem residual_step (m : Model.{u, v, w} Op) {t : Term Op args past si
       change published = value at head
       subst value
       exact agrees_snoc agrees (fun _ p _ => agrees_present published p)
+
+set_option backward.isDefEq.respectTransparency false in
+set_option backward.isDefEq.respectTransparency.types false in
+private theorem complete_residual (m : Model.{u, v, w} Op) (t : Term Op args past sigs outs)
+    (entry : Tuple m.Val args) (locals : Locals m.Val past) (mark : Marking m t) (output : Tuple m.Val outs)
+    (run : residual m t entry locals mark output) :
+    ∃ final, ReflTransGen (Fire m t entry (full locals)) mark final ∧
+      finished m t entry (full locals) final = some output := by
+  induction t with
+  | ret wires =>
+    exact ⟨mark, .refl, (read_full wires entry locals).trans (congrArg some run)⟩
+  | @bind args head outs past sigs node children rest childIH restIH =>
+    obtain ⟨vertex, tail⟩ := mark
+    rw [residual] at run
+    obtain ⟨value, headRun, tailRun⟩ := run
+    have completeChild : ChildrenComplete m node children :=
+      fun arm i o h => childIH arm i PUnit.unit (pending m (children arm)) o
+        ((residual_pending m (children arm) i PUnit.unit o).2 h)
+    have headSteps : ReflTransGen (Fire m (.bind node children rest) entry (full locals))
+        (vertex, tail) (.done value, tail) := by
+      cases vertex with
+      | pending =>
+        exact head_steps m node children rest entry (full locals) tail completeChild
+          (node.inputs.read entry locals) value (read_full node.inputs entry locals) headRun
+      | done published =>
+        change published = value at headRun
+        subst published
+        exact .refl
+      | waiting arm active =>
+        obtain ⟨received, child⟩ := active
+        obtain ⟨returned, childRun, after⟩ := headRun
+        obtain ⟨final, steps, done⟩ := childIH arm received PUnit.unit child returned childRun
+        have advance := steps.lift
+          (p := Fire m (.bind node children rest) entry (full locals))
+          (fun mark => (.waiting arm (received, mark), tail)) (fun _ _ step => Fire.advance step)
+        cases routing : route m node.kind arm returned with
+        | inl published =>
+          rw [routing] at after
+          change published = value at after
+          subst published
+          exact advance.tail (.commit done routing)
+        | inr next =>
+          obtain ⟨ins, kind, wires, bodySigs⟩ := node
+          cases kind with
+          | base shape => cases routing
+          | theta =>
+            have armZero : arm = (0 : Fin 1) := Subsingleton.elim (α := Fin 1) _ _
+            subst arm
+            rw [routing] at after
+            have reset := advance.tail (Fire.restart done routing rfl)
+            -- Schedule the remaining iterations while leaving the enclosing tail as it was.
+            exact reset.trans (loop_steps m wires bodySigs children rest entry (full locals)
+              tail completeChild next value after)
+    obtain ⟨final, steps, done⟩ := restIH entry (locals.snoc value) tail output tailRun
+    have advance := steps.lift (p := Fire m (.bind node children rest) entry (full locals))
+      (fun mark => (.done value, mark)) (fun _ _ step => by
+        apply Fire.later
+        simpa only [Vertex.outputs, ← full_snoc] using step)
+    exact ⟨(.done value, final), headSteps.trans advance, by
+      simpa only [finished, ← full_snoc] using done⟩
+
+theorem complete_reached (m : Model.{u, v, w} Op) (t : Term Op args [] sigs outs)
+    (entry : Tuple m.Val args) (output : Tuple m.Val outs) {mark : Marking m t}
+    (steps : ReflTransGen (Fire m t entry PUnit.unit) (pending m t) mark)
+    (run : t.Returns m entry output) :
+    ∃ final, ReflTransGen (Fire m t entry PUnit.unit) mark final ∧
+      finished m t entry PUnit.unit final = some output := by
+  have agrees : Agrees (F := m.Val) (past := []) PUnit.unit PUnit.unit := trivial
+  have remaining : residual m t entry PUnit.unit mark output := by
+    induction steps with
+    | refl => exact (residual_pending m t entry PUnit.unit output).2 run
+    | tail _ step ih => exact (residual_step m step agrees output).1 ih
+  exact complete_residual m t entry PUnit.unit mark output remaining
 
 theorem sound (m : Model.{u, v, w} Op) (g : Graph Op args [] sigs outs)
     (input : Tuple m.Val args) (output : Tuple m.Val outs) (h : Finishes m g input output) :

@@ -63,8 +63,8 @@ variable {V : Type u₁} {C : Type u₂}
 
 /-- The semantic case-bind law moves a scrutinee bind into the case without
 any premise on the scrutinee or the regions in its arms. -/
-theorem denote_boundCase_let (ha : Tm.HasType [X] a (Silmaril.coprod A B))
-    (hl : HasType [A, X] l [D]) (hr : HasType [B, X] r [D]) :
+theorem denote_boundCase_let {Γ : VCtx τ} {L : LCtx τ} (ha : Tm.HasType Γ a (Silmaril.coprod A B))
+    (hl : HasType (A :: Γ) l L) (hr : HasType (B :: Γ) r L) :
     denoteRegion J M (.let₁ ha (boundCase_hasType hl hr)) = denoteRegion J M (.case ha hl hr) :=
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.RetainedCase.denote_boundCase_let
     J M ha hl hr

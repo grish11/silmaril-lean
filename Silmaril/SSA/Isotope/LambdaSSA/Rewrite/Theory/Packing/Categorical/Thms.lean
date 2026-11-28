@@ -30,6 +30,19 @@ variable {V : Type u₁} [Category.{v₁} V] [CartesianMonoidalCategory V] [HasF
     labelInject M i hi ≫ packLabel M L = packedLabelInject M i hi :=
   Proofs.SSA.Isotope.LambdaSSA.Rewrite.labelInject_packLabel M hi
 
+theorem packLabel_unpackLabel (L : LCtx τ) : packLabel M L ≫ unpackLabel M L = 𝟙 _ :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.packLabel_unpackLabel M L
+
+theorem unpackLabel_packLabel (L : LCtx τ) : unpackLabel M L ≫ packLabel M L = 𝟙 _ :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.unpackLabel_packLabel M L
+
+/-- The interpretation of the written nested sum in the original label order. -/
+@[expose] noncomputable def packLabelIso (L : LCtx τ) : labelObj M L ≅ M.obj (packedExitType L) where
+  hom := packLabel M L
+  inv := unpackLabel M L
+  hom_inv_id := packLabel_unpackLabel M L
+  inv_hom_id := unpackLabel_packLabel M L
+
 @[simp]
 theorem packLabelExit_unpackLabelExit (L : LCtx τ) :
     packLabelExit M L ≫ unpackLabelExit M L = 𝟙 _ :=
@@ -52,6 +65,15 @@ variable {V : Type u₁} {C : Type u₂}
   [FreydCategory.CentralUnit J]
   {τ : Type u₃} [TypeFormers τ] (M : TypeModel τ V)
   {Φ : Type u₄} [HasTy Φ τ] [InstructionModel J M Φ]
+
+omit [FreydCategory.CentralUnit J] in
+/-- The literal tag constructor denotes the injection for the original label. -/
+theorem Denotes.packedExitArg {Γ : VCtx τ} {L : LCtx τ} {i : Nat} {A : τ} {a : Tm Φ}
+    (hi : At L i A) {ha : Tm.HasType Γ a A} {f : J.obj (ctxObj M Γ) ⟶ J.obj (M.obj A)}
+    (da : Denotes J M ha f) :
+    ∃ h : Tm.HasType Γ (packedExitArg i a) (packedExitType L),
+      Denotes J M h (f ≫ J.map (packedLabelInject M i hi)) :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.packedExitArg_denotes J M hi da
 
 /-- The native decoder has the pure categorical denotation of unpacking the
 most recent variable. For zero exits the interpreted payload is initial. -/

@@ -174,6 +174,7 @@ private def applyBinding (context : Context) (site : Site) (binding : Binding)
     applyBuiltin site name sourceArgs operands
   | _, .formal => return ⟨.parameter binding.id, []⟩
   | _, .rigid => return ⟨.fixed .constant, []⟩
+  | _, .flexible => return ⟨.fixed .state, []⟩
   | _, _ =>
     let some summary := (← get).operators.lookup binding.id
       | failAt site (.missingSummary binding.id)
@@ -198,7 +199,7 @@ private def positionalArguments (site : Site) (child : Nat → Step) (args : Lis
 private def formalId (site : Site) (index : Nat) : BindingId :=
   .declared (site.child (.parameter index))
 
-private def checkDefinition (visit : Site → Expr → CheckM Analysis) (site : Site)
+private def checkOperatorDefinition (visit : Site → Expr → CheckM Analysis) (site : Site)
     (definition : Definition) : CheckM OperatorSummary := do
   let .operator _ head body := definition | failAt site (.unsupported .declaration)
   let arity ← match head with
@@ -230,6 +231,25 @@ private def checkBounded (visit : Site → Expr → CheckM Analysis) (site : Sit
     for (domain, range) in ranges do
       result ← addCondition result domain (.temporalQuantifierBound checkedBody.term range.term)
   return result
+
+-- Calculate the body's level with self at the bottom, then recheck its uses at
+-- the inferred level. Level propagation consists of joins and fixed weights.
+private def checkDefinition (visit : Site → Expr → CheckM Analysis) (site : Site)
+    (definition : Definition) : CheckM OperatorSummary := do
+  let .function _ _ [bound@⟨.names [_], _⟩] body := definition
+    | checkOperatorDefinition visit site definition
+  let before ← get
+  let bindSelf (term : LevelTerm) : CheckM Unit :=
+    modify fun state => { state with operators := (.declared site, ⟨[], term, []⟩) :: state.operators }
+  bindSelf (.fixed .constant)
+  let initial ← checkBounded visit site [bound] body .action
+  set before
+  bindSelf initial.term
+  let result ← checkBounded visit site [bound] body .action
+  let summary : OperatorSummary := ⟨[], result.term, result.requirements⟩
+  modify fun state =>
+    { state with operators := (.declared site, summary) :: state.operators.filter (·.1 ≠ .declared site) }
+  return summary
 
 private instance : Inhabited (CheckM Analysis) :=
   ⟨failAt ⟨"", []⟩ (.unsupported .expression)⟩
@@ -283,6 +303,11 @@ private partial def checkExpr (context : Context) (site : Site) (expression : Ex
           (← retain declSite (summary.requirements.map (·.substitute defaults)))
       let result ← visit (site.child .body) body
       pure { result with requirements := requirements ++ result.requirements }
+    | .temporalQuant _ _ body => do
+      let bodySite := site.child .body
+      let checkedBody ← visit bodySite body
+      let result ← addCondition checkedBody bodySite (.nonAction checkedBody.term)
+      pure { result with term := .fixed .temporal }
     | .rigidQuant _ (.unbounded _) body => visit (site.child .body) body
     | .rigidQuant _ (.bounded bounds) body =>
       checkBounded visit site bounds body .temporal true
@@ -423,7 +448,7 @@ private instance : Inhabited (CheckM (List Requirement)) := ⟨pure []⟩
 -- Replay follows dependency edges of the already cycle-checked registry.
 private partial def checkModule (registry : CheckedRegistry) (external : ExternalLevels)
     (base replacements : OperatorTable) (replaying : Bool) (id : ModuleId)
-    (resolved : CheckedModule) : CheckM (List Requirement) := do
+    (resolved : CheckedModule) (selectedUnit : Option Nat) : CheckM (List Requirement) := do
   for binding in resolved.bindings do
     if let some summary := replacements.lookup binding.id then
       modify fun state => { state with operators := (binding.id, summary) :: state.operators }
@@ -434,10 +459,11 @@ private partial def checkModule (registry : CheckedRegistry) (external : Externa
   let moduleSite : Site := ⟨id, []⟩
   let replay (target : ModuleId) (actual : OperatorTable) : CheckM (List Requirement) := do
     let requirements ← (registry.extendedModules target).mapM fun (dep, mod) =>
-      checkModule registry external base actual true dep mod
+      checkModule registry external base actual true dep mod none
     return requirements.flatten
   let mut requirements := []
   for (unit, index) in source.units.zipIdx do
+    unless selectedUnit.all (· == index) do continue
     let site := moduleSite.child (.unit index)
     match unit with
     | .definition (.namedInstance ..) | .instantiation .. =>
@@ -462,15 +488,28 @@ private def validateExternal (registry : CheckedRegistry) (external : ExternalLe
       failAt site (.unexpectedExternalSignature id)
     seen := id :: seen
 
-/-- Check every reachable module and every body in its resolved syntax profile.
-Signature-only operator declarations must have a supplied level signature. -/
-public def check (registry : CheckedRegistry) (external : ExternalLevels := []) :
+private def checkRegistry (registry : CheckedRegistry) (external : ExternalLevels)
+    (selectOperator : Bool) :
     Except Diagnostic CheckedLevels := do
   let verify : CheckM Unit := do
     validateExternal registry external
     for (id, mod) in registry.modules do
-      discard <| checkModule registry external (← get).operators [] false id mod
+      unless mod.selectedUnit.isSome == (selectOperator && id == registry.root) do
+        failAt ⟨id, []⟩ (.unsupported .declaration)
+      discard <| checkModule registry external (← get).operators [] false id mod mod.selectedUnit
   let (_, state) ← verify.run {}
   return ⟨state.expressions.reverse, state.operators.reverse⟩
+
+/-- Check every reachable module and every body in its resolved syntax profile.
+Signature-only operator declarations must have a supplied level signature. -/
+public def check (registry : CheckedRegistry) (external : ExternalLevels := []) :
+    Except Diagnostic CheckedLevels :=
+  checkRegistry registry external false
+
+/-- Check the selected root operator and its import closure. Skipped operator
+bodies supply no level summaries. A call to one requires a summary and fails. -/
+public def checkSelectedOperator (registry : CheckedRegistry) (external : ExternalLevels := []) :
+    Except Diagnostic CheckedLevels :=
+  checkRegistry registry external true
 
 end Silmaril.Logic.Temporal.TLA.Resolution.Levels

@@ -124,6 +124,10 @@ theorem namedSSAClass_observe (model : PairModel F Part α) (arrow : Arrow V F �
     ssaClassObserve model (namedSSAClass port arrow) store = publicResult <$> observe model arrow (port, store default) :=
   (classObserve_version model _ store).trans (namedRTLClass_observe model arrow port store)
 
+theorem publicResult_le_iff (lhs rhs : Part (Fin b × α)) :
+    (publicResult <$> lhs : Part (NamedLabel b × α)) ≤ publicResult <$> rhs ↔ lhs ≤ rhs :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Named.publicResult_le_iff lhs rhs
+
 /-- The named SSA interpretation of a linked arrow uses the same staged
 plugging rule. The right stage can start at any common external store
 with its designated register set to the middle packet. -/

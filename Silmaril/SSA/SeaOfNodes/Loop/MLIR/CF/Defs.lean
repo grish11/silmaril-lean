@@ -19,16 +19,18 @@ open Silmaril.MLIR.Pure (Eval Operands OpSignature)
 open Silmaril.MLIR.CF (Cfg Terminator)
 open Silmaril.MLIR.SCF (For)
 
-/-- Reuse the source arithmetic operations and add an unsigned comparison. -/
+/-- Reuse the source arithmetic operations with typed unsigned and signed comparisons. -/
 inductive Op : Diamond.Signature Width where
   | arithmetic {ins out} : SeaOfNodes.MLIR.Op ins out → Op ins out
   | ult (w : Width) : Op [.data w, .data w] .predicate
+  | slt (w : Width) : Op [.data w, .data w] .predicate
 
 abbrev model : Diamond.Model Op where
   value := Word
   run
     | .arithmetic op, args => SeaOfNodes.MLIR.model.run op args
     | .ult _, .cons x (.cons y .nil) => ⟨x.ult y⟩
+    | .slt _, .cons x (.cons y .nil) => ⟨x.slt y⟩
 
 /-- The constant and flag-free arithmetic symbols used in the emitted code. -/
 inductive WordOp : OpSignature where
@@ -39,7 +41,7 @@ def evalWord : Eval WordOp
   | _, _, .constant bits, .nil => bits
   | _, _, .binary _ op, .cons x (.cons y .nil) => op.denote x y
 
-/-- Use the existing `arith.cmpi ult` interpreter from the scalar SCF lowering. -/
+/-- Reuse the scalar CF Arith interpreter, including one-bit comparison results. -/
 abbrev TargetOp := For.LowerOp WordOp
 
 def evalOp : Eval TargetOp := For.lowerEval evalWord
@@ -48,6 +50,7 @@ def opcode : OpcodeMap Op TargetOp
   | _, _, .arithmetic (.constant bits) => .original (.constant bits)
   | _, _, .arithmetic (.binary (w := w) op) => .original (.binary w op)
   | _, _, .ult w => .ult w
+  | _, _, .slt w => .slt w
 
 abbrev inputSorts (Γ : List Width) : List (ValueSort Width) :=
   Γ.map ValueSort.data

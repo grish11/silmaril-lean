@@ -70,9 +70,13 @@ def blockVersions (graph : CFG V K F) (block : Block V K F) : V → Nat :=
 
 variable [DecidableEq K]
 
-/-- The destination-indexed packet layout. -/
+/-- Select the layout of the first matching destination. -/
+def destinationsWith (graph : CFG V K F) (layout : Block V K F → List V) (label : K) : Option (List V) :=
+  (graph.blocks.lookup label).map layout
+
+/-- The default destination-indexed packet layout. -/
 def destinations (graph : CFG V K F) (label : K) : Option (List V) :=
-  (graph.blocks.lookup label).map (slots graph)
+  destinationsWith graph (slots graph) label
 
 open Silmaril.Proofs.SSA.LambdaRTL.CFG.FlatVersion in
 /-- Run the existing structured versioner on a single block body and
@@ -93,25 +97,40 @@ def unpackBody (regs : List V) (src : V × Nat) (depth : Nat)
     rw [← eq, body_roundtrip]
     rfl)
 
-/-- Compile one destination block. Its parameter at version zero holds
-the packet, which is decoded into fresh block-local versions. -/
-def compileBlock (graph : CFG V K F) (block : Block V K F) : Block (V × Nat) K F :=
+/-- Compile a block with the chosen incoming record and outgoing layouts.
+The argument is at version one after the outer packet is unpacked. -/
+def compileBlockWith (labels : K → Option (List V)) (live regs : List V)
+    (block : Block V K F) : Block (V × Nat) K F :=
   let reg := block.param
-  let regs := slots graph block
+  let current := Version.unpackCur regs (Version.setv (fun _ => 0) reg 1) 2
   ⟨(reg, 0), .let2 (reg, 1) (reg, 2) (.val (.var (reg, 0)))
-    (unpackBody regs (reg, 2) 2
-      (versionBody block.body (destinations graph) (registers graph) (blockVersions graph block)
-        (2 + 2 * regs.length)))⟩
+    (unpackBody regs (reg, 2) 2 (versionBody block.body labels live current (2 + 2 * regs.length)))⟩
+
+/-- Compile one destination with its default saved record. -/
+def compileBlock (graph : CFG V K F) (block : Block V K F) : Block (V × Nat) K F :=
+  compileBlockWith (destinations graph) (registers graph) (slots graph block) block
 
 /-- Compile the entry and all labelled blocks, preserving table order. -/
 def compile (graph : CFG V K F) : CFG (V × Nat) K F :=
   ⟨versionBody graph.entry (destinations graph) (registers graph) (fun _ => 0) 0,
     graph.blocks.map fun item => (item.1, compileBlock graph item.2)⟩
 
-/-- Encode a pending mutable transfer by the destination's packet layout. -/
+/-- Opt in to empty extra records. This path is intended for packet-local
+tables whose blocks read only their original argument and local bindings. -/
+def compilePacketLocal (graph : CFG V K F) : CFG (V × Nat) K F :=
+  let labels := destinationsWith graph (fun _ => [])
+  ⟨versionBody graph.entry labels [] (fun _ => 0) 0,
+    graph.blocks.map fun item => (item.1, compileBlockWith labels [] [] item.2)⟩
+
+/-- Encode a pending mutable transfer by the default destination layout. -/
 def encode [Monad M] (model : Model F M α) (graph : CFG V K F)
     (transfer : Transfer V K α) : K × α :=
   Version.enc model (destinations graph) transfer
+
+/-- Encode the same transfer with empty extra records at internal labels. -/
+def encodePacketLocal [Monad M] (model : Model F M α) (graph : CFG V K F)
+    (transfer : Transfer V K α) : K × α :=
+  Version.enc model (destinationsWith graph (fun _ => [])) transfer
 
 end Versioning
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic

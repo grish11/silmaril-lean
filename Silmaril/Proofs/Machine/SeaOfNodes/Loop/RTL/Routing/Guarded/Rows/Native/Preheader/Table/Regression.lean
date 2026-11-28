@@ -1,0 +1,1217 @@
+module
+
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Reindex.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Family.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Family.Phi.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Family.MLIR.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Family.MLIR.Prefix.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch.Family.MLIR.Prefix.Producer.Exit.Inversion.Thms
+
+namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table
+
+open CategoryTheory (Discrete)
+open Silmaril.Isotope.Institution.Observational (Observation ssaBeh)
+open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA.Institution.Fiber (fiberRoom inputModel)
+open Silmaril.Machine.Lir (Memory Word)
+open Silmaril.Machine.RTL (Frame)
+open Silmaril.Machine.RTL.SSA (Behavior Prog Result State Step Steps StepsNWithin run step)
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (Reg model word)
+open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA (encodeTuple inputEnv instruction)
+open Silmaril.SSA.SeaOfNodes.Loop (appendTuple)
+open Silmaril.SSA.SeaOfNodes
+open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
+open Silmaril.Logic.Institution.Observational (Sentence)
+open Silmaril.Isotope.LambdaSSA.Semantics (Diverges)
+open Silmaril.Isotope.LambdaSSA.Semantics.Region (Eval)
+
+private def capture (slot : Fin 3) := argumentPort 3 slot
+private def old (slot : Fin 3) := suffixPort (wordPorts 3) (capture slot)
+private abbrev Entry := [[wordPort], [wordPort]]
+private abbrev Header := [[wordPort], [.value .predicate]]
+
+private def source : SourceWithEntry 3 Entry Header where
+  preheader :=
+    .cons .sub (.cons (.arg (capture 0)) (.cons (.arg (capture 2)) .nil))
+      (.cons .add (.cons (.output (0 : Fin 1) .head) (.cons (.arg (capture 1)) .nil)) .nil)
+  header :=
+    .cons .add (.cons (.arg (old 0)) (.cons (.arg (old 1)) .nil))
+      (.cons .slt (.cons (.output (0 : Fin 1) .head) (.cons (.arg (old 2)) .nil)) .nil)
+  phiInputs
+    | .entry =>
+      .cons (.output (0 : Fin 2) .head) (.cons (.output (1 : Fin 2) .head) (.cons (.arg (capture 2)) .nil))
+    | .backedge =>
+      .cons (.output (0 : Fin 2) .head) (.cons (.arg (old 1)) (.cons (.arg (old 2)) .nil))
+  predicate := .output (1 : Fin 2) .head
+  result := .output (0 : Fin 2) .head
+
+private def rawStride : SourceWithEntry 3 Entry Header :=
+  { source with
+    phiInputs
+      | .entry => .cons (.output (0 : Fin 2) .head) (.cons (.arg (capture 1)) (.cons (.arg (capture 2)) .nil))
+      | .backedge => source.phiInputs .backedge }
+
+example : lowerChecked { source with
+    phiInputs
+      | .entry => source.phiInputs .entry
+      | .backedge =>
+        .cons (.output (0 : Fin 2) .head)
+          (.cons (.arg (prefixPort (capture 1))) (.cons (.arg (old 2)) .nil)) } = none := by cbv
+
+example : lowerChecked { source with
+    preheader := .cons .sub (.cons (.arg (capture 0)) (.cons (.arg (capture 2)) .nil))
+      (.cons (.const 3) .nil .nil) } = none := by cbv
+
+private def bank (x y z : Word) : WordTuple 3 := .cons x (.cons y (.cons z .nil))
+private def input := bank 6 2 5
+private def mem := Memory.ofList 4 [29, 71, 53, 11]
+
+private def plan : Plan 3 Entry := (recognize source).get (by cbv)
+private theorem recognized : recognize source = some plan := by cbv
+private def targets : Checked.Phi.Targets := (plan.rtl, Generic.lower source)
+private theorem accepted : lowerChecked source = some targets := by cbv
+
+example : (targets.1.block? 0 0).map (·.ops) =
+    some [.binary .sub (.arg 6) (.arg 0) (.arg 2), .binary .add (.arg 7) (.arg 6) (.arg 1)] := by cbv
+example : (targets.1.block? 0 0).map (·.term) = some (.jump 1 [.arg 6, .arg 7, .arg 2]) := by cbv
+example : (targets.1.block? 0 1).map (·.term) =
+    some (.cond (.node 1) 1 [.node 0, .arg 4, .arg 5] 2 [.node 0]) := by cbv
+
+example : source.initial model input = bank 1 3 5 := by cbv
+example : rawStride.evalBackedges model 1 input = some (5 : Word) := by cbv
+
+private theorem counted : source.ReturnsAfter model input 1 (source.initial model input) (7 : Word) :=
+  .backedge (next := bank 4 3 5) (by cbv) (.exit (by cbv))
+
+example : targets.1.runMain 10 0 (words input) mem = .returned [7] mem :=
+  (rtl_runMain_fuel_iff recognized accepted _ _ _ _ _).mpr ⟨1, (7 : Word), counted, by decide, rfl, rfl⟩
+private theorem rtlObserved : targets.1.runMain 10 0 (words input) mem = .returned [7] mem := by cbv
+example : (targets.1.runMain 9 0 (words input) mem).returnedValues? = none := by cbv
+private theorem lambdaObserved : Generic.Fuel.run model (inputEnv model input) 2 targets.2 =
+    some (0, Generic.packResult model (out := word) (7 : Word)) := by cbv
+example : Generic.Fuel.run model (inputEnv model input) 1 targets.2 = none := by cbv
+
+example : targets.1.oracle 0 (words input) mem [7] mem :=
+  (rtl_return_iff accepted _ _ _ _).mpr ⟨7, ⟨1, counted⟩, rfl, rfl⟩
+example : Eval (instruction model) (inputEnv model input) targets.2 mem
+    0 (Generic.packResult model (out := word) (7 : Word)) mem :=
+  (lambda_return_iff accepted _ _ _ _ _).mpr ⟨7, ⟨1, counted⟩, rfl, rfl, rfl⟩
+
+private theorem rtlDenoted : rtlDenote targets.1 input mem = Part.some (7, mem) :=
+  Part.eq_some_iff.mpr ((mem_rtlDenote_iff_runMain _ _ _ _ _).mpr ⟨10, rtlObserved⟩)
+
+private theorem nativeDenoted : nativeDenote source input mem = Part.some (7, mem) :=
+  (denotations_eq accepted input mem).1.symm.trans rtlDenoted
+
+example : lambdaDenote targets.2 input mem = Part.some (7, mem) :=
+  Part.eq_some_iff.mpr ((mem_lambdaDenote_iff_run accepted _ _ _ _).mpr ⟨rfl, 2, lambdaObserved⟩)
+
+private def spin := bank 0 1 1
+private def fixedBank := bank (-1) 0 1
+
+private theorem spinAbsent : source.denote model spin = Part.none := by
+  rw [Part.eq_none_iff', Part.dom_iff_mem]
+  rintro ⟨value, returned⟩
+  exact source.not_returns_of_backedge_invariant model spin value (· = fixedBank) (by cbv)
+    (fun old fixed => fixed.symm ▸ ⟨fixedBank, by cbv, rfl⟩)
+    ((source.returns_iff_mem_denote model _ _).mpr returned)
+
+example :
+    (∀ returned final, ¬ targets.1.oracle 0 (words spin) mem returned final) ∧
+    (∀ label payload final, ¬ Eval (instruction model) (inputEnv model spin) targets.2 mem label payload final) :=
+  let absence := no_finite_return_iff accepted spin mem
+  ⟨absence.1.mpr spinAbsent, absence.2.mpr spinAbsent⟩
+
+example : rtlDenote targets.1 spin mem = Part.none ∧ lambdaDenote targets.2 spin mem = Part.none :=
+  let absence := denotations_none_iff accepted spin mem
+  ⟨absence.1.mpr spinAbsent, absence.2.mpr spinAbsent⟩
+
+example : (7, mem) ∈ Rows.rtlObservation targets.1 input mem ∧
+    (7, mem) ∈ Institution.lambdaReturns input mem (Institution.scope accepted) := by
+  have agree := Institution.observations_eq accepted input mem
+  rw [agree.1, agree.2]
+  exact ⟨Part.eq_some_iff.mp nativeDenoted, Part.eq_some_iff.mp nativeDenoted⟩
+
+private def exitAtSpin : SourceWithEntry 3 Entry Header :=
+  { source with
+    preheader :=
+      .cons .add (.cons (.arg (capture 0)) (.cons (.arg (capture 2)) .nil))
+        (.cons .add (.cons (.output (0 : Fin 1) .head) (.cons (.arg (capture 1)) .nil)) .nil) }
+
+private def exitTargets : Checked.Phi.Targets := (lowerChecked exitAtSpin).get (by cbv)
+private theorem exitAccepted : lowerChecked exitAtSpin = some exitTargets := by cbv
+
+example : exitTargets.1.runMain 7 0 (words spin) mem = .returned [3] mem := by cbv
+
+private theorem differs : exitAtSpin.denote model spin ≠ source.denote model spin := by
+  rw [spinAbsent]
+  intro absent
+  have returned : exitAtSpin.Returns model spin (3 : Word) := ⟨0, .exit (by cbv)⟩
+  have present := (exitAtSpin.returns_iff_mem_denote model spin (3 : Word)).mp returned
+  rw [absent] at present
+  exact Part.not_none_dom (Part.dom_iff_mem.mpr ⟨_, present⟩)
+
+private theorem equationFails :
+    ¬ (Loop.Institution.Sentence.equation (Institution.equation exitAtSpin source)).Holds model :=
+  fun holds => differs (holds spin)
+
+example :
+    ¬ (∀ args : WordTuple 3, (Sentence.eq exitTargets.1 targets.1).Holds
+        (fun target => Rows.rtlObservation target args mem)) ∧
+    ¬ (∀ args : WordTuple 3, (Sentence.eq (Institution.scope exitAccepted) (Institution.scope accepted)).Holds
+        (Institution.lambdaReturns args mem)) := by
+  have agrees := Institution.equation_holds_iff exitAccepted accepted mem
+  exact ⟨equationFails ∘ agrees.1.mp, equationFails ∘ agrees.2.1.mp⟩
+
+private theorem terminationFails :
+    ¬ (Loop.Institution.Sentence.terminates (Institution.program source)).Holds model :=
+  fun holds => (Part.eq_none_iff'.mp spinAbsent) (holds spin)
+
+example :
+    ¬ (∀ args : WordTuple 3, (Rows.rtlObservation targets.1 args mem).Nonempty) ∧
+    ¬ (∀ args : WordTuple 3, (Institution.lambdaReturns args mem (Institution.scope accepted)).Nonempty) := by
+  have agrees := Institution.terminates_holds_iff accepted mem
+  exact ⟨terminationFails ∘ agrees.1.mp, terminationFails ∘ agrees.2.mp⟩
+
+example :
+    let room := ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory input) (Institution.scope accepted)
+    let packet := Generic.packResult model (out := word) (7 : Word)
+    Observation.ret mem (0, packet) mem ∈ room ∧ Observation.diverge mem ∉ room ∧
+      Observation.ret mem (1, packet) mem ∉ room ∧ (∀ final, Observation.fault mem final ∉ room) := by
+  have present := (source.returns_iff_mem_denote model input (7 : Word)).mp ⟨1, counted⟩
+  exact ⟨(Institution.room_ret_iff accepted input mem mem 0 _).mpr ⟨7, present, rfl, rfl, rfl⟩,
+    fun diverged => (Part.eq_none_iff'.mp ((Institution.room_diverges_iff accepted input mem).mp diverged))
+      (Part.dom_iff_mem.mpr ⟨(7 : Word), present⟩),
+    Institution.room_other_exit_absent accepted input mem mem 1 _ (by decide),
+    Institution.room_fault_absent accepted input mem⟩
+
+example :
+    let room := ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory spin) (Institution.scope accepted)
+    Observation.diverge mem ∈ room ∧ (∀ final, Observation.fault mem final ∉ room) :=
+  ⟨(Institution.room_diverges_iff accepted spin mem).mpr spinAbsent,
+    Institution.room_fault_absent accepted spin mem⟩
+
+example :
+    ¬ (fiberRoom Rows.wordSignature (wordSorts 3).length).Sat
+      (Discrete.mk (inputModel (P := Rows.wordSignature) model Memory spin))
+      (Sentence.eq (Institution.scope exitAccepted) (Institution.scope accepted)) :=
+  differs ∘ (Institution.room_equation_at_iff exitAccepted accepted spin mem).mp
+
+example :
+    let observed := Institution.rtlBehaviors input mem targets.1
+    Behavior.returned [7] mem ∈ observed ∧ Behavior.diverges ∉ observed ∧
+      Behavior.returned [7, 7] mem ∉ observed ∧ Behavior.stuck ∉ observed ∧
+      (∀ final, Behavior.trapped final ∉ observed) := by
+  have present := (source.returns_iff_mem_denote model input (7 : Word)).mp ⟨1, counted⟩
+  refine ⟨(Institution.rtl_behavior_iff accepted input mem (.returned [7] mem)).mpr
+    ⟨7, present, rfl, rfl⟩, ?_, ?_, Institution.rtl_no_fault accepted input mem⟩
+  · intro diverged
+    have absent := (Institution.rtl_divOracle_iff accepted input mem).mp diverged
+    exact (Part.eq_none_iff'.mp absent) (Part.dom_iff_mem.mpr ⟨(7 : Word), present⟩)
+  · intro unexpected
+    obtain ⟨_, _, outputs, _⟩ :=
+      (Institution.rtl_behavior_iff accepted input mem (.returned [7, 7] mem)).mp unexpected
+    simp at outputs
+
+example :
+    targets.1.divOracle 0 (words spin) mem ∧
+      (∀ values final, Behavior.returned values final ∉ Institution.rtlBehaviors spin mem targets.1) ∧
+      Behavior.stuck ∉ Institution.rtlBehaviors spin mem targets.1 ∧
+      (∀ final, Behavior.trapped final ∉ Institution.rtlBehaviors spin mem targets.1) := by
+  refine ⟨(Institution.rtl_divOracle_iff accepted spin mem).mpr spinAbsent,
+    ?_, Institution.rtl_no_fault accepted spin mem⟩
+  intro values final returned
+  obtain ⟨value, present, _, _⟩ :=
+    (Institution.rtl_behavior_iff accepted spin mem (.returned values final)).mp returned
+  exact (Part.eq_none_iff'.mp spinAbsent) (Part.dom_iff_mem.mpr ⟨value, present⟩)
+
+example :
+    ¬ (Sentence.eq exitTargets.1 targets.1).Holds (Institution.rtlBehaviors spin mem) :=
+  differs ∘ (Institution.rtl_equation_at_iff exitAccepted accepted spin mem).mp
+
+example :
+    Behavior.returned [7] mem ∈ Institution.rtlBehaviors input mem targets.1 ∧
+      Observation.ret mem (0, Generic.packResult model (out := word) (7 : Word)) mem ∈
+        ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory input) (Institution.scope accepted) := by
+  have rtl : Behavior.returned [7] mem ∈ Institution.rtlBehaviors input mem targets.1 :=
+    (mem_rtlDenote_iff _ _ _ _ _).mp (Part.eq_some_iff.mp rtlDenoted)
+  exact ⟨rtl, (Institution.rtl_room_return_iff accepted input mem mem 7).mp rtl⟩
+
+example :
+    Behavior.diverges ∈ Institution.rtlBehaviors spin mem targets.1 ∧
+      Observation.diverge mem ∈
+        ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory spin) (Institution.scope accepted) := by
+  have diverged := (Institution.room_diverges_iff accepted spin mem).mpr spinAbsent
+  exact ⟨(Institution.rtl_room_observation_iff accepted spin (.diverge mem)).mp diverged, diverged⟩
+
+example :
+    Behavior.returned [3] mem ∈ Institution.rtlBehaviors spin mem exitTargets.1 ∧
+      Observation.ret mem (0, Generic.packResult model (out := word) (3 : Word)) mem ∉
+        ssaBeh 1 (inputModel (P := Rows.wordSignature) model Memory spin) (Institution.scope accepted) := by
+  have returns : exitAtSpin.Returns model spin (3 : Word) := ⟨0, .exit (by cbv)⟩
+  refine ⟨(rtl_return_iff exitAccepted spin mem mem [3]).mpr ⟨3, returns, rfl, rfl⟩, ?_⟩
+  intro roomReturn
+  have rtlReturn := (Institution.rtl_room_return_iff accepted spin mem mem 3).mpr roomReturn
+  obtain ⟨value, present, _, _⟩ :=
+    (Institution.rtl_behavior_iff accepted spin mem (.returned [3] mem)).mp rtlReturn
+  exact (Part.eq_none_iff'.mp spinAbsent) (Part.dom_iff_mem.mpr ⟨value, present⟩)
+
+example :
+    ¬ (∀ args : WordTuple 3, (fiberRoom Rows.wordSignature (wordSorts 3).length).Sat
+      (Discrete.mk (inputModel (P := Rows.wordSignature) model Memory args))
+      (Sentence.eq (Institution.scope exitAccepted) (Institution.scope accepted))) :=
+  fun satisfies => differs ((Institution.rtl_equation_at_iff exitAccepted accepted spin mem).mp
+    ((Institution.rtl_room_equation_holds_iff exitAccepted accepted mem).mpr satisfies spin))
+
+private def swapCaptures : InputPermutation 3 := Equiv.swap 0 2
+private def swappedSource := reindexCaptures swapCaptures source
+private theorem swappedHasTargets : (lowerChecked swappedSource).isSome := by
+  obtain ⟨_, found⟩ := lowerChecked_reindex swapCaptures accepted
+  rw [show lowerChecked swappedSource = some _ from found]
+  rfl
+
+private def swappedTargets : Checked.Phi.Targets := (lowerChecked swappedSource).get swappedHasTargets
+private theorem swappedAccepted : lowerChecked swappedSource = some swappedTargets := by cbv
+
+private def rawEntry : SourceWithEntry 3 Entry Header :=
+  { source with
+    phiInputs
+      | .entry => .cons (.arg (capture 0)) (.cons (.arg (capture 1)) (.cons (.arg (capture 2)) .nil))
+      | .backedge => source.phiInputs .backedge }
+
+private theorem rawRefused : lowerChecked rawEntry = none := by cbv
+
+example : lowerChecked (reindexCaptures swapCaptures rawEntry) = none := by
+  cases found : lowerChecked (reindexCaptures swapCaptures rawEntry) with
+  | none => rfl
+  | some targets =>
+    obtain ⟨_, wasAccepted⟩ := (lowerChecked_reindex_iff swapCaptures (g := rawEntry)).mp ⟨targets, found⟩
+    rw [rawRefused] at wasAccepted
+    cases wasAccepted
+
+example : (swappedTargets.1.block? 0 0).map (·.ops) =
+    some [.binary .sub (.arg 6) (.arg 2) (.arg 0), .binary .add (.arg 7) (.arg 6) (.arg 1)] := by cbv
+example : (swappedTargets.1.block? 0 0).map (·.term) = some (.jump 1 [.arg 6, .arg 7, .arg 0]) := by cbv
+example : swappedTargets.1.block? 0 1 = targets.1.block? 0 1 := by cbv
+
+private def swappedInput := bank 5 2 6
+private def swappedSpin := bank 1 1 0
+
+example : swapCaptures.pull swappedInput = input := by cbv
+private theorem pullSpin : swapCaptures.pull swappedSpin = spin := by cbv
+example : swappedTargets.1.runMain 10 0 (words swappedInput) mem = .returned [7] mem := by cbv
+example : Generic.Fuel.run model (inputEnv model swappedInput) 2 swappedTargets.2 =
+    some (0, Generic.packResult model (out := word) (7 : Word)) := by cbv
+example : targets.1.runMain 7 0 (words swappedSpin) mem = .returned [3] mem := by cbv
+
+example :
+    Behavior.diverges ∈ Institution.rtlBehaviors swappedSpin mem swappedTargets.1 ∧
+      Observation.diverge mem ∈ ssaBeh 1
+        (inputModel (P := Rows.wordSignature) model Memory swappedSpin) (Institution.scope swappedAccepted) := by
+  obtain ⟨after, found, observes⟩ := reemit_observations swapCaptures accepted
+  have same : after = swappedTargets := Option.some.inj (found.symm.trans swappedAccepted)
+  subst after
+  have agree := observes swappedSpin mem
+  rw [pullSpin] at agree
+  have old := (Institution.room_diverges_iff accepted spin mem).mpr spinAbsent
+  exact ⟨agree.1 ▸ ((Institution.rtl_room_observation_iff accepted spin (.diverge mem)).mp old),
+    agree.2 ▸ old⟩
+
+private def swappedExitTargets : Checked.Phi.Targets :=
+  (lowerChecked (reindexCaptures swapCaptures exitAtSpin)).get (by cbv)
+
+private theorem swappedExitAccepted :
+    lowerChecked (reindexCaptures swapCaptures exitAtSpin) = some swappedExitTargets := by cbv
+
+example : swappedExitTargets.1.runMain 7 0 (words swappedSpin) mem = .returned [3] mem := by cbv
+
+example :
+    ¬ (Sentence.eq swappedExitTargets.1 swappedTargets.1).Holds
+      (Institution.rtlBehaviors swappedSpin mem) := by
+  have agrees := reindex_equation_at_iff swapCaptures exitAccepted accepted
+    swappedExitAccepted swappedAccepted swappedSpin mem
+  intro holds
+  have pulled := agrees.1.mp holds
+  rw [pullSpin] at pulled
+  exact differs pulled
+
+private def identify : InputMap 3 := fun slot => if slot = 2 then 0 else slot
+private def contracted := mapCaptures identify source
+
+private theorem contractedHasTargets : (lowerChecked contracted).isSome := by
+  obtain ⟨_, found⟩ := lowerChecked_mapCaptures identify accepted
+  rw [show lowerChecked contracted = some _ from found]
+  rfl
+
+private def contractedTargets : Checked.Phi.Targets := (lowerChecked contracted).get contractedHasTargets
+private theorem contractedAccepted : lowerChecked contracted = some contractedTargets := by cbv
+
+example : identify 0 = identify 2 := by cbv
+example : (contractedTargets.1.block? 0 0).map (·.ops) =
+    some [.binary .sub (.arg 6) (.arg 0) (.arg 0), .binary .add (.arg 7) (.arg 6) (.arg 1)] := by cbv
+example : (contractedTargets.1.block? 0 0).map (·.term) = some (.jump 1 [.arg 6, .arg 7, .arg 0]) := by cbv
+example : contractedTargets.1.block? 0 1 = targets.1.block? 0 1 := by cbv
+
+private def contractedInput := bank 5 2 6
+example : identify.pull contractedInput = bank 5 2 5 := by cbv
+example : contractedTargets.1.runMain 13 0 (words contractedInput) mem = .returned [6] mem := by cbv
+example : Generic.Fuel.run model (inputEnv model contractedInput) 3 contractedTargets.2 =
+    some (0, Generic.packResult model (out := word) (6 : Word)) := by cbv
+
+private def contractedSpin := bank 1 0 42
+private def equalCaptures := bank 1 0 1
+private def zeroBank := bank 0 0 1
+
+private theorem equalCapturesAbsent : source.denote model equalCaptures = Part.none := by
+  rw [Part.eq_none_iff', Part.dom_iff_mem]
+  rintro ⟨value, returned⟩
+  exact source.not_returns_of_backedge_invariant model equalCaptures value (· = zeroBank) (by cbv)
+    (fun old fixed => fixed.symm ▸ ⟨zeroBank, by cbv, rfl⟩)
+    ((source.returns_iff_mem_denote model _ _).mpr returned)
+
+example :
+    Behavior.diverges ∈ Institution.rtlBehaviors contractedSpin mem contractedTargets.1 ∧
+      Observation.diverge mem ∈ ssaBeh 1
+        (inputModel (P := Rows.wordSignature) model Memory contractedSpin) (Institution.scope contractedAccepted) := by
+  obtain ⟨after, found, observes⟩ := reemit_mapped_observations identify accepted
+  have same : after = contractedTargets := Option.some.inj (found.symm.trans contractedAccepted)
+  subst after
+  have agree := observes contractedSpin mem
+  have pulled : identify.pull contractedSpin = equalCaptures := by cbv
+  rw [pulled] at agree
+  have old := (Institution.room_diverges_iff accepted equalCaptures mem).mpr equalCapturesAbsent
+  exact ⟨agree.1 ▸ ((Institution.rtl_room_observation_iff accepted equalCaptures (.diverge mem)).mp old),
+    agree.2 ▸ old⟩
+
+private def aliasSubtraction : SourceWithEntry 3 Entry Header :=
+  { source with
+    preheader := .cons .sub (.cons (.arg (capture 2)) (.cons (.arg (capture 2)) .nil))
+      (.cons .add (.cons (.output (0 : Fin 1) .head) (.cons (.arg (capture 1)) .nil)) .nil) }
+
+private def aliasPlan : Plan 3 Entry := (recognize aliasSubtraction).get (by cbv)
+private theorem aliasRecognized : recognize aliasSubtraction = some aliasPlan := by cbv
+private def aliasTargets : Checked.Phi.Targets := (aliasPlan.rtl, Generic.lower aliasSubtraction)
+private theorem aliasAccepted : lowerChecked aliasSubtraction = some aliasTargets := by cbv
+
+private theorem comparedGraphs : mapCaptures identify source = mapCaptures identify aliasSubtraction := by cbv
+private theorem aliasMappedAccepted :
+    lowerChecked (mapCaptures identify aliasSubtraction) = some contractedTargets := by
+  rw [← comparedGraphs]
+  exact contractedAccepted
+
+private theorem differentAtInput : source.denote model input ≠ aliasSubtraction.denote model input := by
+  intro same
+  have lhs : source.denote model input = Part.some (7 : Word) :=
+    Part.eq_some_iff.mpr ((source.returns_iff_mem_denote model input (7 : Word)).mp ⟨1, counted⟩)
+  have rhs : aliasSubtraction.denote model input = Part.some (6 : Word) :=
+    Part.eq_some_iff.mpr ((aliasSubtraction.returns_iff_mem_denote model input (6 : Word)).mp
+      ((aliasSubtraction.returns_iff_evalBackedges model input (6 : Word)).mpr ⟨2, by cbv⟩))
+  rw [lhs, rhs] at same
+  exact (by decide : (7 : Word) ≠ 6) (Part.some_injective (α := Word) same)
+
+example : ¬ (Loop.Institution.Sentence.equation (Institution.equation source aliasSubtraction)).Holds model :=
+  fun holds => differentAtInput (holds input)
+
+private theorem agreeOnImage : ∀ old ∈ Set.range (fun args : WordTuple 3 => identify.pull args),
+    source.denote model old = aliasSubtraction.denote model old := by
+  rintro _ ⟨args, rfl⟩
+  exact (denote_mapCaptures identify recognized model args).symm.trans
+    ((congrArg (fun graph => graph.denote model args) comparedGraphs).trans
+      (denote_mapCaptures identify aliasRecognized model args))
+
+example : input ∉ Set.range (fun args : WordTuple 3 => identify.pull args) :=
+  fun pulled => differentAtInput (agreeOnImage input pulled)
+
+example :
+    (∀ args : WordTuple 3,
+      (Sentence.eq contractedTargets.1 contractedTargets.1).Holds (Institution.rtlBehaviors args mem)) ∧
+      (∀ args : WordTuple 3, (fiberRoom Rows.wordSignature (wordSorts 3).length).Sat
+        (Discrete.mk (inputModel (P := Rows.wordSignature) model Memory args))
+        (Sentence.eq (Institution.scope contractedAccepted) (Institution.scope aliasMappedAccepted))) := by
+  have laws := mapCaptures_equation_holds_iff identify accepted aliasAccepted
+    contractedAccepted aliasMappedAccepted mem
+  exact ⟨laws.1.mpr agreeOnImage, laws.2.mpr agreeOnImage⟩
+
+private def removeCapture : InputMap 3 2 := fun slot => if slot = 1 then 1 else 0
+private def narrowGraph : Width.Source 2 3 Entry Header := Width.mapCaptures removeCapture source
+private def narrowTargets : Checked.Phi.Targets := (Width.lowerRTL narrowGraph, Generic.lower narrowGraph)
+private theorem narrowAccepted : Width.lowerChecked removeCapture source = some narrowTargets :=
+  Width.lowerChecked_of_accepted removeCapture accepted
+
+example : (narrowTargets.1.func? 0).map (·.sig.params) = some 2 := by cbv
+example : (narrowTargets.1.block? 0 0).map (·.ops) =
+    some [.binary .sub (.arg 5) (.arg 0) (.arg 0), .binary .add (.arg 6) (.arg 5) (.arg 1)] := by cbv
+example : (narrowTargets.1.block? 0 0).map (·.term) = some (.jump 1 [.arg 5, .arg 6, .arg 0]) := by cbv
+example : (narrowTargets.1.block? 0 1).map (fun b => (b.params, b.term)) =
+    some ([.arg 2, .arg 3, .arg 4], .cond (.node 1) 1 [.node 0, .arg 3, .arg 4] 2 [.node 0]) := by cbv
+
+private def pair (a b : Word) : WordTuple 2 := .cons a (.cons b .nil)
+private def narrowInput := pair 5 2
+private def identifyPair : InputMap 2 1 := fun _ => 0
+
+example (input : WordTuple 1) :
+    InputMap.pull (identifyPair ∘ removeCapture) input = removeCapture.pull (identifyPair.pull input) :=
+  InputMap.pull_comp removeCapture identifyPair input
+
+example : removeCapture.pull narrowInput = bank 5 2 5 := by cbv
+example : narrowGraph.initial model narrowInput = bank 0 2 5 := by cbv
+example : ∃ start latched, narrowTargets.1.start 0 (words narrowInput) mem = some start ∧
+    StepsNWithin narrowTargets.1 [] 3 start ⟨⟨0, 1, 0⟩, latched, [], mem⟩ ∧
+    ArgsMatch latched (appendTuple (bank 0 2 5) narrowInput) := by
+  obtain ⟨started, latched, steps, agreed⟩ := Width.checked_entry_packet removeCapture accepted narrowInput mem
+  have initialized : source.initial model (removeCapture.pull narrowInput) = bank 0 2 5 := by cbv
+  exact ⟨_, latched, started, steps, initialized ▸ agreed⟩
+
+example : narrowTargets.1.runMain 13 0 (words narrowInput) mem = .returned [6] mem := by cbv
+example : narrowTargets.1.runMain (Width.rtlFuel Entry Header 2) 0 (words narrowInput) mem =
+    .returned [6] mem :=
+  (Width.rtl_runMain_backedges_iff narrowAccepted narrowInput mem mem [6] 2).mpr
+    ⟨6, by cbv, rfl, rfl⟩
+
+example : (narrowTargets.1.runMain 12 0 (words narrowInput) mem).returnedValues? = none := by cbv
+example : source.evalBackedges model 1 (removeCapture.pull narrowInput) = none := by cbv
+example : narrowTargets.1.runMain 13 0 [5, 2, 5] mem = .stuck := by cbv
+example : Generic.Fuel.run model (inputEnv model narrowInput) 3 narrowTargets.2 =
+    some (0, Generic.packResult model (out := word) (6 : Word)) := by cbv
+
+private def narrowSpin := pair 1 0
+
+example : Diverges (instruction model) (.region (inputEnv model narrowSpin) narrowTargets.2 mem) :=
+  (Width.lambda_diverges_iff narrowAccepted narrowSpin mem).mpr
+    ((show removeCapture.pull narrowSpin = equalCaptures by cbv).symm ▸ equalCapturesAbsent)
+
+private def runningState? : Result Reg → Option (State Reg)
+  | .running state => some state
+  | _ => none
+
+private def narrowStart : State Reg := (narrowTargets.1.start 0 (words narrowSpin) mem).get (by cbv)
+private def narrowHeader : State Reg := (runningState? (run narrowTargets.1 6 narrowStart)).get (by cbv)
+private theorem reachesNarrowHeader : run narrowTargets.1 6 narrowStart = .running narrowHeader := by cbv
+
+private theorem narrowCycle : run narrowTargets.1 3 narrowHeader = .running narrowHeader := by
+  cbv
+  congr 3
+  funext r
+  by_cases fourth : r = Reg.arg 4
+  · simp [fourth]
+  by_cases third : r = Reg.arg 3
+  · simp [third]
+  by_cases second : r = Reg.arg 2
+  · simp [second]
+  by_cases guard : r = Reg.node 1
+  · simp [guard]
+  by_cases value : r = Reg.node 0 <;> simp [fourth, third, second, guard, value]
+
+private theorem steps_of_run {program : Prog Reg} {n : Nat} {s t : State Reg}
+    (ran : run program n s = .running t) : Steps program s t := by
+  induction n generalizing s with
+  | zero =>
+    have same : s = t := Result.running.inj ran
+    exact same ▸ .refl
+  | succ n ih =>
+    unfold run at ran
+    cases stepEq : step program s with
+    | running next =>
+      rw [stepEq] at ran
+      exact .head stepEq (ih ran)
+    | returned _ _ | trapped _ | stuck => rw [stepEq] at ran; cases ran
+
+private theorem trace_of_cycle {program : Prog Reg} {s : State Reg} {n : Nat}
+    (cycle : run program (n + 1) s = .running s) : Silmaril.Machine.RTL.SSA.Diverges program s := by
+  let pending (t : State Reg) := ∃ k, run program k t = .running s
+  have next {t : State Reg} {k : Nat} (path : run program (k + 1) t = .running s) :
+      ∃ u, Step program t u ∧ pending u := by
+    unfold run at path
+    cases stepEq : step program t with
+    | running u => rw [stepEq] at path; exact ⟨u, stepEq, k, path⟩
+    | returned _ _ | trapped _ | stuck => rw [stepEq] at path; cases path
+  apply InfiniteTrace.coinduct pending _ ⟨0, rfl⟩
+  rintro t ⟨k, path⟩
+  cases k with
+  | zero =>
+    have same : t = s := Result.running.inj path
+    exact same.symm ▸ next cycle
+  | succ k => exact next path
+
+example : narrowTargets.1.divOracle 0 (words narrowSpin) mem :=
+  ⟨narrowStart, by cbv, InfiniteTrace.of_steps (steps_of_run reachesNarrowHeader) (trace_of_cycle narrowCycle)⟩
+
+example : ∀ returned final, ¬ narrowTargets.1.oracle 0 (words narrowSpin) mem returned final :=
+  (Width.rtl_no_finite_return_iff narrowAccepted narrowSpin mem).mpr
+    ((show removeCapture.pull narrowSpin = equalCaptures by cbv).symm ▸ equalCapturesAbsent)
+
+
+example : (∀ args : WordTuple 2,
+    narrowGraph.denote model args = (Width.mapCaptures removeCapture aliasSubtraction).denote model args) :=
+  (Width.equation_on_image removeCapture source aliasSubtraction).mpr (by
+    rintro _ ⟨args, rfl⟩
+    have compared : Width.mapCaptures removeCapture source =
+        Width.mapCaptures removeCapture aliasSubtraction := by cbv
+    exact (Width.denote_mapCaptures removeCapture source model args).symm.trans
+      ((congrArg (fun graph => graph.denote model args) compared).trans
+        (Width.denote_mapCaptures removeCapture aliasSubtraction model args)))
+
+-- The third source capture moves past an unused capture while the bank still has three lanes.
+private def widenCaptures : InputMap 3 4 := fun slot => if slot = 2 then 3 else Fin.castLE (by decide) slot
+private def wideGraph : Width.Source 4 3 Entry Header := Width.mapCaptures widenCaptures source
+private def wideTargets : Checked.Phi.Targets := (Width.lowerRTL wideGraph, Generic.lower wideGraph)
+
+private theorem wideAccepted : Width.lowerChecked widenCaptures source = some wideTargets :=
+  Width.lowerChecked_of_accepted widenCaptures accepted
+
+example : (wideTargets.1.func? 0).map (·.sig.params) = some 4 := by cbv
+example : (wideTargets.1.block? 0 0).map (·.term) = some (.jump 1 [.arg 7, .arg 8, .arg 3]) := by cbv
+example : (wideTargets.1.block? 0 1).map (·.params) = some [.arg 4, .arg 5, .arg 6] := by cbv
+
+private def wideInput : WordTuple 4 := .cons (6 : Word) (bank 2 99 5)
+
+example : widenCaptures.pull wideInput = input := by cbv
+example : wideTargets.1.runMain 10 0 (words wideInput) mem = .returned [7] mem := by cbv
+example : Generic.Fuel.run model (inputEnv model wideInput) 2 wideTargets.2 =
+    some (0, Generic.packResult model (out := word) (7 : Word)) := by cbv
+
+example : wideTargets.1.runMain (Width.rtlFuel Entry Header 1) 0 (words wideInput) mem =
+    .returned [7] mem :=
+  (Width.rtl_runMain_fuel_iff wideAccepted wideInput mem mem [7] _).mpr
+    ⟨1, (7 : Word), (show widenCaptures.pull wideInput = input by cbv).symm ▸ counted, le_rfl, rfl, rfl⟩
+
+private def wideImmediate : WordTuple 4 := .cons (9 : Word) (bank 2 99 5)
+
+example : wideTargets.1.runMain (Width.rtlFuel Entry Header 0) 0 (words wideImmediate) mem =
+    .returned [10] mem :=
+  (Width.rtl_runMain_backedges_iff wideAccepted wideImmediate mem mem [10] 0).mpr
+    ⟨10, by cbv, rfl, rfl⟩
+
+private def wideSpin : WordTuple 4 := .cons (0 : Word) (bank 1 99 1)
+
+example : wideTargets.1.divOracle 0 (words wideSpin) mem :=
+  (Width.rtl_divOracle_iff wideAccepted wideSpin mem).mpr
+    ((show widenCaptures.pull wideSpin = spin by cbv).symm ▸ spinAbsent)
+
+private def dispatchSource : Width.Dispatch.Source 3 3 Entry Header :=
+  ⟨source, .cons (.output (0 : Fin 2) .head)
+    (.cons (.arg (old 2)) (.cons (.arg (old 1)) .nil)), .arg (prefixPort (capture 2))⟩
+
+private def dispatchProg := Width.Dispatch.lowerRTL (Width.Dispatch.mapCaptures removeCapture dispatchSource)
+private def otherTarget : Checked.Phi.Targets :=
+  (Table.lowerChecked (dispatchSource.row false)).get (by cbv)
+
+private theorem dispatchAccepted : Width.Dispatch.lowerChecked removeCapture dispatchSource = some dispatchProg :=
+  Width.Dispatch.lowerChecked_of_accepted removeCapture dispatchSource
+    (left := targets) (right := otherTarget) accepted (by cbv)
+
+example : (dispatchProg.func? 0).map (·.sig.params) = some 2 :=
+  (Width.Dispatch.lowerChecked_sound removeCapture dispatchSource dispatchAccepted).2.2.2
+
+example : (dispatchProg.block? 0 3).map (·.term.args) =
+    some [(1, [.node 0, .arg 3, .arg 4]), (1, [.node 0, .arg 4, .arg 3])] := by cbv
+
+private def leftInput := narrowInput
+private def rightInput := pair 0 (-1)
+
+example : dispatchSource.step (removeCapture.pull leftInput) (bank 0 2 5) =
+    .inr (true, bank 2 2 5) := by cbv
+example : dispatchSource.step (removeCapture.pull rightInput) (bank 0 (-1) 0) =
+    .inr (false, bank (-1) 0 (-1)) := by cbv
+
+-- Observe the actual register bank after the first selected dispatcher transfer.
+private def firstFeedback (input : WordTuple 2) : Option (Nat × List Word × Memory) := do
+  let state ← runningState? (dispatchProg.runMain 7 0 (words input) mem)
+  let values ← state.frame.readAll (paramRegs 2 3)
+  pure (state.point.label, values, state.mem)
+
+example : firstFeedback leftInput = some (1, [2, 2, 5], mem) := by cbv
+example : firstFeedback rightInput = some (1, [-1, 0, -1], mem) := by cbv
+example : dispatchProg.runMain 15 0 (words leftInput) mem = .returned [6] mem := by cbv
+example : dispatchProg.runMain 11 0 (words rightInput) mem = .returned [-1] mem := by cbv
+example : dispatchProg.runMain 15 0 (words (removeCapture.pull leftInput)) mem = .stuck := by cbv
+
+private theorem rightCounted : dispatchSource.ReturnsAfter (removeCapture.pull rightInput) 1
+    (source.initial model (removeCapture.pull rightInput)) (-1) :=
+  .feedback (side := false) (next := bank (-1) 0 (-1)) (by cbv) (.exit (by cbv))
+
+example : dispatchProg.oracle 0 (words rightInput) mem [-1] mem :=
+  (Width.Dispatch.rtl_return_iff removeCapture dispatchSource dispatchAccepted rightInput mem mem [-1]).mpr
+    ⟨1, -1, rightCounted, rfl, rfl⟩
+
+example : (dispatchProg.runMain 10 0 (words rightInput) mem).returnedValues? = none := by cbv
+
+-- The alternate projection must pass the same ordinary source checker.
+example : Width.Dispatch.lowerChecked removeCapture { dispatchSource with
+    other := .cons (.output (0 : Fin 2) .head)
+      (.cons (.output (0 : Fin 2) .head) (.cons (.arg (old 1)) .nil)) } = none := by cbv
+
+private def familySource : Width.Dispatch.Family.Source 3 3 Entry Header 2 :=
+  ⟨source,
+    .test (.arg (prefixPort (capture 0))) (source.phiInputs .backedge)
+      (.test (.arg (prefixPort (capture 1))) dispatchSource.other
+        (.last (.cons (.output (0 : Fin 2) .head)
+          (.cons (.arg (old 2)) (.cons (.arg (old 0)) .nil)))))⟩
+
+private def familyProg :=
+  Width.Dispatch.Family.lowerRTL (Width.Dispatch.Family.mapCaptures widenCaptures familySource)
+
+private def lastPlan : Plan 3 Entry := (recognize (familySource.row (2 : Fin 3))).get (by cbv)
+private def lastTarget : Checked.Phi.Targets := (lastPlan.rtl, Generic.lower (familySource.row (2 : Fin 3)))
+private theorem lastAccepted : lowerChecked (familySource.row (2 : Fin 3)) = some lastTarget := by cbv
+
+private theorem familyAccepted :
+    Width.Dispatch.Family.lowerChecked widenCaptures familySource = some familyProg := by
+  apply Width.Dispatch.Family.lowerChecked_of_accepted
+  intro slot
+  refine Fin.cases ?_ (fun rest => ?_) slot
+  · exact ⟨targets, accepted⟩
+  · refine Fin.cases ?_ (fun last => ?_) rest
+    · exact ⟨otherTarget, by cbv⟩
+    · have eq : last = 0 := Fin.eq_zero last
+      subst last
+      exact ⟨lastTarget, lastAccepted⟩
+
+example : (familyProg.func? 0).map (·.sig.params) = some 4 :=
+  (Width.Dispatch.Family.lowerChecked_sound widenCaptures familySource familyAccepted).2.2.2
+
+private def middleInput : WordTuple 4 := .cons (0 : Word) (bank 1 99 5)
+private def defaultInput : WordTuple 4 := .cons (0 : Word) (bank 0 99 5)
+
+private def feedbackAt (fuel : Nat) (input : WordTuple 4) : Option (Nat × List Word × Memory) := do
+  let state ← runningState? (familyProg.runMain fuel 0 (words input) mem)
+  let packet ← state.frame.readAll (paramRegs 4 3)
+  pure (state.point.label, packet, state.mem)
+
+-- The extra tests consume real instructions and leave the old bank in place.
+example : feedbackAt 6 wideInput = some (3, [1, 3, 5], mem) := by cbv
+example : feedbackAt 7 wideInput = some (1, [4, 3, 5], mem) := by cbv
+example : feedbackAt 7 middleInput = some (4, [-5, -4, 5], mem) := by cbv
+example : feedbackAt 8 middleInput = some (1, [-9, 5, -4], mem) := by cbv
+example : feedbackAt 8 defaultInput = some (5, [-5, -5, 5], mem) := by cbv
+example : feedbackAt 9 defaultInput = some (1, [-10, 5, -5], mem) := by cbv
+
+example : familyProg.runMain 11 0 (words wideInput) mem = .returned [7] mem := by cbv
+example : familyProg.runMain 12 0 (words middleInput) mem = .returned [-4] mem := by cbv
+
+private theorem defaultReturns :
+    familySource.ReturnsAlong (widenCaptures.pull defaultInput) [2]
+      (source.initial model (widenCaptures.pull defaultInput)) (-5) :=
+  .feedback (next := bank (-10) 5 (-5)) (by cbv) (.exit (by cbv))
+
+example : familyProg.runMain 13 0 (words defaultInput) mem = .returned [-5] mem :=
+  (Width.Dispatch.Family.rtl_runMain_fuel_iff widenCaptures familySource familyAccepted
+    defaultInput mem mem [-5] 13).mpr ⟨[2], -5, defaultReturns, by decide, rfl, rfl⟩
+
+example : (familyProg.runMain 12 0 (words defaultInput) mem).returnedValues? = none := by cbv
+
+-- Duplicate the same computed result within the third column.
+example : Width.Dispatch.Family.lowerChecked widenCaptures { familySource with
+    rows := .test (.arg (prefixPort (capture 0))) (source.phiInputs .backedge)
+      (.test (.arg (prefixPort (capture 1))) dispatchSource.other
+        (.last (.cons (.output (0 : Fin 2) .head)
+          (.cons (.output (0 : Fin 2) .head) (.cons (.arg (old 0)) .nil))))) } = none := by cbv
+
+private def singletonSource : Width.Dispatch.Family.Source 3 3 Entry Header 0 :=
+  ⟨source, .last (source.phiInputs .backedge)⟩
+
+example : (Width.Dispatch.Family.lowerChecked widenCaptures singletonSource).map
+    (fun program => (program.runMain 11 0 (words wideInput) mem).returnedValues?) =
+    some (some [7]) := by cbv
+
+section ExtractedPhi
+
+open Silmaril.Machine.RTL (Opcode packValues)
+open Silmaril.Machine.RTL.SSA (toLambdaSSA)
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch
+open Silmaril.Isotope.LambdaSSA.Semantics (Env)
+open Silmaril.SSA.PhiView (latch)
+
+private def familyFunction := (familyProg.func? 0).get (by rfl)
+private def familyPhi : Family.Phi.Checked familyFunction 2 :=
+  ⟨by decide⟩
+
+example : Family.Phi.extract familyFunction 2 = some familyPhi := by
+  have wf : familyFunction.WellFormed := Family.lowerFunc_wellFormed _
+  simp [Family.Phi.extract, wf, familyPhi.present]
+
+-- Four original occurrences target the same three-word header.
+example : (List.finRange 4).map Family.Phi.key = [(0, 0), (3, 0), (4, 0), (5, 0)] := by decide
+
+example : (List.finRange 4).map familyPhi.reemit = [
+    some (1, [.arg 7, .arg 8, .arg 3]),
+    some (1, [.node 0, .arg 5, .arg 6]),
+    some (1, [.node 0, .arg 6, .arg 5]),
+    some (1, [.node 0, .arg 6, .arg 4])] := by
+  change [familyPhi.reemit 0, familyPhi.reemit 1, familyPhi.reemit 2, familyPhi.reemit 3] = _
+  simp only [← Family.Phi.reemit_roundTrip]
+  rfl
+
+example : (Family.Phi.extract familyFunction 3).isNone := by
+  unfold Family.Phi.extract
+  split
+  · split
+    · rename_i present
+      have absent : Family.Phi.readColumn familyFunction (Family.Phi.key (4 : Fin 5)) = none := rfl
+      have impossible := present (4 : Fin 5)
+      rw [absent] at impossible
+      cases impossible
+    · rfl
+  · rfl
+
+private def extractedAt (fuel : Nat) (input : WordTuple 4) (slot : Fin 3) := do
+  let state ← runningState? (familyProg.runMain fuel 0 (words input) mem)
+  let incoming := slot.succ
+  if state.point.label = (Family.Phi.key incoming).1 then
+    some (latch familyPhi.view (familyPhi.edge incoming) (Family.Phi.snapshot familyFunction.allDefs state.frame),
+      state.mem)
+  else none
+
+example : extractedAt 6 wideInput 0 = some (packValues [4, 3, 5], mem) := by cbv
+example : extractedAt 7 middleInput 1 = some (packValues [-9, 5, -4], mem) := by cbv
+example : extractedAt 8 defaultInput 2 = some (packValues [-10, 5, -5], mem) := by cbv
+example : extractedAt 7 middleInput 0 = none := by cbv
+
+private def machineEnv (input : WordTuple 4) : Env Word :=
+  fun _ => packValues (words input)
+
+example : Eval (Opcode.step (sigs := [⟨4, 1⟩]) familyProg.oracle) (machineEnv defaultInput)
+    (toLambdaSSA [⟨4, 1⟩] familyFunction) mem 0 (packValues [-5]) mem :=
+  (Family.Phi.region_return_iff widenCaptures familySource familyAccepted defaultInput _ rfl mem mem [-5]).mpr
+    ((Family.rtl_return_iff widenCaptures familySource familyAccepted defaultInput mem mem [-5]).mpr
+      ⟨[2], -5, defaultReturns, rfl, rfl⟩)
+
+private def fixedSource : Family.Source 3 3 Entry Header 2 :=
+  { familySource with
+    rows := .test (.arg (prefixPort (capture 1))) (familySource.rows.column 0)
+      (.test (.arg (prefixPort (capture 0))) (familySource.rows.column 1)
+        (.last (familySource.rows.column 2))) }
+
+private def fixedProg := Family.lowerRTL (Family.mapCaptures widenCaptures fixedSource)
+
+private theorem fixedAccepted : Family.lowerChecked widenCaptures fixedSource = some fixedProg :=
+  Family.lowerChecked_of_accepted widenCaptures fixedSource
+    (Family.lowerChecked_sound widenCaptures familySource familyAccepted).1
+
+private def familyFixedBank := source.initial model (widenCaptures.pull wideSpin)
+
+private theorem fixedStep : fixedSource.step (widenCaptures.pull wideSpin) familyFixedBank =
+    .inr (0, familyFixedBank) := by cbv
+
+private theorem fixedCannotReturn {slots : List (Fin 3)} {carried : WordTuple 3} {value : Word}
+    (trace : fixedSource.ReturnsAlong (widenCaptures.pull wideSpin) slots carried value)
+    (atFixed : carried = familyFixedBank) : False := by
+  induction trace with
+  | exit taken =>
+    rw [atFixed, fixedStep] at taken
+    cases taken
+  | feedback taken _ ih =>
+    rw [atFixed, fixedStep] at taken
+    exact ih (congrArg Prod.snd (Sum.inr.inj taken)).symm
+
+example : ¬ ∃ value final, Eval (Opcode.step (sigs := [⟨4, 1⟩]) fixedProg.oracle) (machineEnv wideSpin)
+    (toLambdaSSA [⟨4, 1⟩] (Family.lowerFunc (Family.mapCaptures widenCaptures fixedSource)))
+    mem 0 value final := by
+  apply (Family.Phi.region_no_return_iff widenCaptures fixedSource fixedAccepted wideSpin _ rfl mem).mpr
+  rintro ⟨returned, final, run⟩
+  obtain ⟨_, _, trace, _, _⟩ :=
+    (Family.rtl_return_iff widenCaptures fixedSource fixedAccepted wideSpin mem final returned).mp run
+  exact fixedCannotReturn trace rfl
+
+end ExtractedPhi
+
+section CFDispatch
+open Silmaril.Machine.RTL (Opcode packValues)
+open Silmaril.Machine.RTL.SSA (toLambdaSSA)
+
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.MLIR.CF (i64)
+open Silmaril.MLIR.Arith (Env Width)
+open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF (evalOp)
+open Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table.Width.Dispatch
+
+private abbrev cfWord : Diamond.Ty Width := .value (.data i64)
+private abbrev cfPred : Diamond.Ty Width := .value .predicate
+private abbrev cfEntry : List (List (Diamond.Ty Width)) := [[cfWord], [cfWord]]
+private abbrev cfHeader : List (List (Diamond.Ty Width)) := [[cfWord], [cfPred]]
+
+-- The three-to-four RTL fixture has one unused capture at position 2.
+private def cfBank : Family.MLIR.Program 4 3 cfEntry cfHeader where
+  preheader :=
+    .cons (.arithmetic (.binary .subi))
+      (.cons (.arg .head) (.cons (.arg (.tail (.tail (.tail .head)))) .nil))
+      (.cons (.arithmetic (.binary .addi))
+        (.cons (.output (0 : Fin 1) .head) (.cons (.arg (.tail .head)) .nil)) .nil)
+  header :=
+    .cons (.arithmetic (.binary .addi))
+      (.cons (.arg (.tail (.tail (.tail (.tail .head)))))
+        (.cons (.arg (.tail (.tail (.tail (.tail (.tail .head)))))) .nil))
+      (.cons (.slt i64)
+        (.cons (.output (0 : Fin 1) .head)
+          (.cons (.arg (.tail (.tail (.tail (.tail (.tail (.tail .head))))))) .nil)) .nil)
+  phiInputs
+    | .entry => .cons (.output (0 : Fin 2) .head)
+        (.cons (.output (1 : Fin 2) .head) (.cons (.arg (.tail (.tail (.tail .head)))) .nil))
+    | .backedge => .cons (.output (0 : Fin 2) .head)
+        (.cons (.arg (.tail (.tail (.tail (.tail (.tail .head))))))
+          (.cons (.arg (.tail (.tail (.tail (.tail (.tail (.tail .head))))))) .nil))
+  predicate := .output (1 : Fin 2) .head
+  result := .output (0 : Fin 2) .head
+
+private def cfLive : Family.MLIR.Live 4 3 cfHeader :=
+  [.output (0 : Fin 2) .head,
+    .arg (.tail (.tail (.tail (.tail .head)))),
+    .arg (.tail (.tail (.tail (.tail (.tail .head))))),
+    .arg (.tail (.tail (.tail (.tail (.tail (.tail .head)))))),
+    .arg .head, .arg (.tail .head)]
+
+private def cfPlan : Family.MLIR.Plan familyFunction (Family.MLIR.liveRegs cfLive) 3 2 :=
+  ⟨by decide⟩
+
+example : Family.MLIR.check familyFunction (Family.MLIR.liveRegs cfLive) 3 2 = some cfPlan := by
+  simp [Family.MLIR.check, cfPlan.present]
+
+-- Leaving the producer temporary out of the live packet refuses admission.
+example : (Family.MLIR.check familyFunction (Family.MLIR.liveRegs cfLive.tail) 3 2).isNone := by decide
+
+example (slot : Fin 3) :
+    familyPhi.reemit slot.succ = some (1, (cfPlan.row slot).column.registers) :=
+  Family.MLIR.column_eq_phi cfPlan familyPhi slot
+
+private def cfTarget := Family.MLIR.lower cfBank cfLive cfPlan
+private def cfInput (x y : Word) : Env (Family.MLIR.wordsTy 4) := .cons x (.cons y (.cons 99 (.cons 5 .nil)))
+private def cfPacket (fresh x y c₀ c₁ : Word) : Env (Family.MLIR.wordsTy cfLive.length) :=
+  .cons fresh (.cons x (.cons y (.cons 5 (.cons c₀ (.cons c₁ .nil)))))
+
+-- The actual CF header passes its computed word and the pre-rebind bank.
+example : (cfTarget.block .header).eval evalOp (fun term env => term.eval env)
+    (.cons 1 (.cons 3 (.cons 5 (cfInput 6 2)))) =
+    .inl ⟨.dispatch 0, cfPacket 4 1 3 6 2⟩ :=
+  rfl
+
+example : (cfTarget.block .header).eval evalOp (fun term env => term.eval env)
+    (.cons (-5) (.cons (-4) (.cons 5 (cfInput 0 1)))) =
+    .inl ⟨.dispatch 0, cfPacket (-9) (-5) (-4) 0 1⟩ :=
+  rfl
+
+example : (cfTarget.block (.dispatch 0)).eval evalOp (fun term env => term.eval env)
+    ((cfPacket 4 1 3 6 2).append (cfInput 6 2)) =
+    .inl ⟨.header, .cons 4 (.cons 3 (.cons 5 .nil))⟩ :=
+  rfl
+
+example : (cfTarget.block (.dispatch 0)).eval evalOp (fun term env => term.eval env)
+    ((cfPacket (-9) (-5) (-4) 0 1).append (cfInput 0 1)) =
+    .inl ⟨.dispatch 1, cfPacket (-9) (-5) (-4) 0 1⟩ :=
+  rfl
+
+example : (cfTarget.block (.dispatch 1)).eval evalOp (fun term env => term.eval env)
+    ((cfPacket (-9) (-5) (-4) 0 1).append (cfInput 0 1)) =
+    .inl ⟨.header, .cons (-9) (.cons 5 (.cons (-4) .nil))⟩ :=
+  rfl
+
+example : (cfTarget.block (.dispatch 2)).eval evalOp (fun term env => term.eval env)
+    ((cfPacket (-10) (-5) (-5) 0 0).append (cfInput 0 0)) =
+    .inl ⟨.header, .cons (-10) (.cons 5 (.cons (-5) .nil))⟩ :=
+  rfl
+
+-- This run executes the dependent preheader and all three dispatchers.
+example : cfTarget.run evalOp 7 (cfInput 0 0) = some (.cons (-5) .nil) :=
+  rfl
+
+private def rtlAtMiddle := (runningState? (familyProg.runMain 7 0 (words middleInput) mem)).get (by cbv)
+
+private theorem middleSnapshot :
+    Family.MLIR.Snapshot (scope := Family.MLIR.liveRegs cfLive) (List.length_map ..)
+      ((cfPacket (-9) (-5) (-4) 0 1).append (cfInput 0 1)) rtlAtMiddle.frame := by
+  unfold Family.MLIR.Snapshot
+  decide
+
+example : Family.MLIR.StepAgreement (bank := 3) familyProg (1 : Fin 3) rtlAtMiddle.frame mem
+    (cfPacket (-9) (-5) (-4) 0 1)
+    (.inl ⟨.header, .cons (-9) (.cons 5 (.cons (-4) .nil))⟩) :=
+  Family.MLIR.checked_dispatch_step widenCaptures familySource familyAccepted cfBank cfLive cfPlan
+    1 (cfPacket (-9) (-5) (-4) 0 1) (cfInput 0 1) rtlAtMiddle.frame mem middleSnapshot
+
+-- Unlike capture-only selectors, this uses the current first bank word.
+-- The first transfer zeros that word and causes the next visit to take row 1.
+private def prefixSource : Family.Source 3 3 Entry Header 2 :=
+  { familySource with
+    rows := .test (.arg (old 0)) (familySource.rows.column 0)
+      (.test (.arg (prefixPort (capture 1))) (familySource.rows.column 1)
+        (.last (familySource.rows.column 2))) }
+
+private def prefixRTL := Family.lowerRTL (Family.mapCaptures widenCaptures prefixSource)
+
+private def nativeOrigins : List (HeaderWord 4 3 Header) :=
+  [.output (0 : Fin 2) .head,
+    .arg (suffixPort (wordPorts 4) (argumentPort 3 0)),
+    .arg (suffixPort (wordPorts 4) (argumentPort 3 1)),
+    .arg (suffixPort (wordPorts 4) (argumentPort 3 2)),
+    .arg (prefixPort (argumentPort 4 0)), .arg (prefixPort (argumentPort 4 1))]
+
+open Family.MLIR.Prefix.Producer (compile Feedbacks)
+
+private def translatedPrefix := compile widenCaptures prefixSource nativeOrigins
+
+private def compiledPrefix := translatedPrefix.get (by decide)
+
+private abbrev prefixSetup := compiledPrefix.setup
+private abbrev translatedLive := Family.MLIR.Prefix.Producer.live nativeOrigins
+
+-- A live scope without the computed feedback word fails the ordinary row check.
+example : (compile widenCaptures prefixSource nativeOrigins.tail).isNone := by decide
+
+-- Equality guards are outside this shared producer translation.
+example : (Family.MLIR.Prefix.Producer.opcode .eq).isNone := rfl
+
+private def prefixInput : WordTuple 4 := .cons (4 : Word) (bank 2 99 5)
+private def prefixStart := bank (-1) 1 5
+private def prefixMiddle := bank 0 1 5
+private def prefixFinish := bank 1 5 1
+
+private theorem twoVisits :
+    Feedbacks prefixSource (widenCaptures.pull prefixInput) [0, 1] prefixStart prefixFinish :=
+  .visit (next := prefixMiddle) (by cbv)
+    (.visit (next := prefixFinish) (by cbv) (.stop _))
+
+-- The emitted CF entry computes the same dependent initial bank.
+example : prefixSetup.cf.entry.eval evalOp (fun term env => term.eval env) (cfInput 4 2) =
+    .inl (Family.MLIR.Prefix.headerFrame 6 2 prefixStart) :=
+  Family.MLIR.Prefix.Producer.entry_frame compiledPrefix prefixInput
+
+open Family.MLIR.Prefix.Producer.Exit (Taken)
+open Family.MLIR.Prefix.Producer
+
+private def prefixFn := Family.lowerFunc (Family.mapCaptures widenCaptures prefixSource)
+
+-- The zero successor must name the computed sum, even though the capture is also an i64.
+example : Exit.check prefixFn (.node 0) = true := by decide
+example : Exit.check prefixFn (.arg 0) = false := by decide
+
+private theorem twoThenExit :
+    prefixSource.ReturnsAlong (widenCaptures.pull prefixInput) [0, 1] prefixStart 6 :=
+  .feedback (next := prefixMiddle) (by cbv)
+    (.feedback (next := prefixFinish) (by cbv) (.exit (by cbv)))
+
+-- The actual checked entry and both feedback visits lead to the computed exit.
+example : ∃ before after,
+    StepsNWithin prefixSetup.rtl [] 3
+      ⟨⟨0, 0, 0⟩, bindWords 0 Frame.empty prefixInput, [], mem⟩ ⟨⟨0, 1, 0⟩, before, [], mem⟩ ∧
+    Family.MLIR.Prefix.Realized prefixSetup prefixInput mem [0, 1] prefixStart before prefixFinish after ∧
+    Taken compiledPrefix prefixInput mem prefixFinish after 6 := by
+  obtain ⟨_, before, entered, matched⟩ :=
+    Family.entry_packet widenCaptures prefixSource compiledPrefix.accepted prefixInput mem
+  obtain ⟨after, realized, exit, _, _⟩ :=
+    Exit.after_prefix compiledPrefix prefixInput mem before 6 matched twoVisits (by cbv)
+  exact ⟨before, after, entered, realized, exit⟩
+
+private theorem returnSlots_unique {input : WordTuple 3} {carried : WordTuple 3} {value : Word}
+    {slots other : List (Fin 3)}
+    (left : prefixSource.ReturnsAlong input slots carried value)
+    (right : prefixSource.ReturnsAlong input other carried value) : slots = other := by
+  induction left generalizing other with
+  | exit taken =>
+    cases right with
+    | exit _ => rfl
+    | feedback continued _ => cases taken.symm.trans continued
+  | feedback continued _ ih =>
+    cases right with
+    | exit taken => cases continued.symm.trans taken
+    | feedback otherContinued rest =>
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Sum.inr.inj (continued.symm.trans otherContinued))
+      exact congrArg (List.cons _) (ih rest)
+
+-- Invert an actual CF return with one extra block of fuel. The recovered
+-- route is checked against the independent expected sequence.
+example : compiledPrefix.rtl.runMain 16 0 (words prefixInput) mem = .returned [6] mem ∧
+    prefixSetup.cf.run evalOp 8 (cfInput 4 2) = some (.cons 6 .nil) ∧
+    Eval (Opcode.step (sigs := [⟨4, 1⟩]) compiledPrefix.rtl.oracle) (machineEnv prefixInput)
+      (toLambdaSSA [⟨4, 1⟩] prefixFn) mem 0 (packValues [6]) mem := by
+  have observed : prefixSetup.cf.run evalOp 9 (cfInput 4 2) = some (.cons 6 .nil) := rfl
+  obtain ⟨slots, route, _, rtl, cf, region⟩ :=
+    Exit.Inversion.reflect compiledPrefix prefixInput mem 9 6 observed (machineEnv prefixInput) rfl
+  have same : slots = [0, 1] := returnSlots_unique route twoThenExit
+  subst slots
+  exact ⟨rtl, cf, region⟩
+
+private def immediateInput : WordTuple 4 := .cons (8 : Word) (bank 2 99 5)
+
+-- Entry, header and exit use the entire three-block budget. No dispatcher ran.
+example : compiledPrefix.rtl.runMain 7 0 (words immediateInput) mem = .returned [8] mem ∧
+    Eval (Opcode.step (sigs := [⟨4, 1⟩]) compiledPrefix.rtl.oracle) (machineEnv immediateInput)
+      (toLambdaSSA [⟨4, 1⟩] prefixFn) mem 0 (packValues [8]) mem := by
+  have observed : prefixSetup.cf.run evalOp 3 (cfInput 8 2) = some (.cons 8 .nil) := rfl
+  obtain ⟨slots, _, bound, rtl, _, region⟩ :=
+    Exit.Inversion.reflect compiledPrefix immediateInput mem 3 8 observed (machineEnv immediateInput) rfl
+  have empty : slots = [] := by
+    cases slots with
+    | nil => rfl
+    | cons head tail =>
+      simp only [Family.MLIR.Prefix.cfCost, List.map_cons, List.sum_cons] at bound
+      omega
+  subst slots
+  exact ⟨rtl, region⟩
+
+private theorem compiledRTL_eq : compiledPrefix.rtl = prefixRTL :=
+  (Family.lowerChecked_sound widenCaptures prefixSource compiledPrefix.accepted).2.1
+
+-- The checked RTL run has two spare instructions. Recovery derives the
+-- occurrences from that run and certifies the complete positional Φ prefix.
+example : ∃ before finish after,
+    Family.MLIR.Prefix.Realized prefixSetup prefixInput mem [0, 1] prefixStart before finish after ∧
+    Taken compiledPrefix prefixInput mem finish after 6 ∧
+    compiledPrefix.rtl.runMain 16 0 (words prefixInput) mem = .returned [6] mem ∧
+    prefixSetup.cf.run evalOp 8 (cfInput 4 2) = some (.cons 6 .nil) := by
+  have observed : compiledPrefix.rtl.runMain 18 0 (words prefixInput) mem = .returned [6] mem := by
+    rw [compiledRTL_eq]
+    cbv
+  obtain ⟨slots, value, before, finish, after, shape, _, route, _, _, _, feedback, exit, rtl, cf⟩ :=
+    Exit.Inversion.from_rtl compiledPrefix prefixInput mem mem 18 [6] observed
+  have word : value = 6 := (List.cons.inj shape).1.symm
+  subst value
+  have same : slots = [0, 1] := returnSlots_unique route twoThenExit
+  subst slots
+  exact ⟨before, finish, after, feedback, exit, rtl, cf⟩
+
+-- Spare RTL fuel also leaves the zero-feedback route and exact exit unchanged.
+example : prefixSetup.cf.run evalOp 3 (cfInput 8 2) = some (.cons 8 .nil) ∧
+    compiledPrefix.rtl.runMain 7 0 (words immediateInput) mem = .returned [8] mem ∧
+    Eval (Opcode.step (sigs := [⟨4, 1⟩]) compiledPrefix.rtl.oracle) (machineEnv immediateInput)
+      (toLambdaSSA [⟨4, 1⟩] prefixFn) mem 0 (packValues [8]) mem := by
+  have observed : compiledPrefix.rtl.runMain 9 0 (words immediateInput) mem = .returned [8] mem := by
+    rw [compiledRTL_eq]
+    cbv
+  obtain ⟨slots, value, _, _, _, shape, _, route, _, _, _, _, _, rtl, cf⟩ :=
+    Exit.Inversion.from_rtl compiledPrefix immediateInput mem mem 9 [8] observed
+  have word : value = 8 := (List.cons.inj shape).1.symm
+  subst value
+  have immediate : prefixSource.ReturnsAlong (widenCaptures.pull immediateInput) []
+      (prefixSource.primary.initial model (widenCaptures.pull immediateInput)) 8 :=
+    .exit (by cbv)
+  have same : slots = [] := returnSlots_unique route immediate
+  subst slots
+  exact ⟨cf, rtl, Exit.Inversion.region_of_rtl compiledPrefix immediateInput mem mem 9 [8] observed _ rfl⟩
+
+private def reachedBank (fuel : Nat) : Option (Nat × List Word × Memory) := do
+  let s ← runningState? (prefixRTL.runMain fuel 0 (words prefixInput) mem)
+  let values ← s.frame.readAll (paramRegs 4 3)
+  pure (s.point.label, values, s.mem)
+
+example : reachedBank 7 = some (1, [0, 1, 5], mem) := by cbv
+example : reachedBank 12 = some (1, [1, 5, 1], mem) := by cbv
+example : prefixRTL.runMain 16 0 (words prefixInput) mem = .returned [6] mem := by cbv
+example : prefixSetup.cf.run evalOp 6 (cfInput 4 2) = none := rfl
+example : prefixSetup.cf.run evalOp 8 (cfInput 4 2) = some (.cons 6 .nil) := rfl
+
+private def secondDispatcher :=
+  (runningState? (prefixRTL.runMain 11 0 (words prefixInput) mem)).get (by cbv)
+
+example : secondDispatcher.point.label = 4 := by cbv
+
+-- Reusing the earlier frame's packet would read the wrong fresh producer word.
+example : ¬ Family.MLIR.Snapshot (scope := Family.MLIR.liveRegs translatedLive)
+    (List.length_map ..) ((Family.MLIR.Prefix.livePacket compiledPrefix.program translatedLive
+      prefixInput prefixStart).append (cfInput 4 2))
+    secondDispatcher.frame := by
+  unfold Family.MLIR.Snapshot
+  decide
+
+-- `Exit.Inversion.returns_iff` consolidates the actual-run forward law
+-- (`Exit.returns`/`after_prefix`, #4872) and its converse (`from_rtl`, #4917):
+-- one successful bounded RTL run exists exactly when an ordered dispatch
+-- route (the positional Φ observations) reaches a taken exit with the same
+-- word, which also certifies a matching bounded CF return with full memory
+-- preserved on both backends.
+
+-- The immediate fixture takes the empty route: no dispatcher ran.
+private theorem immediateReturns :
+    prefixSource.ReturnsAlong (widenCaptures.pull immediateInput) []
+      (prefixSource.primary.initial model (widenCaptures.pull immediateInput)) 8 :=
+  .exit (by cbv)
+
+example :
+    ∃ slots before finish after,
+      prefixSource.ReturnsAlong (widenCaptures.pull immediateInput) slots
+        (prefixSource.primary.initial model (widenCaptures.pull immediateInput)) 8 ∧
+      Family.MLIR.Prefix.Realized prefixSetup immediateInput mem slots
+        (prefixSource.primary.initial model (widenCaptures.pull immediateInput)) before finish after ∧
+      Taken compiledPrefix immediateInput mem finish after 8 ∧
+      compiledPrefix.rtl.runMain (Family.rtlFuel Entry Header slots) 0 (words immediateInput) mem =
+        .returned [8] mem ∧
+      prefixSetup.cf.run evalOp (Family.MLIR.Prefix.cfCost slots + 2 + 1)
+        (Family.MLIR.Prefix.wordEnv immediateInput) = some (.cons 8 .nil) := by
+  have observed : compiledPrefix.rtl.runMain 7 0 (words immediateInput) mem = .returned [8] mem := by
+    rw [compiledRTL_eq]; cbv
+  exact (Exit.Inversion.returns_iff compiledPrefix immediateInput mem 8).mp ⟨7, observed⟩
+
+-- The deterministic native selector and step make the recovered route the
+-- unique witness for this value (`Family.returnsAlong_unique`).
+example {slots : List (Fin 3)}
+    (route : prefixSource.ReturnsAlong (widenCaptures.pull immediateInput) slots
+      (prefixSource.primary.initial model (widenCaptures.pull immediateInput)) 8) :
+    slots = [] :=
+  Family.returnsAlong_unique prefixSource (widenCaptures.pull immediateInput) route immediateReturns
+
+-- The mixed-feedback fixture takes both rows, `[0, 1]`, before exiting.
+example :
+    ∃ slots before finish after,
+      prefixSource.ReturnsAlong (widenCaptures.pull prefixInput) slots
+        (prefixSource.primary.initial model (widenCaptures.pull prefixInput)) 6 ∧
+      Family.MLIR.Prefix.Realized prefixSetup prefixInput mem slots
+        (prefixSource.primary.initial model (widenCaptures.pull prefixInput)) before finish after ∧
+      Taken compiledPrefix prefixInput mem finish after 6 ∧
+      compiledPrefix.rtl.runMain (Family.rtlFuel Entry Header slots) 0 (words prefixInput) mem =
+        .returned [6] mem ∧
+      prefixSetup.cf.run evalOp (Family.MLIR.Prefix.cfCost slots + 2 + 1)
+        (Family.MLIR.Prefix.wordEnv prefixInput) = some (.cons 6 .nil) := by
+  have observed : compiledPrefix.rtl.runMain 16 0 (words prefixInput) mem = .returned [6] mem := by
+    rw [compiledRTL_eq]; cbv
+  exact (Exit.Inversion.returns_iff compiledPrefix prefixInput mem 6).mp ⟨16, observed⟩
+
+example {slots : List (Fin 3)}
+    (route : prefixSource.ReturnsAlong (widenCaptures.pull prefixInput) slots
+      (prefixSource.primary.initial model (widenCaptures.pull prefixInput)) 6) :
+    slots = [0, 1] :=
+  Family.returnsAlong_unique prefixSource (widenCaptures.pull prefixInput) route twoThenExit
+
+-- `Exit.Inversion.returns_exists_iff` recovers the abstract dispatch route
+-- directly from one actual bounded CF return.
+example :
+    ∃ slots value, prefixSource.ReturnsAlong (widenCaptures.pull prefixInput) slots
+      (prefixSource.primary.initial model (widenCaptures.pull prefixInput)) value :=
+  (Exit.Inversion.returns_exists_iff compiledPrefix prefixInput mem).mp
+    ⟨8, 6, show prefixSetup.cf.run evalOp 8 (Family.MLIR.Prefix.wordEnv prefixInput) =
+      some (.cons 6 .nil) from rfl⟩
+
+-- The shared header/producer table also compiles the alternate dispatch
+-- family whose rows never leave the fixed point `familyFixedBank` at
+-- `wideSpin`. `Exit.Inversion.region_no_return_iff` then certifies the
+-- absence of any finite return in the CF backend, the RTL oracle, and the
+-- canonical λSSA Region alike, all from the single existing native
+-- fixed-point witness `fixedCannotReturn`; no insufficient budget is read
+-- as evidence of divergence.
+private def compiledFixed := (compile widenCaptures fixedSource nativeOrigins).get (by decide)
+
+example : ¬ ∃ value final, Eval (Opcode.step (sigs := [⟨4, 1⟩]) compiledFixed.rtl.oracle) (machineEnv wideSpin)
+    (toLambdaSSA [⟨4, 1⟩] (Family.lowerFunc (Family.mapCaptures widenCaptures fixedSource))) mem 0 value final := by
+  rw [Exit.Inversion.region_no_return_iff compiledFixed wideSpin mem (machineEnv wideSpin) rfl,
+    Exit.Inversion.returns_exists_iff compiledFixed wideSpin mem]
+  rintro ⟨slots, value, path⟩
+  exact fixedCannotReturn path rfl
+
+-- `Exit.Inversion.cf_returns_iff` ties one fixed-word bounded CF return
+-- directly to an independently-bounded RTL return preserving the initial
+-- memory, composing the fixed-value CF inversion with `returns_iff`.
+example : ∃ fuel, compiledPrefix.rtl.runMain fuel 0 (words prefixInput) mem = .returned [6] mem :=
+  (Exit.Inversion.cf_returns_iff compiledPrefix prefixInput mem 6).mp
+    ⟨8, show prefixSetup.cf.run evalOp 8 (Family.MLIR.Prefix.wordEnv prefixInput) =
+      some (.cons 6 .nil) from rfl⟩
+
+-- `Exit.Inversion.region_returns_iff` ties the same fixed-word bounded CF
+-- return directly to a finite λSSA Region evaluation returning the
+-- packed singleton, under the packed-capture entry side condition.
+example : Eval (Opcode.step (sigs := [⟨4, 1⟩]) compiledPrefix.rtl.oracle) (machineEnv prefixInput)
+    (toLambdaSSA [⟨4, 1⟩] (Family.lowerFunc (Family.mapCaptures widenCaptures prefixSource)))
+    mem 0 (packValues [6]) mem :=
+  (Exit.Inversion.region_returns_iff compiledPrefix prefixInput mem 6 (machineEnv prefixInput) rfl).mp
+    ⟨8, show prefixSetup.cf.run evalOp 8 (Family.MLIR.Prefix.wordEnv prefixInput) =
+      some (.cons 6 .nil) from rfl⟩
+
+end CFDispatch
+
+end Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Native.Preheader.Table

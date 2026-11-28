@@ -96,7 +96,7 @@ private theorem match_root
       rw [silent_resume silent]
       exact ih next
 
-private theorem resume_le
+theorem resume_le
     (atBoundary : ∀ {a c}, boundary a c → related (f a) (g c))
     (inspect : ∀ {t s}, related t s → Layer f g boundary related t s)
     {t : Tree E (B ⊕ A)} {s : Tree E (B ⊕ C)} (linked : related t s) :

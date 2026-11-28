@@ -88,6 +88,11 @@ def lower (neg : P [.bool] .bool) :
     ⟨_, .loop ctx (.seq c.code a.code) (a.code.lift (c.refs.get .head)) a.refs neg,
       (ports vars).map fun _ r => portLeft r⟩
 
+/-- A top-level while whose body may itself contain structured loops. -/
+def whileProgram (guard : Expr P vars .bool) (body : Stmt P true vars vars)
+    (ret : Port vars t) : Program P true vars t :=
+  ⟨vars, .while rfl guard body, ret⟩
+
 def program (p : Program P true params t) (neg : P [.bool] .bool) : Build P params [] [t] :=
   let init := Build.straight (paramNodes (ports params))
   let body := lower neg p.body init.refs

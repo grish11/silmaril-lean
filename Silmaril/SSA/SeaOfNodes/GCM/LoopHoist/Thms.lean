@@ -9,9 +9,10 @@ public section
 
 namespace Silmaril.SSA.SeaOfNodes.GCM.LoopHoist
 
-open Silmaril.MLIR.Arith (Env Width)
-open Silmaril.MLIR.CF (Block Frame Terminator)
+open Silmaril.MLIR.Arith (Env Var Width)
+open Silmaril.MLIR.CF (Block Cfg Frame Terminator)
 open Silmaril.MLIR.Pure (Operands)
+open Silmaril.MLIR.SCF (For)
 open Loop.MLIR.CF (Program TargetOp evalOp lower model)
 
 variable {Input : List Width} {carried result : Width}
@@ -76,6 +77,69 @@ theorem pickAndHoist?_returns_iff (picked : pickAndHoist? g tree = some (cut, ou
   Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.pickAndHoist?_returns_iff picked input value
 
 variable {index : Nat}
+
+/-- Translating captured operands to the entry scope preserves their values. -/
+theorem evalCaptureOrigins {Γ args : List Width} (origins : Origins Input Γ)
+    (operands : Operands Γ args) {captured : Operands Input args}
+    (found : captureOrigins? origins operands = some captured)
+    (env : Env Γ) (input : Env Input) (agree : CapturesAgree origins env input) :
+    operands.eval env = captured.eval input :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.evalCaptureOrigins origins operands found env input agree
+
+/-- A typed rename with agreeing environments preserves operand evaluation. -/
+theorem evalRenameOperands {Γ Δ args : List Width} (rename : Rename Γ Δ)
+    (source : Env Γ) (target : Env Δ)
+    (same : ∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref)
+    (operands : Operands Γ args) :
+    (For.renameOperands rename operands).eval target = operands.eval source :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.evalRename rename source target same operands
+
+/-- Successful emission consumes the selected preheader cut and the
+actual current binding with captured operands. -/
+theorem hoistCodeWith?_spec
+    {entry : Block TargetOp (SourceLabel carried result) Input [result]}
+    {header : Block TargetOp (SourceLabel carried result) (carried :: Input) [result]}
+    {choose : List (Point (SourceLabel carried result)) → List (Use (SourceLabel carried result)) →
+      Option (Point (SourceLabel carried result))}
+    (picked : hoistCodeWith? entry header index choose = some (cut, output)) :
+    ∃ binding : Binding Input (carried :: Input) output.1 carried result,
+      findBinding index 0 headerOrigins header = some ⟨output.1, binding⟩ ∧
+      choose binding.operands binding.uses = some cut ∧
+      cut = ⟨none, 0⟩ ∧
+      ∃ operands : Operands Input binding.args,
+        binding.captured? = some operands ∧
+        output.2 = emitHeader entry binding.op operands (binding.rewrite Var.there .here) :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.hoistCodeWith?_spec picked
+
+/-- Reuse the preheader and header routing proof for any matching CFG
+with the canonical exit. -/
+theorem emitHeader_routes {saved : Width}
+    {cfg : Cfg TargetOp (SourceLabel carried result) Input [result]}
+    (exit : cfg.block .exit = .terminator (.ret (.cons .here .nil)))
+    (binding : Binding Input (carried :: Input) saved carried result)
+    (found : findBinding index 0 headerOrigins (cfg.block .header) = some ⟨saved, binding⟩)
+    (operands : Operands Input binding.args) (captured : binding.captured? = some operands)
+    (input : Env Input) :
+    Routes cfg (emitHeader cfg.entry binding.op operands (binding.rewrite Var.there .here))
+      input (evalOp binding.op (operands.eval input)) :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.emitHeader_routes exit binding found operands captured input
+
+theorem routes_run_eq {saved : Width}
+    {cfg : Cfg TargetOp (SourceLabel carried result) Input [result]}
+    {target : Cfg TargetOp (Label saved carried result) Input [result]} {input : Env Input}
+    {value : BitVec saved.val} (routing : Routes cfg target input value) (fuel : Nat) :
+    target.run evalOp fuel input = cfg.run evalOp fuel input :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.routes_run_eq routing fuel
+
+/-- Prefixing the header's packet preserves the runner at every fuel if
+entry and block transfers commute with that prefix. -/
+theorem routesWith_run_eq {saved : Width} {extra : List Width}
+    {source : Cfg TargetOp (SourceLabel carried result) Input [result]}
+    {target : Cfg TargetOp (Label saved carried result extra) Input [result]}
+    {input : Env Input} {values : Env (extra ++ [saved])}
+    (routing : RoutesWith source target input values) (fuel : Nat) :
+    target.run evalOp fuel input = source.run evalOp fuel input :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.runEqOfRoutes routing fuel
 
 /-- The nominated binding uses the legal preheader cut selected from its
 actual typed operand and use sites. -/

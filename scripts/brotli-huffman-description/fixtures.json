@@ -1,0 +1,219 @@
+{
+  "libbrotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "fixtures": {
+    "producer-v1-entropy-brotli": {
+      "sha256": "95b5dd767881a635df970a200fed394eca154a6154297931aa189ac7b67ab056",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 0,
+          "start": 37,
+          "shape": "complex",
+          "stop": 281,
+          "codes_sha256": "3d056400912cd136302045e5484e84fbc0cc8e8d9c00744bf76feab0923525c5"
+        },
+        {
+          "alphabet": 704,
+          "selector": 3,
+          "start": 281,
+          "shape": "complex",
+          "stop": 623,
+          "codes_sha256": "05cc39926b8f00eca10ec17471bf43faef32bf95711fc504cdafb4024764996f"
+        },
+        {
+          "alphabet": 64,
+          "selector": 3,
+          "start": 623,
+          "shape": "complex",
+          "stop": 729,
+          "codes_sha256": "91c5dccd8449b8f995c803cdf4d4b1f09308b6f232834023a72cdaaf3082d621"
+        }
+      ]
+    },
+    "producer-v2-entropy-brotli": {
+      "sha256": "9a9cbc2c64924d1efc0f7b111a776de9a4655cbb3f63a2acf0d0a803685bf64c",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 1,
+          "start": 37,
+          "shape": "triple",
+          "stop": 65,
+          "symbols": [0, 1, 44],
+          "codes_sha256": "71ce18ce608bfed675cfea76b67933633f52bc7e115857462c6810cedff89a93"
+        },
+        {
+          "alphabet": 704,
+          "selector": 1,
+          "start": 65,
+          "shape": "singleton",
+          "stop": 79,
+          "symbols": [423],
+          "codes_sha256": "585d8e2981fc5666922fe27454af462a32c7c3da8a9a35ae8838ad5b950c38b5"
+        },
+        {
+          "alphabet": 64,
+          "selector": 1,
+          "start": 79,
+          "shape": "singleton",
+          "stop": 89,
+          "symbols": [0],
+          "codes_sha256": "0a79954cc3c8d2724110ef6e6c25686331b38032a28d5b494d6f7e5cf1307a14"
+        }
+      ]
+    },
+    "libbrotli-pair": {
+      "sha256": "5077a0d59d746f57389dd6c954d9c0f2b7568a65d2d65a50168d74f8bf096d72",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 1,
+          "start": 37,
+          "shape": "pair",
+          "stop": 57,
+          "symbols": [97, 98],
+          "codes_sha256": "93f0d3694361bc7f65f317a58e874a0cb9631714845722f1a753025269c3964a"
+        },
+        {
+          "alphabet": 704,
+          "selector": 2,
+          "start": 57,
+          "shape": "complex",
+          "stop": 131,
+          "codes_sha256": "38ee703ab1498c439e28d0ebd140b458d79c28e628fdf236c2a46af6752e6fbe"
+        },
+        {
+          "alphabet": 64,
+          "selector": 0,
+          "start": 131,
+          "shape": "complex",
+          "stop": 182,
+          "codes_sha256": "b1f3a9e2753b94f54845f016d3ced74500693891d1d238f8d0abd5fdeb20a3d7"
+        }
+      ]
+    },
+    "libbrotli-triple": {
+      "sha256": "833cfda776701b0a2d11af932a2b951dba176a9ad24fcc6bc8b5ecf7c7801b13",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 1,
+          "start": 37,
+          "shape": "triple",
+          "stop": 65,
+          "symbols": [97, 98, 99],
+          "codes_sha256": "87ef25aa5d527e3d4e3b9dac83edca2cdace3f779246f2ee86cac9e89021738c"
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "start": 65,
+          "shape": "complex",
+          "stop": 139,
+          "codes_sha256": "cd2cee8a5bfa9647b3b3cdfe26fc6bf4313fe735d83ed5a972d688cf91fa8fcc"
+        },
+        {
+          "alphabet": 64,
+          "selector": 1,
+          "start": 139,
+          "shape": "balanced",
+          "stop": 168,
+          "symbols": [8, 20, 21, 23],
+          "codes_sha256": "059f74f3d851e2221494f5a6a6e876fbabaca3f4791dda7cfdc5732d506df26e"
+        }
+      ]
+    },
+    "libbrotli-balanced": {
+      "sha256": "3d8d7f8bdc5c4f4ecaa306cd0c717995c1ea6591a81f7659b0f078495bd49315",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 1,
+          "start": 37,
+          "shape": "balanced",
+          "stop": 74,
+          "symbols": [97, 98, 99, 100],
+          "codes_sha256": "aab01706ca6c9809de92747a2f1b85cf3864bdec2d60e94690a4105f403bb6ce"
+        },
+        {
+          "alphabet": 704,
+          "selector": 1,
+          "start": 74,
+          "shape": "pair",
+          "stop": 98,
+          "symbols": [274, 291],
+          "codes_sha256": "2e8c8ede4af97cb19d39e6f6d17bdd8449b4a6b2fb42a9479ab19281305c20ae"
+        },
+        {
+          "alphabet": 64,
+          "selector": 1,
+          "start": 98,
+          "shape": "singleton",
+          "stop": 108,
+          "symbols": [2],
+          "codes_sha256": "1d9e88fad50e07a13f1e37a98cd539c4306cc20a21700634cda7d93059eaa8ff"
+        }
+      ]
+    },
+    "libbrotli-skewed": {
+      "sha256": "6ce67d3b019cb39acc4f64c132fd16dd2b4ce8d51e4d116609bd6b58e321a25c",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 1,
+          "start": 37,
+          "shape": "skewed",
+          "stop": 74,
+          "symbols": [97, 98, 99, 100],
+          "codes_sha256": "43bd8931876b41ea6882d4ceca0ff4f407d01315724166bd7ccf5788e15dd38a"
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "start": 74,
+          "shape": "complex",
+          "stop": 144,
+          "codes_sha256": "01bd492f960984977b794825ccb7221f0f8ee49cc9fbbac8d38d13794ad8d48c"
+        },
+        {
+          "alphabet": 64,
+          "selector": 1,
+          "start": 144,
+          "shape": "balanced",
+          "stop": 173,
+          "symbols": [6, 8, 19, 21],
+          "codes_sha256": "d4be6d7fff587f1fb6eacee0e8723f832616a3eca9de9d53684db0603861c8a2"
+        }
+      ]
+    },
+    "libbrotli-text-q4": {
+      "sha256": "ff294ead92703bc9f8387277e5a937818b313da20103db9fc0663685ac34d151",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 2,
+          "start": 37,
+          "shape": "complex",
+          "stop": 154,
+          "codes_sha256": "2c79cd0e8326651ff2b75b2e8226fcaeb79b8513773e6b29760c0c306e5ee993"
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "start": 154,
+          "shape": "complex",
+          "stop": 269,
+          "codes_sha256": "f092dc073a7449de8261c7fce6d630028cc0f67da0131deda0465343a51eadf3"
+        },
+        {
+          "alphabet": 64,
+          "selector": 0,
+          "start": 269,
+          "shape": "complex",
+          "stop": 352,
+          "codes_sha256": "255d01bee9da5bd9cb9c5060b2861ba92d8f3e3d25f8eb9c53680a89c6459307"
+        }
+      ]
+    }
+  }
+}

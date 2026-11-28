@@ -33,4 +33,23 @@ def Code.runStraightLine {M : Type (max u w) → Type z} [Monad M] {value : V �
   | _, _, .choose .., admitted, _ => False.elim admitted
   | _, _, .feedback .., admitted, _ => False.elim admitted
 
+abbrev StraightBlock (op : Dialect.{u,v} V PUnit.{u+1})
+    (scope : List (Ports (PortSort V))) (outs : Ports (PortSort V)) :=
+  {code : Code op scope outs // code.StraightLine}
+
+/-- Relabel the ordered bindings and replace the final yield. The
+continuation can use the original entry group and the yielded wires. -/
+def Code.mapYield {Target : Dialect.{u,v} V PUnit.{u+1}}
+    {entry outs result : Ports (PortSort V)}
+    (opcode : ∀ {ins outs}, Op ins outs → Target ins outs)
+    (finish : ∀ {past}, Operands (entry :: past) outs → StraightBlock Target (entry :: past) result) :
+    {past : List (Ports (PortSort V))} → (code : Code Op (entry :: past) outs) →
+      code.StraightLine → StraightBlock Target (entry :: past) result
+  | _, .yield values, _ => finish values
+  | _, .prim op args rest, admitted =>
+    let tail := rest.mapYield opcode finish admitted
+    ⟨.prim (opcode op) args tail.val, tail.property⟩
+  | _, .choose .., admitted => False.elim admitted
+  | _, .feedback .., admitted => False.elim admitted
+
 end Silmaril.SSA.RVSDG.MLIR.Graph.Feedback

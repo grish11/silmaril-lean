@@ -11,6 +11,15 @@ namespace Silmaril.SSA.RVSDG
 
 universe u v w
 
+theorem Wires.output_before {Ty : Type u} {args users : Ports Ty} {past : List (Ports Ty)}
+    (wires : Wires args past users) {vertex port : Nat}
+    (mem : Address.output vertex port ∈ wires.addresses) : vertex < past.length :=
+  Isomorphism.Proofs.source_before wires mem
+
+theorem site_prefix_length {Ty : Type u} (past sigs : List (Ports Ty)) (i : Fin sigs.length) :
+    (site past sigs i).1.length = past.length + i.val :=
+  Isomorphism.Proofs.site_length past sigs i
+
 variable {V S : Type u} {Op : Dialect.{u, v} V S}
 variable {args outs : Ports (PortType V S)} {sigs sigs' : List (Ports (PortType V S))}
 

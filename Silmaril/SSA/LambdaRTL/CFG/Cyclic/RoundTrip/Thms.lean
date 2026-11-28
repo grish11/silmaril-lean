@@ -35,6 +35,13 @@ theorem step_rename_obs (model : Model F M α) (graph : CFG V K F) {rename : V �
 
 variable [Iterate M] [LawfulElgotMonad M]
 
+/-- An already packet-closed table has the same ordered transfer when
+run mutably at the same input and projected to its exit and payload. -/
+theorem run_packetClosed_obs (model : Model F M α) (graph : CFG V K F)
+    (closed : PacketClosed graph) (input : V → α) :
+    obs <$> Cyclic.run model graph input = Cyclic.runSSA model graph input :=
+  Proofs.SSA.LambdaRTL.CFG.CyclicRoundTrip.run_packetClosed_obs model graph closed input
+
 /-- Reading a packet-closed lexical table as mutable RTL preserves the Elgot
 observation whenever the initial environments agree on entry reads. This
 preserves the packet representation and needs no laws for its encoding. -/

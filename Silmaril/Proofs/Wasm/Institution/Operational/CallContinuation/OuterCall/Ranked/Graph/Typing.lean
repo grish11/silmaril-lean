@@ -85,6 +85,26 @@ theorem check_direct_of_ranked {program : Program} (checked : program.check = tr
     obtain ⟨callee, lookup, declared, resolves⟩ := linked_target checked found used
     simp [lookup, declared, resolves]
 
+theorem split_suffix {stack : List Value} {params : List NumType}
+    (shape : SuffixTyped params stack) :
+    ∃ saved args, stack = saved ++ args ∧ args.map Value.type = params := by
+  unfold SuffixTyped at shape
+  have length : min params.length stack.length = params.length := by
+    simpa [Prefix.stackTypes] using congrArg List.length shape
+  have enough : params.length ≤ stack.length := by omega
+  let below := stack.length - params.length
+  let saved := stack.take below
+  let args := stack.drop below
+  have stackEq : stack = saved ++ args := (List.take_append_drop below stack).symm
+  have count : (Prefix.stackTypes args).length = params.length := by
+    simp [Prefix.stackTypes, args, below]
+    omega
+  have split : Prefix.stackTypes stack = Prefix.stackTypes args ++ Prefix.stackTypes saved := by
+    rw [stackEq]
+    simp [Prefix.stackTypes]
+  rw [split, ← count, List.take_left] at shape
+  exact ⟨saved, args, stackEq, List.reverse_inj.mp shape⟩
+
 private theorem stack_types_append (below above : List Value) :
     Prefix.stackTypes (below ++ above) = Prefix.stackTypes above ++ Prefix.stackTypes below := by
   simp [Prefix.stackTypes]

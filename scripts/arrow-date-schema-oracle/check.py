@@ -1,0 +1,331 @@
+"""Check the Arrow Schema reader against pinned PyArrow metadata and mutations."""
+
+import argparse
+from datetime import date
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import struct
+import subprocess
+import sys
+import tempfile
+
+
+ROOT = Path(__file__).resolve().parents[2]
+MANIFEST = Path(__file__).with_name("fixtures.json")
+LEAN_DRIVER = """\
+module
+
+meta import Silmaril.Formats.Arrow.DateBatch.Defs
+meta import Silmaril.Formats.Arrow.Metadata.Defs
+meta import Silmaril.Formats.Arrow.Metadata.Tests
+
+open Silmaril Silmaril.Formats.Arrow
+
+private meta def agrees {ε α : Type} [DecidableEq ε] [DecidableEq α]
+    (actual expected : Except ε α) : Bool :=
+  match actual, expected with
+  | .ok value, .ok wanted => decide (value = wanted)
+  | .error error, .error wanted => decide (error = wanted)
+  | _, _ => false
+"""
+
+
+def require(condition, message):
+    if not condition:
+        raise SystemExit(message)
+
+
+def scalar(data, position, code):
+    return struct.unpack_from("<" + code, data, position)[0]
+
+
+def target(data, position):
+    return position + scalar(data, position, "I")
+
+
+def entry(data, table, index):
+    # Inspect producer vtables only to identify the mutation positions.
+    vtable = table - scalar(data, table, "i")
+    displacement = 4 + 2 * index
+    if displacement >= scalar(data, vtable, "H"):
+        return None
+    return vtable + displacement
+
+
+def slot(data, table, index):
+    position = entry(data, table, index)
+    if position is None:
+        return None
+    displacement = scalar(data, position, "H")
+    return table + displacement if displacement else None
+
+
+def schema_table(data):
+    return target(data, slot(data, target(data, 0), 2))
+
+
+def field_table(data, index):
+    fields = target(data, slot(data, schema_table(data), 1))
+    return target(data, fields + 4 + 4 * index)
+
+
+def date_payload(data, index):
+    field = field_table(data, index)
+    require(scalar(data, slot(data, field, 2), "B") == 8, "expected Date union tag 8")
+    return target(data, slot(data, field, 3))
+
+
+def raw_unit(data, index):
+    position = slot(data, date_payload(data, index), 0)
+    return None if position is None else scalar(data, position, "H")
+
+
+def set_type_tag(data, index, original, replacement):
+    changed = bytearray(data)
+    position = slot(changed, field_table(changed, index), 2)
+    require(scalar(changed, position, "B") == original, "unexpected original type union tag")
+    changed[position] = replacement
+    return bytes(changed)
+
+
+def set_unit(data, index, code):
+    changed = bytearray(data)
+    position = slot(changed, date_payload(changed, index), 0)
+    require(position is not None, "test mutation requires a present unit slot")
+    struct.pack_into("<H", changed, position, code)
+    return bytes(changed)
+
+
+def set_endian(data, code):
+    # Reuse the producer Schema's custom-metadata reference slot as an inline
+    # short, and clear the old vtable entry. The old vector becomes unreachable.
+    changed = bytearray(data)
+    schema = schema_table(changed)
+    old_entry = entry(changed, schema, 2)
+    new_entry = entry(changed, schema, 0)
+    old_slot = slot(changed, schema, 2)
+    require(old_slot is not None and slot(changed, schema, 0) is None, "expected spare metadata slot")
+    struct.pack_into("<H", changed, new_entry, old_slot - schema)
+    struct.pack_into("<H", changed, old_entry, 0)
+    struct.pack_into("<H", changed, old_slot, code)
+    return bytes(changed)
+
+
+def ipc_stream(pa, schema, batch=None):
+    sink = pa.BufferOutputStream()
+    with pa.ipc.new_stream(sink, schema) as writer:
+        if batch is not None:
+            writer.write_batch(batch)
+    return sink.getvalue()
+
+
+def messages(pa, schema, batch=None):
+    return [message.metadata.to_pybytes()
+            for message in pa.ipc.MessageReader.open_stream(ipc_stream(pa, schema, batch))]
+
+
+def fixtures(pa):
+    dates = pa.schema([pa.field("day", pa.date32(), False), pa.field("milliseconds", pa.date64())])
+    mixed = pa.schema([pa.field("row", pa.int32(), False), pa.field("日", pa.date32()),
+                       pa.field("étiquette", pa.string()), pa.field("fin", pa.date64(), False)])
+    legacy = pa.schema([pa.field("row", pa.int32(), False), pa.field("text", pa.string())])
+    date_bytes, = messages(pa, dates)
+    mixed_bytes, = messages(pa, mixed)
+    row = pa.record_batch([pa.array([1], pa.int32()), pa.array(["x"])], schema=legacy)
+    legacy_bytes, record = messages(pa, legacy, row)
+    spare, = messages(pa, dates.with_metadata({b"spare": b"endianness fixture slot"}))
+    require(raw_unit(date_bytes, 0) == 0, "producer did not explicitly write DAY")
+    require(raw_unit(date_bytes, 1) is None, "producer did not omit the MILLISECOND default")
+    explicit = set_unit(date_bytes, 0, 1)
+    require(raw_unit(explicit, 0) == 1, "explicit MILLISECOND mutation failed")
+    return {
+        "dates": date_bytes,
+        "mixed": mixed_bytes,
+        "legacy": legacy_bytes,
+        "explicit_millisecond": explicit,
+        "big_endian": set_endian(spare, 1),
+        "invalid_unit": set_unit(date_bytes, 0, 2),
+        "date_tag_int_table": set_type_tag(mixed_bytes, 0, 2, 8),
+        "unknown_type_tag": set_type_tag(date_bytes, 0, 8, 255),
+        "invalid_endian": set_endian(spare, 2),
+        "schema_custom_metadata": spare,
+        "record_message": record,
+    }
+
+
+def observe_schema(pa, data):
+    framed = struct.pack("<II", 0xFFFFFFFF, len(data)) + data
+    return pa.ipc.read_schema(pa.BufferReader(framed))
+
+
+def fields_term(pa, schema, legacy):
+    types = {
+        pa.int32(): (".int32", ".primitive .int32"),
+        pa.string(): (".utf8", ".primitive .utf8"),
+        pa.date32(): (None, ".date .day"),
+        pa.date64(): (None, ".date .millisecond"),
+    }
+    fields = []
+    for field in schema:
+        kind = types[field.type][0 if legacy else 1]
+        label = json.dumps(field.name, ensure_ascii=False)
+        nullable = str(field.nullable).lower()
+        fields.append(f"⟨{label}, {nullable}, {kind}⟩")
+    return "[" + ", ".join(fields) + "]"
+
+
+def bytes_term(data):
+    return f"(KBytes.leaf {len(data)} {int.from_bytes(data, 'little')})"
+
+
+def lean_checks(pa, name, data):
+    wire = bytes_term(data)
+    negative = {
+        "invalid_unit": "(.malformed .flatbuffer)",
+        "date_tag_int_table": "(.unsupported .unknownMetadataSlots)",
+        "unknown_type_tag": "(.unsupported (.fieldType 255))",
+        "invalid_endian": "(.unsupported (.endianness 2))",
+        "schema_custom_metadata": "(.unsupported .customMetadata)",
+        "record_message": "(.unsupported (.messageKind 3))",
+    }
+    if name in negative:
+        yield f"#guard agrees (SchemaReader.readMessage {{}} {wire}) (.error {negative[name]})"
+        return
+    observed = observe_schema(pa, data)
+    endian = ".big" if name == "big_endian" else ".little"
+    fields = fields_term(pa, observed, legacy=False)
+    yield f"#guard agrees (SchemaReader.readMessage {{}} {wire}) (.ok ⟨{endian}, {fields}⟩)"
+    if name == "legacy":
+        legacy_fields = fields_term(pa, observed, legacy=True)
+        yield f"#guard agrees (readMessage {{}} {wire}) (.ok ⟨.schema {legacy_fields}, 0⟩)"
+    else:
+        reason = ".endianness 1" if name == "big_endian" else ".fieldType 8"
+        yield f"#guard agrees (readMessage {{}} {wire}) (.error (.unsupported ({reason})))"
+    if name == "mixed":
+        yield f"#guard agrees (SchemaReader.readMessage {{ fields := 3 }} {wire}) (.error (.limit .fields))"
+
+
+def date_batches(pa):
+    dates = [date(1969, 12, 31), None, date(2000, 2, 29), date(1970, 1, 1)]
+    for unit, arrow_type, raw in (("day", pa.date32(), 0), ("millisecond", pa.date64(), None)):
+        batch = pa.record_batch([pa.array(dates, type=arrow_type)], names=["日"])
+        ipc = ipc_stream(pa, batch.schema, batch)
+        observed = pa.ipc.open_stream(ipc).read_next_batch()
+        require(observed.schema == batch.schema and observed.column(0).to_pylist() == dates,
+                f"{unit}: PyArrow record observation differs")
+        schema, record = list(pa.ipc.MessageReader.open_stream(ipc))
+        schema_bytes = schema.metadata.to_pybytes()
+        require(raw_unit(schema_bytes, 0) == raw, f"{unit}: unexpected raw schema unit")
+        yield unit, observed.column(0).to_pylist(), {
+            "ipc": ipc.to_pybytes(),
+            "schema": schema_bytes,
+            "metadata": record.metadata.to_pybytes(),
+            "body": record.body.to_pybytes(),
+        }
+
+
+def batch_controls(pa, unit, parts):
+    if unit == "day":
+        primitive, = messages(pa, pa.schema([pa.field("日", pa.int32())]))
+        spare, = messages(pa, pa.schema([pa.field("日", pa.date32())],
+                                        metadata={b"spare": b"endianness fixture slot"}))
+        required = bytearray(parts["schema"])
+        position = slot(required, field_table(required, 0), 1)
+        require(position is not None and required[position] == 1, "expected nullable field")
+        required[position] = 0
+        yield "primitive_schema", primitive, "schema", "(.fieldType .int32)"
+        yield "big_endian_schema", set_endian(spare, 1), "schema", "(.values (.ipc (.unsupported (.endianness 1))))"
+        yield "required_schema", bytes(required), "schema", "(.values (.ipc (.malformed .validityBitmap)))"
+    else:
+        changed = bytearray(parts["body"])
+        require(scalar(changed, 8, "q") == -86400000, "expected negative whole day at first slot")
+        struct.pack_into("<q", changed, 8, -1)
+        yield "invalid_millisecond_body", bytes(changed), "body", "(.values (.nonWholeDay 0))"
+
+
+def batch_check(parts, expected):
+    schema, metadata, body = (bytes_term(parts[name]) for name in ("schema", "metadata", "body"))
+    return f"#guard agrees (DateBatch.decode {{}} {schema} {metadata} {body}) ({expected})"
+
+
+def lean_dates(values):
+    return "[" + ", ".join(
+        "none" if value is None else f"some ⟨{value.year}, {value.month}, {value.day}⟩"
+        for value in values
+    ) + "]"
+
+
+def check_hash(data, expected, label):
+    digest = hashlib.sha256(data).hexdigest()
+    require({"bytes": len(data), "sha256": digest} == expected, f"{label}: pinned bytes differ")
+    return digest
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pyarrow-path", type=Path, help="Directory containing the pinned PyArrow wheel contents")
+    args = parser.parse_args()
+    if args.pyarrow_path is not None:
+        sys.path.insert(0, str(args.pyarrow_path.resolve()))
+
+    import pyarrow as pa
+
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    producer = manifest["producer"]
+    require(platform.python_implementation() == "CPython" and platform.python_version() == producer["cpython"],
+            "Use the pinned CPython version")
+    require(pa.__version__ == producer["pyarrow"], "Use the pinned PyArrow version")
+
+    commands = [LEAN_DRIVER]
+    schema_fixtures = fixtures(pa)
+    for name, data in schema_fixtures.items():
+        digest = check_hash(data, manifest["metadata"][name], name)
+        commands.extend(lean_checks(pa, name, data))
+        print(f"PASS {name} {digest}", flush=True)
+    for unit, observed, parts in date_batches(pa):
+        for name, data in parts.items():
+            check_hash(data, manifest["batches"][unit][name], f"{unit} {name}")
+        schema, metadata, body = (bytes_term(parts[name]) for name in ("schema", "metadata", "body"))
+        commands.append(
+            f"#guard SchemaReader.Tests.observesDateBatch {schema} {metadata} {body} .{unit} {lean_dates(observed)}"
+        )
+        commands.append(batch_check(parts, f".ok {lean_dates(observed)}"))
+        for name, data, part, error in batch_controls(pa, unit, parts):
+            check_hash(data, manifest["batch_controls"][name], name)
+            commands.append(batch_check({**parts, part: data}, f".error {error}"))
+        if unit == "day":
+            controls = (
+                ("schema", schema_fixtures["mixed"], "(.fieldCount 4)"),
+                ("schema", schema_fixtures["invalid_unit"], "(.schemaMetadata (.malformed .flatbuffer))"),
+                ("metadata", schema_fixtures["legacy"], ".expectedRecordBatch"),
+                ("metadata", b"", "(.recordMetadata (.malformed .flatbuffer))"),
+                ("body", parts["body"][:-8], f"(.bodyLength {len(parts['body'])} {len(parts['body']) - 8})"),
+            )
+            for part, data, error in controls:
+                commands.append(batch_check({**parts, part: data}, f".error {error}"))
+            # Keep the buffer layout intact but declare an extra byte after it.
+            unaligned = bytearray(parts["metadata"])
+            length_slot = slot(unaligned, target(unaligned, 0), 3)
+            require(scalar(unaligned, length_slot, "q") == len(parts["body"]), "unexpected body length")
+            length = len(parts["body"]) + 1
+            struct.pack_into("<q", unaligned, length_slot, length)
+            commands.append(batch_check(
+                {**parts, "metadata": bytes(unaligned), "body": parts["body"] + bytes(1)},
+                f".error (.unalignedBodyLength {length})",
+            ))
+        print(f"PASS {unit} schema-to-batch {manifest['batches'][unit]['ipc']['sha256']}", flush=True)
+    with tempfile.TemporaryDirectory(prefix="silmaril-arrow-date-schema-") as scratch:
+        driver = Path(scratch) / "Fixtures.lean"
+        driver.write_text("\n".join(commands) + "\n", encoding="utf-8")
+        subprocess.run(
+            [os.environ.get("LAKE", "lake"), "env", "lean", "-DautoImplicit=false", "-DwarningAsError=true", driver],
+            cwd=ROOT,
+            check=True,
+        )
+    print(f"PASS {len(commands) - 1} Lean Schema, batch and compatibility checks")
+
+
+if __name__ == "__main__":
+    main()

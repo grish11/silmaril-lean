@@ -1,0 +1,51 @@
+{
+  "license": "MIT",
+  "generation": "python3 -I scripts/arrow-to-csv-oracle/fixture.py --regenerate",
+  "lean_fixture": "Silmaril/Formats/Arrow/ToCsv/Fixture.lean",
+  "producer": {
+    "python": "3.14.7",
+    "pyarrow": "26.0.1",
+    "pyarrow_source_commit": "9e5d6978e9acf372cc989aaaf94e863fe8582c90",
+    "numpy": "2.5.5",
+    "requirements": "../../tests/formats/arrow-ipc/requirements.txt",
+    "python_image": "python:3.14.7-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d"
+  },
+  "profile": "Little-endian Arrow IPC V5 stream, modern framing, uncompressed, explicit EOS. CSV RFC 4180 ASCII, CPython csv.QUOTE_ALL with CRLF, typed N and T tags.",
+  "fields": [
+    {
+      "name": "n",
+      "type": "int32",
+      "nullable": true
+    },
+    {
+      "name": "text",
+      "type": "utf8",
+      "nullable": true
+    }
+  ],
+  "batches": [
+    [
+      [
+        -2147483648,
+        "a,\"b\"\r\nc"
+      ],
+      [
+        null,
+        ""
+      ],
+      [
+        2147483647,
+        null
+      ]
+    ],
+    [],
+    [
+      [
+        0,
+        "N"
+      ]
+    ]
+  ],
+  "ipc_sha256": "bcc561950ceb095a3b3ccc08a0d7bb72feac6596298e75e0817c33938d09e2b7",
+  "csv_sha256": "eaf88934c7ecd810839d50bc38dfc30704d06e566b127b38570704941f5529dd"
+}

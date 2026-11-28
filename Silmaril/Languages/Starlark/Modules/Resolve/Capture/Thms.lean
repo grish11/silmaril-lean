@@ -27,13 +27,38 @@ theorem installs_lookup (state : State) {free : List FreeName} {captures : List 
     (related : Installs state free captures) : free.mapM (captureName state) = .ok captures :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.capture_addresses state related
 
+/-- Equal slot maps preserve all owned and forwarded capture addresses. -/
+theorem installs_in_same_slots {active final : State} {free : List FreeName} {captures : List Lists.Capture}
+    (slots : final.slots = active.slots) (installed : Installs active free captures) : Installs final free captures :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.installs_in_same_slots slots installed
+
 theorem captureNames_eq {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
     (selected : Selects block reads free) : captureNames block.owned reads = free :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.capture_names selected
 
+/-- A read is selected exactly when it is a global or outside the local block. -/
+theorem selected_member {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
+    (selected : Selects block reads free) (binding : Binding) :
+    (⟨binding, binding⟩ : FreeName) ∈ free ↔
+      binding ∈ reads ∧ (binding.scope = .global ∨ binding.name ∉ block.owned) :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.selected_member selected binding
+
+/-- An ordered capture keeps the original lexical binding at each end. -/
+theorem selected_origin {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
+    (selected : Selects block reads free) (entry : FreeName) (present : entry ∈ free) :
+    ∃ binding, entry = ⟨binding, binding⟩ ∧
+      (ReadOrigin block binding .enclosing ∨ ReadOrigin block binding .module) :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.selected_origin selected entry present
+
 theorem required_parameter_binders (parameters : List String) :
     ParameterBinders (.required parameters) parameters :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.required_binders parameters
+
+/-- Independently selected captures are outside the owned frame. -/
+theorem selected_outside_owned {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
+    (selected : Selects block reads free) (entry : FreeName) (member : entry ∈ free)
+    (name : String) (owned : name ∈ block.owned) : entry.target ≠ fileSlot name :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.selected_outside_owned selected entry member name owned
 
 /-- In a load-free module the immediate parent's local names are precisely
 its own parameters and local declarations. -/

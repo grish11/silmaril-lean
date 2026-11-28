@@ -8,7 +8,7 @@ public section
 namespace Silmaril.Languages.Starlark.Functions.Builtins
 
 open Lists
-open Lists.Iteration (Cursor CursorCollects truth)
+open Lists.Iteration (Cursor CursorCollects acquireIterator truth)
 
 @[expose] def IsCollection : Lists.Value → Prop
   | .list _ | .tuple _ | .dict _ | .range _ => True
@@ -26,6 +26,33 @@ inductive Items (id : Builtin) (state : State) :
       CursorCollects (Cursor.ofRange span) values → Items id state (.range span) (.ok values state)
   | invalid {value : Lists.Value} : ¬ IsCollection value →
       Items id state value (.error (.builtinType id value) state)
+
+/-- The reached truth tests of one cursor, ending at exhaustion, a decisive item, or an error. -/
+inductive TruthScans (stop : Bool) : Cursor → State → Outcome Lists.Value → Prop where
+  | done {cursor : Cursor} {state : State} :
+      cursor.advance = none → TruthScans stop cursor state (.ok (boolValue (!stop)) state)
+  | decisive {cursor rest : Cursor} {value : Lists.Value} {s t : State} :
+      cursor.advance = some (value, rest) → truth value s = .ok stop t →
+      TruthScans stop cursor s (.ok (boolValue stop) t)
+  | next {cursor rest : Cursor} {value : Lists.Value} {s t : State} {out : Outcome Lists.Value} :
+      cursor.advance = some (value, rest) → truth value s = .ok (!stop) t →
+      TruthScans stop rest t out → TruthScans stop cursor s out
+  | failed {cursor rest : Cursor} {value : Lists.Value} {s t : State} {error : Error} :
+      cursor.advance = some (value, rest) → truth value s = .error error t →
+      TruthScans stop cursor s (.error error t)
+
+/-- Acquire the iterable before testing any items. Heap read failures retain their own category. -/
+inductive Quantifies (id : Builtin) (stop : Bool) (state : State) (value : Lists.Value) :
+    Outcome Lists.Value → Prop where
+  | scan {guard : Option Address} {cursor : Cursor} {next : State} {out : Outcome Lists.Value} :
+      acquireIterator value state = .ok (guard, cursor) next → TruthScans stop cursor next out →
+      Quantifies id stop state value out
+  | nonIterable {next : State} :
+      acquireIterator value state = .error .notIterable next →
+      Quantifies id stop state value (.error (.builtinType id value) next)
+  | readError {error : Error} {next : State} :
+      acquireIterator value state = .error error next → error ≠ .notIterable →
+      Quantifies id stop state value (.error error next)
 
 /-- Built-in calls on expanded arguments, with independent arity, type and
 store premises. Collection allocation reuses the shared heap primitives. -/
@@ -69,5 +96,17 @@ inductive Invokes (state : State) : Builtin → Actual → Outcome Lists.Value �
       Items .list state value out → Invokes state .list ⟨[value], []⟩ (Outcome.resume out allocate)
   | tuple {value : Lists.Value} {out : Outcome (List Lists.Value)} :
       Items .tuple state value out → Invokes state .tuple ⟨[value], []⟩ (Outcome.resume out allocateTuple)
+  | absInt {value : Int} :
+      Invokes state .abs ⟨[.scalar (.int value)], []⟩ (.ok (countValue value.natAbs) state)
+  | absFloat {input output : UInt64} :
+      Binary64.Absolute input output →
+      Invokes state .abs ⟨[.scalar (.float input)], []⟩ (.ok (.scalar (.float output)) state)
+  | absType {value : Lists.Value} :
+      (∀ n, value ≠ .scalar (.int n)) → (∀ x, value ≠ .scalar (.float x)) →
+      Invokes state .abs ⟨[value], []⟩ (.error (.builtinType .abs value) state)
+  | any {value : Lists.Value} {out : Outcome Lists.Value} :
+      Quantifies .any true state value out → Invokes state .any ⟨[value], []⟩ out
+  | all {value : Lists.Value} {out : Outcome Lists.Value} :
+      Quantifies .all false state value out → Invokes state .all ⟨[value], []⟩ out
 
 end Silmaril.Languages.Starlark.Functions.Builtins

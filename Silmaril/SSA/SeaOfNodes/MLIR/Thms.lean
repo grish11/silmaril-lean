@@ -7,7 +7,7 @@ public section
 
 namespace Silmaril.SSA.SeaOfNodes.MLIR
 
-open RVSDG (Origin Tuple Locals extend)
+open RVSDG (Origin Tuple Locals Wires extend)
 open Diamond (Dataflow Val ValueSort dataPorts sortValue)
 open Silmaril.MLIR.Pure (Code Eval OpSignature)
 open Lowering
@@ -32,6 +32,14 @@ theorem Scope.Agrees.resolve {scope : Scope args past Γ} {env : Env Γ}
     (ok : scope.Agrees env entry locals) (wire : Origin args past (.value s)) :
     env.get (scope.resolveValue wire) = valueBits (Diamond.read model wire entry locals) :=
   Proofs.resolve_correct ok wire
+
+/-- A typed operand vector reads the encoded values of the corresponding wires. -/
+theorem Scope.Agrees.operands_eval {scope : Scope args past Γ} {env : Env Γ}
+    {entry : Tuple (Val Word) args} {locals : Locals (Val Word) past}
+    (ok : scope.Agrees env entry locals) {ins : List (ValueSort Width)}
+    (wires : Wires args past (dataPorts ins)) :
+    (operands scope wires).eval env = encodeValues (wires.read entry locals) :=
+  Proofs.operands_correct ok wires
 
 variable {Source : Diamond.Signature Width} {Target : OpSignature} {Term : List Width → Type} {A : Type}
 

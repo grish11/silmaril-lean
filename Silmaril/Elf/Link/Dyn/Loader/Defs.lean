@@ -17,9 +17,11 @@ transcriptions of glibc 2.39's `ld.so`:
   (`Elf.lookupDef`, ld.so's `do_lookup_x`) finds a definition. `defAddr` is `SYMBOL_ADDRESS`
   (`l_addr + st_value`, or `st_value` for `SHN_ABS`), with an ifunc's choice given by `ifn`.
 * **Relocation values** (`relocVal`, `sysdeps/x86_64/dl-machine.h`): `R_X86_64_RELATIVE`
-  (`l_addr + r_addend`), `GLOB_DAT`/`JUMP_SLOT` (the resolved address; an unresolved weak
-  reference is 0; addend 0 required), `IRELATIVE` (`ifn (l_addr + r_addend)`). Any other kind
-  (`COPY`, `64`, `TPOFF64`, `DTPMOD64`, …) has no value here, so `ExeLoaded` is false for an
+  (`l_addr + r_addend`), `GLOB_DAT`/`JUMP_SLOT` (the resolved address; addend 0 required),
+  `R_X86_64_64` (the resolved address plus the signed addend, for references admitted by
+  `abs64Ref`), and `IRELATIVE` (`ifn (l_addr + r_addend)`). An unresolved weak reference
+  contributes a symbol value of 0. Apart from the `COPY` case below, other kinds
+  (`TPOFF64`, `DTPMOD64`, …) have no value here, so `ExeLoaded` is false for an
   executable that uses one: the model makes no claim about it.
 * **Lazy binding** (`lazy = true`, allowed only without `DF_BIND_NOW`/`DF_1_NOW`): every
   `JUMP_SLOT` holds `l_addr` plus its file word (`elf_machine_lazy_rel`), `GOT[1]` is
@@ -85,6 +87,8 @@ inductive Val where
   | abs (v : Nat)
   /-- what the ifunc resolver at `base_k + off` returns (`ifn`) -/
   | ifunc (k : Nat) (off : Int)
+  /-- the signed addend is applied to the ifunc result -/
+  | ifuncAdd (k : Nat) (off addend : Int)
   /-- the lazy-binding resolver (`GOT[2]`) -/
   | resolver
   /-- unconstrained (`GOT[1]`, the link map) -/
@@ -109,6 +113,14 @@ def symSize (d : Elf.DynInfo) (i : Nat) : Rd Nat := do
   let t ← Rd.ofOption (d.tagOff Elf.DT_SYMTAB)
   Elf.u64 (t + 24 * i + 16)
 
+/-- The type-1 profile uses ordinary scope lookup for named, default-visible global or weak
+references of type NOTYPE, OBJECT, FUNC or GNU_IFUNC. -/
+def abs64Ref (i : Elf.DynInfo) (index : Nat) : Rd Elf.Ref := do
+  let s ← Elf.sym i index
+  Rd.guard (index ≠ 0 ∧ s.name ≠ 0 ∧ (s.bind = 1 ∨ s.bind = 2) ∧ s.other % 4 = 0 ∧
+    s.type ∈ [0, 1, 2, 10])
+  Elf.refOf i index
+
 /-- **The eager value of relocation `r`** of the executable (object 0, file `f`, headers `i`). -/
 def relocVal (R : Resolver) (f : Blob) (i : Elf.DynInfo) (r : Elf.Rela) : Option Val :=
   if r.kind = 8 then some (.addr 0 r.addend)
@@ -117,6 +129,13 @@ def relocVal (R : Resolver) (f : Blob) (i : Elf.DynInfo) (r : Elf.Rela) : Option
     let ref ← frun f (Elf.refOf i r.sym)
     bindVal R ref (r.kind = 7)
   else if r.kind = 5 ∧ r.addend = 0 ∧ frun f (symSize i r.sym) = some 8 then some .any
+  else if r.kind = 1 then do
+    let ref ← frun f (abs64Ref i r.sym)
+    match ← bindVal R ref false with
+    | .addr k off => some (.addr k (off + r.addend))
+    | .abs v => some (.abs (BitVec.ofInt 64 ((v : Int) + r.addend)).toNat)
+    | .ifunc k off => some (.ifuncAdd k off r.addend)
+    | _ => none
   else none
 
 /-- The 8-byte word of the file at virtual address `v`. -/
@@ -148,6 +167,9 @@ def Val.word (bases : List Word) (ifn : Word → Option Word) (res : Word) : Val
   | .addr k off => bases[k]?.map fun b => some (b + BitVec.ofInt 64 off)
   | .abs v => some (some (BitVec.ofNat 64 v))
   | .ifunc k off => (bases[k]?.bind fun b => ifn (b + BitVec.ofInt 64 off)).map some
+  | .ifuncAdd k off addend =>
+    (bases[k]?.bind fun b => ifn (b + BitVec.ofInt 64 off)).map fun w =>
+      some (w + BitVec.ofInt 64 addend)
   | .resolver => some (some res)
   | .any => some none
 

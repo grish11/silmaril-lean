@@ -41,34 +41,6 @@ theorem nearest_iff (name : String) (outer : List (List String)) :
       | owns here => exact .inl here
       | farther _ there => exact .inr ⟨_, there⟩
 
-private theorem selected_member {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
-    (selected : Selects block reads free) (binding : Binding) :
-    reference binding ∈ free ↔ binding ∈ reads ∧ (binding.scope = .global ∨ binding.name ∉ block.owned) := by
-  rw [← captureNames_eq selected, captureNames, List.mem_map]
-  constructor
-  · rintro ⟨seen, present, equal⟩
-    have same : seen = binding := congrArg FreeName.source equal
-    subst seen
-    simpa using List.mem_filter.mp present
-  · intro member
-    exact ⟨binding, List.mem_filter.mpr (by simpa using member), rfl⟩
-
-private theorem selected_origin {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
-    (selected : Selects block reads free) (entry : FreeName) (present : entry ∈ free) :
-    ∃ binding, entry = reference binding ∧
-      (ReadOrigin block binding .enclosing ∨ ReadOrigin block binding .module) := by
-  induction selected with
-  | nil => cases present
-  | owned _ _ ih => exact ih present
-  | enclosing origin _ ih =>
-    rcases List.mem_cons.mp present with rfl | present
-    · exact ⟨_, rfl, .inl origin⟩
-    · exact ih present
-  | module origin _ ih =>
-    rcases List.mem_cons.mp present with rfl | present
-    · exact ⟨_, rfl, .inr origin⟩
-    · exact ih present
-
 private theorem head_selection {globals : List String} {outer : List (List String)}
     {chain : Chain} {head : Frame} {rest : List Frame}
     (emitted : Emits globals outer chain (head :: rest)) :
@@ -331,7 +303,7 @@ private theorem receipt_reference {state : State} {entry : FreeName}
     entry = reference capture.binding := by
   cases receipt <;> rfl
 
-private theorem find_receipt {state : State} {free : List FreeName}
+theorem find_receipt {state : State} {free : List FreeName}
     {captures : List Silmaril.Languages.Starlark.Lists.Capture} (installed : Installs state free captures)
     (binding : Binding) (present : reference binding ∈ free) :
     ∃ capture, captures.find? (fun entry => entry.binding == binding) = some capture ∧

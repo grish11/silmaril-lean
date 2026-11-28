@@ -18,7 +18,8 @@ universe u v w
 variable {V S : Type u} {Op : Dialect.{u, v} (ValueSort V S) S}
 variable {m : Machine.{u, v, w} Op} {σ : Type (max u v w)}
 variable {table : MemberSummaries V S} {imports final : Ports (Ty V S)}
-variable (family : Family Op table imports)
+variable {calls : MemberSummaries V S} {past : List (Ports (Ty V S))}
+variable (family : Family Op table imports calls past)
 
 private theorem get_ofTable {n : Nat} {F : Fin n → Type w} (values : (i : Fin n) → F i) (i : Fin n) :
     (Definitions.ofTable n values).get i = values i := by
@@ -26,7 +27,7 @@ private theorem get_ofTable {n : Nat} {F : Fin n → Type w} (values : (i : Fin 
   | zero => exact i.elim0
   | succ n ih => exact Fin.cases rfl (fun j => ih (fun k => values k.succ) j) i
 
-private theorem member_get {F : Ty V S → Type w} (members : List (Function V S))
+theorem member_get {F : Ty V S → Type w} (members : List (Function V S))
     (values : (i : Fin members.length) → F members[i].port) (i : Fin members.length) :
     (memberValues members values).get (memberPort members i) = values i := by
   induction members with
@@ -83,7 +84,8 @@ private theorem ordinary_agrees {Ty : Type u} {F : Ty → Type w} {refs caps par
 
 private theorem body_agrees (i : Fin table.members.length) (wanted : Demand)
     {capturedL capturedR : Tuple m.Val family.context} {argsL argsR : Tuple m.Val (table.at i).fn.args}
-    (readyL : family.Ready capturedL) (readyR : family.Ready capturedR)
+    {guardL guardR : MemberResolution m (some calls)}
+    (readyL : family.ReadyWith capturedL guardL) (readyR : family.ReadyWith capturedR guardR)
     (live : ScopeAgrees (scope := []) (table.live i wanted)
       (prependContext argsL (family.capturedAt capturedL i))
       (prependContext argsR (family.capturedAt capturedR i)) PUnit.unit PUnit.unit) :
@@ -99,9 +101,15 @@ private theorem body_agrees (i : Fin table.members.length) (wanted : Demand)
     · exact fun q h => live (.arg q) ((family.closed i wanted).2 q.index h)
     · exact needed
 
-private theorem member_prefix (actions : Actions m σ) (observed : Demand)
+/-- Extend the body dispatch at each smaller observation depth. The local
+family certificate at that depth comes from the induction hypothesis. -/
+theorem member_prefix_with (actions : Actions m σ) (observed : Demand)
     (capturedL capturedR : Tuple m.Val family.context)
-    (readyL : family.Ready capturedL) (readyR : family.Ready capturedR) (budget : Nat) :
+    (guardL guardR : MemberResolution m (some calls))
+    (readyL : family.ReadyWith capturedL guardL) (readyR : family.ReadyWith capturedR guardR)
+    (extend : ∀ n, MemberDispatch actions observed (family.guard capturedL) (family.guard capturedR) n final →
+      MemberDispatch actions observed guardL guardR n final)
+    (budget : Nat) :
     ∀ (i : Fin table.members.length) (wanted : Demand) (argsL argsR : Tuple m.Val (table.at i).fn.args)
       (store : σ) (left right : Stack m (table.at i).fn.results final),
       ScopeAgrees (scope := []) (table.live i wanted)
@@ -134,11 +142,13 @@ private theorem member_prefix (actions : Actions m σ) (observed : Demand)
         rw [capturesL, capturesR] at agree
         exact ih depth (Nat.lt_succ_of_le bounded) j requested argL argR middle frameL frameR agree resume
       apply PrefixMatches.step (enter capturedL argsL left) (enter capturedR argsR right)
-      apply region actions observed (family.body i) (family.guard capturedL) (family.guard capturedR)
-        (some n) (by simp) dispatch wanted _ _ PUnit.unit PUnit.unit left right store
-        ((readyL i).2 argsL) ((readyR i).2 argsR) (body_agrees family i wanted readyL readyR live)
+      apply region actions observed (family.body i) guardL guardR
+        (some n) (by simp) (extend n dispatch) wanted _ _ PUnit.unit PUnit.unit left right store
+        ((readyL i).2 argsL PUnit.unit) ((readyR i).2 argsR PUnit.unit) (body_agrees family i wanted readyL readyR live)
       intro outL outR middle agree _ _
       exact prefix_mono (Nat.le_succ n) (finish outL outR middle agree trivial trivial)
+
+variable (family : Family Op table imports)
 
 /-- Dispatch into the closed group with any related suffix, including
 a frame belonging to an enclosing exported λ. -/
@@ -153,8 +163,8 @@ theorem family_dispatch (actions : Actions m σ) (observed : Demand)
   rcases hR with ⟨targetR, capturesR⟩
   rw [targetL, targetR]
   rw [capturesL, capturesR] at live
-  exact member_prefix family actions observed capturedL capturedR readyL readyR depth i wanted argsL argsR
-    store left right live resume
+  exact member_prefix_with family actions observed capturedL capturedR _ _ readyL readyR (fun _ h => h)
+    depth i wanted argsL argsR store left right live resume
 
 theorem family_calls (i : Fin table.members.length) (actions : Actions m σ) (demand : Demand)
     (importedL importedR : Tuple m.Val imports) (argsL argsR : Tuple m.Val (table.at i).fn.args) (store : σ)
@@ -165,7 +175,8 @@ theorem family_calls (i : Fin table.members.length) (actions : Actions m σ) (de
       ⟨Continuation.start (family.invocation i importedL argsL), store⟩
       ⟨Continuation.start (family.invocation i importedR argsR), store⟩ := by
   intro depth
-  apply member_prefix family actions demand _ _ readyL readyR depth i demand argsL argsR store .halt .halt
+  apply member_prefix_with family actions demand _ _ _ _ readyL readyR (fun _ h => h)
+    depth i demand argsL argsR store .halt .halt
   · intro ty source needed
     cases source with
     | output j _ => exact j.elim0

@@ -282,4 +282,128 @@ theorem front {H : Type} {src dst : Config H} (h : Step CallFrame.limeNoHost src
     subst op
     cases focus
 
+private inductive MemoryHead : Admin → Nat → Prop where
+  | load (arg : V1.MemArg) : MemoryHead (.source (.intLoad .i32 none arg)) 1
+  | store (arg : V1.MemArg) : MemoryHead (.source (.intStore .i32 none arg)) 2
+  | size : MemoryHead (.source .memorySize) 0
+  | grow : MemoryHead (.source .memoryGrow) 1
+
+private theorem MemoryHead.nonvalue {op : Admin} {arity : Nat} (h : MemoryHead op arity) :
+    asValue? op = none := by
+  cases h <;> rfl
+
+private theorem memory_leaf {H : Type} {s : Store H} {f : Frame}
+    {stack used : List Value} {op : Admin} {tail : List Admin} {arity : Nat} {dst : Config H}
+    (shape : MemoryHead op arity) (len : used.length = arity)
+    (code : values used ++ [op] = values stack ++ op :: tail)
+    (step : Internal ⟨s, f, values used ++ [op]⟩ dst) :
+    ∃ kept operands mid, stack = kept ++ operands ∧ operands.length = arity ∧
+      Internal ⟨s, f, values operands ++ [op]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values kept ++ mid.code ++ tail⟩ := by
+  obtain ⟨extra, pre, split, one, suffix⟩ :=
+    peel (saved := used) (mid := [op]) (tail := []) ⟨op, by simp, shape.nonvalue⟩
+      (by simpa using code) shape.nonvalue
+  have length := congrArg List.length one
+  simp at length
+  obtain ⟨rfl, rfl⟩ : extra = [] ∧ pre = [] := ⟨
+    List.eq_nil_of_length_eq_zero (by omega), List.eq_nil_of_length_eq_zero (by omega)⟩
+  simp at split suffix
+  subst stack tail
+  exact ⟨[], used, dst, rfl, len, step, by cases dst; simp [values]⟩
+
+set_option linter.unusedSimpArgs false in
+private theorem memory_cut {H : Type} {src dst : Config H} {op : Admin} {arity : Nat}
+    (shape : MemoryHead op arity) (move : Internal src dst)
+    {stack : List Value} {tail : List Admin} (code : src.code = values stack ++ op :: tail) :
+    ∃ kept operands mid, stack = kept ++ operands ∧ operands.length = arity ∧
+      Internal ⟨src.store, src.frame, values operands ++ [op]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values kept ++ mid.code ++ tail⟩ := by
+  have seen : first src.code = some op := by rw [code, first_prefix, first_head _ shape.nonvalue]
+  induction move generalizing stack tail with
+  | @context s s' f f' before after move saved rest ih =>
+    obtain ⟨args, pre, rfl, inside, rfl⟩ := peel move.nonvalue code shape.nonvalue
+    change before = values args ++ op :: pre at inside
+    have inHead : first before = some op := by rw [inside, first_prefix, first_head _ shape.nonvalue]
+    obtain ⟨kept, used, mid, rfl, len, leaf, eq⟩ := ih inside inHead
+    refine ⟨saved ++ kept, used, mid, (List.append_assoc ..).symm, len, leaf, ?_⟩
+    change (⟨s', f', after⟩ : Config H) = _ at eq
+    simpa only [values_append, List.append_assoc] using congrArg
+      (fun cfg : Config H => (⟨cfg.store, cfg.frame, values saved ++ cfg.code ++ rest⟩ : Config H)) eq
+  | intLoad s f t packed arg address a m v found read =>
+    cases shape <;> simp only [first_value] at seen <;> simp [first, asValue?] at seen
+    obtain ⟨rfl, rfl, rfl⟩ := seen
+    exact memory_leaf (.load _) (used := [Value.int .i32 address]) rfl code
+      (.intLoad s f _ _ _ _ a m v found read)
+  | intLoadTrap s f t packed arg address a m found read =>
+    cases shape <;> simp only [first_value] at seen <;> simp [first, asValue?] at seen
+    obtain ⟨rfl, rfl, rfl⟩ := seen
+    exact memory_leaf (.load _) (used := [Value.int .i32 address]) rfl code
+      (.intLoadTrap s f _ _ _ _ a m found read)
+  | intStore s f t packed arg address word a m out found write =>
+    cases shape <;> simp only [first_value] at seen <;> simp [first, asValue?] at seen
+    obtain ⟨rfl, rfl, rfl⟩ := seen
+    exact memory_leaf (.store _) (used := [Value.int .i32 address, Value.int .i32 word]) rfl code
+      (.intStore s f _ _ _ _ _ a m out found write)
+  | intStoreTrap s f t packed arg address word a m found write =>
+    cases shape <;> simp only [first_value] at seen <;> simp [first, asValue?] at seen
+    obtain ⟨rfl, rfl, rfl⟩ := seen
+    exact memory_leaf (.store _) (used := [Value.int .i32 address, Value.int .i32 word]) rfl code
+      (.intStoreTrap s f _ _ _ _ _ a m found write)
+  | memorySize s f a m found =>
+    cases shape <;> simp [first, asValue?] at seen
+    exact memory_leaf .size (used := []) rfl code (.memorySize s f a m found)
+  | memoryGrow s f a m delta result bytes found grown =>
+    cases shape <;> simp only [first_value] at seen <;> simp [first, asValue?] at seen
+    exact memory_leaf .grow (used := [Value.int .i32 delta]) rfl code
+      (.memoryGrow s f a m delta result bytes found grown)
+  | invokeHost | invokeHostDiverges => contradiction
+  | pure s f move =>
+    cases move <;> cases shape <;>
+      simp only [List.append_assoc, List.singleton_append, first_prefix, first_values, first_value] at seen <;>
+      simp [first, asValue?] at seen
+  | _ =>
+    cases shape <;>
+      simp only [List.append_assoc, List.singleton_append, first_prefix, first_values, first_value] at seen <;>
+      simp [first, asValue?] at seen
+
+theorem intLoad_strip {H : Type} {s : Store H} {f : Frame} {arg : V1.MemArg}
+    {ptr : BitVec 32} {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Internal ⟨s, f, values (saved ++ [Value.int .i32 ptr]) ++ .source (.intLoad .i32 none arg) :: tail⟩ dst) :
+    ∃ mid, Internal ⟨s, f, [value (Value.int .i32 ptr), .source (.intLoad .i32 none arg)]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ := by
+  obtain ⟨_, _, mid, split, len, head, eq⟩ := memory_cut (.load arg) move rfl
+  obtain ⟨rfl, rfl⟩ := List.append_inj' split len.symm
+  exact ⟨mid, head, eq⟩
+
+theorem intStore_strip {H : Type} {s : Store H} {f : Frame} {arg : V1.MemArg}
+    {ptr word : BitVec 32} {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Internal ⟨s, f, values (saved ++ [Value.int .i32 ptr, Value.int .i32 word]) ++
+      .source (.intStore .i32 none arg) :: tail⟩ dst) :
+    ∃ mid, Internal ⟨s, f, [value (Value.int .i32 ptr), value (Value.int .i32 word),
+      .source (.intStore .i32 none arg)]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ := by
+  obtain ⟨_, _, mid, split, len, head, eq⟩ := memory_cut (.store arg) move rfl
+  obtain ⟨rfl, rfl⟩ := List.append_inj' split len.symm
+  exact ⟨mid, head, eq⟩
+
+theorem memorySize_strip {H : Type} {s : Store H} {f : Frame}
+    {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Internal ⟨s, f, values saved ++ .source .memorySize :: tail⟩ dst) :
+    ∃ mid, Internal ⟨s, f, [.source .memorySize]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ := by
+  obtain ⟨kept, operands, mid, split, len, head, eq⟩ := memory_cut .size move rfl
+  obtain rfl := List.eq_nil_of_length_eq_zero len
+  simp at split
+  subst kept
+  exact ⟨mid, head, eq⟩
+
+theorem memoryGrow_strip {H : Type} {s : Store H} {f : Frame}
+    {delta : BitVec 32} {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Internal ⟨s, f, values (saved ++ [Value.int .i32 delta]) ++ .source .memoryGrow :: tail⟩ dst) :
+    ∃ mid, Internal ⟨s, f, [value (Value.int .i32 delta), .source .memoryGrow]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ := by
+  obtain ⟨_, _, mid, split, len, head, eq⟩ := memory_cut .grow move rfl
+  obtain ⟨rfl, rfl⟩ := List.append_inj' split len.symm
+  exact ⟨mid, head, eq⟩
+
 end Silmaril.Wasm.Institution.Operational.CallContinuation.Proofs.Lime1

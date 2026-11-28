@@ -4,7 +4,7 @@ import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Capture.Refinement.Trace.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Typed.Defs
 import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.PackedTrace.Thms
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Capture.InstructionMap.Thms
-import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Ordered.Flat.Entry.Institution.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Institution.Thms
 
 /-! # Typed requests at the captured entry and the back edge -/
 
@@ -677,5 +677,103 @@ example :
     ((entryPacking.satisfaction signature (Discrete.mk model) _).mp h))⟩
   exact nat ▸ (entryPacking.satisfaction signature (Discrete.mk model) _).mpr
     ((entryRelabel.sat (Discrete.mk model) entryComparison).mpr entry_comparisons.1)
+
+/-! ## Certified named comparisons with an external entry -/
+
+private def namedInterface : Entry.Interface SortName Reg Label :=
+  ⟨1, captures, names, fun _ _ _ => Subsingleton.elim _ _, [exitLabel], fun _ => num⟩
+
+private def namedCycle : Entry.RTL signature namedInterface :=
+  (Entry.RTL.admit source (fun _ => edgeType)).get (by decide)
+
+private def mappedNamedCycle : Entry.RTL signature namedInterface :=
+  (Entry.RTL.admit (source.mapOp rename.instr) (fun _ => edgeType)).get (by decide)
+
+-- Independently running the checker at the unchanged profile yields the
+-- same written flat entry and table as certificate transport.
+example : (namedCycle.map relabel).versioned.table.code = mappedNamedCycle.versioned.table.code := by
+  let lhs := (namedCycle.map relabel).versioned.table.code
+  let rhs := mappedNamedCycle.versioned.table.code
+  have entry : lhs.entry = rhs.entry := rfl
+  have blocks : lhs.block = rhs.block := by
+    funext i
+    exact Fin.cases rfl (Fin.cases rfl (fun j => j.elim0)) i
+  exact congrArg₂ LambdaSSA.FiniteCFG.mk entry blocks
+
+example : (Entry.SSA.admit (I := namedInterface.version) generated (fun _ => edgeType)).get
+    (by decide) = namedCycle.versioned := rfl
+
+example : Entry.store namedInterface.names namedInterface.context (suppliedInput 7) reg = atom 7 :=
+  rfl
+
+set_option backward.isDefEq.respectTransparency false in
+private theorem named_cycle_trace :
+    HasTrace (namedCycle.observe reduct (suppliedInput 7)) suppliedTrace := by
+  rw [Entry.RTL.observe_version, Entry.SSA.observe_tree reduct namedCycle.versioned _ ambient]
+  exact supplied_cycle
+
+private def quietSource : CFG Reg Label Opcode :=
+  ⟨.term (.br header (.var reg)), [(header, ⟨reg, .term (.br header (.var reg))⟩)]⟩
+
+private def quietNamed : Entry.RTL signature namedInterface :=
+  (Entry.RTL.admit quietSource (fun _ => edgeType)).get (by decide)
+
+private theorem quiet_named_tree (M : Model (κ := SortName) Event Opcode) (x : EntryValue) :
+    quietNamed.observe M x = diverge := by
+  let input := Entry.store namedInterface.names namedInterface.context x
+  let initial : CFG.Cyclic.Transfer Reg Label (Value Runtime) := (header, input reg, input)
+  let step := CFG.Cyclic.step (treeModel M.raw) quietSource.blocks
+  have update : upd input reg (input reg) = input := by
+    funext key
+    by_cases h : key = reg <;> simp [upd, h]
+  have self : step initial = pure (.inr initial) := by
+    change (pure (Sum.inr (header, (upd input reg (input reg)) reg, upd input reg (input reg))) :
+      Tree Event (CFG.Cyclic.Transfer Reg Label (Value Runtime) ⊕ _)) = _
+    rw [update]
+  have silent : iter step initial = diverge := by
+    let Transfer := CFG.Cyclic.Transfer Reg Label (Value Runtime)
+    let loop (p : Transfer) : Tree Event (Transfer ⊕ Transfer) := pure (.inr p)
+    have uniform := Silmaril.Elgot.ITree.iterate_uniformity loop step (fun _ => initial) (by
+      funext p
+      change (loop p >>= fun s => pure (s.map id (fun _ => initial))) = (pure initial >>= step)
+      simp only [loop, pure_bind, Sum.map_inr, self])
+    have eq := congrFun uniform initial
+    change iter loop initial = (pure initial >>= iter step) at eq
+    rw [pure_bind] at eq
+    exact eq.symm.trans (Silmaril.Elgot.ITree.iterate_forever initial)
+  change (iter step initial >>= _) = _
+  rw [silent, diverge_bind]
+
+private def rtlCompare : Entry.RTLSentence signature namedInterface := (quietNamed, namedCycle)
+private def rtlConverse : Entry.RTLSentence signature namedInterface := (namedCycle, quietNamed)
+
+set_option backward.isDefEq.respectTransparency false in
+private theorem named_comparisons :
+    Entry.rtlSatisfies reduct rtlCompare ∧ ¬ Entry.rtlSatisfies reduct rtlConverse := by
+  refine ⟨fun x => ?_, fun h => ?_⟩
+  · change TraceLE (quietNamed.observe reduct x) _
+    rw [quiet_named_tree]
+    exact traceLE_diverge _
+  · have atSeven := h (suppliedInput 7)
+    change TraceLE (namedCycle.observe reduct (suppliedInput 7))
+      (quietNamed.observe reduct (suppliedInput 7)) at atSeven
+    rw [quiet_named_tree] at atSeven
+    have impossible := atSeven suppliedTrace named_cycle_trace
+    simp [suppliedTrace, hasTrace_diverge_iff] at impossible
+
+private abbrev namedPacking := Entry.packedRTLComorphism.{0, 0} namedInterface Event
+private abbrev namedRelabel := (Entry.rtlInstitution.{0, 0} namedInterface Event).I.map relabel
+
+-- The bundled RTL → SSA → flat → packed square preserves the strict
+-- comparison after applying the noninjective opcode map to both sources.
+example :
+    (PackedInstitution.room Event signature inputType).Sat (Discrete.mk model)
+      ((namedPacking.ρ.app signature).sen (namedRelabel.sen rtlCompare)) ∧
+    ¬ (PackedInstitution.room Event signature inputType).Sat (Discrete.mk model)
+      ((namedPacking.ρ.app signature).sen (namedRelabel.sen rtlConverse)) :=
+  ⟨(namedPacking.satisfaction signature (Discrete.mk model) _).mpr
+      ((namedRelabel.sat (Discrete.mk model) rtlCompare).mpr named_comparisons.1),
+    fun h => named_comparisons.2 ((namedRelabel.sat (Discrete.mk model) rtlConverse).mp
+      ((namedPacking.satisfaction signature (Discrete.mk model) _).mp h))⟩
 
 end Silmaril.Isotope.Bridge.NamedFlat.Interaction.Examples

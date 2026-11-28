@@ -37,7 +37,7 @@ private theorem unit_eta_fails :
     | zero => cases Option.some.inj hi; exact .alternateUnit rfl
     | succ i => simp [At] at hi
   have observed := PairSequencing.Observer.extension_same (observation := {})
-    (fun e => e.elim PairSequencing.Observer.unary_fusion_same (caseReturnSeed_same rfl)) h env henv
+    (fun e => e.elim (PairSequencing.Observer.unary_fusion_same rfl) (caseReturnSeed_same rfl)) h env henv
   change Result.jump 0 .unit = Result.jump 0 (.inl .unit) at observed
   cases observed
 

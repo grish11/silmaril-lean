@@ -10,9 +10,16 @@ public section
 
 namespace Silmaril.SSA.SeaOfNodes.Memory.Loop
 
-open RVSDG (Tuple)
+open RVSDG (Tuple Wires)
+open RVSDG.OrderedRuntime.Structured (Ty)
 
 variable {args : List ValueSort} {cells : Nat}
+
+/-- Reading the positional argument wires of a closed memory region
+reconstructs the complete typed input tuple. -/
+theorem read_argWires {entry : List (Ty ValueSort)} (input : Tuple (WireVal cells) entry) :
+    Wires.read (SeaOfNodes.Loop.argWires entry []) input PUnit.unit = input :=
+  ThetaProofs.read_args input
 
 /-- Each θ activation runs the memory table, calculates the tag from its
 exported word, and puts its last heap on the common stop/continue boundary. -/

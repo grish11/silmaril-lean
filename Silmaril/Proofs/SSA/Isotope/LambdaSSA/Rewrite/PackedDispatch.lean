@@ -80,7 +80,7 @@ theorem unpackExits_denotes (Γ : VCtx τ) (L : LCtx τ) :
 
 omit [FreydCategory.CentralUnit J] in
 set_option backward.isDefEq.respectTransparency false in
-private theorem packedExitArg_denotes {Γ : VCtx τ} {L : LCtx τ} {i : Nat} {A : τ} {a : Tm Φ}
+theorem packedExitArg_denotes {Γ : VCtx τ} {L : LCtx τ} {i : Nat} {A : τ} {a : Tm Φ}
     (hi : At L i A) {ha : Tm.HasType Γ a A} {f : J.obj (ctxObj M Γ) ⟶ J.obj (M.obj A)}
     (da : Denotes J M ha f) :
     ∃ h : Tm.HasType Γ (packedExitArg i a) (packedExitType L),

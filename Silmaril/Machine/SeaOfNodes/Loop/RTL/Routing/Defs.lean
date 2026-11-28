@@ -149,10 +149,13 @@ def oldPayloadPort (payloads : Nat) (p : Fin payloads) :
     Port (wordPorts (payloads + 1) ++ wordPorts (payloads + 1)) wordPort :=
   suffixPort (wordPorts (payloads + 1)) (payloadPort payloads p)
 
-def FeedbackUpdate.eval {payloads : Nat} (update : FeedbackUpdate payloads)
+def FeedbackUpdate.evalAt {fields arity : Nat} (update : FeedbackUpdate fields)
+    (slot : Fin fields → Port (wordPorts arity) wordPort) (old : WordTuple arity) : Word :=
+  update.operation.eval (old.get (slot update.left)) (old.get (slot update.right))
+
+abbrev FeedbackUpdate.eval {payloads : Nat} (update : FeedbackUpdate payloads)
     (old : WordTuple (payloads + 1)) : Word :=
-  update.operation.eval (old.get (payloadPort payloads update.left))
-    (old.get (payloadPort payloads update.right))
+  update.evalAt (payloadPort payloads) old
 
 /-- Decode every operation and require distinct destination slots. -/
 def checkFeedbackRow (payloads : Nat) (specs : List FeedbackSpec) :
@@ -167,16 +170,27 @@ def rowSigs {payloads : Nat} : List (FeedbackUpdate payloads) → List (List Por
 abbrev headerRowSigs {payloads : Nat} (updates : List (FeedbackUpdate payloads)) :=
   headerSigs ++ rowSigs updates
 
-abbrev headerArgs (payloads : Nat) := wordPorts (payloads + 1) ++ wordPorts (payloads + 1)
+abbrev bankArgs (arity : Nat) := wordPorts arity ++ wordPorts arity
+abbrev headerArgs (payloads : Nat) := bankArgs (payloads + 1)
 
-def FeedbackUpdate.operands {payloads : Nat} (u : FeedbackUpdate payloads)
-    (past : List (List PortTy)) : Wires (headerArgs payloads) past [wordPort, wordPort] :=
-  .cons (.arg (oldPayloadPort payloads u.left)) (.cons (.arg (oldPayloadPort payloads u.right)) .nil)
+def FeedbackUpdate.operandsAt {fields arity : Nat} (u : FeedbackUpdate fields)
+    (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (past : List (List PortTy)) : Wires (bankArgs arity) past [wordPort, wordPort] :=
+  .cons (.arg (suffixPort (wordPorts arity) (slot u.left)))
+    (.cons (.arg (suffixPort (wordPorts arity) (slot u.right))) .nil)
 
-def rowSuffix {payloads : Nat} (past : List (List PortTy)) :
-    (updates : List (FeedbackUpdate payloads)) → Dataflow WordOp (headerArgs payloads) past (rowSigs updates)
+abbrev FeedbackUpdate.operands {payloads : Nat} (u : FeedbackUpdate payloads)
+    (past : List (List PortTy)) := u.operandsAt (payloadPort payloads) past
+
+def rowSuffixAt {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (past : List (List PortTy)) :
+    (updates : List (FeedbackUpdate fields)) → Dataflow WordOp (bankArgs arity) past (rowSigs updates)
   | [] => .nil
-  | u :: rest => .cons u.operation.source (u.operands past) (rowSuffix (past ++ [[wordPort]]) rest)
+  | u :: rest => .cons u.operation.source (u.operandsAt slot past)
+      (rowSuffixAt slot (past ++ [[wordPort]]) rest)
+
+abbrev rowSuffix {payloads : Nat} (past : List (List PortTy)) :=
+  rowSuffixAt (payloadPort payloads) past
 
 def replaceWire {args users : List PortTy} {past : List (List PortTy)} {t : PortTy}
     (value : Origin args past t) (wires : Wires args past users) (slot : Port users t) :
@@ -187,15 +201,19 @@ def replaceWire {args users : List PortTy} {past : List (List PortTy)} {t : Port
 
 /-- Extend the feedback column as each producer is bound. Only the column
 changes here. Every operation reads the original header arguments. -/
-def rowColumn {payloads : Nat} (past : List (List PortTy)) :
-    (updates : List (FeedbackUpdate payloads)) →
-    Wires (headerArgs payloads) past (wordPorts payloads) →
-    Wires (headerArgs payloads) (extend past (rowSigs updates)) (wordPorts payloads)
+def rowColumnAt {fields : Nat} {args ports : List PortTy}
+    (slot : Fin fields → Port ports wordPort) (past : List (List PortTy)) :
+    (updates : List (FeedbackUpdate fields)) →
+    Wires args past ports → Wires args (extend past (rowSigs updates)) ports
   | [], wires => wires
   | u :: rest, wires =>
-    rowColumn (past ++ [[wordPort]]) rest
+    rowColumnAt slot (past ++ [[wordPort]]) rest
       (replaceWire (newest .head) (wires.map (fun _ wire => weaken [wordPort] wire))
-        (argumentPort payloads u.destination))
+        (slot u.destination))
+
+abbrev rowColumn {payloads : Nat} (past : List (List PortTy))
+    (updates : List (FeedbackUpdate payloads)) (wires : Wires (headerArgs payloads) past (wordPorts payloads)) :=
+  rowColumnAt (argumentPort payloads) past updates wires
 
 def BankRoutes.feedbackWithRow {payloads : Nat} (r : BankRoutes payloads)
     (updates : List (FeedbackUpdate payloads)) :
@@ -220,33 +238,58 @@ def BankRoutes.graphWithRow {payloads : Nat} (r : BankRoutes payloads)
   predicate := keepOrigin (past := headerSigs) (sigs := rowSigs updates) (rowSuffix headerSigs updates) (.output (3 : Fin 4) .head)
   result := .arg (suffixPort (wordPorts (payloads + 1)) r.resultPort)
 
-def BankRoutes.incomingWithRow {payloads : Nat} (r : BankRoutes payloads)
-    (updates : List (FeedbackUpdate payloads)) : Incoming → List Reg
-  | .entry => emitColumn (arity := payloads + 1) ((r.graphWithRow updates).phiInputs .entry)
-  | .backedge => emitColumn (arity := payloads + 1) ((r.graphWithRow updates).phiInputs .backedge)
+/-- Native word-bank graphs with an empty preheader and one word result.
+The header table and the two incoming columns determine the machine code. -/
+abbrev BankGraph (arity : Nat) (sigs : List (List PortTy)) :=
+  Graph WordOp (wordSorts arity) (wordSorts arity) [] sigs word
+
+def bankIncoming {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) :
+    Incoming → List Reg
+  | .entry => emitColumn (arity := arity) (g.phiInputs .entry)
+  | .backedge => emitColumn (arity := arity) (g.phiInputs .backedge)
 
 def paramRegs (base arity : Nat) : List Reg := (List.range' base arity).map Reg.arg
 
-def BankRoutes.preheaderWithRow {payloads : Nat} (r : BankRoutes payloads)
-    (updates : List (FeedbackUpdate payloads)) : Block Reg :=
-  ⟨paramRegs 0 (payloads + 1), [], .jump 1 (r.incomingWithRow updates .entry)⟩
+def bankPreheader {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) : Block Reg :=
+  ⟨paramRegs 0 arity, [], .jump 1 (bankIncoming g .entry)⟩
 
-def BankRoutes.headerWithRow {payloads : Nat} (r : BankRoutes payloads)
-    (updates : List (FeedbackUpdate payloads)) : Block Reg :=
-  let graph := r.graphWithRow updates
-  ⟨paramRegs (payloads + 1) (payloads + 1), emitOpsWith (fun p => .arg p.index) graph.header,
-    .cond (register graph.predicate.address) 1 (r.incomingWithRow updates .backedge)
-      2 [register graph.result.address]⟩
+def bankHeader {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) : Block Reg :=
+  ⟨paramRegs arity arity, emitOpsWith (fun p => .arg p.index) g.header,
+    .cond (register g.predicate.address) 1 (bankIncoming g .backedge) 2 [register g.result.address]⟩
 
 def exitBlock : Block Reg := ⟨[.phi], [], .ret [.phi]⟩
 
+def lowerBankFunc {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) : Func Reg :=
+  ⟨⟨arity, 1⟩, 0, [bankPreheader g, bankHeader g, exitBlock]⟩
+
+/-- Replace the entry block while retaining the word-bank header and exit. -/
+def lowerBankFuncFrom {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
+    (entry : Block Reg) : Func Reg :=
+  let fn := lowerBankFunc g
+  { fn with blocks := fn.blocks.set 0 entry }
+
+def lowerBankFrom {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
+    (entry : Block Reg) : Prog Reg :=
+  ⟨[lowerBankFuncFrom g entry]⟩
+
+def lowerBank {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) : Prog Reg :=
+  ⟨[lowerBankFunc g]⟩
+
+def BankRoutes.incomingWithRow {payloads : Nat} (r : BankRoutes payloads)
+    (updates : List (FeedbackUpdate payloads)) := bankIncoming (r.graphWithRow updates)
+
+def BankRoutes.preheaderWithRow {payloads : Nat} (r : BankRoutes payloads)
+    (updates : List (FeedbackUpdate payloads)) := bankPreheader (r.graphWithRow updates)
+
+def BankRoutes.headerWithRow {payloads : Nat} (r : BankRoutes payloads)
+    (updates : List (FeedbackUpdate payloads)) := bankHeader (r.graphWithRow updates)
+
 def BankRoutes.lowerFuncWithRow {payloads : Nat} (r : BankRoutes payloads)
-    (updates : List (FeedbackUpdate payloads)) : Func Reg :=
-  ⟨⟨payloads + 1, 1⟩, 0, [r.preheaderWithRow updates, r.headerWithRow updates, exitBlock]⟩
+    (updates : List (FeedbackUpdate payloads)) := lowerBankFunc (r.graphWithRow updates)
 
 def BankRoutes.lowerWithRow {payloads : Nat} (r : BankRoutes payloads)
     (updates : List (FeedbackUpdate payloads)) : Prog Reg :=
-  ⟨[r.lowerFuncWithRow updates]⟩
+  lowerBank (r.graphWithRow updates)
 
 -- Keep the previous optional-update interface as wrappers of the row emitter.
 abbrev extraSigs {payloads : Nat} (u : Option (FeedbackUpdate payloads)) := rowSigs u.toList
@@ -319,10 +362,13 @@ def headerFrame {payloads : Nat} (fr : Frame Reg) (old : WordTuple (payloads + 1
 
 /-- The suffix writes fresh temporaries. Each right-hand side sees the
 same old bank, even when it reads another update's destination slot. -/
-def rowFrame {payloads : Nat} (old : WordTuple (payloads + 1)) :
-    Nat → Frame Reg → List (FeedbackUpdate payloads) → Frame Reg
+def rowFrameAt {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
+    (old : WordTuple arity) : Nat → Frame Reg → List (FeedbackUpdate fields) → Frame Reg
   | _, fr, [] => fr
-  | pc, fr, u :: rest => rowFrame old (pc + 1) (fr.set (.node pc) (u.eval old)) rest
+  | pc, fr, u :: rest => rowFrameAt slot old (pc + 1) (fr.set (.node pc) (u.evalAt slot old)) rest
+
+abbrev rowFrame {payloads : Nat} (old : WordTuple (payloads + 1)) :=
+  rowFrameAt (payloadPort payloads) old
 
 def headerFrameWithRow {payloads : Nat} (updates : List (FeedbackUpdate payloads))
     (fr : Frame Reg) (old : WordTuple (payloads + 1)) : Frame Reg :=

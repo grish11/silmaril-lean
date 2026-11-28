@@ -159,20 +159,20 @@ theorem evaluate_singletonResult {scope : Source.Scope} (session : Session)
 theorem run_identityAssertion {scope : Source.Scope} (space : Namespace) (context : CallContext)
     (left : Operand scope) (links : List (IdentityOperator × Operand scope)) (rest : List (Instruction scope)) :
     runInstructionsIn space context (.scalar (.assertion (.identityChain left links)) :: rest) =
-      match (assertOperand space (.identityChain left links) true).binding with
+      match (assertOperand space (.identityChain left links) true context.heap).binding with
       | .ok _ => runInstructionsIn space context rest
       | .error error => ⟨space, .error error, [], context.heap, Core.Module.ListHeap.empty⟩ := by
   have settlement : ∀ {α : Type} (result : Except Failure α),
       match ((result.map fun _ => (none : Option (String × Value))).mapError ModuleFailure.ofCall) with
       | .ok value => value = none
       | .error _ => True := by intro α result; cases result <;> trivial
-  simp only [runInstructionsIn, effectWithLists, effect]
-  cases h : (assertOperand space (.identityChain left links) true).binding with
+  simp only [runInstructionsIn, effectWithLists, effect, scalarBinding]
+  cases h : (assertOperand space (.identityChain left links) true context.heap).binding with
   | error => rfl
   | ok binding =>
     have exactBinding := settlement
-      ((evaluateScalar space false (.identityChain left links)).bind (assertTruthAs true))
-    change (match (assertOperand space (.identityChain left links) true).binding with
+      ((evaluateScalar space false (.identityChain left links)).bind (fun value => assertTruthAs true value context.heap))
+    change (match (assertOperand space (.identityChain left links) true context.heap).binding with
       | .ok value => value = none
       | .error _ => True) at exactBinding
     rw [h] at exactBinding

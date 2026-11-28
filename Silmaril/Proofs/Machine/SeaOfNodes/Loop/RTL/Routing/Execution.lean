@@ -67,18 +67,38 @@ theorem bank_incoming_operand (r : BankRoutes payloads) (edge : Incoming) :
       some (1, r.incomingRegisters edge) := by
   cases edge <;> rfl
 
+theorem transfer_bank_from {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) (entry : Block Reg)
+    (s : State Reg) (column : List Reg) (values : WordTuple arity)
+    (func : s.point.func = 0) (reads : s.frame.readAll column = some (words values)) :
+    transfer (lowerBankFrom g entry) s 1 column =
+      .running ⟨⟨0, 1, 0⟩, bindWords arity s.frame values, s.stack, s.mem⟩ := by
+  have target : (lowerBankFrom g entry).block? 0 1 = some (bankHeader g) := rfl
+  have write : s.frame.writeAll (bankHeader g).params (words values) =
+      some (bindWords arity s.frame values) := bindWords_write arity s.frame values
+  simp [transfer, func, reads, target, write]
+
+theorem transfer_bank {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
+    (s : State Reg) (column : List Reg) (values : WordTuple arity)
+    (func : s.point.func = 0) (reads : s.frame.readAll column = some (words values)) :
+    transfer (lowerBank g) s 1 column =
+      .running ⟨⟨0, 1, 0⟩, bindWords arity s.frame values, s.stack, s.mem⟩ :=
+  transfer_bank_from g (bankPreheader g) s column values func reads
+
+theorem step_bank_entry {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
+    (input : WordTuple arity) (fr : Frame Reg) (stk : List (Activation Reg)) (mem : Memory)
+    (agree : ArgsMatch fr input) :
+    step (lowerBank g) ⟨⟨0, 0, 0⟩, fr, stk, mem⟩ =
+      .running ⟨⟨0, 1, 0⟩, bindWords arity fr (g.initial model input), stk, mem⟩ := by
+  have reads := readColumn_eq (arity := arity) (g.phiInputs .entry) input PUnit.unit fr (word_arguments agree)
+  change transfer (lowerBank g) _ 1 (bankIncoming g .entry) = _
+  exact transfer_bank g _ _ _ rfl reads
+
 private theorem step_entry_with (r : BankRoutes payloads) (updates : List (FeedbackUpdate payloads))
     (input : WordTuple (payloads + 1)) (fr : Frame Reg)
     (stk : List (Activation Reg)) (mem : Memory) (agree : ArgsMatch fr input) :
     step (r.lowerWithRow updates) ⟨⟨0, 0, 0⟩, fr, stk, mem⟩ =
-      .running ⟨⟨0, 1, 0⟩, bindBank fr ((r.graphWithRow updates).initial model input), stk, mem⟩ := by
-  have reads := readColumn_eq (arity := payloads + 1) ((r.graphWithRow updates).phiInputs .entry) input PUnit.unit fr (word_arguments agree)
-  change transfer (r.lowerWithRow updates) _ 1 (r.incomingWithRow updates .entry) = _
-  have target : (r.lowerWithRow updates).block? 0 1 = some (r.headerWithRow updates) := rfl
-  have reads : fr.readAll (r.incomingWithRow updates .entry) = some (words (n := payloads + 1) ((r.graphWithRow updates).initial model input)) := reads
-  have write : fr.writeAll (r.headerWithRow updates).params (words (n := payloads + 1) ((r.graphWithRow updates).initial model input)) =
-    some (bindBank fr ((r.graphWithRow updates).initial model input)) := bindWords_write (payloads + 1) fr _
-  simp [transfer, reads, target, write]
+      .running ⟨⟨0, 1, 0⟩, bindBank fr ((r.graphWithRow updates).initial model input), stk, mem⟩ :=
+  step_bank_entry (r.graphWithRow updates) input fr stk mem agree
 
 theorem bank_step_entry (r : BankRoutes payloads) (input : WordTuple (payloads + 1)) (fr : Frame Reg)
     (stk : List (Activation Reg)) (mem : Memory) (agree : ArgsMatch fr input) :
@@ -124,9 +144,6 @@ private theorem feedback_from_reads (r : BankRoutes payloads) (updates : List (F
     step (r.lowerWithRow updates) ⟨⟨0, 1, (r.headerWithRow updates).ops.length⟩, fr, stk, mem⟩ =
       .running ⟨⟨0, 1, 0⟩, bindBank fr nextBank, stk, mem⟩ := by
   have fetch := Prog.fetch_term (p := r.lowerWithRow updates) (f := 0) (l := 1) (b := r.headerWithRow updates) rfl
-  have target : (r.lowerWithRow updates).block? 0 1 = some (r.headerWithRow updates) := rfl
-  have write : fr.writeAll (r.headerWithRow updates).params (words nextBank) =
-    some (bindBank fr nextBank) := bindWords_write (payloads + 1) fr _
   have nonzero := mt (test_zero old).mp taken
   simp only [step, fetch, header_term, test]
   change transfer (r.lowerWithRow updates) _
@@ -134,7 +151,7 @@ private theorem feedback_from_reads (r : BankRoutes payloads) (updates : List (F
     (if testWord old = 0 then [register (r.graphWithRow updates).result.address]
       else r.incomingWithRow updates .backedge) = _
   rw [ite_eq_right nonzero, ite_eq_right nonzero]
-  simp [transfer, target, reads, write]
+  exact transfer_bank (r.graphWithRow updates) _ _ _ rfl reads
 
 theorem bank_step_feedback (r : BankRoutes payloads) (input old : WordTuple (payloads + 1)) (fr : Frame Reg)
     (stk : List (Activation Reg)) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input))

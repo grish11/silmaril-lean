@@ -1,16 +1,50 @@
 module
 
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Defs
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ClosedGuard.Thms
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.NumericArgument.Thms
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Thms
+import Silmaril.Languages.Python.Core.Binary64.Thms
+import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.TextSlice
 
 public section
 namespace Silmaril.Languages.Python.Compile.ModuleEntry.Functions
+
+open Silmaril.Numeric.Ieee754 (F64)
+open Silmaril.Numeric.Ieee754.AdjacentRounding (NearestEven)
+open Silmaril.Numeric.Ieee754.RationalRounding (magnitude)
+open Silmaril.Numeric.Ieee754.Binary64Signs (magnitudeBits)
+
+theorem CallValueTranslation.float64_nearestEven {scope : Source.Scope}
+    {source : Source.Expr} {value : F64.Finite}
+    (checked : CallValueTranslation scope source (.float64 value)) :
+    ∃ negative coefficient exponent, decimalCallLiteral? source = some (negative, coefficient, exponent) ∧
+      value.val.signBit = negative ∧
+      NearestEven magnitude (Core.Binary64.decimalMagnitude coefficient exponent) (magnitudeBits value.val.bits).toNat := by
+  cases checked with
+  | float64 literal =>
+    cases literal with
+    | @rounded negative coefficient exponent shape result =>
+      exact ⟨negative, coefficient, exponent, shape, Core.Binary64.ofDecimal_nearestEven result⟩
+
+theorem lowerArgumentOperand_numeric (scope : Source.Scope) {source : Source.Expr}
+    {result : NumericArgument.Result} (checked : NumericArgument.check source = some result) :
+    lowerArgumentOperand scope source = .ok ⟨result.operand scope, .numeric checked⟩ := by
+  unfold lowerArgumentOperand
+  split <;> rename_i found <;> simp [checked] at found
+  cases found; rfl
 
 theorem Positional.length {scope : Source.Scope} {sources targets}
     (translated : Positional scope sources targets) : targets.length = sources.length :=
   match translated with
   | .nil => rfl
   | .cons _ tail => congrArg Nat.succ (Positional.length tail)
+
+theorem FlatTupleItems.length {scope : Source.Scope} {elements items}
+    (checked : FlatTupleItems scope elements items) : items.length = elements.length :=
+  match checked with
+  | .nil => rfl
+  | .cons _ tail => congrArg Nat.succ (FlatTupleItems.length tail)
 
 theorem CallArguments.length {scope : Source.Scope} {sources targets}
     (translated : CallArguments scope sources targets) : targets.length = sources.length :=
@@ -37,11 +71,29 @@ theorem sequenceLengthTest_tagged {scope : Source.Scope} {source right : Source.
     global_reference reference, operand_complete expected, Except.toOption, bind, Option.bind, scalar, dite_true]
   split <;> simp_all
 
+theorem integerBuiltinTest_ordinal_tagged {scope : Source.Scope} {right : Source.Expr}
+    {comparison : Source.Comparison} {point : UInt32} {operand : Operand scope} {equal : Bool}
+    (reference : GlobalReference scope "ord") (valid : point.toNat < 0x110000)
+    (identified : integerEquality? comparison = some equal)
+    (checked : OperandTranslation scope right operand) (scalar : operand.comparable = true) :
+    (integerBuiltinTest? scope
+      (.assert_ (.comparison (.callWith (.name "ord") [(.positional, .text [point])]) [(comparison, right)]) none)).map
+        Subtype.val = some ⟨.ordinal point valid, reference, operand, equal⟩ := by
+  simp only [integerBuiltinTest?, sequenceLengthTest?, ordinalTest?, callExpression?, global_reference reference,
+    operand_complete checked, Except.toOption, bind, Option.bind, valid, scalar, dite_true]
+  split <;> simp_all
+  split <;> simp_all
+
 theorem listConstructorArguments_complete {arguments : List (Source.ArgumentKind × Source.Expr)}
     {argument : ListConstructorArgument} (checked : ListConstructorArguments arguments argument) :
     (listConstructorArguments? arguments).map Subtype.val = some argument := by
   cases checked <;> simp [listConstructorArguments?]
   all_goals split <;> simp_all
+
+theorem boolCallArgument_positional {scope : Source.Scope} {source : Source.Expr} {operand : Operand scope}
+    (checked : OperandTranslation scope source operand) (scalar : operand.comparable = true) :
+    (boolCallArgument? scope [(.positional, source)]).map Subtype.val = some (some operand) := by
+  simp [boolCallArgument?, operand_complete checked, Except.toOption, scalar]
 
 /-- A checked literal branch contributes the selected actions in order at
 the current lexical child index, ahead of the rest of the module. -/
@@ -53,7 +105,9 @@ theorem lowerPlan_literalIf {tree : Source.ScopeTree} {index : Nat}
     (remaining : lowerPlan tree index rest = .ok ⟨tail, tailTranslation⟩) :
     (lowerPlan tree index (.if_ guard yes no :: rest)).toOption.map Subtype.val =
       some (selected.map .scalar ++ tail) := by
-  simp [lowerPlan, callSite?, binding?, ModuleEntry.statements_complete checked, remaining,
+  simp [lowerPlan, ClosedGuard.ordinaryIf_omitted_none checked, callSite?, binding?,
+    Proofs.Languages.Python.Compile.ModuleEntry.Functions.ordinaryIf_textSliceGuard_none checked,
+    ModuleEntry.statements_complete checked, remaining,
     Except.mapError, Except.toOption]
   rfl
 

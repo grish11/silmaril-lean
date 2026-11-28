@@ -39,11 +39,15 @@ symbolically to the result and requirements.
 | Equality, set operators, tuples, indexing, record selection, set maps, set filters and CHOOSE | Operands at most action, result is their maximum. |
 | IF, CASE and record constructors | Operands up to temporal, result is their maximum. Record sets cap operands at action. |
 | EXCEPT | Base, index arguments and right-hand sides at most action, result is their maximum. Each `@` joins the preceding updated base and its own selector. |
+| Flexible quantifiers `\EE` and `\AA` | Bound names have state level. The body must have constant, state or temporal level. The result has temporal level. The non-action requirement survives substitution of formal arguments. |
 | Rigid quantifiers and anonymous function constructors | Body up to temporal. Domains are at most action and contribute to the result maximum. A temporal quantified body additionally requires domains at most state. |
 
 Named built-ins have explicit positional signatures. Their ceilings and
 weights follow the pinned SANY table, with the additional structural checks
-above. For every signature-only operator in the reachable graph, the caller
+above. For flexible quantifiers, the pinned SANY table sets a temporal
+ceiling on the operand and a fixed temporal result. The non-action condition
+and the bound variable level follow the explicit rule in §17.2. For every
+signature-only operator in the reachable graph, the caller
 must supply an `ExternalSignature` keyed by its exact `BindingId`. It specifies
 a result floor, a maximum for each argument, and whether each argument
 contributes to the maximum. The checker validates the identity and arity of
@@ -102,11 +106,10 @@ bounded-quantifier restriction.
 Operator-valued formals and applications are deferred at the level boundary,
 including named, symbolic and lambda actuals. The level pass has no fallback
 level for these cases. Nested modules, recursive and function-definition units,
-proof steps, named theorems and assumptions, temporal quantifiers, guarantees
+proof steps, named theorems and assumptions, guarantees
 and action composition remain outside the syntax profile. The separate
-[INSTANCE profile](tla-module-instantiation.md) also rejects fairness during
-instance replay. Proof-free statement intake
-supplies only a level annotation. Terms are classified by level without
+[INSTANCE profile](tla-module-instantiation.md) excludes flexible quantifiers and rejects fairness during replay. Proof-free
+statement intake supplies only a level annotation. Terms are classified by level without
 checking value domains or mathematical truth.
 
 ```sh

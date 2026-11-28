@@ -42,12 +42,13 @@ theorem seed_transport (family : StaticDemand.Family Op table imports)
     exact resume outL outR middle equal
 
 theorem lambda_transport (earlier : Dispatch actions table) (binding : Binding Op table imports past fn)
-    (inputsL inputsR : Tuple m.Val imports) (localsL localsR : Locals m.Val past)
+    {pastR : List (Ports (Ty V S))} (capturesR : Wires imports pastR binding.context)
+    (inputsL inputsR : Tuple m.Val imports) (localsL : Locals m.Val past) (localsR : Locals m.Val pastR)
     (resolvedL : binding.resolved earlier.left inputsL localsL)
-    (resolvedR : binding.resolved earlier.right inputsR localsR) :
+    (resolvedR : (binding.withCaptures capturesR).resolved earlier.right inputsR localsR) :
     ∀ i fL fR capsL capsR,
       binding.extendGuard earlier.left inputsL localsL i fL capsL →
-      binding.extendGuard earlier.right inputsR localsR i fR capsR →
+      (binding.withCaptures capturesR).extendGuard earlier.right inputsR localsR i fR capsR →
       CallAgrees actions ((prepend binding.summary table).at i) fL fR capsL capsR := by
   intro i
   refine Fin.cases ?_ (fun j => ?_) i

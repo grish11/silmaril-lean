@@ -178,6 +178,10 @@ private theorem keeps_code {α : Type} (code : Code α) : Preserves (denote code
   | slice operands ih =>
     rw [denote]
     exact keeps_bind ih keeps_slice
+  | compare op left right ihLeft ihRight =>
+    rw [denote]
+    exact keeps_bind ihLeft fun a => keeps_bind ihRight fun b state =>
+      keeps_except _ state
   | append receiver argument ihReceiver ihArgument =>
     rw [denote]
     apply keeps_bind ihReceiver

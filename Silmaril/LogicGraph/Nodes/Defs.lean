@@ -12,6 +12,7 @@ public import Silmaril.LogicGraph.Nodes.Libc.Defs
 public import Silmaril.LogicGraph.Nodes.Logic.Defs
 public import Silmaril.LogicGraph.Nodes.Machine.Defs
 public import Silmaril.LogicGraph.Nodes.Net.Defs
+public import Silmaril.LogicGraph.Nodes.ProofFormats.Defs
 public import Silmaril.LogicGraph.Nodes.SSA.Defs
 public import Silmaril.LogicGraph.Nodes.Servers.Defs
 public import Silmaril.LogicGraph.Nodes.Wasi.Defs

@@ -19,6 +19,13 @@ universe u v w
 
 variable {Data : Type u} {Op : Diamond.Signature.{u, v} Data}
 variable {regs : List (ValueSort Data)} {out : ValueSort Data}
+
+theorem Source.runFrom_mono {n : Nat} {source : Source Op regs out n} (m : Model.{u, v, w} Op)
+    {fuel larger : Nat} {id : Fin n} {bank : Bank (regs := regs) m} {value : sortValue m.value out}
+    (enough : fuel ≤ larger) (returned : source.runFrom m fuel id bank = some value) :
+    source.runFrom m larger id bank = some value :=
+  Proofs.runFrom_mono m enough returned
+
 variable {src : Source Op regs out} {p : Program Op regs out}
 
 theorem Source.check_source (p : Program Op regs out) : p.source.check = some p := rfl

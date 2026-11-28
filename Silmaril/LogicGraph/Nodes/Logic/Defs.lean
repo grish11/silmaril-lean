@@ -1,5 +1,6 @@
 module
 
+public import Silmaril.LogicGraph.Nodes.Logic.Abstraction.Defs
 public import Silmaril.Logic.Algebraic.DependentFamily.Defs
 public import Silmaril.Logic.Algebraic.Initial.Defs
 public import Silmaril.Logic.Algebraic.Initial.Matching.FiniteSorted.Institution.Defs

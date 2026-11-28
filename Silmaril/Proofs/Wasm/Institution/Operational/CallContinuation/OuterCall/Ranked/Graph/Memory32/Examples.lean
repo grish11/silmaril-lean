@@ -1,5 +1,10 @@
 module
 
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.GrowthExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.IndirectExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.LoopExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.RecursiveExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.TableExamples
 import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Run.Thms
 import Silmaril.Wasm.V1.Execution.Properties
 import Silmaril.Wasm.Institution.Operational.MemoryQuery.Native.Thms
@@ -29,13 +34,13 @@ private def writer (traps : Bool) : Function :=
 private def target (traps : Bool) : CallTarget := ⟨⟨0⟩, childAddr, (writer traps).declaration⟩
 private def reader (traps : Bool) : Function :=
   ⟨{ declaration [childAddr] [.int .i32] with params := [.int .i64] }, 1, [i32 2], [.ranked (.call (target traps)), .load 1]⟩
-private def program (traps : Bool) : Program := ⟨[some (writer traps), some (reader traps)]⟩
+private def program (traps : Bool) : Program := { functions := [some (writer traps), some (reader traps)] }
 
 private theorem checked (traps : Bool) : (program traps).checkV1 slot = true := by cases traps <;> rfl
 
 example : (program false).checkV1 ⟨0⟩ = false := rfl
 
-example : (Program.mk [some (writer false), some { reader false with rank := 0 }]).checkV1 slot = false :=
+example : (Program.mk [some (writer false), some { reader false with rank := 0 }] none).checkV1 slot = false :=
   rfl
 
 example : ({ writer false with initial := [Value.int .i64 1, i32 0] } : Function).checkV1 slot = false :=
@@ -264,7 +269,7 @@ private def conditional (traps : Bool) : Function :=
   ⟨{ declaration [childAddr] [.int .i32] with params := [.int .i32] }, 1, [i32 2],
     [.ranked (.numeric (.get ⟨0⟩)), .if_ none [.ranked (.call (target traps))] [], .load 1]⟩
 
-private def ifProgram (traps : Bool) : Program := ⟨[some (writer traps), some (conditional traps)]⟩
+private def ifProgram (traps : Bool) : Program := { functions := [some (writer traps), some (conditional traps)] }
 private def ifBase (traps : Bool) : Store Unit :=
   { memories := [untouched, memory], funcs := [writer traps, conditional traps].map
       (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }
@@ -298,7 +303,7 @@ example : Function.checkV1 { conditional false with
         .ranked (.numeric (.get ⟨0⟩))]
       [.ranked (.numeric (.get ⟨0⟩))]] } slot = true := rfl
 
-example : (Program.mk [some (writer false), some { conditional false with rank := 0 }]).checkV1 slot =
+example : (Program.mk [some (writer false), some { conditional false with rank := 0 }] none).checkV1 slot =
     false := rfl
 
 private def ifInput (condition : BitVec 32) : State :=
@@ -443,7 +448,7 @@ private def blockReader (traps : Bool) : Function :=
       .ranked (.numeric (.get ⟨0⟩))],
       .ranked (.numeric (.bin .i32 .sub)), .load 1]⟩
 
-private def blockProgram (traps : Bool) : Program := ⟨[some (writer traps), some (blockReader traps)]⟩
+private def blockProgram (traps : Bool) : Program := { functions := [some (writer traps), some (blockReader traps)] }
 private def blockBase (traps : Bool) : Store Unit :=
   { memories := [untouched, memory], funcs := [writer traps, blockReader traps].map
       (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }
@@ -456,7 +461,7 @@ private theorem blockLayout (traps : Bool) : Layout (blockProgram traps) (blockB
     rcases a with ⟨_ | _ | n⟩ <;> simp [Program.lookup, blockProgram] at found
     all_goals subst fn; rfl
 
-example : (Program.mk [some (writer false), some { blockReader false with rank := 0 }]).checkV1 slot =
+example : (Program.mk [some (writer false), some { blockReader false with rank := 0 }] none).checkV1 slot =
     false := rfl
 
 -- The body cannot use the enclosing address without producing its own.
@@ -604,31 +609,34 @@ example : ∃ out, Runs (blockProgram true) slot blockInput out ∧
 -- A callee writes before the branch. When the branch is untaken, the arm overwrites those
 -- bytes using the two operands below the condition. Both paths deliver 2
 -- above the saved 4, then subtract and read address 2 + 1.
-private def branchArmSource : List Op :=
-  [.ranked (.call (target false)), .ranked (.numeric (.get ⟨2⟩)), .ranked (.numeric (.get ⟨0⟩)),
-    .ranked (.numeric (.get ⟨1⟩)), .ranked (.brIf ⟨1⟩ [.int .i32]), .store 2]
+private def branchDepth (toFunction : Bool) : LabelIdx := if toFunction then ⟨2⟩ else ⟨1⟩
 
-private def branching : Function :=
+private def branchArmSource (toFunction : Bool) : List Op :=
+  [.ranked (.call (target false)), .ranked (.numeric (.get ⟨2⟩)), .ranked (.numeric (.get ⟨0⟩)),
+    .ranked (.numeric (.get ⟨1⟩)), .ranked (.brIf (branchDepth toFunction) [.int .i32]), .store 2]
+
+private def branching (toFunction : Bool := false) : Function :=
   ⟨{ declaration [childAddr] [.int .i32] with params := [.int .i32, .int .i32, .int .i32] }, 1, [i32 4],
-    [.block (some (.int .i32)) [.ranked (.numeric (.get ⟨2⟩)), .if_ none branchArmSource [],
+    [.block (some (.int .i32)) [.ranked (.numeric (.get ⟨2⟩)), .if_ none (branchArmSource toFunction) [],
       .ranked (.numeric (.get ⟨0⟩)), .ranked (.br ⟨0⟩ [.int .i32])],
       .ranked (.numeric (.bin .i32 .sub)), .load 1]⟩
 
-private def branchProgram : Program := ⟨[some (writer false), some branching]⟩
-private def branchBase : Store Unit :=
-  { memories := [untouched, memory], funcs := [writer false, branching].map
+private def branchProgram (toFunction : Bool := false) : Program := { functions := [some (writer false), some (branching toFunction)] }
+private def branchBase (toFunction : Bool := false) : Store Unit :=
+  { memories := [untouched, memory], funcs := [writer false, branching toFunction].map
       (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }
-private theorem branchChecked : branchProgram.checkV1 slot = true := rfl
-private theorem branchLayout : Layout branchProgram branchBase slot memory where
+private theorem branchChecked (toFunction : Bool := false) : (branchProgram toFunction).checkV1 slot = true := by
+  cases toFunction <;> rfl
+private theorem branchLayout (toFunction : Bool := false) : Layout (branchProgram toFunction) (branchBase toFunction) slot memory where
   memory := rfl
   functions := by
     intro a fn found
     rcases a with ⟨_ | _ | n⟩ <;> simp [Program.lookup, branchProgram] at found
     all_goals subst fn; rfl
 
--- A depth that would name the implicit function label is outside this profile.
+-- Under a single explicit block the function label is depth one.
 example : Function.checkV1 { branching with initial := [], code := [.block (some (.int .i32))
-    [.ranked (.numeric (.get ⟨0⟩)), .ranked (.br ⟨1⟩ [.int .i32])]] } slot = false := rfl
+    [.ranked (.numeric (.get ⟨0⟩)), .ranked (.br ⟨2⟩ [.int .i32])]] } slot = false := rfl
 
 -- Zero still requires a valid depth, arity, and result annotation.
 example : branching.checkRegion [.int .i32, .int .i32] [.int .i32]
@@ -649,23 +657,23 @@ example : branching.checkRegion [.int .i64] []
 
 -- The whole-body guard still validates depths and signatures in skipped code.
 example : Function.checkV1 { branching with initial := [], code := [.block (some (.int .i32))
-    [.ranked (.numeric (.get ⟨0⟩)), .ranked .return_, .ranked (.br ⟨1⟩ [.int .i32])]] } slot = false := rfl
+    [.ranked (.numeric (.get ⟨0⟩)), .ranked .return_, .ranked (.br ⟨2⟩ [.int .i32])]] } slot = false := rfl
 example : Function.checkV1 { branching with initial := [], code := [.block (some (.int .i32))
-    [.ranked (.numeric (.get ⟨0⟩)), .ranked .return_, .ranked (.brIf ⟨0⟩ [.int .i64])]] } slot = false := rfl
+    [.ranked (.numeric (.get ⟨0⟩)), .ranked .return_, .ranked (.brIf ⟨1⟩ [.int .i64])]] } slot = false := rfl
 
 private def branchArgs (condition : BitVec 32) := [i32 2, i32 condition, i32 1]
 private def branchInput (condition : BitVec 32) : State :=
   ⟨before, outside, values (branchArgs condition) ++ [.source (.call ⟨0⟩)]⟩
 private def branchFrame (condition : BitVec 32) := branching.declaration.frame (branchArgs condition)
 
-private def branchWritten := storeWithBytes branchBase slot memory after
+private def branchWritten (toFunction : Bool := false) := storeWithBytes (branchBase toFunction) slot memory after
 private def overwritten : ByteArray := ⟨#[0xaa, 0xbb, 0xcc, 2, 0, 0, 0, 0xdd]⟩
 private def branchOverwritten := storeWithBytes branchBase slot memory overwritten
 
-private def branchArmCode := v1Code branchArmSource
+private def branchArmCode (toFunction : Bool) := v1Code (branchArmSource toFunction)
 private def branchInnerTail : List Wasm.V1.Execution.Admin := [.source ((Op.store 2).v1)]
-private def branchOperands : List Wasm.V1.Execution.Admin :=
-  [.source (.localGet ⟨2⟩), .source (.localGet ⟨0⟩), .source (.localGet ⟨1⟩), .source (.brIf ⟨1⟩)] ++ branchInnerTail
+private def branchOperands (toFunction : Bool) : List Wasm.V1.Execution.Admin :=
+  [.source (.localGet ⟨2⟩), .source (.localGet ⟨0⟩), .source (.localGet ⟨1⟩), .source (.brIf (branchDepth toFunction))] ++ branchInnerTail
 private def branchOuterTail : List Wasm.V1.Execution.Admin := [.source (.localGet ⟨0⟩), .source (.br ⟨0⟩)]
 private def branchPair := [i32 1, i32 2]
 
@@ -696,65 +704,65 @@ private theorem branchArmStep {s s' : Store Unit} {f f' : Frame}
     Step CallFrame.v1NoHost (inBranchArm ⟨s, f, code⟩) (inBranchArm ⟨s', f', code'⟩) :=
   branchBlockStep (.context (.label move 0 []) [] branchOuterTail)
 
-private theorem branchEntry (condition : BitVec 32) :
-    Steps CallFrame.v1NoHost ⟨branchBase, outside, (branchInput condition).code⟩
-      (inBranchArm ⟨branchBase, branchFrame condition, [.source (.call ⟨0⟩)] ++ branchOperands⟩) := by
+private theorem branchEntry (condition : BitVec 32) (toFunction : Bool := false) :
+    Steps CallFrame.v1NoHost ⟨(branchBase toFunction), outside, (branchInput condition).code⟩
+      (inBranchArm ⟨(branchBase toFunction), branchFrame condition, [.source (.call ⟨0⟩)] ++ (branchOperands toFunction)⟩) := by
   apply Relation.ReflTransGen.head
-    (b := ⟨branchBase, outside, values (branchArgs condition) ++ [.invoke parentAddr]⟩)
+    (b := ⟨(branchBase toFunction), outside, values (branchArgs condition) ++ [.invoke parentAddr]⟩)
     (Step.context (.call _ _ ⟨0⟩ parentAddr rfl) (branchArgs condition) [])
   refine Relation.ReflTransGen.head
-    (branchLayout.enter branchChecked (address := parentAddr) (fn := branching) rfl branchLayout.initial_shared
+    ((branchLayout toFunction).enter (branchChecked toFunction) (address := parentAddr) (fn := branching toFunction) rfl (branchLayout toFunction).initial_shared
       (saved := []) (args := branchArgs condition) (tail := []) rfl) ?_
   refine Relation.ReflTransGen.head
     (branchFunctionStep (.pure _ _ (.block (some (.int .i32))
-      [.localGet ⟨2⟩, .if_ none branchArmCode [], .localGet ⟨0⟩, .br ⟨0⟩]))) ?_
+      [.localGet ⟨2⟩, .if_ none (branchArmCode toFunction) [], .localGet ⟨0⟩, .br ⟨0⟩]))) ?_
   refine Relation.ReflTransGen.head
     (branchBlockStep (.context (.localGet _ _ ⟨2⟩ (i32 1) rfl) []
-      ([.source (.if_ none branchArmCode [])] ++ branchOuterTail))) ?_
+      ([.source (.if_ none (branchArmCode toFunction) [])] ++ branchOuterTail))) ?_
   refine Relation.ReflTransGen.head
-    (branchBlockStep (.context (.pure _ _ (.ifNonzero none branchArmCode [] 1 (by decide)))
+    (branchBlockStep (.context (.pure _ _ (.ifNonzero none (branchArmCode toFunction) [] 1 (by decide)))
       [] branchOuterTail)) ?_
-  exact .single (branchBlockStep (.context (.pure _ _ (.block none branchArmCode)) [] branchOuterTail))
+  exact .single (branchBlockStep (.context (.pure _ _ (.block none (branchArmCode toFunction))) [] branchOuterTail))
 
-private theorem branchCall (condition : BitVec 32) :
-    Steps CallFrame.v1NoHost ⟨branchBase, outside, (branchInput condition).code⟩
-      (inBranchArm ⟨branchWritten, branchFrame condition, branchOperands⟩) := by
-  have resolved := (branchEntry condition).tail
-    (branchArmStep (.context (.call _ _ ⟨0⟩ childAddr rfl) [] branchOperands))
+private theorem branchCall (condition : BitVec 32) (toFunction : Bool := false) :
+    Steps CallFrame.v1NoHost ⟨(branchBase toFunction), outside, (branchInput condition).code⟩
+      (inBranchArm ⟨(branchWritten toFunction), branchFrame condition, (branchOperands toFunction)⟩) := by
+  have resolved := (branchEntry condition toFunction).tail
+    (branchArmStep (.context (.call _ _ ⟨0⟩ childAddr rfl) [] (branchOperands toFunction)))
   have entered := resolved.tail
-    (branchArmStep (branchLayout.enter branchChecked (address := childAddr) (fn := writer false)
-      rfl branchLayout.initial_shared (saved := []) (args := []) (tail := branchOperands) rfl))
+    (branchArmStep ((branchLayout toFunction).enter (branchChecked toFunction) (address := childAddr) (fn := writer false)
+      rfl (branchLayout toFunction).initial_shared (saved := []) (args := []) (tail := (branchOperands toFunction)) rfl))
   have write := (MemoryWrite.v1_activation_store_step_iff_at (host := CallFrame.v1NoHost)
     (immediate := immediate 2) (caller := branchFrame condition) (result := none)
-    (callerSaved := []) (callerTail := branchOperands) (saved := []) (tail := [])
-    (show Wasm.V1.Execution.frameMemory branchBase (callee false) = some (slot, memory) from rfl)).mpr
+    (callerSaved := []) (callerTail := (branchOperands toFunction)) (saved := []) (tail := [])
+    (show Wasm.V1.Execution.frameMemory (branchBase toFunction) (callee false) = some (slot, memory) from rfl)).mpr
     ⟨.written after, writing, rfl⟩
   have labelExit := (entered.tail (branchArmStep write)).tail (branchArmStep
-    (.context (.frame (.pure _ _ (.labelDone 0 [] [])) 0 _) [] branchOperands))
+    (.context (.frame (.pure _ _ (.labelDone 0 [] [])) 0 _) [] (branchOperands toFunction)))
   exact labelExit.tail (branchArmStep
-    (.context (.pure _ _ (.frameDone 0 (callee false) [] rfl)) [] branchOperands))
+    (.context (.pure _ _ (.frameDone 0 (callee false) [] rfl)) [] (branchOperands toFunction)))
 
-private def beforeBranch (condition : BitVec 32) : Config Unit :=
-  inBranchArm ⟨branchWritten, branchFrame condition,
-    values (branchPair ++ [i32 condition]) ++ [.source (.brIf ⟨1⟩)] ++ branchInnerTail⟩
+private def beforeBranch (condition : BitVec 32) (toFunction : Bool := false) : Config Unit :=
+  inBranchArm ⟨(branchWritten toFunction), branchFrame condition,
+    values (branchPair ++ [i32 condition]) ++ [.source (.brIf (branchDepth toFunction))] ++ branchInnerTail⟩
 
-private theorem branchPrefix (condition : BitVec 32) :
-    Steps CallFrame.v1NoHost ⟨branchBase, outside, (branchInput condition).code⟩ (beforeBranch condition) := by
-  have address := (branchCall condition).tail (branchArmStep
+private theorem branchPrefix (condition : BitVec 32) (toFunction : Bool := false) :
+    Steps CallFrame.v1NoHost ⟨(branchBase toFunction), outside, (branchInput condition).code⟩ (beforeBranch condition toFunction) := by
+  have address := (branchCall condition toFunction).tail (branchArmStep
     (.context (.localGet _ _ ⟨2⟩ (i32 1) rfl) []
-      ([.source (.localGet ⟨0⟩), .source (.localGet ⟨1⟩), .source (.brIf ⟨1⟩)] ++ branchInnerTail)))
+      ([.source (.localGet ⟨0⟩), .source (.localGet ⟨1⟩), .source (.brIf (branchDepth toFunction))] ++ branchInnerTail)))
   have payload := address.tail (branchArmStep
     (.context (.localGet _ _ ⟨0⟩ (i32 2) rfl) [i32 1]
-      ([.source (.localGet ⟨1⟩), .source (.brIf ⟨1⟩)] ++ branchInnerTail)))
+      ([.source (.localGet ⟨1⟩), .source (.brIf (branchDepth toFunction))] ++ branchInnerTail)))
   exact payload.tail (branchArmStep
-    (.context (.localGet _ _ ⟨1⟩ (i32 condition) rfl) branchPair ([.source (.brIf ⟨1⟩)] ++ branchInnerTail)))
+    (.context (.localGet _ _ ⟨1⟩ (i32 condition) rfl) branchPair ([.source (.brIf (branchDepth toFunction))] ++ branchInnerTail)))
 
-private theorem branchReadback {condition : BitVec 32} {dst : Config Unit}
-    (path : Steps CallFrame.v1NoHost ⟨branchBase, outside, (branchInput condition).code⟩ dst) :
-    ∃ out, Runs branchProgram slot (branchInput condition) out ∧ Ready branchProgram slot 2 before.size out ∧
-      dst = render branchBase slot memory out :=
-  (v1_call_run_iff (root := parentAddr) (fn := branching) (index := ⟨0⟩)
-    (args := branchArgs condition) (caller := outside) branchChecked branchLayout rfl rfl).mp path
+private theorem branchReadback (toFunction : Bool) {condition : BitVec 32} {dst : Config Unit}
+    (path : Steps CallFrame.v1NoHost ⟨(branchBase toFunction), outside, (branchInput condition).code⟩ dst) :
+    ∃ out, Runs (branchProgram toFunction) slot (branchInput condition) out ∧ Ready (branchProgram toFunction) slot 2 before.size out ∧
+      dst = render (branchBase toFunction) slot memory out :=
+  (v1_call_run_iff (root := parentAddr) (fn := branching toFunction) (index := ⟨0⟩)
+    (args := branchArgs condition) (caller := outside) (branchChecked toFunction) (branchLayout toFunction) rfl rfl).mp path
 
 private def selectedBranch : Config Unit :=
   inBranchArm ⟨branchWritten, branchFrame 1, values branchPair ++ [.source (.br ⟨1⟩)] ++ branchInnerTail⟩
@@ -783,7 +791,7 @@ example : ∃ src selected lowered delivered, Runs branchProgram slot (branchInp
     beforeBranch 1 = render branchBase slot memory src ∧ selectedBranch = render branchBase slot memory selected ∧
     loweredBranch = render branchBase slot memory lowered ∧
     deliveredBranch 1 branchWritten = render branchBase slot memory delivered := by
-  obtain ⟨src, reaches, ready, eq⟩ := branchReadback (branchPrefix 1)
+  obtain ⟨src, reaches, ready, eq⟩ := branchReadback false (branchPrefix 1)
   obtain ⟨selected, select, selReady, selEq⟩ := (v1_step_iff branchChecked branchLayout ready).mp (eq ▸ selectBranch)
   obtain ⟨lowered, lower, lowReady, lowEq⟩ := (v1_step_iff branchChecked branchLayout selReady).mp (selEq ▸ lowerBranch)
   obtain ⟨delivered, deliver, _, endEq⟩ := (v1_step_iff branchChecked branchLayout lowReady).mp (lowEq ▸ deliverBranch)
@@ -791,7 +799,7 @@ example : ∃ src selected lowered delivered, Runs branchProgram slot (branchInp
 
 example : ∃ src next, Runs branchProgram slot (branchInput 0) src ∧ Edge branchProgram slot src next ∧
     beforeBranch 0 = render branchBase slot memory src ∧ fallthroughBranch = render branchBase slot memory next := by
-  obtain ⟨src, reaches, ready, eq⟩ := branchReadback (branchPrefix 0)
+  obtain ⟨src, reaches, ready, eq⟩ := branchReadback false (branchPrefix 0)
   obtain ⟨next, step, _, nextEq⟩ := (v1_step_iff branchChecked branchLayout ready).mp (eq ▸ skipBranch)
   exact ⟨src, next, reaches, step, eq, nextEq⟩
 
@@ -814,7 +822,7 @@ example : ∃ out, Runs branchProgram slot (branchInput 1) out ∧
     (show Wasm.V1.Execution.frameMemory branchWritten (branchFrame 1) = some (slot, updated) from rfl)).mpr
     ⟨.value 0x11223344, MemoryQuery.fact_at (.load _ _ (by decide)), rfl⟩
   have delivered := (((branchPrefix 1).tail selectBranch).tail lowerBranch).tail deliverBranch
-  obtain ⟨out, run, _, eq⟩ := branchReadback (delivered.trans (branchFinish load))
+  obtain ⟨out, run, _, eq⟩ := branchReadback false (delivered.trans (branchFinish load))
   exact ⟨out, run, eq⟩
 
 example : ∃ out, Runs branchProgram slot (branchInput 0) out ∧
@@ -833,7 +841,78 @@ example : ∃ out, Runs branchProgram slot (branchInput 0) out ∧
     (show Wasm.V1.Execution.frameMemory branchOverwritten (branchFrame 0) =
       some (slot, { memory with data := overwritten }) from rfl)).mpr
     ⟨.value 2, MemoryQuery.fact_at (.load _ _ (by decide)), rfl⟩
-  obtain ⟨out, run, _, eq⟩ := branchReadback (delivered.trans (branchFinish load))
+  obtain ⟨out, run, _, eq⟩ := branchReadback false (delivered.trans (branchFinish load))
   exact ⟨out, run, eq⟩
+
+example : Function.checkV1 { branching with
+    initial := [i32 2]
+    code := [.ranked (.br ⟨0⟩ [.int .i32])] } slot = true := rfl
+
+example : Function.checkV1 { writer false with
+    initial := [i32 2]
+    code := [.ranked (.br ⟨0⟩ [])] } slot = true := rfl
+
+example : Function.checkV1 { branching with
+    initial := [Value.int .i64 2]
+    code := [.ranked (.br ⟨0⟩ [.int .i32])] } slot = false := rfl
+
+example : Function.checkV1 { branching with
+    initial := [i32 2]
+    code := [.ranked (.br ⟨0⟩ [])] } slot = false := rfl
+
+private def functionSelected : Config Unit :=
+  inBranchArm ⟨branchWritten true, branchFrame 1, values branchPair ++ [.source (.br ⟨2⟩)] ++ branchInnerTail⟩
+
+private def functionLowered : Config Unit :=
+  inBranchBlock ⟨branchWritten true, branchFrame 1, values branchPair ++ [.source (.br ⟨1⟩)] ++ branchOuterTail⟩
+
+private def functionPending : Config Unit :=
+  inBranchFunction ⟨branchWritten true, branchFrame 1, values branchPair ++ [.source (.br ⟨0⟩)]⟩
+
+private def functionDelivered : Config Unit :=
+  ⟨branchWritten true, outside, [.frame 1 (branchFrame 1) (values [i32 2])]⟩
+
+private def functionDone : Config Unit :=
+  ⟨branchWritten true, outside, values [i32 2]⟩
+
+private theorem selectFunction : Step CallFrame.v1NoHost (beforeBranch 1 true) functionSelected :=
+  branchArmStep (.context (.pure _ _ (.brIfNonzero ⟨2⟩ 1 (by decide))) branchPair branchInnerTail)
+
+private theorem lowerArmForFunction : Step CallFrame.v1NoHost functionSelected functionLowered :=
+  branchBlockStep (.context (.pure _ _ (.labelBranchOuter 0 [] branchPair branchInnerTail ⟨2⟩ (by decide)))
+    [] branchOuterTail)
+
+private theorem lowerBlockForFunction : Step CallFrame.v1NoHost functionLowered functionPending :=
+  branchFunctionStep (.pure _ _ (.labelBranchOuter 1 [] branchPair branchOuterTail ⟨1⟩ (by decide)))
+
+private theorem exitFunction : Step CallFrame.v1NoHost functionPending functionDelivered ∧
+    Step CallFrame.v1NoHost functionDelivered functionDone :=
+  v1_function_branch_exit (saved := []) (extra := [i32 4, i32 1]) (payload := [i32 2])
+    (results := (branching true).declaration.results) (bodyTail := blockTail) (callerTail := []) rfl
+
+-- The depth-two branch crosses the if arm and block before the implicit label
+-- delivers 2. The inner store, outer local read, and function's subtract/load
+-- are skipped. The first callee's write remains visible in all five successors.
+example : ∃ start selected armExit blockExit delivered done,
+    Runs (branchProgram true) slot (branchInput 1) start ∧
+    Edge (branchProgram true) slot start selected ∧ Edge (branchProgram true) slot selected armExit ∧
+    Edge (branchProgram true) slot armExit blockExit ∧ Edge (branchProgram true) slot blockExit delivered ∧
+    Edge (branchProgram true) slot delivered done ∧
+    beforeBranch 1 true = render (branchBase true) slot memory start ∧
+    functionSelected = render (branchBase true) slot memory selected ∧
+    functionLowered = render (branchBase true) slot memory armExit ∧
+    functionPending = render (branchBase true) slot memory blockExit ∧
+    functionDelivered = render (branchBase true) slot memory delivered ∧
+    functionDone = render (branchBase true) slot memory done := by
+  have step := fun {src} (ready : Ready (branchProgram true) slot 2 before.size src) {dst} =>
+    (v1_step_iff (branchChecked true) (branchLayout true) (dst := dst) ready).mp
+  obtain ⟨start, reaches, ready, eq⟩ := branchReadback true (branchPrefix 1 true)
+  obtain ⟨selected, select, selReady, selEq⟩ := step ready (eq ▸ selectFunction)
+  obtain ⟨armExit, lowerArm, armReady, armEq⟩ := step selReady (selEq ▸ lowerArmForFunction)
+  obtain ⟨blockExit, lowerBlock, blockReady, blockEq⟩ := step armReady (armEq ▸ lowerBlockForFunction)
+  obtain ⟨delivered, deliver, deliveredReady, deliveredEq⟩ := step blockReady (blockEq ▸ exitFunction.1)
+  obtain ⟨done, complete, _, doneEq⟩ := step deliveredReady (deliveredEq ▸ exitFunction.2)
+  exact ⟨start, selected, armExit, blockExit, delivered, done, reaches, select, lowerArm, lowerBlock, deliver,
+    complete, eq, selEq, armEq, blockEq, deliveredEq, doneEq⟩
 
 end Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32

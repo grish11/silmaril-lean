@@ -4,6 +4,7 @@ public import Silmaril.SSA.Isotope.LambdaSSA.Semantics.ITree.Typed.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Packing.Categorical.Singleton.Defs
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Semantics.ITree.TypedRegion
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Semantics.ITree.TypedTerm
+import Silmaril.SSA.Isotope.LambdaSSA.Semantics.Erasure.Defs
 
 /-! # Singleton coordinates of exact categorical ITree denotation -/
 
@@ -42,6 +43,18 @@ attribute [local instance] categoricalInstructions
 set_option backward.isDefEq.respectTransparency false
 set_option backward.isDefEq.respectTransparency.types false
 
+omit [HasTy Φ (Ty κ)] [HasEff Φ Bool] [InstructionModel Φ (Ty κ) Bool TM] in
+private theorem term_erasure_tree (env : Env (Sigma V)) (t : Tm Φ) :
+    Erasure.term (m := TM) diverge raw env t = term raw env t := by
+  induction t generalizing env <;> simp [Erasure.term, term, *]
+  all_goals rfl
+
+omit [HasTy Φ (Ty κ)] [HasEff Φ Bool] [InstructionModel Φ (Ty κ) Bool TM] in
+private theorem region_erasure_tree (env : Env (Sigma V)) (r : Region Φ) :
+    Erasure.region (m := TM) diverge diverge raw env r = region raw env r := by
+  induction r generalizing env <;> simp [Erasure.region, region, term_erasure_tree, *]
+  all_goals rfl
+
 private theorem encodeSingleton (A : Ty κ) (x : Categorical.labelObj T [A]) :
     encodeCategoricalLabel [A] x =
       (0, encodeValue V A (Categorical.singletonLabelPayload T A x)) := by
@@ -74,8 +87,9 @@ theorem singletonDenote_tree
   have empty : EncodesEnv (Γ := []) PUnit.unit env := by
     intro i D h
     simp [At] at h
-  have agree := regionDenotes_tree raw compat (Categorical.denoteRegion_spec J T hr)
+  have agree := regionDenotes_erased raw diverge diverge compat (Categorical.denoteRegion_spec J T hr)
     (PUnit.unit, a) (extend env (encodeValue V A a)) (encodesEnv_extend empty a)
+  rw [region_erasure_tree] at agree
   unfold Categorical.denoteSingletonRegion
   simp only [Kleisli.Type.comp_of_eq_kleisliRight, Bind.kleisliRight, mapTree_of, bind_assoc, pure_bind]
   have input : (λ_ ((T).obj A)).inv a = (PUnit.unit, a) := rfl

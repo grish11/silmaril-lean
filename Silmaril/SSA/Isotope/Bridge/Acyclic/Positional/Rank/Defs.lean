@@ -17,9 +17,13 @@ def rounds (targets : Fin n → List (Fin n)) : Nat → Vector (Option Nat) n
     Vector.ofFn fun i => (previous.get i).orElse fun _ =>
       if (targets i).all (fun j => (previous.get j).isSome) then some k else none
 
+/-- Check that all entry targets have ranks by round `n`. -/
+def checkFrom (targets : Fin n → List (Fin n)) (entry : List (Fin n)) : Bool :=
+  let ranks := rounds targets n
+  entry.all fun i => (ranks.get i).isSome
+
 /-- The whole table must have ranks by round `n`. -/
 def check (targets : Fin n → List (Fin n)) : Bool :=
-  let ranks := rounds targets n
-  (List.finRange n).all fun i => (ranks.get i).isSome
+  checkFrom targets (List.finRange n)
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Rank

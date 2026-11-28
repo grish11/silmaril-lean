@@ -43,6 +43,16 @@ theorem returns_typed (r : Region Φ Γ L) (M : Model.{u,v,w,x} Φ Γ) (s : M.ra
     ReturnsTyped M.atomType (denote r M s) :=
   Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.returns_typed r M s
 
+/-- For a common source, comparison on exactly typed continuation inputs
+suffices for directed label substitution. -/
+theorem lsubst_mono_typed {Γ K : List (Ty κ)} (r : Region Φ Γ L)
+    (k h : (i : Fin L.length) → Region Φ (L.get i :: Γ) K)
+    (M : Model.{u,v,w,x} Φ Γ) (s : M.raw.σ)
+    (next : ∀ i {a} (ha : ValueTyped M.atomType a (L.get i)) t,
+      denote (k i) (M.extend ha) t ≤ denote (h i) (M.extend ha) t) :
+    denote (.lsubst r k) M s ≤ denote (.lsubst r h) M s :=
+  Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.lsubst_mono_typed r k h M s next
+
 /-- The installed variable product η generator preserves the full lifted
 behaviour, including final states, faults and may-divergence. -/
 theorem product_eta {r t : LambdaSSA.Region Φ} (h : LambdaSSA.Region.ProductEta.Step Γ r t L)

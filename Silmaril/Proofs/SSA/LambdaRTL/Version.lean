@@ -18,6 +18,20 @@ universe v w
 
 variable {V L : Type w} {F : Type v} {M : Type w → Type w} {α : Type w}
 
+private theorem val_mem_fv {V : Type w} [DecidableEq V] (a : Val V) (x : V) :
+    x ∈ a.fvList ↔ x ∈ a.fv := by
+  induction a <;> simp [Val.fvList, Val.fv, *]
+
+private theorem op_mem_fv {V : Type w} {F : Type v} [DecidableEq V] (a : Op V F) (x : V) :
+    x ∈ a.fvList ↔ x ∈ a.fv := by
+  cases a <;> simp [Op.fvList, Op.fv, val_mem_fv]
+
+theorem mem_fvList_iff {V K : Type w} {F : Type v} [DecidableEq V]
+    (r : Silmaril.SSA.LambdaRTL.Region V K F) (x : V) : x ∈ r.fvList ↔ x ∈ r.fv := by
+  induction r <;>
+    simp [Silmaril.SSA.LambdaRTL.Region.fvList, Silmaril.SSA.LambdaRTL.Region.fv, val_mem_fv,
+      op_mem_fv, *, and_assoc, and_comm]
+
 /-! ## Bookkeeping -/
 
 section Book

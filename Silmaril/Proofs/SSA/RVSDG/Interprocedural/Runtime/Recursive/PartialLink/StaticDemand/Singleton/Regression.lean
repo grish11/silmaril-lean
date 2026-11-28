@@ -131,12 +131,12 @@ private def args (count payload spare : Nat) : Tuple machine.Val fn.args :=
 
 private theorem ready (cap : Nat) : family.Ready (one cap) := by
   refine ⟨rfl, ?_⟩
-  intro params
-  refine ⟨?_, trivial⟩
-  intro locals i
+  intro params locals result
+  refine ⟨?_, fun _ _ _ => trivial⟩
+  intro i
   refine Fin.cases ?_ (fun _ => ?_) i
-  · trivial
-  · exact ⟨⟨rfl, rfl⟩, trivial⟩
+  · exact fun _ => trivial
+  · exact ⟨⟨rfl, rfl⟩, fun _ _ => trivial⟩
 
 private theorem agreed (cap n : Nat) :
     family.AgreesOnInputs requested (one cap) (one cap) (args n 41 4) (args n 41 40) := by

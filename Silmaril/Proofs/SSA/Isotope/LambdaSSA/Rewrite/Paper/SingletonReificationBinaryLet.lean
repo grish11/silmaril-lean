@@ -185,11 +185,15 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
   (M : TypeModel τ V) [InstructionModel J M Φ] [RegionTypingCoherent (Φ := Φ) J M]
 
 set_option backward.isDefEq.respectTransparency false in
-private theorem denote_applyPackedPair (hp : ValueBranches [Silmaril.product X (Silmaril.product A B)] p [D]) :
-    denoteRegion J M (applyPackedPair_typed hp).hasType ≫ J.map (singletonLabelPayload M D) =
-      J.map ((ctxPairIso M [X] A B).inv ≫ ((λ_ (M.obj X)).hom ▷
+omit [RegionTypingCoherent (Φ := Φ) J M] in
+private theorem applyPackedPair_selected (hp : ValueBranches [Silmaril.product X (Silmaril.product A B)] p [D])
+    {g : J.obj (ctxObj M [Silmaril.product X (Silmaril.product A B)]) ⟶ J.obj (labelObj M [D])}
+    (dg : RegionDenotes J M hp.hasType g) :
+    RegionDenotes J M (applyPackedPair_typed hp).hasType
+      (J.map (((ctxPairIso M [X] A B).inv ≫ ((λ_ (M.obj X)).hom ▷
         (M.obj A ⊗ M.obj B)) ≫ (M.obj X ◁ (M.productIso A B).inv) ≫
-          (M.productIso X (Silmaril.product A B)).inv) ≫ denoteSingletonRegion J M hp.hasType := by
+          (M.productIso X (Silmaril.product A B)).inv) ≫
+        (λ_ (M.obj (Silmaril.product X (Silmaril.product A B)))).inv) ≫ g) := by
   let P := Silmaril.product A B
   let T := Silmaril.product X P
   let pack : ctxObj M [B, A, X] ⟶ M.obj T :=
@@ -242,10 +246,36 @@ private theorem denote_applyPackedPair (hp : ValueBranches [Silmaril.product X (
         rw [← CartesianMonoidalCategory.leftUnitor_hom, Category.assoc, Iso.inv_hom_id, Category.comp_id]
       simpa only [hk] using d
     | succ i => simp [At] at hi
-  obtain ⟨ht, dt⟩ := regionDenotes_subst J M (denoteRegion_spec J M hp.hasType) hσ
-  rw [← dt.eq_denote J M]
-  simp only [denoteSingletonRegion, k, pack, Category.assoc, J.map_comp]
-  rfl
+  obtain ⟨_, dt⟩ := regionDenotes_subst J M dg hσ
+  exact dt
+
+set_option backward.isDefEq.respectTransparency false in
+omit [RegionTypingCoherent (Φ := Φ) J M] in
+theorem literal_let₂_selected (ha : Tm.HasType [X] a (Silmaril.product A B))
+    (hp : ValueBranches [Silmaril.product X (Silmaril.product A B)] p [D])
+    {f : J.obj (ctxObj M [X]) ⟶ J.obj (M.obj (Silmaril.product A B))}
+    {g : J.obj (ctxObj M [Silmaril.product X (Silmaril.product A B)]) ⟶ J.obj (labelObj M [D])}
+    (df : Denotes J M ha f) (dg : RegionDenotes J M hp.hasType g) :
+    RegionDenotes J M (.let₂ ha (applyPackedPair_typed hp).hasType)
+      (extend J f ≫ J.map ((λ_ (M.obj X)).hom ▷ M.obj (Silmaril.product A B)) ≫
+        J.map (M.productIso X (Silmaril.product A B)).inv ≫
+        J.map (λ_ (M.obj (Silmaril.product X (Silmaril.product A B)))).inv ≫ g) := by
+  have d := RegionDenotes.let₂ df (applyPackedPair_selected J M hp dg)
+  simp only [Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind, Category.assoc,
+    ← J.map_comp_assoc, Iso.hom_inv_id_assoc, MonoidalCategory.id_tensorHom] at d
+  simp only [ctxObj, MonoidalCategory.whisker_exchange_assoc ((λ_ (M.obj X)).hom)
+    (M.productIso A B).hom, Category.id_comp, ← MonoidalCategory.whiskerLeft_comp_assoc,
+    Iso.hom_inv_id, MonoidalCategory.whiskerLeft_id] at d
+  simpa only [J.map_comp_assoc] using d
+
+set_option backward.isDefEq.respectTransparency false in
+private theorem denote_applyPackedPair (hp : ValueBranches [Silmaril.product X (Silmaril.product A B)] p [D]) :
+    denoteRegion J M (applyPackedPair_typed hp).hasType ≫ J.map (singletonLabelPayload M D) =
+      J.map ((ctxPairIso M [X] A B).inv ≫ ((λ_ (M.obj X)).hom ▷
+        (M.obj A ⊗ M.obj B)) ≫ (M.obj X ◁ (M.productIso A B).inv) ≫
+          (M.productIso X (Silmaril.product A B)).inv) ≫ denoteSingletonRegion J M hp.hasType := by
+  rw [← (applyPackedPair_selected J M hp (denoteRegion_spec J M hp.hasType)).eq_denote J M]
+  simp only [denoteSingletonRegion, Category.assoc, J.map_comp_assoc]
 
 variable [FreydCategory.CentralUnit J]
 

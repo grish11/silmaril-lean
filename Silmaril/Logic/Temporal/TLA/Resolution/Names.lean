@@ -109,7 +109,8 @@ inductive BindingId where
   deriving DecidableEq, Repr
 
 inductive BindingKind where
-  | builtin | constant | variable | operator | formal | rigid | instanceNamespace | oldValue
+  | builtin | constant | variable | operator | namedFunction | formal | rigid | flexible
+  | instanceNamespace | oldValue
   deriving DecidableEq, Repr
 
 structure Binding where
@@ -175,7 +176,7 @@ inductive Unsupported where
   | assumption | theoremDecl | proofDirective | proofReference
   | qualifiedReference | labeledExpression | actionOrTemporal
   | operatorSubstitution | instanceParameter | instanceTheorem | letInstance
-  | instanceSignature
+  | instanceSignature | selectionScope
   deriving DecidableEq, Repr
 
 inductive DiagnosticKind where

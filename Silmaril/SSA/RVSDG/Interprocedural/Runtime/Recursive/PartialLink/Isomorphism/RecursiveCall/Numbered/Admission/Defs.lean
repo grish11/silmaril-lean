@@ -31,6 +31,10 @@ def ordinaryPort : Ty V S → Bool
 
 abbrev ordinaryPorts (ports : Ports (Ty V S)) : Bool := ports.all ordinaryPort
 
+/-- Membership before admitting any callable bindings. -/
+abbrev OrdinaryIn (m : Machine.{u, v, w} Op) : Family m :=
+  fun {port} _ => ordinaryPort port = true
+
 /-- A conservative primitive interface. The runtime may read callables,
 but each successful primitive output consists entirely of ordinary ports. -/
 def OrdinaryOutputs (Op : Dialect.{u, v} (ValueSort V S) S) : Prop :=
@@ -46,6 +50,17 @@ structure Group (m : Machine.{u, v, w} Op) (members : List (Function V S)) where
 def Group.ref {members : List (Function V S)} (group : Group m members)
     (slot : Fin members.length) : m.Val members[slot].port :=
   .member group.values group.definitions slot
+
+/-- Related members share the ordered group signatures and capture types. -/
+abbrev GroupKey (V S : Type u) := List (Function V S) × Ports (Ty V S)
+
+def Group.key {members : List (Function V S)} (group : Group m members) : GroupKey V S :=
+  (members, group.context)
+
+/-- Extend a checked family with the actual member values of one group. -/
+inductive WithGroup (earlier : Family m) {members : List (Function V S)} (group : Group m members) : Family m where
+  | inherited {port : Ty V S} {value : m.Val port} (known : earlier value) : WithGroup earlier group value
+  | member (slot : Fin members.length) : WithGroup earlier group (group.ref slot)
 
 inductive Group.In {members : List (Function V S)} (group : Group m members) : Family m where
   | ordinary {port : Ty V S} (value : m.Val port) (plain : ordinaryPort port = true) : Group.In group value
@@ -135,6 +150,25 @@ def outerProfile (code : OpcodeCode (Instruction Op)) {sigs : List (Ports (Ty V 
     (body : Graph Op args [] sigs outs) : Multiset (LabelCode V S code.Key) :=
   Multiset.ofList (outerLabels code body)
 
+/-- Every fixed member slot contributes the multiset of typed outer labels
+of its definition. Slot order is significant, and vertex numbering is forgotten. -/
+abbrev GroupProfile (V S : Type u) (Key : Type v) :=
+  GroupKey V S × List (Multiset (LabelCode V S Key))
+
+def definitionProfiles (code : OpcodeCode (Instruction Op)) {context : Ports (Ty V S)}
+    {members : List (Function V S)} (table : MemberTable Op context members) :
+    List (Multiset (LabelCode V S code.Key)) :=
+  List.ofFn fun slot => outerProfile code (table slot).body
+
+def Group.profile (code : OpcodeCode (Instruction Op)) {members : List (Function V S)}
+    (group : Group m members) : GroupProfile V S code.Key :=
+  (group.key, definitionProfiles code group.definitions)
+
+def memberProfile (code : OpcodeCode (Instruction Op)) {port : Ty V S} : m.Val port → Option (GroupProfile V S code.Key)
+  | .member (members := members) (context := context) _ table _ =>
+    some ((members, context), definitionProfiles code table)
+  | _ => none
+
 /-- Observable projections of typed data and state. An omitted projection
 leaves that value inconclusive. Equal runtime values always have equal codes. -/
 structure CaptureCode (m : Machine.{u, v, w} Op) where
@@ -214,6 +248,49 @@ def lambda [DecidableEq (Ty V S)] (keys : OpcodeCode (Instruction Op)) [Decidabl
 
 end ExactValueCheck
 
+/-- Optional exact evidence on the actual groups returned by linking. -/
+abbrev ExactGroupCheck (m : Machine.{u, v, w} Op) :=
+  {members : List (Function V S)} → (left right : Group m members) → Option (PLift (left = right))
+
+namespace ExactGroupCheck
+
+/-- A stored member definition includes its capture origins as well as its
+numbered body. Both are compared inside the original scopes. -/
+def definition [DecidableEq (Ty V S)] (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
+    {imports : Ports (Ty V S)} {past : List (Ports (Ty V S))} {fn : Function V S}
+    (left right : Lambda Op imports past fn) : Option (PLift (left = right)) := by
+  obtain ⟨contextL, capturesL, sigsL, bodyL⟩ := left
+  obtain ⟨contextR, capturesR, sigsR, bodyR⟩ := right
+  letI : DecidableEq (Ports (Ty V S)) := inferInstance
+  letI : DecidableEq (List (Ports (Ty V S))) := inferInstance
+  refine if context : contextL = contextR then ?_ else none
+  subst contextR
+  refine if sigs : sigsL = sigsR then ?_ else none
+  subst sigsR
+  letI := NestedTheta.Equality.decideGraph keys bodyL bodyR
+  exact if wiring : capturesL.addresses = capturesR.addresses then
+    if body : bodyL = bodyR then
+      some ⟨by rw [NestedTheta.Equality.addresses_injective _ _ wiring, body]⟩
+    else none
+  else none
+
+/-- Exact group comparison with an optional exact-value checker for outer
+captures. Every declared slot is checked, including slots absent from exports. -/
+def ofCaptures [DecidableEq (Ty V S)] (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
+    (captures : ExactValueCheck m) : ExactGroupCheck m := by
+  intro members left right
+  obtain ⟨contextL, valuesL, tableL⟩ := left
+  obtain ⟨contextR, valuesR, tableR⟩ := right
+  letI : DecidableEq (Ports (Ty V S)) := inferInstance
+  refine if context : contextL = contextR then ?_ else none
+  subst contextR
+  exact if slots : ∀ i, (definition keys (tableL i) (tableR i)).isSome = true then
+    (ExactValueCheck.tuple captures valuesL valuesR).map fun equal =>
+      ⟨by rw [equal.down, funext (fun i => ((definition keys (tableL i) (tableR i)).get (slots i)).down)]⟩
+  else none
+
+end ExactGroupCheck
+
 abbrev LambdaSummary (V S : Type u) (Key : Type v) (Capture : Type w) :=
   Ports (Ty V S) × Ports (Ty V S) × Ports (Ty V S) × List (Option (Nat ⊕ Capture)) × Multiset (LabelCode V S Key)
 
@@ -265,11 +342,58 @@ structure LambdaKeys (V S : Type u) (Key : Type v) (Capture : Type w) where
   left : List (LambdaKey V S Key Capture)
   right : List (LambdaKey V S Key Capture)
 
-/-- A checked finite prefix, indexed by the encoder used throughout its
-λ keys. Fixed φ members do not have λ keys. -/
+structure DispatchKeys (V S : Type u) (Key : Type v) (Capture : Type w) extends LambdaKeys V S Key Capture where
+  groupsL : List (GroupProfile V S Key)
+  groupsR : List (GroupProfile V S Key)
+
+def DispatchKeys.empty {Key : Type v} {Capture : Type w} : DispatchKeys V S Key Capture :=
+  ⟨⟨[], []⟩, [], []⟩
+
+def DispatchKeys.seed {Key : Type v} {Capture : Type w} (left right : GroupProfile V S Key) :
+    DispatchKeys V S Key Capture :=
+  ⟨⟨[], []⟩, [left], [right]⟩
+
+def DispatchKeys.addLambda {Key : Type v} {Capture : Type w} (prior : DispatchKeys V S Key Capture)
+    (left right : LambdaKey V S Key Capture) : DispatchKeys V S Key Capture :=
+  { prior with left := left :: prior.left, right := right :: prior.right }
+
+def DispatchKeys.addGroup {Key : Type v} {Capture : Type w} (prior : DispatchKeys V S Key Capture)
+    (left right : GroupProfile V S Key) : DispatchKeys V S Key Capture :=
+  { prior with groupsL := left :: prior.groupsL, groupsR := right :: prior.groupsR }
+
+def DispatchKeys.append {Key : Type v} {Capture : Type w}
+    (first second : DispatchKeys V S Key Capture) : DispatchKeys V S Key Capture :=
+  ⟨⟨first.left ++ second.left, first.right ++ second.right⟩,
+    first.groupsL ++ second.groupsL, first.groupsR ++ second.groupsR⟩
+
+/-- Separate the left dispatch of one family from the right dispatch of
+another. A union requires this check in both directions. -/
+def DispatchKeys.Separated {Key : Type v} {Capture : Type w}
+    (first second : DispatchKeys V S Key Capture) : Prop :=
+  (∀ key ∈ first.left, key.Fresh second.right) ∧
+  (∀ group ∈ first.groupsL, group ∉ second.groupsR)
+
+def decideFunction [DecidableEq (Ty V S)] (a b : Function V S) : Decidable (a = b) :=
+  decidable_of_iff (a.args = b.args ∧ a.results = b.results) (by cases a; cases b; simp)
+
+def DispatchKeys.decideSeparated [DecidableEq (Ty V S)] {Key : Type v} [DecidableEq Key]
+    {Capture : Type w} [DecidableEq Capture] (first second : DispatchKeys V S Key Capture) :
+    Decidable (first.Separated second) :=
+  letI : DecidableEq (Function V S) := decideFunction
+  letI : DecidableEq (GroupKey V S) := inferInstance
+  letI : DecidableEq (LabelCode V S Key) := inferInstance
+  letI : DecidableEq (List (Multiset (LabelCode V S Key))) := inferInstance
+  letI : DecidableEq (GroupProfile V S Key) := inferInstance
+  inferInstanceAs (Decidable ((∀ key ∈ first.left, key.Fresh second.right) ∧
+    (∀ group ∈ first.groupsL, group ∉ second.groupsR)))
+
+/-- Membership in either of two independently checked dispatch families. -/
+abbrev UnionIn (first second : Family m) : Family m := fun value => first value ∨ second value
+
+/-- A checked finite prefix with separate dispatch keys for λs and φ groups. -/
 structure LinkedFamily (primitives : Primitives m σ) (ids : GlobalRel)
     (code : OpcodeCode (Instruction Op)) (captureCode : CaptureCode m) (left right : Family m)
-    (keys : LambdaKeys V S code.Key captureCode.Key) : Prop where
+    (keys : DispatchKeys V S code.Key captureCode.Key) : Prop where
   checked : CheckedFamily primitives ids left right
   ordinaryL : ∀ {port : Ty V S} (value : m.Val port), ordinaryPort port = true → left value
   ordinaryR : ∀ {port : Ty V S} (value : m.Val port), ordinaryPort port = true → right value
@@ -277,6 +401,10 @@ structure LinkedFamily (primitives : Primitives m σ) (ids : GlobalRel)
     left value → lambdaKey code captureCode value = some key → key ∈ keys.left.map LambdaKey.summary
   keysR : ∀ {port : Ty V S} {value : m.Val port} {key : LambdaSummary V S code.Key captureCode.Key},
     right value → lambdaKey code captureCode value = some key → key ∈ keys.right.map LambdaKey.summary
+  groupsL : ∀ {port : Ty V S} {value : m.Val port} {key : GroupProfile V S code.Key},
+    left value → memberProfile code value = some key → key ∈ keys.groupsL
+  groupsR : ∀ {port : Ty V S} {value : m.Val port} {key : GroupProfile V S code.Key},
+    right value → memberProfile code value = some key → key ∈ keys.groupsR
 
 variable {imports : Ports (Ty V S)} {past : List (Ports (Ty V S))}
 
@@ -305,21 +433,21 @@ abbrev linkedLambda {fn : Function V S} (definition : Lambda Op imports past fn)
 
 variable [DecidableEq (Ty V S)]
 
-/-- Check all slots, including members that are reachable by recursion but
-are absent from the module's export list. Each body comes from resolving
-a real linked value with its actual captures. -/
+/-- Check all slots using the resolved bodies with actual captures. -/
+def checkGroupBodies (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
+    {members : List (Function V S)} (left right : Group m members) : Bool :=
+  (List.ofFn (fun slot : Fin members.length =>
+    (inferResolved keys (resolve m (left.ref slot)) (resolve m (right.ref slot))).isSome)).all id
+
 def checkGroups (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
     {members : List (Function V S)} (left right : Group m members) : Bool :=
-  ordinaryPorts left.context && ordinaryPorts right.context &&
-    (List.ofFn (fun slot : Fin members.length =>
-      (inferResolved keys (resolve m (left.ref slot)) (resolve m (right.ref slot))).isSome)).all id
+  ordinaryPorts left.context && ordinaryPorts right.context && checkGroupBodies keys left right
 
 /-- Compare the exact member signatures in slot order before using the
 common table-indexed checker. -/
 def checkGroupPair (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]
     {membersL membersR : List (Function V S)} (left : Group m membersL) (right : Group m membersR) : Bool :=
-  letI : DecidableEq (Function V S) := fun a b =>
-    decidable_of_iff (a.args = b.args ∧ a.results = b.results) (by cases a; cases b; simp)
+  letI : DecidableEq (Function V S) := decideFunction
   if same : membersL = membersR then checkGroups keys left (same.symm ▸ right) else false
 
 def checkCapturedGroups (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key]

@@ -47,10 +47,16 @@ theorem Term.returns_toGraph (t : Term Op args [] sigs outs) (m : Model.{u, v, w
     t.toGraph.Returns m input output ↔ t.Returns m input output := by
   rw [Graph.returns_iff, Term.toTerm_toGraph]
 
+/-- Embedding a base term preserves its result in the same numbered locals. -/
+theorem Term.eval_ofBase (t : RVSDG.Term Op args past sigs outs) (m : Model.{u, v, w} Op)
+    (fuel : Nat) (input : Tuple m.Val args) (locals : Locals m.Val past) :
+    (Term.ofBase t).eval m fuel input locals = some (t.eval m input locals) :=
+  Proofs.term_eval_ofBase m fuel t input locals
+
 theorem Term.run_ofBase (t : RVSDG.Term Op args [] sigs outs) (m : Model.{u, v, w} Op)
     (fuel : Nat) (input : Tuple m.Val args) :
     (Term.ofBase t).run m fuel input = some (t.run m input) :=
-  Proofs.term_eval_ofBase m fuel t input PUnit.unit
+  Term.eval_ofBase t m fuel input PUnit.unit
 
 theorem Graph.run_ofBase (g : RVSDG.Graph Op args [] sigs outs) (m : Model.{u, v, w} Op)
     (fuel : Nat) (input : Tuple m.Val args) :

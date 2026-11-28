@@ -57,6 +57,14 @@ variable {Φ : Type u} {τ : Type v} [TypeFormers τ] [HasTy Φ τ]
     observe (.native r) M = UB.observe M r :=
   Proofs.Isotope.LambdaSSA.UB.Overlay.observe_native r M
 
+/-- At a fixed model, native observational inclusion is precisely the
+pointwise lifted order. This bridge uses the native embedding, whose
+denotations are ordinary outcome sets. -/
+theorem native_observe_subset_iff (M : Model.{u,w,x} Φ Γ.length)
+    (r t : UB.Typed (Φ := Φ) Γ L) :
+    UB.observe M r ⊆ UB.observe M t ↔ ∀ s, denote (.native r) M s ≤ denote (.native t) M s :=
+  Proofs.Isotope.LambdaSSA.UB.Overlay.native_observe_subset_iff M r t
+
 /-- The embedding preserves and reflects the existing native refinement order. -/
 theorem native_refines_iff (r t : UB.Typed (Φ := Φ) Γ L) :
     Refines.{u,v,w,x} (.native r) (.native t) ↔ UB.Refines.{u,v,w,x} r t :=

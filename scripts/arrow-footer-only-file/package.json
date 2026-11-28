@@ -1,0 +1,7 @@
+{
+  "name": "arrow-footer-only-file-fixtures",
+  "private": true,
+  "dependencies": {
+    "apache-arrow": "21.2.0"
+  }
+}

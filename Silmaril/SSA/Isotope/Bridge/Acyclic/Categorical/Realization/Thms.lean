@@ -11,6 +11,20 @@ public section
 
 universe u v u₁ u₂ v₁ v₂
 
+namespace Silmaril.Isotope.LambdaSSA.Acyclic
+
+open CategoryTheory CategoryTheory.Limits
+open LetIter.Semantics.Categorical (TypeModel)
+
+/-- The native positional context and the exact LetCase context differ by
+the reversible empty-environment factor and tensor reassociation. -/
+theorem contextMap_isIso {τ : Type u} [TypeFormers τ] {V : Type u₁} [Category.{v₁} V]
+    [CartesianMonoidalCategory V] [HasFiniteCoproducts V] (M : TypeModel τ V)
+    {n : Nat} (β : BoundCtx τ n) : IsIso (contextMap M β) :=
+  contextMap_isIso_proof M β
+
+end Silmaril.Isotope.LambdaSSA.Acyclic
+
 namespace Silmaril.Isotope.LambdaSSA.Acyclic.Code
 
 open CategoryTheory CategoryTheory.Limits PremonoidalCategory

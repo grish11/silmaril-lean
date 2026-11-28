@@ -31,6 +31,25 @@ theorem compile_eq_some_iff (graph : Graph V K F) (target : CFG (Option V × Nat
 
 variable [Monad M] [LawfulMonad M]
 
+omit [DecidableEq V] [DecidableEq K] [Monad M] [LawfulMonad M] in
+theorem eval_liftVal (model : Model F M α) (packet : α) (store : V → α) (value : Val V) :
+    (liftVal value).eval model (liftStore packet store) = value.eval model store :=
+  Proofs.SSA.LambdaRTL.CFG.CyclicPhi.eval_liftVal model packet store value
+
+omit [DecidableEq K] [LawfulMonad M] in
+theorem liftBody_exec (model : Model F M α)
+    (branchValue : Option K → Val V → Val (Option V))
+    (payload : Option K → α → (V → α) → α)
+    (agrees : ∀ key value store, (branchValue key value).eval model (liftStore model.unit store) =
+      payload key (value.eval model store) store)
+    {R : Type w} (jump : Transfer (Option V) (Option K) α → M R)
+    (body : Body V (Option K) F) (store : V → α) :
+    (liftBody branchValue body).exec model (fun dest value env => jump (dest, value, env))
+        (liftStore model.unit store) =
+      body.exec model (fun dest value env => jump (dest, payload dest value env, liftStore model.unit env))
+        store :=
+  Proofs.SSA.LambdaRTL.CFG.CyclicPhi.liftBody_exec model branchValue payload agrees jump body store
+
 /-- The λRTL packet decoder performs the simultaneous assignments before the body runs. -/
 theorem decode_entry (model : Model F M α) (pairs : model.PairLawful)
     (source : Option K) (rows : List (Row V K)) (snapshot store : V → α)

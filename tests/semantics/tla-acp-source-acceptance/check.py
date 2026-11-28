@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the selected Init and TypeInv denotations from pinned ACP_SB."""
+"""Check the Init, TypeInv, progN and Spec denotations from pinned ACP_SB."""
 
 import os
 from pathlib import Path
@@ -26,7 +26,9 @@ def main():
             "+Silmaril.Logic.Temporal.TLA.Surface.Parser.Defs",
             "+Silmaril.Logic.Temporal.TLA.Resolution.Instances.Defs",
             "+Silmaril.Logic.Temporal.TLA.DataElab.Collections.Tagged",
+            "+Silmaril.Logic.Temporal.TLA.DataElab.Temporal.Thms",
             "+Silmaril.Logic.Temporal.TLA.Data.Tagged.Collections.RecordSet.Thms",
+            "+Silmaril.Logic.Temporal.TLA.Data.Tagged.Except.Thms",
             "+Silmaril.Logic.Temporal.TLA.DataBridge.Thms",
         ],
         cwd=ROOT,

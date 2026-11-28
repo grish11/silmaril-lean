@@ -1,0 +1,325 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "optional_middle_empty": {
+      "field": "日付",
+      "nullable": true,
+      "batches": [
+        [
+          -2147483648,
+          null,
+          -1
+        ],
+        [],
+        [
+          0,
+          11016,
+          2147483647
+        ]
+      ],
+      "pyarrow_ipc": {
+        "bytes": 584,
+        "sha256": "32006b3c71e71f2789947572e2dded9d2a4fafbbb544bdb0872851a1284e04b6"
+      },
+      "lean_parquet": {
+        "bytes": 257,
+        "sha256": "b41925779475a0d33fe79430a680ac0ee49167889454701639039f6e2ef8c4d6"
+      },
+      "groups": [
+        {
+          "start": 4,
+          "stop": 39,
+          "body": {
+            "bytes": 18,
+            "sha256": "79e83be3082e93fc0284bd338e351932d480127a0c5b9056eb7b706d96f7be69"
+          }
+        },
+        {
+          "start": 39,
+          "stop": 60,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 60,
+          "stop": 99,
+          "body": {
+            "bytes": 22,
+            "sha256": "6f64436963a2d689c54c6c013b7ada2baf77cbd60312497d634905fcaef4d556"
+          }
+        }
+      ]
+    },
+    "required_outer_empty": {
+      "field": "époque",
+      "nullable": false,
+      "batches": [
+        [],
+        [
+          -719528,
+          -1
+        ],
+        [
+          0
+        ],
+        []
+      ],
+      "pyarrow_ipc": {
+        "bytes": 680,
+        "sha256": "c19b9d5311baf5ae8e1cc3d587755fc23ea9cd5b4ff46aaaece95549c5eb8bff"
+      },
+      "lean_parquet": {
+        "bytes": 285,
+        "sha256": "1b887be011b109fd91dfc58a28be458d10e2d1d3090505cbd023c42bb1b5bc3b"
+      },
+      "groups": [
+        {
+          "start": 4,
+          "stop": 21,
+          "body": {
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "start": 21,
+          "stop": 46,
+          "body": {
+            "bytes": 8,
+            "sha256": "d79247e5c880b17930b3960165dfe0d7a7b22ad89eaece36ba2cd7d947a23478"
+          }
+        },
+        {
+          "start": 46,
+          "stop": 67,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 67,
+          "stop": 84,
+          "body": {
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      ]
+    },
+    "all_empty": {
+      "field": "empty groups",
+      "nullable": true,
+      "batches": [
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      "pyarrow_ipc": {
+        "bytes": 1944,
+        "sha256": "0733543452cd2eaa829260c4a67db048fde1d7f15b25a66778151abb394a3d97"
+      },
+      "lean_parquet": {
+        "bytes": 1030,
+        "sha256": "db8340a343690f7de7a8e42eac5b6318d3da73471f3606842e649c317c4f956a"
+      },
+      "groups": [
+        {
+          "start": 4,
+          "stop": 25,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 25,
+          "stop": 46,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 46,
+          "stop": 67,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 67,
+          "stop": 88,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 88,
+          "stop": 109,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 109,
+          "stop": 130,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 130,
+          "stop": 151,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 151,
+          "stop": 172,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 172,
+          "stop": 193,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 193,
+          "stop": 214,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 214,
+          "stop": 235,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 235,
+          "stop": 256,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 256,
+          "stop": 277,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 277,
+          "stop": 298,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        },
+        {
+          "start": 298,
+          "stop": 319,
+          "body": {
+            "bytes": 4,
+            "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+          }
+        }
+      ]
+    }
+  },
+  "controls": {
+    "schema_only": {
+      "ipc": {
+        "bytes": 136,
+        "sha256": "c35aaee29c9e2b0ca8884282094880a40bdfbb0c2417c4094ab979e98eeef279"
+      },
+      "writer": "limits",
+      "reader": "{}",
+      "lean_error": "(.source (.batchCount 0))"
+    },
+    "missing_eos": {
+      "ipc": {
+        "bytes": 576,
+        "sha256": "16d9d8baa865628e95e1b4d519fd7183206005dc2c9bb6839122958c4f416b70"
+      },
+      "writer": "{ limits with maxGroups := 0 }",
+      "reader": "{}",
+      "lean_error": "(.source (.reader (.batch 3 (.envelope (.malformed .truncated)))))"
+    },
+    "late_body": {
+      "ipc": {
+        "bytes": 575,
+        "sha256": "62aa7c8f2a8c326f1fda90c065b7695b88fb63d63f0727cc35bec3801ff584ac"
+      },
+      "writer": "{ limits with maxGroups := 0 }",
+      "reader": "{}",
+      "lean_error": "(.source (.reader (.batch 2 (.body (.malformed .truncated)))))"
+    },
+    "late_readback": {
+      "ipc": {
+        "bytes": 680,
+        "sha256": "c19b9d5311baf5ae8e1cc3d587755fc23ea9cd5b4ff46aaaece95549c5eb8bff"
+      },
+      "writer": "limits",
+      "reader": "{ scan := { maxRows := 1 } }",
+      "lean_error": "(.groupReadback 1 (.scan .rowLimit))"
+    },
+    "group_cap": {
+      "ipc": {
+        "bytes": 1944,
+        "sha256": "0733543452cd2eaa829260c4a67db048fde1d7f15b25a66778151abb394a3d97"
+      },
+      "writer": "{ limits with maxGroups := 14 }",
+      "reader": "{}",
+      "lean_error": ".groupLimit"
+    },
+    "aggregate_rows": {
+      "ipc": {
+        "bytes": 584,
+        "sha256": "32006b3c71e71f2789947572e2dded9d2a4fafbbb544bdb0872851a1284e04b6"
+      },
+      "writer": "{ limits with maxTotalRows := 5 }",
+      "reader": "{}",
+      "lean_error": ".totalRows"
+    }
+  }
+}

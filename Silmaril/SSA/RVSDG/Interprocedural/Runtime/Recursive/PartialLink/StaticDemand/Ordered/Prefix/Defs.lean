@@ -1,8 +1,8 @@
 module
 
-public import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Thms
+public import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.StaticDemand.Ordered.Groups.Thms
 
-/-! A typed plan for one φ seed followed by ordered λ bindings and a λ export. -/
+/-! A typed plan for independently checked φ groups, ordered λ bindings and a λ export. -/
 
 @[expose] public section
 
@@ -27,6 +27,12 @@ structure Scope (m : Machine.{u, v, w} Op) where
   guardL : Guard m table
   guardR : Guard m table
 
+/-- Begin a module before any callable or physical binding has been checked.
+The existing capture checker recognizes ordinary imports by port type. -/
+def Scope.ordinary (m : Machine.{u, v, w} Op) : Scope m :=
+  ⟨[], ⟨[], fun i => i.elim0, fun i => i.elim0, fun i => i.elim0⟩, PUnit.unit, PUnit.unit,
+    fun i => i.elim0, fun i => i.elim0⟩
+
 def Scope.seed (family : StaticDemand.Family Op table imports)
     (inputsL inputsR : Tuple m.Val imports) : Scope m :=
   let groupL := family.captures.read inputsL PUnit.unit
@@ -43,12 +49,24 @@ structure Checked (actions : Actions m σ) where
   left : state.dispatch.left = scope.guardL
   right : state.dispatch.right = scope.guardR
 
+/-- The empty dispatch and typed position tables for an ordinary start. -/
+def Checked.ordinary (actions : Actions m σ) : (Scope.ordinary m).Checked actions :=
+  ⟨⟨⟨fun i => i.elim0, fun i => i.elim0, fun i => i.elim0⟩, PUnit.unit, PUnit.unit⟩, rfl, rfl⟩
+
 def add (binding : Binding Op scope.table imports scope.past fn)
     (inputsL inputsR : Tuple m.Val imports) : Scope m :=
   ⟨scope.past ++ [[fn.port]], prepend binding.summary scope.table,
     scope.localsL.snoc (.cons (binding.value inputsL scope.localsL) .nil),
     scope.localsR.snoc (.cons (binding.value inputsR scope.localsR) .nil),
     binding.extendGuard scope.guardL inputsL scope.localsL, binding.extendGuard scope.guardR inputsR scope.localsR⟩
+
+def addGroup {later calls : MemberSummaries V S} {familyPast : List (Ports (Ty V S))}
+    (binding : GroupBinding Op later imports scope.past calls familyPast)
+    (inputsL inputsR : Tuple m.Val imports) : Scope m :=
+  ⟨scope.past ++ [memberPorts later.members], append scope.table later,
+    binding.locals inputsL scope.localsL, binding.locals inputsR scope.localsR,
+    scope.guardL.combine (binding.family.guard (binding.read inputsL scope.localsL)),
+    scope.guardR.combine (binding.family.guard (binding.read inputsR scope.localsR))⟩
 
 def skip (definition : LambdaTerm Op imports scope.past fn)
     (inputsL inputsR : Tuple m.Val imports) : Scope m :=
@@ -89,6 +107,38 @@ inductive Plan (inputsL inputsR : Tuple m.Val imports) :
       {rest : ModuleTerm Op imports (scope.past ++ [[fn.port]]) sigs [exported.fn.port]}
       (next : Plan inputsL inputsR (scope.add binding inputsL inputsR) exported rest) :
       Plan inputsL inputsR scope exported (.bind (.lambda binding.term) rest)
+  | finishDirect {scope : Scope m} {fn : Function V S}
+      (binding : Binding Op scope.table imports scope.past fn) :
+      Plan inputsL inputsR scope binding.summary (.bind (.lambda binding.term) (.ret (lastExport scope.past fn)))
+  | lambdaDirect {scope : Scope m} {exported : MemberSummary V S} {fn : Function V S}
+      {sigs : List (Ports (Ty V S))}
+      (binding : Binding Op scope.table imports scope.past fn)
+      {rest : ModuleTerm Op imports (scope.past ++ [[fn.port]]) sigs [exported.fn.port]}
+      (next : Plan inputsL inputsR (scope.add binding inputsL inputsR) exported rest) :
+      Plan inputsL inputsR scope exported (.bind (.lambda binding.term) rest)
+  /-- Add an independently checked group with actual outer capture wires.
+  Its readiness certificates establish intragroup static dispatch. -/
+  | phi {scope : Scope m} {exported : MemberSummary V S} {later : MemberSummaries V S}
+      {sigs : List (Ports (Ty V S))}
+      (binding : GroupBinding Op later imports scope.past)
+      (readyL : binding.family.Ready (binding.read inputsL scope.localsL))
+      (readyR : binding.family.Ready (binding.read inputsR scope.localsR))
+      {rest : ModuleTerm Op imports (scope.past ++ [memberPorts later.members]) sigs [exported.fn.port]}
+      (next : Plan inputsL inputsR (scope.addGroup binding inputsL inputsR) exported rest) :
+      Plan inputsL inputsR scope exported (.bind (.phi binding.term) rest)
+  /-- Admit a later group whose bodies may also call earlier checked slots
+  through their actual captures. The supplied readiness proofs cover both
+  sets of slots and all formals. -/
+  | phiWithEarlier {scope : Scope m} {exported : MemberSummary V S} {later : MemberSummaries V S}
+      {sigs : List (Ports (Ty V S))}
+      (binding : GroupBinding Op later imports scope.past (append scope.table later) scope.past)
+      (readyL : binding.family.ReadyWith (binding.read inputsL scope.localsL)
+        (scope.guardL.combine (binding.family.guard (binding.read inputsL scope.localsL))))
+      (readyR : binding.family.ReadyWith (binding.read inputsR scope.localsR)
+        (scope.guardR.combine (binding.family.guard (binding.read inputsR scope.localsR))))
+      {rest : ModuleTerm Op imports (scope.past ++ [memberPorts later.members]) sigs [exported.fn.port]}
+      (next : Plan inputsL inputsR (scope.addGroup binding inputsL inputsR) exported rest) :
+      Plan inputsL inputsR scope exported (.bind (.phi binding.term) rest)
   | skipLambda {scope : Scope m} {exported : MemberSummary V S} {fn : Function V S}
       {sigs : List (Ports (Ty V S))}
       (definition : LambdaTerm Op imports scope.past fn)

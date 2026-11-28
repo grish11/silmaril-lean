@@ -90,6 +90,22 @@ private theorem finite_one (A : τ) :
   rw [same (Nat.add_comm i 1) hi h]
   exact eq
 
+section CollectiveOne
+
+variable {C : Type u₂} [Category.{v₂} C] (J : V ⥤ C)
+
+theorem collectiveOne {Γ : VCtx τ} {L : LCtx τ} {A : τ}
+    {fb : Fin 1 → (J.obj (ctxObj M (A :: Γ)) ⟶ J.obj (labelObj M (A :: L)))}
+    {c : J.obj (ctxObj M Γ ⊗ finiteLabelObj M (fun _ : Fin 1 => A)) ⟶ J.obj (labelObj M (A :: L))}
+    (dc : CollectiveDenotes J M Γ (fun _ : Fin 1 => A) L fb c) :
+    J.map (ctxObj M Γ ◁ labelObjToFinite M (fun _ : Fin 1 => A)) ≫ c =
+      J.map (ctxObj M Γ ◁ payload M A) ≫ fb 0 := by
+  have hd := dc.restrict 0
+  simp only [MonoidalCategory.id_tensorHom] at hd
+  rw [finite_one M A, MonoidalCategory.whiskerLeft_comp, J.map_comp, Category.assoc, hd]
+
+end CollectiveOne
+
 variable {C : Type u₂} [Category.{v₂} C] [SymmetricCategory V]
   [PremonoidalCategory C] [SymmetricPremonoidalCategory C] [HasFiniteCoproducts C]
   [DistributiveTensor V] [DistributivePremonoidalCategory C]
@@ -100,27 +116,38 @@ section Denotation
 variable [Iteration C] [ElgotCategory C] [StrongElgotFreydCategory J]
   [InstructionModel J M Φ] [RegionTypingCoherent (Φ := Φ) J M]
 
+omit [RegionTypingCoherent (Φ := Φ) J M] in
+theorem cfgOne {Γ : VCtx τ} {L : LCtx τ} {A : τ} {e p : Region Φ}
+    {he : Region.HasType Γ e (A :: L)} {hp : Region.HasType (A :: Γ) p (A :: L)}
+    {fe : J.obj (ctxObj M Γ) ⟶ J.obj (labelObj M (A :: L))}
+    {fp : J.obj (ctxObj M (A :: Γ)) ⟶ J.obj (labelObj M (A :: L))}
+    (de : RegionDenotes J M he fe) (dp : RegionDenotes J M hp fp) :
+    RegionDenotes J M (.cfg (fun _ : Fin 1 => A) he (fun _ => hp))
+      (caseWithContext J (fe ≫ J.map (cut M [A] L))
+        (J.map (snd (ctxObj M Γ) (labelObj M L)))
+        (contextualLoop J (J.map (ctxObj M Γ ◁ payload M A) ≫ fp ≫ J.map (cut M [A] L)))) := by
+  let R : Fin 1 → τ := fun _ => A
+  obtain ⟨c, dc⟩ := collectiveDenotes_exists_succ J M 0 Γ R L (fun _ => fp)
+  have den := RegionDenotes.cfg (R := R) he (fun _ => hp) de (fun _ => dp) dc
+  have norm := collectiveOne M J dc
+  have normDispatch :
+      J.map (ctxObj M Γ ◁ labelObjToFinite M R) ≫ c ≫ J.map (cut M [A] L) =
+        J.map (ctxObj M Γ ◁ payload M A) ≫ fp ≫ J.map (cut M [A] L) := by
+    rw [← Category.assoc, norm, Category.assoc]
+  have normTensor :
+      J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ labelObjToFinite M R) ≫ c ≫ J.map (cut M [A] L) =
+        J.map (ctxObj M Γ ◁ payload M A) ≫ fp ≫ J.map (cut M [A] L) := by
+    rw [MonoidalCategory.id_tensorHom, normDispatch]
+  exact normTensor ▸ den
+
 theorem denoteSingleCfg {Γ : VCtx τ} {L : LCtx τ} {A : τ} {e p : Region Φ}
     (he : Region.HasType Γ e (A :: L)) (hp : Region.HasType (A :: Γ) p (A :: L)) :
     denoteRegion J M (.cfg (fun _ : Fin 1 => A) he (fun _ => hp)) =
       caseWithContext J (denoteRegion J M he ≫ J.map (cut M [A] L))
         (J.map (snd (ctxObj M Γ) (labelObj M L)))
         (contextualLoop J (J.map (ctxObj M Γ ◁ payload M A) ≫
-          denoteRegion J M hp ≫ J.map (cut M [A] L))) := by
-  let R : Fin 1 → τ := fun _ => A
-  obtain ⟨c, dc⟩ := collectiveDenotes_exists_succ J M 0 Γ R L (fun _ => denoteRegion J M hp)
-  have den := RegionDenotes.cfg (R := R) he (fun _ => hp) (denoteRegion_spec J M he)
-    (fun _ => denoteRegion_spec J M hp) dc
-  have hd := dc.restrict 0
-  simp only [MonoidalCategory.id_tensorHom] at hd
-  rw [← den.eq_denote J M]
-  change caseWithContext J (denoteRegion J M he ≫ J.map (cut M [A] L))
-    (J.map (snd (ctxObj M Γ) (labelObj M L)))
-    (contextualLoop J (J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ
-        labelObjToFinite M (fun _ : Fin 1 => A)) ≫ c ≫ J.map (cut M [A] L))) = _
-  simp only [MonoidalCategory.id_tensorHom, finite_one, MonoidalCategory.whiskerLeft_comp,
-    J.map_comp, Category.assoc]
-  rw [← Category.assoc (J.map (ctxObj M Γ ◁ finiteLabelInject M R 0)), hd]
+          denoteRegion J M hp ≫ J.map (cut M [A] L))) :=
+  (cfgOne M J (denoteRegion_spec J M he) (denoteRegion_spec J M hp)).eq_denote J M |>.symm
 
 theorem caseWithContext_inr {E A B D : V} (f : J.obj E ⟶ J.obj B)
     (l : J.obj (E ⊗ A) ⟶ J.obj D) (r : J.obj (E ⊗ B) ⟶ J.obj D) :

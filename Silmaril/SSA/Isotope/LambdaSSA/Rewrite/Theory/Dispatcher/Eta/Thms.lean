@@ -24,6 +24,12 @@ theorem Region.cfgEntryContinuations_hasType
   fun _ A h => .cfg R (.br h (.var rfl))
     (fun i => (hb i).renameVars ((SSA.Ren.wk Γ A).lift (R i)))
 
+/-- Weakening a re-entry family is the re-entry family of the weakened table. -/
+theorem Region.lift_cfgEntryContinuations {Φ : Type u₄} {n : Nat} (blocks : Fin n → Region Φ) :
+    liftLSubstVars (cfgEntryContinuations blocks) =
+      cfgEntryContinuations (fun i => (blocks i).renameVars (Silmaril.DeBruijn.lift Nat.succ)) :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.lift_cfgEntryContinuations blocks
+
 namespace Semantics.Categorical
 
 open CategoryTheory CategoryTheory.Limits

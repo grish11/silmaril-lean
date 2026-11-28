@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.Peggy.EPEG.Selection.Defs
 import Silmaril.Proofs.SSA.Peggy.EPEG.Sound
+import Silmaril.SSA.PEG.Semantics.Thms
 
 public section
 
@@ -41,5 +42,15 @@ theorem rows_solve (rows : ∀ v, Selection.Row sel v)
     have edge := List.all_eq_true.mp checked slot (List.mem_finRange slot)
     exact read_eq j (valid _ _ (beq_iff_eq.mp edge))
   exact eq_of_heq (lhs.trans (heq_of_eq rhs))
+
+theorem read_sound {t : PEG.Ty Data} (ref : PEG.Ref target.sort t) (idx : PEG.Index l)
+    (sourceWF : WellFounded source.Demand) (targetWF : WellFounded target.Demand)
+    (valid : classes.Valid (source.denote m env sourceWF))
+    (rows : ∀ v, Selection.Row sel v) (checked : Selection.checkRows rows classes = true) :
+    ref.read m.carrier (target.denote m env targetWF (ref.id, idx)) =
+      (sel.sourceRef ref).read m.carrier (source.denote m env sourceWF ((sel.sourceRef ref).id, idx)) := by
+  rw [target.solves_unique m env targetWF (target.denote_solves m env targetWF)
+    (rows_solve rows checked (source.denote_solves m env sourceWF) valid)]
+  exact read_sourceRef sel ref idx
 
 end Silmaril.Proofs.SSA.Peggy.EPEG

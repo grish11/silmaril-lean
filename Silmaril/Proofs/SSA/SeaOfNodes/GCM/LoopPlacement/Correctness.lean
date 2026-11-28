@@ -26,7 +26,7 @@ private theorem selection {chosen : Point Label}
       ((acceptedCuts tree blocks operands uses).filter
         (fun p => decide (loopDepth p.block = loopDepth shallow.block))).maxOn?
         (fun p => (tree.address p.block).length) = some chosen := by
-  unfold chooseLoopPlacement at found
+  unfold chooseLoopPlacement rankCuts at found
   cases shallow : (acceptedCuts tree blocks operands uses).minOn? (fun p => loopDepth p.block) with
   | none => simp [shallow] at found
   | some p => exact ⟨p, rfl, by simpa [shallow] using found⟩
@@ -67,7 +67,7 @@ theorem chooseLoopPlacement_eq_none_iff :
       discoverPlacement tree blocks operands uses = none := by
     simp [acceptedCuts, discoverPlacement]
   rw [← same]
-  unfold chooseLoopPlacement
+  unfold chooseLoopPlacement rankCuts
   cases shallowest : (acceptedCuts tree blocks operands uses).minOn? (fun p => loopDepth p.block) with
   | none =>
     have empty : acceptedCuts tree blocks operands uses = [] := by
@@ -83,6 +83,6 @@ theorem chooseLoopPlacement_eq_none_iff :
     have nonempty := List.ne_nil_of_mem member
     have someCut := Option.isSome_iff_ne_none.mp
       (List.isSome_maxOn?_of_mem (f := fun p => (tree.address p.block).length) sameDepth)
-    simp [shallowest, nonempty, someCut]
+    simp [nonempty, someCut]
 
 end Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopPlacement

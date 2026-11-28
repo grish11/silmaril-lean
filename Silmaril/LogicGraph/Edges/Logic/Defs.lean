@@ -1,5 +1,6 @@
 module
 
+public import Silmaril.Logic.Abstraction.Propositional.Thms
 public import Silmaril.Logic.Algebraic.DependentFamily
 public import Silmaril.Logic.Algebraic.DependentFamily.Category
 public import Silmaril.Logic.Algebraic.DependentFamily.Defs
@@ -1235,6 +1236,14 @@ Lean finds the endpoints of each edge among the registered institutions and room
 -/
 
 silmaril comorphism inst.comorphism.of_obs := Silmaril.Inst.Comorphism.ofObs (facts := [Silmaril.Inst.Comorphism.ofObs_modelExpansive])
+silmaril comorphism logic.abstraction.first_order.from_ufol := Silmaril.Logic.Abstraction.FirstOrder.fromUFOL
+  (title := "Unsorted first-order logic into the canonical abstraction profile")
+  (facts := [Silmaril.Logic.Abstraction.FirstOrder.fromUFOL_modelExpansive])
+
+silmaril comorphism logic.abstraction.propositional.to_profile := Silmaril.Logic.Abstraction.Propositional.toProfile
+  (title := "Propositional logic into the canonical abstraction profile")
+  (facts := [Silmaril.Logic.Abstraction.Propositional.toProfile_modelExpansive])
+
 silmaril comorphism logic.algebraic.initial.matching.finite_sorted_compiler.institution.to_matching := Silmaril.Logic.Algebraic.Initial.Matching.FiniteSortedCompiler.Institution.toMatching
 silmaril comorphism logic.algebraic.initial.matching.global_presented.compiler := Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.compiler
 silmaril comorphism logic.algebraic.initial.matching.to_matching := Silmaril.Logic.Algebraic.Initial.Matching.toMatching (facts := [Silmaril.Logic.Algebraic.Initial.Matching.toMatching_modelExpansive])
@@ -1397,6 +1406,9 @@ silmaril comorphism logic.type_theory.extensional_mltt.set_theory_interpretation
 silmaril comorphism logic.type_theory.intensional_mltt.original_institution.from_finite := Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.fromFinite
 silmaril comorphism logic.type_theory.intensional_mltt.original_institution.inclusion := Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.inclusion
 silmaril morphism inst.morphism.of_obs := Silmaril.Inst.Morphism.ofObs (facts := [Silmaril.Inst.Morphism.ofObs_sound])
+silmaril morphism logic.abstraction.first_order.to_abstraction := Silmaril.Logic.Abstraction.FirstOrder.toAbstraction
+  (title := "Canonical first-order models into Abstraction Logic")
+
 silmaril morphism logic.algebraic.dependent_family.equational.morphism := Silmaril.Logic.Algebraic.DependentFamily.Equational.morphism
 silmaril morphism logic.algebraic.initial.matching.global_presented.compiler_hom := Silmaril.Logic.Algebraic.Initial.Matching.GlobalPresented.compilerHom
 silmaril morphism logic.algebraic.order_sorted.to_equational := Silmaril.Logic.Algebraic.OrderSorted.toEquational
