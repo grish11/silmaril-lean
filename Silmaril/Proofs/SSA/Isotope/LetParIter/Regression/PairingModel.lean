@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.LetParIter.Thms
+import Silmaril.SSA.Isotope.LetParIter.Categorical.Kleisli.Thms
 import Silmaril.Semantics.ElgotMonads.Thms
 import Mathlib.Algebra.Group.TypeTags.Basic
 import Mathlib.Algebra.Group.Nat.Defs
@@ -256,5 +257,27 @@ example : ¬ LetParIter.Equiv (⊥ : Bool × Bool) Γ
     (LetParIter.derivation (β := .nil) (typed [false, true]))
     (LetParIter.derivation (β := .nil) (typed [true, false])) :=
   fun h => Bool.noConfusion (List.cons.inj ((equiv_emit_iff _ _).mp h)).1
+
+section Categorical
+
+open CategoryTheory
+open LetParIter.Categorical (denote kleisliTypeModel kleisliInstructionModel native_sound_of_type)
+
+local notation "K" => Kleisli.Adjunction.toKleisli (ofTypeMonad M)
+
+private def typedEta (w : List Bool) : LetIter.LocallyNameless.Derivation Bool Γ .nil
+    (.let₁ (emit w) (.bv 0)) unit :=
+  .let₁ (typed w) .bv
+
+-- Use the fixed native let-eta witness for an effectful instruction word.
+example [∀ X Y : Kleisli (ofTypeMonad M), Preorder (X ⟶ Y)]
+    (P : FreydCategory.OrderedParallel K) (w : List Bool) :
+    letI := kleisliInstructionModel (τ := Obj) (Φ := Bool) (ε := Bool × Bool) (m := M)
+    denote K P (kleisliTypeModel Obj) (LetParIter.derivation (typedEta w)) =
+      denote K P (kleisliTypeModel Obj) (LetParIter.derivation (typed (β := .nil) w)) :=
+  native_sound_of_type (ε := Bool × Bool) P (typedEta w) (typed (β := .nil) w)
+    ⟨.letEta (LetParIter.nativeTyping (typed (β := .nil) w))⟩
+
+end Categorical
 
 end LetParIterWordSeparation

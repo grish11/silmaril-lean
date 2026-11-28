@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.LetParIter.Uniformity.Thms
+import Silmaril.SSA.Isotope.LetParIter.Categorical.Kleisli.Thms
 
 open Silmaril Silmaril.Isotope
 open Silmaril.Isotope.Parallel (Derivation)
@@ -134,5 +135,12 @@ example (P : Elgot.ParallelPairing m) (γ : CtxDen Γ) (ρ : BoundDen (.nil : Bo
 
 example (P : Elgot.ParallelPairing m) (γ : CtxDen Γ) (ρ : BoundDen (.nil : BoundCtx Obj 0)) :=
   LetParIter.interpret_sound P uniformityWithParallel γ ρ
+
+open CategoryTheory in
+-- The categorical evaluator accepts the same recursive square with Par in the loop body.
+example [∀ X Y : Kleisli (ofTypeMonad m), Preorder (X ⟶ Y)]
+    (P : FreydCategory.OrderedParallel (Kleisli.Adjunction.toKleisli (ofTypeMonad m)))
+    (L : LetParIter.Categorical.Laws _ P) :=
+  LetParIter.Categorical.sound_of_type P L uniformityWithParallel
 
 end LetParIterTests
