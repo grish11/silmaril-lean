@@ -29,16 +29,39 @@ def designated (count : ℕ) (x : Grid n) : Prop := n + 2 - count ≤ x.val
 
 end Post
 
-/-- An ordinary Boolean degree or Bochvar's infectious intermediate value. -/
-abbrev Bochvar := Option Bool
+/-- The three truth values of Bochvar's internal logic. -/
+inductive Bochvar where
+  | ff
+  | unknown
+  | tt
+  deriving DecidableEq, Repr
 
 namespace Bochvar
 
-/-- Lift a binary Boolean connective to the internal fragment. -/
-def lift₂ (f : Bool → Bool → Bool) (x y : Bochvar) : Bochvar :=
-  x.bind fun a => y.map (f a)
+/-- Embed a classical Boolean truth value. -/
+def ofBool : Bool → Bochvar
+  | false => .ff
+  | true => .tt
 
-def neg (x : Bochvar) : Bochvar := x.map Bool.not
+/-- Decode a missing Boolean as the infectious value. -/
+def ofOptionBool : Option Bool → Bochvar
+  | none => .unknown
+  | some b => ofBool b
+
+/-- Observe the Boolean value when it is known. -/
+def toOptionBool : Bochvar → Option Bool
+  | .ff => some false
+  | .unknown => none
+  | .tt => some true
+
+/-- Apply a Boolean connective when both inputs are known. -/
+def lift₂ (f : Bool → Bool → Bool) (x y : Bochvar) : Bochvar :=
+  ofOptionBool (x.toOptionBool.bind fun a => y.toOptionBool.map (f a))
+
+def neg : Bochvar → Bochvar
+  | .ff => .tt
+  | .unknown => .unknown
+  | .tt => .ff
 
 def and (x y : Bochvar) : Bochvar := lift₂ (· && ·) x y
 
@@ -48,13 +71,13 @@ def imp (x y : Bochvar) : Bochvar := lift₂ (fun a b => !a || b) x y
 
 def iff (x y : Bochvar) : Bochvar := lift₂ (· == ·) x y
 
-def designated (x : Bochvar) : Prop := x = some true
+def designated (x : Bochvar) : Prop := x = .tt
 
 /-- Identify the values by their indices in the order false, unknown, true. -/
 def toGrid : Bochvar → Grid 1
-  | some false => 0
-  | none => 1
-  | some true => 2
+  | .ff => 0
+  | .unknown => 1
+  | .tt => 2
 
 end Bochvar
 

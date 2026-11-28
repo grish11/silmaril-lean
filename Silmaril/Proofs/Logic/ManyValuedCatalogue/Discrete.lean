@@ -30,49 +30,15 @@ namespace Bochvar
 
 open Silmaril.Logic.ManyValuedCatalogue.Bochvar
 
-theorem lift₂_eq_some_iff (f : Bool → Bool → Bool) (x y : Bochvar) (b : Bool) :
-    lift₂ f x y = some b ↔
-      ∃ a c, x = some a ∧ y = some c ∧ f a c = b := by
-  cases x <;> cases y <;> simp [lift₂]
-
-theorem iff_eq (x y : Bochvar) :
-    Bochvar.iff x y = Bochvar.and (Bochvar.imp x y) (Bochvar.imp y x) := by
-  cases x with
-  | none => rfl
-  | some a =>
-    cases y with
-    | none => cases a <;> rfl
-    | some b => cases a <;> cases b <;> rfl
-
 theorem toGrid_injective : Function.Injective toGrid := by
   intro x y h
-  cases x with
-  | none => cases y with
-    | none => rfl
-    | some b => cases b <;> contradiction
-  | some a =>
-    cases y with
-    | none => cases a <;> contradiction
-    | some b => cases a <;> cases b <;> first | rfl | contradiction
-
-theorem toGrid_neg (x : Bochvar) : toGrid (Bochvar.neg x) = Grid.lukNeg (toGrid x) := by
-  cases x with
-  | none => rfl
-  | some a => cases a <;> rfl
+  cases x <;> cases y <;> first | rfl | contradiction
 
 theorem toGrid_iff (x y : Bochvar) :
     toGrid (Bochvar.iff x y) =
       Goedel.and (Goedel.or (Grid.lukNeg (toGrid x)) (toGrid y))
         (Goedel.or (Grid.lukNeg (toGrid y)) (toGrid x)) := by
-  cases x with
-  | none =>
-    cases y with
-    | none => rfl
-    | some b => cases b <;> rfl
-  | some a =>
-    cases y with
-    | none => cases a <;> rfl
-    | some b => cases a <;> cases b <;> rfl
+  cases x <;> cases y <;> rfl
 
 end Bochvar
 

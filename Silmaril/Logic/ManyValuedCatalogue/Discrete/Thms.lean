@@ -26,27 +26,52 @@ end Post
 
 namespace Bochvar
 
-@[simp] theorem lift₂_none_left (f : Bool → Bool → Bool) (y : Bochvar) :
-    lift₂ f none y = none := rfl
+@[simp] theorem toOptionBool_ofBool (b : Bool) : (ofBool b).toOptionBool = some b := by
+  cases b <;> rfl
 
-@[simp] theorem lift₂_none_right (f : Bool → Bool → Bool) (x : Bochvar) :
-    lift₂ f x none = none := by
+theorem ofBool_injective : Function.Injective ofBool := by
+  intro a b h
+  simpa using congrArg toOptionBool h
+
+@[simp] theorem toOptionBool_ofOptionBool (x : Option Bool) :
+    (ofOptionBool x).toOptionBool = x := by
+  cases x with
+  | none => rfl
+  | some b => exact toOptionBool_ofBool b
+
+@[simp] theorem ofOptionBool_toOptionBool (x : Bochvar) : ofOptionBool x.toOptionBool = x := by
   cases x <;> rfl
 
-theorem lift₂_eq_some_iff (f : Bool → Bool → Bool) (x y : Bochvar) (b : Bool) :
-    lift₂ f x y = some b ↔
-      ∃ a c, x = some a ∧ y = some c ∧ f a c = b :=
-  Silmaril.Proofs.Logic.ManyValuedCatalogue.Bochvar.lift₂_eq_some_iff f x y b
+@[simp] theorem lift₂_unknown_left (f : Bool → Bool → Bool) (y : Bochvar) :
+    lift₂ f .unknown y = .unknown := rfl
+
+@[simp] theorem lift₂_unknown_right (f : Bool → Bool → Bool) (x : Bochvar) :
+    lift₂ f x .unknown = .unknown := by
+  cases x <;> rfl
+
+@[simp] theorem lift₂_ofBool (f : Bool → Bool → Bool) (a b : Bool) :
+    lift₂ f (ofBool a) (ofBool b) = ofBool (f a b) := by
+  simp [lift₂, ofOptionBool]
+
+theorem toOptionBool_lift₂ (f : Bool → Bool → Bool) (x y : Bochvar) :
+    (lift₂ f x y).toOptionBool = x.toOptionBool.bind (fun a => y.toOptionBool.map (f a)) :=
+  toOptionBool_ofOptionBool _
+
+@[simp] theorem neg_ofBool (b : Bool) : neg (ofBool b) = ofBool (!b) := by
+  cases b <;> rfl
+
+theorem toOptionBool_neg (x : Bochvar) : (neg x).toOptionBool = x.toOptionBool.map Bool.not := by
+  cases x <;> rfl
 
 theorem iff_eq (x y : Bochvar) :
-    Bochvar.iff x y = Bochvar.and (Bochvar.imp x y) (Bochvar.imp y x) :=
-  Silmaril.Proofs.Logic.ManyValuedCatalogue.Bochvar.iff_eq x y
+    Bochvar.iff x y = Bochvar.and (Bochvar.imp x y) (Bochvar.imp y x) := by
+  cases x <;> cases y <;> rfl
 
 theorem toGrid_injective : Function.Injective toGrid :=
   Silmaril.Proofs.Logic.ManyValuedCatalogue.Bochvar.toGrid_injective
 
-theorem toGrid_neg (x : Bochvar) : toGrid (Bochvar.neg x) = Grid.lukNeg (toGrid x) :=
-  Silmaril.Proofs.Logic.ManyValuedCatalogue.Bochvar.toGrid_neg x
+theorem toGrid_neg (x : Bochvar) : toGrid (Bochvar.neg x) = Grid.lukNeg (toGrid x) := by
+  cases x <;> rfl
 
 /-- Weak biconditional agrees with the strong Kleene material biconditional
 on these three indices. -/
@@ -56,24 +81,26 @@ theorem toGrid_iff (x y : Bochvar) :
         (Goedel.or (Grid.lukNeg (toGrid y)) (toGrid x)) :=
   Silmaril.Proofs.Logic.ManyValuedCatalogue.Bochvar.toGrid_iff x y
 
-/-- False with an unknown input has different weak and strong conjunctions. -/
-theorem and_unknown :
-    toGrid (Bochvar.and (some false) none) = 1 ∧
-      Goedel.and (toGrid (some false)) (toGrid none) = 0 := by
-  decide
-
 open Silmaril.Logic.ManyValued (K3)
 
-theorem k3_neg (x : K3) : Bochvar.neg x.toOptionBool = x.neg.toOptionBool :=
-  (K3.toOptionBool_neg x).symm
+theorem k3_neg (x : K3) :
+    neg (ofOptionBool x.toOptionBool) = ofOptionBool x.neg.toOptionBool := by
+  cases x <;> rfl
 
 theorem k3_materialIff (x y : K3) :
-    Bochvar.iff x.toOptionBool y.toOptionBool = (x.materialIff y).toOptionBool := by
+    iff (ofOptionBool x.toOptionBool) (ofOptionBool y.toOptionBool) =
+      ofOptionBool (x.materialIff y).toOptionBool := by
   cases x <;> cases y <;> rfl
 
 theorem k3_designated (x : K3) :
-    Bochvar.designated x.toOptionBool ↔ x.isDesignated = true := by
-  cases x <;> simp [designated, K3.toOptionBool, K3.isDesignated]
+    designated (ofOptionBool x.toOptionBool) ↔ x.isDesignated = true := by
+  cases x <;> simp [designated, ofOptionBool, ofBool, K3.toOptionBool, K3.isDesignated]
+
+/-- Weak and strong conjunction give different values for false and unknown. -/
+theorem and_unknown :
+    and (ofOptionBool K3.ff.toOptionBool) (ofOptionBool K3.unknown.toOptionBool) = .unknown ∧
+      ofOptionBool (K3.ff.conj K3.unknown).toOptionBool = .ff := by
+  decide
 
 end Bochvar
 
