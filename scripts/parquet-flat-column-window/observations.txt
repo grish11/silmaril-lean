@@ -1,0 +1,10 @@
+v1-index.parquet e23639cd6be43674fffb7a59072cff7b106665b16129e7439564b35ca1ac3e2e
+  row group 0, index [328, 353), (offset, size, first row) = [(4, 35, 0), (39, 35, 4), (74, 35, 8)]
+  row group 1, index [353, 380), (offset, size, first row) = [(109, 35, 0), (144, 39, 4), (183, 35, 8)]
+v1-no-index.parquet 7b1053e77957f849fd6c72fbfb9e8260037ae20dfa2d0d550b3b97f7014ba915
+bad-index 32c237f248472db0068a73b76ff8c5a8d4c8856a792e940932b318e521f23c53
+late-body-corruption 44e779d52974743f195779a73135bdccc341edaa427f4e548dfb9d25bae733f0
+late-body-and-index-corruption 5943b26d485ad0bfc1279e920bac3d175a28011f4f73f5273fe54d51e01a6842
+Clean group 1 window [3, 10): [None, 29, 32, 35, 38, None, 44]
+No index and the 110-for-109 index mutation preserve the full PyArrow group rows.
+The later-page body mutation preserves the last frame header and PyArrow rejects group 1.

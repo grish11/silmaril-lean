@@ -13,13 +13,19 @@ open LetCase.LocallyNameless (Tm)
 universe u v
 variable {Base : Type u} {F : Type v} {labels : Nat} [DecidableEq Base] [HasTy F (Ty Base)]
 
-/-- Synthesize a type for a variable, unit, product or fully typed primitive. -/
+/-- Synthesize a type for variables, unit, products, primitives and
+lets that bind one value or unpack a product. The initializer supplies
+the types of the body's new slots. -/
 def infer : {n : Nat} → BoundCtx (Ty Base) n → Tm Empty F n → Option (Ty Base)
   | _, ctx, .bv i => some (ctx.get i)
   | _, _, .unit => some .unit
   | _, ctx, .pair a b => (infer ctx a).bind fun A => (infer ctx b).map (.product A)
   | _, ctx, .op f a =>
       if infer ctx a = some (instrSrc f) then some (instrTrg f) else none
+  | _, ctx, .let₁ value body => (infer ctx value).bind fun A => infer (.snoc ctx A) body
+  | _, ctx, .let₂ value body => do
+      let .product A B ← infer ctx value | none
+      infer (.snoc (.snoc ctx A) B) body
   | _, _, _ => none
 
 /-- Check each instruction and outgoing positional label against the supplied

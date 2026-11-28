@@ -1,0 +1,27 @@
+native-v1.parquet: SHA-256 02b7a057948a054af205ce6f2881c31e3ce59cb9ca04ef4c4aeb30d7379132e5
+footer @138, OffsetIndex absent, rows 4, slots 6
+frame [4, 35), rep value @28 [0], def value @34 [0], PLAIN []
+frame [35, 66), rep value @59 [0], def value @65 [1], PLAIN []
+frame [66, 102), rep value @90 [0, 1], def value @96 [3, 2], PLAIN [11]
+frame [102, 138), rep value @126 [0, 1], def value @132 [3, 2], PLAIN [22]
+PyArrow rows [None, [], [11, None], [22, None]]
+authored-continuation-v1.parquet, row count payloads [199, 273]: SHA-256 126fb7cf5bbe2ef6f8436757fc3f6c97644f6599a9c11a0d2a736d2ecc80c46e
+footer @138, OffsetIndex absent, rows 3, slots 6
+frame [4, 35), rep value @28 [0], def value @34 [0], PLAIN []
+frame [35, 66), rep value @59 [0], def value @65 [1], PLAIN []
+frame [66, 102), rep value @90 [0, 1], def value @96 [3, 2], PLAIN [11]
+frame [102, 138), rep value @126 [1, 1], def value @132 [3, 2], PLAIN [22]
+PyArrow rows [None, [], [11, None, 22, None]]
+native-indexed-v1.parquet: SHA-256 631ea40a4632f36d5266654c484f8fdfdb2d13cc1bce6aba91f09369628cbaa4
+footer @162, OffsetIndex [130, 162), rows 4, slots 6
+frame [4, 33), rep value @26 [0], def value @32 [0], PLAIN []
+frame [33, 62), rep value @55 [0], def value @61 [1], PLAIN []
+frame [62, 96), rep value @84 [0, 1], def value @90 [3, 2], PLAIN [11]
+frame [96, 130), rep value @118 [0, 1], def value @124 [3, 2], PLAIN [22]
+PyArrow rows [None, [], [11, None], [22, None]]
+group-boundary continuation: SHA-256 27fbf90326496c0ca18e6e61d5b5195797b7b5b74e7af339715cc82a6843da7a
+continuation after empty list: SHA-256 4676fdd105702b59d5fed586a5a427249a06eb3aa2be668311112c7f524d8eba
+wrong row total: SHA-256 74ccf00f51de028774d504579ad3c79071dca5261c186512842e7b8bab2ef569
+indexed continuation: SHA-256 78d1740cc2f441397ada33e7241a8da41d4c8a427c7e56581d5c4be831cd7d2f
+wrong chunk slot count @237 = 5: SHA-256 e1712ae4665e81f55d5067ec0e0b1bd0e37d89cb55c639624be08aa0ad25b03b
+wrong chunk slot count @237 = 7: SHA-256 85abd9715a010088ed0b6cf874000d3e8c7149f2f7cd96375a19ef466df61683

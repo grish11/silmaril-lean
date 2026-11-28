@@ -38,7 +38,7 @@ private theorem lift_agrees {Γ : VCtx τ} {T : τ} {θ υ : Nat → Tm Φ}
   | zero => rfl
   | succ i => exact congrArg (Tm.rename Nat.succ) (h (show At Γ i A from hi))
 
-private theorem region_subst_eq {Γ : VCtx τ} {L : LCtx τ} {r : Region Φ}
+theorem region_subst_eq {Γ : VCtx τ} {L : LCtx τ} {r : Region Φ}
     (hr : HasType Γ r L) {θ υ : Nat → Tm Φ}
     (h : ∀ ⦃i A⦄, At Γ i A → θ i = υ i) : r.substVars θ = r.substVars υ := by
   induction hr generalizing θ υ with

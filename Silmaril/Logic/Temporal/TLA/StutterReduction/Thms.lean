@@ -49,4 +49,12 @@ theorem hide_iff_lamport_reduction {V : Type v} {p : Behavior (S × V) → Prop}
         σ.canonicalReduction = ρ.canonicalReduction ∧ ρ.map Prod.fst = τ.map Prod.fst ∧ p τ := by
   simpa only [Behavior.canonicalReduction_eq_iff_stutterEquiv] using hide_iff_lamport hp σ
 
+/-- A product-state formula binder satisfies Lamport's canonical reduction clause. -/
+theorem Formula.sat_existsFlex_iff_lamport_reduction {V : Type u} (p : Formula (S × V))
+    (σ : Behavior (S × V)) :
+    (Formula.existsFlex p).Sat (σ.map Prod.fst) ↔
+      ∃ ρ τ : Behavior (S × V),
+        σ.canonicalReduction = ρ.canonicalReduction ∧ ρ.map Prod.fst = τ.map Prod.fst ∧ p.Sat τ :=
+  (sat_existsFlex p _).trans (hide_iff_lamport_reduction p.sat_stutterInvariant σ)
+
 end Silmaril.Logic.Temporal.TLA

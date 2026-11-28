@@ -1,0 +1,334 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "cuts_a": {
+      "source_groups": [
+        [
+          -719528,
+          null
+        ],
+        [
+          -1,
+          11016,
+          2932896
+        ]
+      ],
+      "pyarrow_parquet": {
+        "bytes": 274,
+        "sha256": "23f8673aa2a8dfb38db07ec50db77c77374b041a5fe52d88c428792819bef3a7"
+      },
+      "canonical_csv": {
+        "bytes": 75,
+        "sha256": "05d33a0303e7bc0d193b0a0aec0cb6e434f3eee9f5cb3168340eab9440a19b7a"
+      },
+      "lean_parquet": {
+        "bytes": 135,
+        "sha256": "5f3afec16d06de4ff11fa8c8aa617cb69e304f7c0088658eb152be5da73403bb"
+      },
+      "v1_body": {
+        "bytes": 30,
+        "sha256": "694abc20abdc4f513ced37f34cac2e007f99b2084414a8668cadd7f22d64685d"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "cuts_b": {
+      "source_groups": [
+        [
+          -719528
+        ],
+        [
+          null,
+          -1,
+          11016
+        ],
+        [
+          2932896
+        ]
+      ],
+      "pyarrow_parquet": {
+        "bytes": 359,
+        "sha256": "48533a8856d405de3d0a0b2869094f9d365b54fbd8598126ee53fc02a3de8eee"
+      },
+      "canonical_csv": {
+        "bytes": 75,
+        "sha256": "05d33a0303e7bc0d193b0a0aec0cb6e434f3eee9f5cb3168340eab9440a19b7a"
+      },
+      "lean_parquet": {
+        "bytes": 135,
+        "sha256": "5f3afec16d06de4ff11fa8c8aa617cb69e304f7c0088658eb152be5da73403bb"
+      },
+      "v1_body": {
+        "bytes": 30,
+        "sha256": "694abc20abdc4f513ced37f34cac2e007f99b2084414a8668cadd7f22d64685d"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "mixed_empty": {
+      "source_groups": [
+        [],
+        [
+          -719528
+        ],
+        [],
+        [],
+        [
+          null,
+          -1
+        ],
+        [
+          11016,
+          2932896
+        ],
+        []
+      ],
+      "pyarrow_ipc": {
+        "bytes": 1080,
+        "sha256": "7fb176fa8fac7f4c374a7bcff1a10e77cc898559706a95ad71f932489eef55fe"
+      },
+      "lean_source_parquet": {
+        "bytes": 487,
+        "sha256": "094dfa4aab18b26aa9b1309207cdf8c78a3fb56303a0fe971131eadce5e77c67"
+      },
+      "canonical_csv": {
+        "bytes": 75,
+        "sha256": "05d33a0303e7bc0d193b0a0aec0cb6e434f3eee9f5cb3168340eab9440a19b7a"
+      },
+      "lean_parquet": {
+        "bytes": 135,
+        "sha256": "5f3afec16d06de4ff11fa8c8aa617cb69e304f7c0088658eb152be5da73403bb"
+      },
+      "v1_body": {
+        "bytes": 30,
+        "sha256": "694abc20abdc4f513ced37f34cac2e007f99b2084414a8668cadd7f22d64685d"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "moved_null": {
+      "source_groups": [
+        [
+          null,
+          -719528
+        ],
+        [
+          -1,
+          11016,
+          2932896
+        ]
+      ],
+      "pyarrow_parquet": {
+        "bytes": 274,
+        "sha256": "198f593d4b8e44b7017c3ecf79e1953ad96b02a9ede7e29c998802c722d9f31a"
+      },
+      "canonical_csv": {
+        "bytes": 75,
+        "sha256": "c6c1ded09214b510f051b478edcbc74396456d835d055f73a2e80123abae557c"
+      },
+      "lean_parquet": {
+        "bytes": 135,
+        "sha256": "0414c5112407e187f68ca459b950b9ab553797686e15d603dbef16b8cbcd676b"
+      },
+      "v1_body": {
+        "bytes": 30,
+        "sha256": "c43ae7dfbc4e7006e2bb4dc25521cd8eaf27b036a96f80b03c730b6775e83958"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "reordered_days": {
+      "source_groups": [
+        [
+          2932896,
+          null
+        ],
+        [
+          -1,
+          11016,
+          -719528
+        ]
+      ],
+      "pyarrow_parquet": {
+        "bytes": 274,
+        "sha256": "34663ed205a203e198f00d098687cd25062ae96b0f16032e316f43bed54e33d4"
+      },
+      "canonical_csv": {
+        "bytes": 75,
+        "sha256": "c4730e357a0fcb0236172ee1fa29c6b0708aa7c991a072aba61894b029b25730"
+      },
+      "lean_parquet": {
+        "bytes": 135,
+        "sha256": "739ec130d253c324e5147f61f9f191907d7cff15baf87b5c5b5eb1a4bbd13b3a"
+      },
+      "v1_body": {
+        "bytes": 30,
+        "sha256": "6718ea318fab50c24256c41ca75a5aaa470b852a3751257469fabb84446991f1"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "zero_groups": {
+      "source_groups": [],
+      "pyarrow_parquet": {
+        "bytes": 92,
+        "sha256": "67c18009326f835b171b6b80998fa36ad5098511927b27c575c06d7850d526ca"
+      },
+      "canonical_csv": {
+        "bytes": 10,
+        "sha256": "0a255c2232f9bc88ec5205548f72bd881e2318315e9ff407e96f13aa617576ca"
+      },
+      "lean_parquet": {
+        "bytes": 109,
+        "sha256": "f59479191a0f0dbd4c18fa508a4479a4b635ccb7faf13738e4e4f19b14161647"
+      },
+      "v1_body": {
+        "bytes": 4,
+        "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    },
+    "empty_groups": {
+      "source_groups": [
+        [],
+        []
+      ],
+      "pyarrow_ipc": {
+        "bytes": 376,
+        "sha256": "19e3ac959172ed9067d86991d6217e07b8856535c0c1438e1a37258973ab8e37"
+      },
+      "lean_source_parquet": {
+        "bytes": 167,
+        "sha256": "eb48b4e92cb69b270dd099263a3f44267e1f9ee54b60686eebde785608ce2eac"
+      },
+      "canonical_csv": {
+        "bytes": 10,
+        "sha256": "0a255c2232f9bc88ec5205548f72bd881e2318315e9ff407e96f13aa617576ca"
+      },
+      "lean_parquet": {
+        "bytes": 109,
+        "sha256": "f59479191a0f0dbd4c18fa508a4479a4b635ccb7faf13738e4e4f19b14161647"
+      },
+      "v1_body": {
+        "bytes": 4,
+        "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+      },
+      "parquet_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      }
+    }
+  },
+  "controls": {
+    "pyarrow_empty_page_interval": {
+      "parquet": {
+        "bytes": 525,
+        "sha256": "32d3c1babd8722667cd67132e4bc4361ecdb60731b5b809c9be613b5442b1a17"
+      },
+      "error": "(.toCsv (.source (.openFailure (.snapshot (.invalidMetadata .pageInterval)))))"
+    },
+    "export_total_rows": {
+      "parquet": {
+        "bytes": 274,
+        "sha256": "23f8673aa2a8dfb38db07ec50db77c77374b041a5fe52d88c428792819bef3a7"
+      },
+      "error": "(.toCsv (.encode (.csvRowLimit 5 4)))"
+    },
+    "import_total_rows": {
+      "parquet": {
+        "bytes": 274,
+        "sha256": "23f8673aa2a8dfb38db07ec50db77c77374b041a5fe52d88c428792819bef3a7"
+      },
+      "error": "(.fromCsv (.csvToIpc (.csvRowLimit 5 4)))"
+    },
+    "late_outside_calendar": {
+      "parquet": {
+        "bytes": 266,
+        "sha256": "b3294c879d299930375dbecb73b3b2d66ac88e7c1e635aa0b1b8bf40b78cc858"
+      },
+      "error": "(.toCsv (.encode (.csv (.csv (.printCell 0)))))"
+    },
+    "second_group_thrift_edit": {
+      "parquet": {
+        "bytes": 276,
+        "sha256": "61b9814b5d8b27e85ecaf0a7830aadc0f33bfd308fea52e3697ae9bb0e7fb5b0"
+      },
+      "error": "(.toCsv (.source (.groupFailure 1 (.scan .unsupportedPageEncoding))))",
+      "modified_offset": 51
+    }
+  }
+}

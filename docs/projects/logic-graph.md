@@ -161,6 +161,33 @@ silmaril comorphism logic.pl_fol := Silmaril.Logic.Institution.Examples.plToFol
 The [PER constraint institution](per-constraints.md) also registers a Boolean room
 and two answered CNF problems translated from dictionaries (SAT and UNS).
 
+## Lean NDJSON declarations in extensional MLTT
+
+`logic.proof_formats.lean_ndjson.mltt.fixed_budget` specializes `fixedBudget Lean.Name n`.
+Signatures are ordered prefixes of resolved named declarations. Sentences are typing queries
+whose translated judgments, including their declaration contexts, use universe levels below `n`.
+The adapter supports positive sorts with closed successor/max levels, monomorphic constants,
+bound variables, application, lambdas and dependent products. Its signature prefix takes safe
+axioms and definitions, and subsequent definitions and theorems supply typing queries. Import
+checks format and reference structure. Typing in extensional MLTT is a separate obligation.
+[Lean NDJSON adapter](formal-rows.md#named-declarations-in-extensional-mltt)
+
+`logic.proof_formats.lean_ndjson.mltt.to_finite_mltt` sends each sentence to its judgment in
+`logic.type_theory.extensional_mltt.finite.bundled` at the same `n`. The checked
+`toFiniteMLTT_modelExpansive` fact applies at every `n` because the model map is the identity
+on the finite ZFSet towers of that height. The tower type may be empty in the chosen Lean
+universe. Surjectivity still holds in that case.
+Satisfaction is validity under every assignment satisfying the event's declaration context,
+which may itself have no satisfying assignments. The syntax bound alone gives no bound on an
+arbitrary derivation. Bounded soundness uses the uniformly bounded MLTT rules.
+
+`Silmaril.ProofFormats.LeanNDJSON.MLTT.pi Lean.Name` is the syntactic API over the category
+of signatures. `derives_iff_mltt` identifies its entailment at each signature with extensional
+MLTT derivability on the translated judgment hypotheses and conclusion. The consequence
+coverage matrix links the API and this theorem. The institution graph's record kinds require
+ordinary institutions or rooms and their maps. A `consequence_system` record requires fixed
+context and conclusion types, so it cannot express this signature-indexed entailment family.
+
 ## First-order arithmetic
 
 `logic.arithmetic.buchi` is binary Büchi arithmetic over the standard naturals.

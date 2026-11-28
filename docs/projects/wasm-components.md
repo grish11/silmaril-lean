@@ -197,23 +197,72 @@ instead starts from the stock `fwdS` Core 3.0 instance used by the
 reference component litmus. It sees the same suspended call resume with
 two different legal replies and distinguishes host wait from a trap.
 
-The open tree exposes a request before running any host implementation.
-The reference machine parks the Core thread in
-`Machine.Seg.core` while dispatching a canonical lower. Its synchronous
-`silentHost` case can trap with `cannotBlockSync`
-(`HLinked2.silent_cannotBlock`). The reference machine's host wait and trap
-policies therefore matter when closing a tree. `SimpleI.soundS` gives
-reference-to-IR soundness for typed answering hosts. The linked
-`HLinked2.sessAdequacy_full` and `HLinked2.sessDivs_eq_refDivs` results
-cover their own hosted session observers. A reference cut theorem for the
-open tree still needs to match stock instantiation to its ready store,
-match each `on_start` / `on_resolve` boundary and retained Core segment
-through the ABI in both directions, and reflect reference traps and
-host-free divergence across the intervening internal steps. A byte-level
-theorem further needs decoding and validation into the supported shape.
-
 ```sh
 make check CHECK_TARGETS='+Silmaril.Wasm.Component.SyncImportITree.Examples'
+```
+
+### Stock reference dispatcher at a typed import
+
+The cut API uses the stock `Machine.Steps` and dispatcher at `core3P (profile o)`.
+`ReferenceCut.request` takes a focused Core activation and a prefix of
+`.core` steps ending at a recognized optionless lower of import `i` in
+instance zero. The cut gives the flat parameter types and their successful
+lift to a typed question. The theorem renames the reference store's Core
+host code by `trampIdx`, derives the game's typed import transition and
+the tree's request via `tree_request`, and gives the stock `coreCallout`
+step with that same thread and continuation in `Seg.core`.
+[`Reference.SyncImportCut.Thms`](../../Silmaril/Wasm/Component/Reference/SyncImportCut/Thms.lean)
+
+`ReferenceCut.answer` applies when the store is unlocked, the owner passes
+`calloutEntry`, the instance may leave, and function `i` is the host binding
+for import `i`. Given one typed answer from `answerHostS`, the stock
+dispatcher runs through `on_start` and `on_resolve` to a flat return. The
+`popCore` step restores the saved continuation with the same Core store
+and thread as the tree's residual cursor, and with the host's new state.
+The downstream example uses the `fwdS` signature and the stock counter
+host at a local cut. [Lean example](../../Silmaril/Wasm/Component/Reference/SyncImportCut/Examples.lean)
+
+The tree is visibly pending at this cut. Silent divergence requires an
+infinite host-free Core run. The reference synchronous loop can trap
+with `cannotBlockSync` when a parked caller leaves the instance with no
+ready thread (`HLinked2.silent_cannotBlock`). The `answerHostS` policy
+traps if its answering function returns `none`.
+`ReferenceCut.refuses` reaches that machine trap, whose `trapCfg` locks
+the component store and clears the active control chain. Supplying
+`none` as an ITree reply resumes the game cursor with a Core trap and
+retains its Core store.
+
+### Successful single-export runs
+
+`sees_of_reference_return` starts from a stock `Instantiates` run for
+`SimpleI.toRef` and a stock `Calls` run resolving the selected export with
+values. The component must be start-free, wired as `SimpleI.Inst` specifies,
+and in the flat, float-free fragment described by `Ready`. The host is
+`answerHostS` with `SimpleI.HostOkS`. Successful import rounds supply their
+actual typed replies, with the host state threaded through `HostReplies`.
+The theorem reads each answered dispatcher callout in order, for any finite
+number of such callouts. Its ITree path starts at the instantiated store,
+returns the observed typed values, and carries the reference run's final Core
+store with trampoline host code renamed to import indices.
+[`Reference.SyncImportRun.Thms`](../../Silmaril/Wasm/Component/Reference/SyncImportRun/Thms.lean)
+
+The downstream check instantiates `fwdS` and calls `f(3)` in the stock
+dispatcher. The counter host starts at `10`, the export returns `13`, and
+the host ends at `11`. The matching ITree path has one answered import and
+carries the final mapped Core store.
+[Lean example](../../Silmaril/Wasm/Component/Reference/SyncImportRun/Examples.lean)
+
+This direction is from stock execution to the ITree's typed import path and
+successful return. The observer projects away the machine's internal steps,
+component arena, and scheduler labels. `answerHostS` services imports through
+dispatcher operations, so the proof reads the exchanges from the segmented
+run. Whole-export completeness and an observer for machine traps and
+divergence remain open. Such an observer must account separately for failed
+ABI lifts, host refusal and lockdown, `cannotBlockSync`, a visible pending
+request, and silent Core divergence.
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Wasm.Component.SyncImportITree.Examples +Silmaril.Wasm.Component.Reference.SyncImportCut.Examples +Silmaril.Wasm.Component.Reference.SyncImportRun.Examples'
 ```
 
 ## What ships

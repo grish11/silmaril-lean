@@ -37,6 +37,7 @@ private def read : ReadOperand String CallerState := fun operand before =>
   | "after" => (.ok (.int 8), reached)
   | "empty" => (.ok (.tuple []), reached)
   | "bad" => (.ok (.int 11), { reached with heap := write 43 })
+  | "text" => (.ok (.text (Core.Text.ofString "a")), { reached with heap := write 45 })
   | missing => (.error (.defined (.nameError missing)), { reached with heap := write 44 })
 
 private def caller : Saved (fun _ => Unit) :=
@@ -63,6 +64,13 @@ private def caller : Saved (fun _ => Unit) :=
   reached.reads == ["callee", "bad"] &&
     (match result, reached.heap.lookup ⟨0⟩ with
     | .error .notIterable, some (some (.int 43)) => true
+    | _, _ => false)
+
+#guard
+  let (result, reached) := preparePositionalCall read "callee" [.starred "text", .single "missing"] beginCall
+  reached.reads == ["callee", "text"] &&
+    (match result, reached.heap.lookup ⟨0⟩ with
+    | .error .unsupportedIterable, some (some (.int 45)) => true
     | _, _ => false)
 
 #guard

@@ -258,11 +258,11 @@ if __name__ == "__main__":
         "meta import Silmaril.Languages.Python.Core.Closure.Defs",
     )
     observations = {}
+    fixtures = []
     with tempfile.TemporaryDirectory() as tmp:
         for name, source, expected, events in FIXTURES:
             python_file = Path(tmp) / f"{name}.py"
-            lean_file = Path(tmp) / "Fixture.lean"
-            shared["emit"](python_file, lean_file, source)
+            python_file.write_text(source, encoding="utf-8")
             reference = subprocess.run(
                 [sys.executable, "-I", "-c", CPYTHON, str(python_file)],
                 check=True, capture_output=True, text=True, timeout=10,
@@ -334,26 +334,21 @@ if __name__ == "__main__":
                 extra = "#guard retainedAssertionWrite pythonSource\n"
             elif name == "forwarded_write":
                 extra = '#guard observation pythonSource 1 == ("live residual", [])\n'
-            shared["check_lean"](
-                lean_file,
-                LEAN + f"\n#guard observation pythonSource 64 == ({json.dumps(expected)}, {json.dumps(events)})\n" + extra,
-                extra_imports=imports, capture_output=True,
-            )
+            check = f"\n#guard observation pythonSource 64 == ({json.dumps(expected)}, {json.dumps(events)})\n"
+            fixtures.append((source, check + extra))
             observations[name] = {"result": reference, "core_events": events}
 
-        shared["emit"](python_file, lean_file, "def outer(seed): return\n")
+        source = "def outer(seed): return\n"
+        python_file = Path(tmp) / "BareReturn.py"
+        python_file.write_text(source, encoding="utf-8")
         bare_return = subprocess.run(
             [sys.executable, "-I", "-c", CPYTHON, str(python_file)],
             check=True, capture_output=True, text=True, timeout=10,
         )
         assert bare_return.stdout.strip() == "return None"
-        shared["check_lean"](
-            lean_file,
-            LEAN + """
+        fixtures.append((source, """
 #guard (match compile pythonSource with | .error (.frontend .bodyShape) => true | _ => false)
-""",
-            extra_imports=imports, capture_output=True,
-        )
+"""))
         for source, diagnostic in (
             ('def outer(seed): assert "x" not in seed().__code__.co_cellvars', ".frontend .expressionShape"),
             ('def outer(seed): assert "x" not in seed.__code__.co_cellvars, "message"', ".frontend .bodyShape"),
@@ -381,12 +376,9 @@ if __name__ == "__main__":
             ('def outer(seed): assert False, "message"', ".frontend .bodyShape"),
             ('def outer(seed): assert seed == 5, "message"', ".frontend .bodyShape"),
         ):
-            shared["emit"](python_file, lean_file, source + "\n")
-            shared["check_lean"](
-                lean_file,
-                LEAN + f"""
+            fixtures.append((source + "\n", f"""
 #guard (match compile pythonSource with | .error ({diagnostic}) => true | _ => false)
-""",
-                extra_imports=imports, capture_output=True,
-            )
+"""))
+        shared["check_lean_batch"](Path(tmp) / "Example.py", Path(tmp) / "Fixtures.lean",
+                                   fixtures, LEAN, extra_imports=imports)
     print(json.dumps({"cpython": sys.version.split()[0], "observations": observations, "fuel_budget": 64}))

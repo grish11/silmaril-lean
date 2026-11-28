@@ -59,16 +59,16 @@ private theorem readback {H : Type} {host : HostSemantics H} {src dst : Config H
         (fun c : Config H => (⟨c.store, c.frame, values saved ++ c.code ++ tail⟩ : Config H)) next⟩
   | callIndirect s f j c table a fn ft tableFound typeFound entry found same =>
     obtain ⟨rfl, rfl, rfl⟩ := leaf_shape source
-    exact ⟨[], c, .resolved a, rfl, by simp [v1Resolve, tableFound, typeFound, entry, found, same], rfl⟩
+    exact ⟨[], c, .resolved a, rfl, by simp [v1Resolve, resolveTable, tableFound, typeFound, entry, found, same], rfl⟩
   | callIndirectBounds s f j c table tableFound entry =>
     obtain ⟨rfl, rfl, rfl⟩ := leaf_shape source
-    exact ⟨[], c, .bounds, rfl, by simp [v1Resolve, tableFound, entry], rfl⟩
+    exact ⟨[], c, .bounds, rfl, by simp [v1Resolve, resolveTable, tableFound, entry], rfl⟩
   | callIndirectNull s f j c table tableFound entry =>
     obtain ⟨rfl, rfl, rfl⟩ := leaf_shape source
-    exact ⟨[], c, .null, rfl, by simp [v1Resolve, tableFound, entry], rfl⟩
+    exact ⟨[], c, .null, rfl, by simp [v1Resolve, resolveTable, tableFound, entry], rfl⟩
   | callIndirectType s f j c table a fn ft tableFound typeFound entry found different =>
     obtain ⟨rfl, rfl, rfl⟩ := leaf_shape source
-    exact ⟨[], c, .mismatch a, rfl, by simp [v1Resolve, tableFound, typeFound, entry, found, different], rfl⟩
+    exact ⟨[], c, .mismatch a, rfl, by simp [v1Resolve, resolveTable, tableFound, typeFound, entry, found, different], rfl⟩
   | pure s f move =>
     cases move <;>
       simp only [values_cons, List.nil_append, List.cons_append, List.append_assoc,
@@ -96,31 +96,31 @@ theorem step_iff {H : Type} {host : HostSemantics H} {s : Store H} {caller : Fra
       simpa only [v1Source, values_append, values_cons, values_nil, List.cons_append, List.nil_append,
         List.append_assoc, List.singleton_append] using move.context stack tail
     cases lookup : frameTable s caller with
-    | none => simp [v1Resolve, lookup] at resolved
+    | none => simp [v1Resolve, resolveTable, lookup] at resolved
     | some table =>
       cases element : table.refs[selector.toNat]? with
       | none =>
-        simp [v1Resolve, lookup, element] at resolved
+        simp [v1Resolve, resolveTable, lookup, element] at resolved
         subst out
         exact plug .trap (.callIndirectBounds _ _ _ _ _ lookup element)
       | some entry =>
         cases entry with
         | none =>
-          simp [v1Resolve, lookup, element] at resolved
+          simp [v1Resolve, resolveTable, lookup, element] at resolved
           subst out
           exact plug .trap (.callIndirectNull _ _ _ _ _ lookup element)
         | some address =>
           cases typeFound : caller.module.types[index.toNat]? with
-          | none => simp [v1Resolve, lookup, element, typeFound] at resolved
+          | none => simp [v1Resolve, resolveTable, lookup, element, typeFound] at resolved
           | some expected =>
             cases allocated : s.funcs[address.value]? with
-            | none => simp [v1Resolve, lookup, element, typeFound, allocated] at resolved
+            | none => simp [v1Resolve, resolveTable, lookup, element, typeFound, allocated] at resolved
             | some fn =>
               by_cases same : fn.type = expected
-              · simp [v1Resolve, lookup, element, typeFound, allocated, same] at resolved
+              · simp [v1Resolve, resolveTable, lookup, element, typeFound, allocated, same] at resolved
                 subst out
                 exact plug (.invoke address) (.callIndirect _ _ _ _ _ _ _ _ lookup typeFound element allocated same)
-              · simp [v1Resolve, lookup, element, typeFound, allocated, same] at resolved
+              · simp [v1Resolve, resolveTable, lookup, element, typeFound, allocated, same] at resolved
                 subst out
                 exact plug .trap (.callIndirectType _ _ _ _ _ _ _ _ lookup typeFound element allocated same)
 

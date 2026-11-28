@@ -28,6 +28,7 @@ inductive ReplyShape where
   | empty
   | unit
   | sum (left right : ReplyShape)
+  deriving DecidableEq
 
 def ReplyShape.ty : ReplyShape → Ty Atom
   | .empty => .empty

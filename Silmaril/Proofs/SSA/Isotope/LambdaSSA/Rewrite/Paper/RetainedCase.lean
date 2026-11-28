@@ -313,14 +313,14 @@ variable {V : Type u₁} {C : Type u₂}
 set_option backward.isDefEq.respectTransparency false in
 /-- The semantic case-bind law moves a scrutinee bind into the case without
 any premise on the scrutinee or the regions in its arms. -/
-theorem denote_boundCase_let (ha : Tm.HasType [X] a (Silmaril.coprod A B))
-    (hl : HasType [A, X] l [D]) (hr : HasType [B, X] r [D]) :
+theorem denote_boundCase_let {Γ : VCtx τ} {L : LCtx τ} (ha : Tm.HasType Γ a (Silmaril.coprod A B))
+    (hl : HasType (A :: Γ) l L) (hr : HasType (B :: Γ) r L) :
     denoteRegion J M (.let₁ ha (boundCase_hasType hl hr)) = denoteRegion J M (.case ha hl hr) := by
   let S := Silmaril.coprod A B
-  have hs := Denotes.var (J := J) (M := M) (Φ := Φ) (i := 0) (rfl : At [S, X] 0 S)
+  have hs := Denotes.var (J := J) (M := M) (Φ := Φ) (i := 0) (rfl : At (S :: Γ) 0 S)
   have hd := denote_spec J M ha
-  have hlw := hl.renameVars ((Ren.wk [X] S).lift A)
-  have hrw := hr.renameVars ((Ren.wk [X] S).lift B)
+  have hlw := hl.renameVars ((Ren.wk Γ S).lift A)
+  have hrw := hr.renameVars ((Ren.wk Γ S).lift B)
   have hc := RegionDenotes.case hs (denoteRegion_spec J M hlw) (denoteRegion_spec J M hrw)
   rw [← (RegionDenotes.let₁ hd hc).eq_denote J M,
     ← (RegionDenotes.case hd (denoteRegion_spec J M hl) (denoteRegion_spec J M hr)).eq_denote J M,

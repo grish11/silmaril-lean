@@ -39,6 +39,35 @@ private theorem closed_with_captures {family : Family m}
     intro _ _ opcode _ _ _ _ output _
     exact ordinary_tuple admits output (ordinary opcode)
 
+theorem linked_empty (ordinary : OrdinaryOutputs Op) (code : OpcodeCode (Instruction Op))
+    (captureCode : CaptureCode m) :
+    LinkedFamily primitives ids code captureCode (OrdinaryIn m) (OrdinaryIn m) .empty := by
+  let admits : HasOrdinary (OrdinaryIn m) := fun _ known => known
+  have closed : Closed primitives (OrdinaryIn m) := closed_with_captures ordinary admits (by
+    intro _ _ _ known
+    cases known)
+  have noLambda {port : Ty V S} {value : m.Val port} (known : OrdinaryIn m value) :
+      lambdaKey code captureCode value = none := by
+    cases value <;> first | rfl | cases known
+  have noGroup {port : Ty V S} {value : m.Val port} (known : OrdinaryIn m value) :
+      memberProfile code value = none := by
+    cases value <;> first | rfl | cases known
+  refine ⟨⟨closed, closed, ?_⟩, admits, admits, ?_, ?_, ?_, ?_⟩
+  · intro _ _ _ _ known _ _
+    cases known
+  · intro _ _ _ known found
+    rw [noLambda known] at found
+    cases found
+  · intro _ _ _ known found
+    rw [noLambda known] at found
+    cases found
+  · intro _ _ _ known found
+    rw [noGroup known] at found
+    cases found
+  · intro _ _ _ known found
+    rw [noGroup known] at found
+    cases found
+
 private theorem member_values (family : Family m) (members : List (Function V S))
     (refs : (slot : Fin members.length) → m.Val members[slot].port)
     (known : ∀ slot, family (refs slot)) : TupleIn family (memberValues members refs) := by
@@ -450,6 +479,62 @@ theorem linked_extension (ordinary : OrdinaryOutputs Op)
     cases known with
     | inherited old => exact earlier.groupsR old found
     | exported => cases (lambda_has_no_memberProfile keyR).symm.trans found
+
+omit [DecidableEq (Ty V S)] in
+private theorem mixed_impossible {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m}
+    {aL aR bL bR : Family m} {a b : DispatchKeys V S code.Key captureCode.Key}
+    (first : LinkedFamily primitives ids code captureCode aL aR a)
+    (second : LinkedFamily primitives ids code captureCode bL bR b) (separated : a.Separated b)
+    {args outs : Ports (Ty V S)} {left right : m.Val (.value (.function args outs))}
+    (knownL : aL left) (knownR : bR right) (related : ValueRelated m ids left right) : False := by
+  cases left with
+  | closure captures body =>
+    obtain ⟨key, present, equal⟩ := List.mem_map.mp (first.keysL knownL rfl)
+    have found := (related_key code captureCode related).symm.trans (congrArg some equal.symm)
+    exact separated.1 key present (second.keysR knownR found)
+  | member captures definitions slot =>
+    exact separated.2 _ (first.groupsL knownL rfl)
+      (second.groupsR knownR (related_memberProfile code related).symm)
+
+omit [DecidableEq (Ty V S)] in
+private theorem closed_union (ordinary : OrdinaryOutputs Op) {first second : Family m}
+    (admits : HasOrdinary first) (left : Closed primitives first) (right : Closed primitives second) :
+    Closed primitives (UnionIn first second) := by
+  apply closed_with_captures ordinary (fun val plain => Or.inl (admits val plain))
+  intro _ _ _ known
+  exact known.elim (fun h => tuple_in_mono Or.inl (left.captures h))
+    (fun h => tuple_in_mono Or.inr (right.captures h))
+
+omit [DecidableEq (Ty V S)] in
+theorem linked_union (ordinary : OrdinaryOutputs Op)
+    {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m}
+    {aL aR bL bR : Family m} {a b : DispatchKeys V S code.Key captureCode.Key}
+    (first : LinkedFamily primitives ids code captureCode aL aR a)
+    (second : LinkedFamily primitives ids code captureCode bL bR b)
+    (ab : a.Separated b) (ba : b.Separated a) :
+    LinkedFamily primitives ids code captureCode (UnionIn aL bL) (UnionIn aR bR) (a.append b) where
+  checked :=
+    { closedL := closed_union ordinary first.ordinaryL first.checked.closedL second.checked.closedL
+      closedR := closed_union ordinary first.ordinaryR first.checked.closedR second.checked.closedR
+      graphs := by
+        intro _ _ _ _ knownL knownR related
+        rcases knownL with fromA | fromB <;> rcases knownR with fromA' | fromB'
+        · exact first.checked.graphs fromA fromA' related
+        · exact (mixed_impossible first second ab fromA fromB' related).elim
+        · exact (mixed_impossible second first ba fromB fromA' related).elim
+        · exact second.checked.graphs fromB fromB' related }
+  ordinaryL value plain := .inl (first.ordinaryL value plain)
+  ordinaryR value plain := .inl (first.ordinaryR value plain)
+  keysL known found := by
+    simp only [DispatchKeys.append, List.map_append, List.mem_append]
+    exact known.imp (fun h => first.keysL h found) (fun h => second.keysL h found)
+  keysR known found := by
+    simp only [DispatchKeys.append, List.map_append, List.mem_append]
+    exact known.imp (fun h => first.keysR h found) (fun h => second.keysR h found)
+  groupsL known found := List.mem_append.mpr
+    (known.imp (fun h => first.groupsL h found) (fun h => second.groupsL h found))
+  groupsR known found := List.mem_append.mpr
+    (known.imp (fun h => first.groupsR h found) (fun h => second.groupsR h found))
 
 omit [DecidableEq (Ty V S)] in
 theorem linked_exports {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : DispatchKeys V S code.Key captureCode.Key}

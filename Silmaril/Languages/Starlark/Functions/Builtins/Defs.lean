@@ -7,12 +7,13 @@ public import Silmaril.Languages.Starlark.Functions.Arguments.Defs
 namespace Silmaril.Languages.Starlark.Functions.Builtins
 
 open Lists
-open Lists.Iteration (Cursor iterationSource truth)
+open Lists.Iteration (Cursor acquireIterator iterationSource truth)
 
 def typeName : Lists.Value → String
   | .scalar .none => "NoneType"
   | .scalar (.bool _) => "bool"
   | .scalar (.int _) => "int"
+  | .scalar (.float _) => "float"
   | .string _ => "string"
   | .range _ => "range"
   | .list _ => "list"
@@ -22,7 +23,7 @@ def typeName : Lists.Value → String
   | .builtin _ => "builtin_function_or_method"
 
 def minArity : Builtin → Nat
-  | .len | .type | .range => 1
+  | .len | .type | .range | .abs | .any | .all => 1
   | .bool | .list | .tuple => 0
 
 def arityError (id : Builtin) (supplied : Nat) : Error :=
@@ -57,6 +58,27 @@ def items (id : Builtin) : Lists.Value → Meaning (List Lists.Value)
 def countValue (count : Nat) : Lists.Value := .scalar (.int (Int.ofNat count))
 def boolValue (value : Bool) : Lists.Value := .scalar (.bool value)
 
+def absValue : Lists.Value → Meaning Lists.Value
+  | .scalar (.int value) => pure (countValue value.natAbs)
+  | .scalar (.float value) => pure (.scalar (.float (Binary64.abs value)))
+  | value => throw (.builtinType .abs value)
+
+/-- Test yielded values in order. A decisive truth value or an error ends the scan. -/
+def truthCursor (stop : Bool) (cursor : Cursor) (state : State) : Outcome Lists.Value :=
+  match _step : cursor.advance with
+  | none => .ok (boolValue (!stop)) state
+  | some (value, rest) =>
+    Outcome.resume (truth value state) fun flag next =>
+      if flag = stop then .ok (boolValue stop) next else truthCursor stop rest next
+termination_by cursor.remaining
+decreasing_by exact Cursor.advance_decreases _step
+
+/-- The snapshot and truth reads run no user code, so no iterator guard needs to be installed. -/
+def quantify (id : Builtin) (stop : Bool) (value : Lists.Value) (state : State) : Outcome Lists.Value :=
+  match acquireIterator value state with
+  | .error error next => .error (if error = .notIterable then .builtinType id value else error) next
+  | .ok (_, cursor) next => truthCursor stop cursor next
+
 def unary : Builtin → Lists.Value → Meaning Lists.Value
   | .bool, value => boolValue <$> truth value
   | .len, .string text => pure (countValue text.utf8ByteSize)
@@ -66,6 +88,9 @@ def unary : Builtin → Lists.Value → Meaning Lists.Value
   | .list, value => items .list value >>= allocate
   | .tuple, value => items .tuple value >>= allocateTuple
   | .range, value => fromExcept (rangeArgs [value])
+  | .abs, value => absValue value
+  | .any, value => quantify .any true value
+  | .all, value => quantify .all false value
 
 /-- Apply a universal built-in to expanded arguments. All accept only
 positional arguments, and keyword rejection precedes the other checks. -/
@@ -78,7 +103,7 @@ def invoke (id : Builtin) (actual : Actual) : Meaning Lists.Value :=
     | .bool => pure (boolValue false)
     | .list => allocate []
     | .tuple => allocateTuple []
-    | .len | .type | .range => throw (arityError id 0)
+    | .len | .type | .range | .abs | .any | .all => throw (arityError id 0)
   | .range, [], values@(_ :: _ :: _) => fromExcept (rangeArgs values)
   | _, [], _ :: _ :: _ => throw (arityError id actual.positional.length)
 

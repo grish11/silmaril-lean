@@ -9,7 +9,17 @@ namespace Silmaril.SSA.SeaOfNodes.GVN.Cyclic
 
 open Diamond (Signature ValueSort)
 
-universe u v
+universe u v w
+
+/-- A class representative is a vertex having the requested key. -/
+theorem classesOf_preserves_key {Key : Type w} [DecidableEq Key] {n : Nat}
+    (key : Fin n → Key) (i : Fin n) : key (classesOf key i) = key i :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.classesOf_preserves_key key i
+
+/-- Class labels agree exactly on equal keys. -/
+theorem classesOf_eq_iff {Key : Type w} [DecidableEq Key] {n : Nat}
+    (key : Fin n → Key) (i j : Fin n) : classesOf key i = classesOf key j ↔ key i = key j :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.classesOf_eq_iff key i j
 
 variable {Data : Type u} {Op : Signature.{u,v} Data} {n : Nat}
 variable {inputs : List (ValueSort Data)} {sorts : Fin n → ValueSort Data}

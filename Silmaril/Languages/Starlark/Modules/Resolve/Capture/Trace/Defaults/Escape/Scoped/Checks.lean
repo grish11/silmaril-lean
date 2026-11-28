@@ -16,7 +16,7 @@ open Bindings.WithDefaults (Callable)
 open Lists (State Cell)
 
 private inductive End where
-  | success | prefixError | defaultError | moduleError
+  | success | prefixError | defaultError | moduleError | moduleDefaultError
 
 private def firstIndex : End → Int
   | .prefixError => 1
@@ -28,9 +28,10 @@ private def defaultName : End → String
 
 private def maker (ending : End) : Spec :=
   ⟨⟨"make", "seed", "inner", [], [("early", .list 14),
-      ("saved", .read (defaultName ending)), ("last", .list 73)], "answer", 0⟩,
-    [("picked", starlark%[saved[offset]]), ("buffer", starlark%[[picked]]),
-      ("answer", starlark%[buffer[seed]]), ("repeat_read", starlark%[saved[offset]])],
+      ("saved", .read (defaultName ending)), ("setting_at_def", .read "setting"), ("shadow_at_def", .read "shadow"),
+      ("last", .list 73)], "answer", 0⟩,
+    [("picked", starlark%[saved[offset]]), ("buffer", starlark%[[[saved[setting_at_def]]]]),
+      ("answer", starlark%[buffer[shadow_at_def][seed]]), ("repeat_read", starlark%[saved[offset]])],
     [], [("offset", 0), ("unused", 42), ("offset", 1)],
     [("earlier", starlark%[[13]]), ("shadow", starlark%[seed]), ("offset", starlark%[table[shadow]])]⟩
 
@@ -39,13 +40,16 @@ private def edit : Callable := .required
 
 private def initialTable : Command := .assign "table" starlark%[outer_a]
 
+private def initialSetting : Command := .assign "setting" starlark%[1]
+
 private def firstCall (ending : End) : Command :=
   invocation "make" "a" [.scalar (.int (firstIndex ending))]
 
 private def firstCommands (ending : End) : List Command :=
   match ending with
-  | .moduleError => [firstCall ending, initialTable]
-  | _ => [initialTable, firstCall ending]
+  | .moduleError => [initialSetting, firstCall ending, initialTable]
+  | .moduleDefaultError => [initialTable, firstCall ending, initialSetting]
+  | _ => [initialTable, initialSetting, firstCall ending]
 
 private def commands (ending : End) : List Command :=
   [(maker ending).command, .assign "shadow" starlark%[99],
@@ -61,14 +65,14 @@ private def commands (ending : End) : List Command :=
 private theorem admitted (ending : End) : Bindings.WithDefaults.Profile (commands ending) := by
   let globals := names (commands ending)
   have known {name : String}
-      (member : name ∈ ["make", "shadow", "seed_a", "seed_b", "outer_a", "table", "a", "make_alias", "edit", "patch", "touched", "b", "alias",
+      (member : name ∈ ["make", "shadow", "seed_a", "seed_b", "outer_a", "table", "setting", "a", "make_alias", "edit", "patch", "touched", "b", "alias",
         "first", "second", "replacement", "override", "again"]) : Visible globals name := by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
-    rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+    rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       cases ending <;> unfold Visible <;> decide +revert
   let spec := maker ending
   let locals := ["picked", "buffer", "answer", "repeat_read"]
-  let owned := ["early", "saved", "last", "picked", "buffer", "answer", "repeat_read"]
+  let owned := ["early", "saved", "setting_at_def", "shadow_at_def", "last", "picked", "buffer", "answer", "repeat_read"]
   let block : LexicalBlock := ⟨spec.child.parameters.names ++ locals, spec.enclosing, globals⟩
   have inBlock {name : String} (member : name ∈ owned) : name ∈ block.owned := by
     cases ending <;> exact member
@@ -90,35 +94,32 @@ private theorem admitted (ending : End) : Bindings.WithDefaults.Profile (command
     have wrapperNames : Escape.WrapperNames spec.wrapper := by
       cases ending <;> exact ⟨by decide, by decide, by decide⟩
     have childFresh : spec.wrapper.childName ∉ spec.additional := by change "inner" ∉ ([] : List String); decide
-    refine ⟨⟨wrapperNames, childFresh, ?_, ?_⟩, ?_⟩
+    refine ⟨⟨wrapperNames, childFresh, ?_⟩, ?_⟩
     · intro name member
       change name ∈ ["offset", "unused", "offset"] at member
       simp at member
       rcases member with rfl | rfl | rfl <;> cases ending <;> decide
-    · intro name present
-      obtain ⟨target, present⟩ := present
-      have equal : target = "saved" ∧ name = defaultName ending := by
-        simpa [spec, maker] using present
-      rw [equal.2]
-      cases ending <;> decide
     · have pick := Defaults.Body.Operand.index (localRead "saved" (by decide) (by decide))
         (outerRead "offset" (by decide) (by decide) (by decide))
       have code := Defaults.Body.Elaborates.assign (block := block) (name := "picked") (inBlock (by decide)) pick
-        (.assign (name := "buffer") (inBlock (by decide)) (.list (localRead "picked" (by decide) (by decide)))
+        (.assign (name := "buffer") (inBlock (by decide))
+          (.list (.list (.index (localRead "saved" (by decide) (by decide)) (localRead "setting_at_def" (by decide) (by decide)))))
           (.assign (name := "answer") (inBlock (by decide))
-            (.index (localRead "buffer" (by decide) (by decide)) (outerRead "seed" (by decide) (by decide) (by decide)))
+            (.index (.index (localRead "buffer" (by decide) (by decide)) (localRead "shadow_at_def" (by decide) (by decide)))
+              (outerRead "seed" (by decide) (by decide) (by decide)))
             (.assign (name := "repeat_read") (inBlock (by decide)) pick
               (.ret (localRead "answer" (by decide) (by decide))))))
       let entries : List Functions.FreeName :=
         [⟨fileSlot "offset", fileSlot "offset"⟩, ⟨fileSlot "seed", fileSlot "seed"⟩]
       have selects : Selects block
-          [fileSlot "saved", fileSlot "offset", fileSlot "picked", fileSlot "buffer", fileSlot "seed",
-            fileSlot "saved", fileSlot "offset", fileSlot "answer"]
+          [fileSlot "saved", fileSlot "offset", fileSlot "saved", fileSlot "setting_at_def",
+            fileSlot "buffer", fileSlot "shadow_at_def", fileSlot "seed", fileSlot "saved", fileSlot "offset", fileSlot "answer"]
           entries := by
         apply Selects.owned (localOrigin (name := "saved") (by decide))
         apply Selects.enclosing (outerOrigin (name := "offset") (by decide) (by decide))
-        apply Selects.owned (localOrigin (name := "picked") (by decide))
+        apply Selects.owned (localOrigin (name := "setting_at_def") (by decide))
         apply Selects.owned (localOrigin (name := "buffer") (by decide))
+        apply Selects.owned (localOrigin (name := "shadow_at_def") (by decide))
         apply Selects.enclosing (outerOrigin (name := "seed") (by decide) (by decide))
         exact .owned (localOrigin (name := "answer") (by decide)) .nil
       have binders : Block.LocalBinders spec.child.parameters.names spec.child.body.binders locals := by
@@ -135,20 +136,40 @@ private theorem admitted (ending : End) : Bindings.WithDefaults.Profile (command
           (Leaf.readOperand (globalSlot "table")) [globalSlot "table"] :=
         .read (by decide) (.global hidden (by simp [outerBlock, Spec.block]) (known (by decide)).1)
           (.module hidden (by simp [outerBlock, Spec.block]) (known (by decide)).1)
+      have settingHidden : "setting" ∉ outerBlock.owned :=
+        show "setting" ∉ ["seed", "earlier", "shadow", "offset", "inner", "unused"] by decide
+      have setting : Defaults.Body.Operand outerBlock starlark%[setting]
+          (Leaf.readOperand (globalSlot "setting")) [globalSlot "setting"] :=
+        .read (by decide) (.global settingHidden (by simp [outerBlock, Spec.block]) (known (by decide)).1)
+          (.module settingHidden (by simp [outerBlock, Spec.block]) (known (by decide)).1)
       have leading := Defaults.Body.ElaboratesPrefix.cons (name := "earlier") (member (by decide)) (.list (.int 13))
         (.cons (name := "shadow") (member (by decide)) (ownedRead "seed" (by decide) (by decide))
           (.cons (name := "offset") (member (by decide)) (.index table (ownedRead "shadow" (by decide) (by decide))) .nil))
+      have chosen : defaultName ending ∈ ["seed", "earlier", "shadow", "offset", "inner", "unused"] := by
+        cases ending <;> decide
+      have legal : (defaultName ending).toList.head? ≠ some '$' := by cases ending <;> decide
+      have defaults := Lexical.Elaborates.cons (name := "early") (.list (.int 14))
+        (.cons (name := "saved") (ownedRead (defaultName ending) chosen legal)
+          (.cons (name := "setting_at_def") setting
+            (.cons (name := "shadow_at_def") (ownedRead "shadow" (by decide) (by decide))
+              (.cons (name := "last") (.list (.int 73)) .nil))))
       refine ⟨⟨⟨locals, _, _, entries, binders, code, selects⟩, ?_, _,
-        [fileSlot "seed", globalSlot "table", fileSlot "shadow"], leading, [⟨globalSlot "table", globalSlot "table"⟩], ?_⟩⟩
+        [fileSlot "seed", globalSlot "table", fileSlot "shadow"], leading, _, defaults,
+        [⟨globalSlot "table", globalSlot "table"⟩, ⟨globalSlot "setting", globalSlot "setting"⟩], ?_⟩⟩
       · intro entry present
         change entry ∈ entries at present
         simp [entries] at present
         rcases present with rfl | rfl
         · exact ⟨"offset", member (by decide), by change "offset" ≠ "inner"; decide, rfl⟩
         · exact ⟨"seed", member (by decide), by change "seed" ≠ "inner"; decide, rfl⟩
-      · apply Selects.owned (.owned (name := "seed") (member (by decide)))
-        apply Selects.module (.module hidden (by simp [outerBlock, Spec.block]) (known (by decide)).1)
-        exact .owned (.owned (name := "shadow") (member (by decide))) .nil
+      · have tableOrigin : ReadOrigin outerBlock (globalSlot "table") .module :=
+          .module hidden (by simp [outerBlock, Spec.block]) (known (by decide)).1
+        have settingOrigin : ReadOrigin outerBlock (globalSlot "setting") .module :=
+          .module settingHidden (by simp [outerBlock, Spec.block]) (known (by decide)).1
+        cases ending <;>
+          exact .owned (.owned (name := "seed") (member (by decide)))
+            (.module tableOrigin (.owned (.owned (name := "shadow") (member (by decide)))
+              (.owned (.owned (member chosen)) (.module settingOrigin .nil))))
   have pair (first second : Int) : Initializer globals (.list [.scalar (.int first), .scalar (.int second)]) :=
     .list (by intro item member; simp at member; rcases member with rfl | rfl <;> exact .int _)
   have read {name : String} (visible : Visible globals name) :
@@ -216,11 +237,17 @@ private theorem admitted (ending : End) : Bindings.WithDefaults.Profile (command
     all_goals simpa [Bindings.WithDefaults.Entries.write, edit, Callable.name, Forwarding.Chain.name] using childAt
   cases ending
   case moduleError =>
-    exact .invoke (body := parent) (known (by decide)) (known (by decide)) rfl (indexArg 0)
-      (.setup (known (by decide)) initial (rest _ rfl rfl))
+    exact .setup (name := "setting") (known (by decide)) (.operand (.int 1))
+      (.invoke (body := parent) (known (by decide)) (known (by decide)) rfl (indexArg 0)
+        (.setup (known (by decide)) initial (rest _ rfl rfl)))
+  case moduleDefaultError =>
+    exact .setup (name := "table") (known (by decide)) initial
+      (.invoke (body := parent) (known (by decide)) (known (by decide)) rfl (indexArg 0)
+        (.setup (name := "setting") (known (by decide)) (.operand (.int 1)) (rest _ rfl rfl)))
   all_goals
     exact .setup (name := "table") (known (by decide)) initial
-      (.invoke (body := parent) (known (by decide)) (known (by decide)) rfl (indexArg _) (rest _ rfl rfl))
+      (.setup (name := "setting") (known (by decide)) (.operand (.int 1))
+        (.invoke (body := parent) (known (by decide)) (known (by decide)) rfl (indexArg _) (rest _ rfl rfl)))
 
 private def caller : State := { bindings := fun _ => some (.scalar (.int 99)), iterators := [123] }
 
@@ -237,9 +264,10 @@ private def captureAddresses (heap : Array Cell) (closure seed : Lists.Value) : 
   let .function address := closure | none
   let ⟨.function child, true⟩ ← heap[address]? | none
   let [first, second] := child.captures | none
-  let [(early, .list allocated), (saved, savedValue), (last, .list later)] := child.defaults | none
+  let [(early, .list allocated), (saved, savedValue), (setting, .scalar (.int 1)),
+    (shadow, .scalar (.int 0)), (last, .list later)] := child.defaults | none
   if child.declaration == 0 && early == fileSlot "early" && saved == fileSlot "saved" && savedValue == seed &&
-      last == fileSlot "last" && heap[allocated]? == some ⟨.list [.scalar (.int 14)], true⟩ &&
+      setting == fileSlot "setting_at_def" && shadow == fileSlot "shadow_at_def" && last == fileSlot "last" && heap[allocated]? == some ⟨.list [.scalar (.int 14)], true⟩ &&
       heap[later]? == some ⟨.list [.scalar (.int 73)], true⟩ &&
       first.binding == fileSlot "offset" && first.localCell &&
       second.binding == fileSlot "seed" && second.localCell &&
@@ -254,13 +282,14 @@ private def captureAddresses (heap : Array Cell) (closure seed : Lists.Value) : 
     let initial := enter resolved.source caller
     let entered := initial.heap.size
     let get name := published.exports.lookup name
-    match get "a", get "b", get "seed_a", get "seed_b", get "make", initial.slots (globalSlot "table") with
-    | some a, some b, some (.list seedA), some (.list seedB), some (.function make), some (.owned table) =>
+    match get "a", get "b", get "seed_a", get "seed_b", get "make", initial.slots (globalSlot "table"),
+        initial.slots (globalSlot "setting") with
+    | some a, some b, some (.list seedA), some (.list seedB), some (.function make), some (.owned table), some (.owned setting) =>
       (resolved.program[1]?.map Functions.Declaration.locals) ==
         some [fileSlot "earlier", fileSlot "shadow", fileSlot "offset", fileSlot "inner", fileSlot "unused"] &&
       get "shadow" == some (.scalar (.int 99)) && get "table" == get "outer_a" && get "make_alias" == get "make" &&
       (match final.heap[make]? with
-        | some ⟨.function wrapper, true⟩ => wrapper.captures == [⟨globalSlot "table", table, false⟩]
+        | some ⟨.function wrapper, true⟩ => wrapper.captures == [⟨globalSlot "table", table, false⟩, ⟨globalSlot "setting", setting, false⟩]
         | _ => false) &&
       get "alias" == some a && a != b &&
       get "first" == some (.scalar (.int 5)) && get "second" == some (.scalar (.int 8)) &&
@@ -272,7 +301,7 @@ private def captureAddresses (heap : Array Cell) (closure seed : Lists.Value) : 
       captureAddresses final.heap a (.list seedA) == some [entered + 7, entered + 4] &&
       captureAddresses final.heap b (.list seedB) == some [entered + 20, entered + 17] &&
       final.bindingValue (globalSlot "first") == .ok (.scalar (.int 99)) && final.iterators == [123]
-    | _, _, _, _, _, _ => false
+    | _, _, _, _, _, _, _ => false
   | _, _ => false
 
 private def errorControl (ending : End) (expected : Lists.Error) (reachedDefault : Bool) : Bool :=
@@ -288,6 +317,8 @@ private def errorControl (ending : End) (expected : Lists.Error) (reachedDefault
     (["a", "b", "make_alias", "edit", "patch", "touched", "alias", "first", "second", "replacement", "override", "again"] : List String).all
       (fun name => get name == some (.binding none)) &&
     get "table" == some (.binding (if expected == .uninitialized (globalSlot "table") then none else some (.list (active - 1)))) &&
+    get "setting" == some (.binding
+      (if expected == .uninitialized (globalSlot "setting") then none else some (.scalar (.int 1)))) &&
     final.heap[active]? == some ⟨.binding (some (.scalar (.int (firstIndex ending)))), false⟩ &&
     final.heap[active - 3]? == some ⟨.list [.scalar (.int 3), .scalar (.int 5)], false⟩ &&
     final.heap[active + 1]? == some ⟨.binding (some (.list (active + 6))), false⟩ &&
@@ -303,6 +334,7 @@ private def errorControl (ending : End) (expected : Lists.Error) (reachedDefault
 #guard errorControl .moduleError (.uninitialized (globalSlot "table")) false
 #guard errorControl .prefixError (.indexRange 1 1) false
 #guard errorControl .defaultError (.uninitialized (fileSlot "unused")) true
+#guard errorControl .moduleDefaultError (.uninitialized (globalSlot "setting")) true
 
 #guard
   match resolve (commands .success ++ [.assign "table" starlark%[0]]) with

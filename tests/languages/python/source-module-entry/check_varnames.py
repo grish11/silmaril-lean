@@ -335,7 +335,7 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as temporary:
         source = Path(temporary) / "Example.py"
         destination = Path(temporary) / "Example.lean"
-        shared["emit"](source, destination, SOURCE)
+        source.write_text(SOURCE, encoding="utf-8")
         result = subprocess.run([sys.executable, "-I", "-c", CPYTHON, str(source), "aliases"], check=True,
                                 text=True, capture_output=True, timeout=10)
         version, tuples = json.loads(result.stdout)
@@ -348,12 +348,10 @@ if __name__ == "__main__":
             f"\n#guard observations pythonSource == some ([{expected}, none, none], "
             f"{json.dumps(EMITTED)}, true)\n"
         )
-        shared["check_lean"](destination, lean, extra_imports=IMPORTS)
-        shared["emit"](source, destination, EXACT_NEEDLE)
-        shared["check_lean"](destination, NEEDLE_LEAN, extra_imports=IMPORTS)
+        fixtures = [(SOURCE, lean), (EXACT_NEEDLE, NEEDLE_LEAN)]
         for setup, statement, cpython, lean_outcome, seeded_outcome in CASES:
             fixture = f"{setup}\nbefore = 5\n{statement}\ntail = 6\n"
-            shared["emit"](source, destination, fixture)
+            source.write_text(fixture, encoding="utf-8")
             result = subprocess.run([sys.executable, "-I", "-c", CPYTHON_COMPLETION, str(source)],
                                     check=True, text=True, capture_output=True, timeout=10)
             assert result.stderr == ""
@@ -361,40 +359,39 @@ if __name__ == "__main__":
                 assert json.loads(result.stdout) == [cpython, 5, 6 if cpython == "normal" else None]
             lean = COMPLETION_LEAN + f"\n#guard completion pythonSource == some {lean_outcome}\n"
             lean += SEEDED_LEAN + f"\n#guard seededFailure pythonSource {seeded_outcome}\n"
-            shared["check_lean"](destination, lean, extra_imports=IMPORTS)
-        shared["emit"](source, destination, RETAINED)
+            fixtures.append((fixture, lean))
+        source.write_text(RETAINED, encoding="utf-8")
         result = subprocess.run([sys.executable, "-I", "-c", CPYTHON_COMPLETION, str(source)],
                                 check=True, text=True, capture_output=True, timeout=10)
         assert result.stderr == ""
         if version == "3.13.5":
             assert json.loads(result.stdout) == ["AssertionError", 5, None]
-        shared["check_lean"](destination, RETAINED_LEAN, extra_imports=IMPORTS)
-        shared["emit"](source, destination, PARAMETERS_SOURCE)
+        fixtures.append((RETAINED, RETAINED_LEAN))
+        source.write_text(PARAMETERS_SOURCE, encoding="utf-8")
         result = subprocess.run([sys.executable, "-I", "-c", CPYTHON, str(source)], check=True,
                                 text=True, capture_output=True, timeout=10)
         assert result.stderr == ""
         if version == "3.13.5":
             assert json.loads(result.stdout) == [version, PARAMETER_TUPLES]
-        shared["check_lean"](destination, PARAMETERS_LEAN, extra_imports=IMPORTS)
+        fixtures.append((PARAMETERS_SOURCE, PARAMETERS_LEAN))
         for declaration in ("value=0", "*value", "*, value", "value: int"):
-            shared["emit"](source, destination, f"def inspect({declaration}): pass\n")
-            shared["check_lean"](destination, """
+            fixtures.append((f"def inspect({declaration}): pass\n", """
 open Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run
 
 #guard (match compile pythonSource with
   | .error (.source (.functionBody .parameterProfile)) => true
   | _ => false)
-""", extra_imports=IMPORTS)
+"""))
         for statement, diagnostic in (
             ('assert "x" not in inspect.__code__.co_varnames', ".expressionProfile"),
             ('assert "x" in inspect().__code__.co_varnames', ".expressionProfile"),
             ('assert "x" in inspect.__code__.co_varnames, "message"', ".assertionMessage"),
         ):
-            shared["emit"](source, destination, f"def inspect(): pass\n{statement}\n")
-            shared["check_lean"](destination, f"""
+            fixtures.append((f"def inspect(): pass\n{statement}\n", f"""
 open Silmaril.Languages.Python.Compile.ModuleEntry.Functions
 
 #guard (match check pythonSource with
   | .error (.scalar {diagnostic}) => true
   | _ => false)
-""", extra_imports=IMPORTS)
+"""))
+        shared["check_lean_batch"](source, destination, fixtures, "", extra_imports=IMPORTS)

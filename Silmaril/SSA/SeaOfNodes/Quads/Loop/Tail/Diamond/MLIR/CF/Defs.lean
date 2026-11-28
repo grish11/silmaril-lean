@@ -122,14 +122,17 @@ def lowerBlock (block : SourceBlock Op regs out size) (scope : Scope (dataPorts 
     Silmaril.MLIR.CF.Block TargetOp (Label regs out size) Γ [valueWidth out] :=
   lowerBlockWith fullJump .exit block scope
 
-variable {src : Source Op regs out size} {entry : Fin size}
-
-/-- Emit a checked diamond with the original block IDs. The external entry
-executes the source preheader. No checked edge targets its labeled copy. -/
-def lower (_p : Program src entry) : Target regs out size where
+/-- The external entry executes the chosen source block. Labeled source
+blocks keep their original indices and their full reaching banks. -/
+def lowerSource (src : Tail.Source Op regs out size) (entry : Fin size) : Target regs out size where
   entry := lowerBlock (src entry) ⟨entryNames regs, PUnit.unit⟩
   block
     | .site id => lowerBlock (src id) ⟨blockNames (Widths regs) regs, PUnit.unit⟩
     | .exit => .terminator (.ret (.cons .here .nil))
+
+variable {src : Source Op regs out size} {entry : Fin size}
+
+/-- Emit a checked diamond with the original block IDs. -/
+def lower (_p : Program src entry) : Target regs out size := lowerSource src entry
 
 end Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF

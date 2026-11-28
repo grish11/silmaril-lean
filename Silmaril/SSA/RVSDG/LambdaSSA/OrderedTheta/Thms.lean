@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.RVSDG.LambdaSSA.OrderedTheta.Model.Defs
 import Silmaril.Proofs.SSA.RVSDG.LambdaSSA.OrderedTheta.Soundness
 import Silmaril.Proofs.SSA.RVSDG.LambdaSSA.OrderedTheta.Iteration
+import Silmaril.Proofs.SSA.RVSDG.LambdaSSA.OrderedTheta.Region
 
 /-! # Preservation of ordered tail-controlled loops -/
 
@@ -33,6 +34,16 @@ theorem iter_boundary {I O X Y : Type u} (f : I → m (O ⊕ I)) (g : X → m (Y
     (comm : ∀ x, g (input x) = f x >>= fun result => pure (Sum.map output input result))
     (x : I) : iter g (input x) = iter f x >>= fun b => pure (output b) :=
   Proofs.iter_boundary f g input output comm x
+
+/-- Factor a singleton flat CFG through its typed body computation. The
+block's local label carries feedback, and its other label is the exit. -/
+theorem region_iterates_of_body {b : Region Φ} (typing : Region.HasType [A,A] b [A,A])
+    (step : TyDen A → m (TyDen A ⊕ TyDen A))
+    (body : RegionDenotes (m := m) ε typing
+      (fun env => step env.2 >>= fun result => pure (bodyTarget result))) :
+    RegionDenotes (m := m) ε (.cfg (fun _ : Fin 1 => A) (.br (ℓ := 0) rfl (.var (i := 0) rfl)) (fun _ => typing))
+      (fun env => iter step env.2 >>= fun a => pure (exit a)) :=
+  Proofs.region_iterates_of_body typing step body
 
 /-- Every translation witness gives the structural region denotation in the common Kleisli Elgot model. -/
 theorem Related.preserves (rel : Related A r g) :

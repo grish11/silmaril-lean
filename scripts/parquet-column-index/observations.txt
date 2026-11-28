@@ -1,0 +1,19 @@
+column-index.parquet 1b5710ef7f7291983c2bae4b62a20b34574982268e32fbbea227912b878653a5
+Footer declares TYPE_ORDER and a physical INT32 leaf with absent converted and logical tags.
+Group 0 ASCENDING, ColumnIndex [291, 338)
+  signed bounds [(-2147483648, 3), None, (0, 2147483647)], null counts [1, 4, 1]
+  wire lower ['00000080', '', '00000000'], wire upper ['03000000', '', 'ffffff7f']
+Group 1 DESCENDING, ColumnIndex [338, 385)
+  signed bounds [(5, 12), None, (-2147483648, 8)], null counts [1, 4, 1]
+  wire lower ['05000000', '', '00000080'], wire upper ['0c000000', '', '08000000']
+Group 2 UNORDERED, ColumnIndex [385, 440)
+  signed bounds [(-5, 0), (8, 12), (-18, 5)], null counts [2, 1, 1]
+  wire lower ['fbffffff', '08000000', 'eeffffff'], wire upper ['00000000', '0c000000', '05000000']
+Metadata controls from the pinned file
+  all-null flag mismatch: b0dd1cdaa758f82652e5c7241caac9a7386a5f0bcc874c3fa17bef0196bfc509
+  null-count mismatch: b424d59b4d09a81a5813258630d237ea7eb12ee9eb42414185ec980debb4ad07
+  unknown boundary tag: ee64b51fd786a4ef22c7593bbe983971a223c051267bad85619467bb4cbb0d20
+  short count list: e0154900f611bdaaa55240e480ed3797935ca8ff1b567f5556a3931cd4e07aec
+  missing count list: eff153326df26a146358af2d8ce54d8d53d5a5a5227ffdd799ff6a67a9511a9f
+  wrong paired page offset: 914c1a5720b23b53b95f8acde0838c763697c47dc21a684625480696121dde2b
+  surplus advertised byte: 5205c381312396080038ce334236bbf49b744fc03313801372a521300bb10420

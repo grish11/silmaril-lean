@@ -33,7 +33,7 @@ open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA (inputEnv)
 open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
 
 def exitRow : Spec :=
-  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0⟩
+  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0, none, none⟩
 
 def spinRow : Spec :=
   { exitRow with entry := [0, 0], updates := [⟨.add, 0, 0, 1⟩, ⟨.sub, 1, 1, 1⟩] }
@@ -72,6 +72,14 @@ every finite return. The native equation therefore fails at this
 valuation, and `equation_at_iff` carries the distinction to the
 emitted targets. [Checked regression][regression]
 
+## Checked dependent preheaders
+
+The native observation sentences also apply to checked dependent-preheader
+graphs. `Table.Institution.equation_holds_iff` relates the existing native
+equation to equality of the emitted RTL and λSSA finite return sets.
+`terminates_holds_iff` uses nonemptiness of those sets at each typed input.
+[Bridge and runnable example](sea-of-nodes-guarded-feedback-rows-rtl.md#satisfaction-of-observation-equations)
+
 ## Permuting the external input interface
 
 `InputPermutation n` maps each old input slot to its new position.
@@ -109,7 +117,7 @@ open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA (inputEnv)
 open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
 
 def row : Spec :=
-  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0⟩
+  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0, none, none⟩
 
 def swapInputs : InputPermutation 2 := Equiv.swap 0 1
 def bank (x y : Word) : WordTuple 2 := .cons x (.cons y .nil)

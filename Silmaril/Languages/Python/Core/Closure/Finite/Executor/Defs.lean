@@ -45,6 +45,9 @@ def fail (heap : HeapTable) (stack : Stack) : Failure → Transition
   | .defined error => (none, .delivering heap stack (.error error))
   | .danglingCell identity => fault heap stack (.danglingCell identity)
   | .unsupportedTupleElement => fault heap stack .unsupportedTupleElement
+  | .unsupportedFloatOperand => fault heap stack .unsupportedFloatOperand
+  | .unsupportedDictionaryOperand => fault heap stack .unsupportedDictionaryOperand
+  | .unsupportedCallable => fault heap stack .unsupportedCallable
 
 def failDispatch (heap : HeapTable) (stack : Stack) : Closure.Dispatch.Failure → Transition
   | .call error => fail heap stack error
@@ -80,10 +83,15 @@ def advanceIn (rows : CodeRows) (globals : GlobalLookup) : State → Option Tran
     some <| match operand.evalIn globals source.heap.project source.frame with
     | .ok value => resumeStore source destination value next stack
     | .error error => fail source.heap stack error
+  | .running source (.storeDictionary destination entries next) stack =>
+    let address := source.heap.next
+    let heap := (source.heap.reserve 1).bind ⟨address⟩
+      (.dictionaryData (Core.Module.Dictionary.build entries)) (Nat.lt_succ_self address)
+    some (resumeStore { source with heap } (.local destination) (.dictionary ⟨address⟩) next stack)
   | .running source (.assert test next) stack =>
     some <| match test.evalIn globals source.heap.project source.frame with
     | .ok value =>
-      if value.truth then (none, .running source next stack)
+      if value.truth source.heap.project then (none, .running source next stack)
       else (none, .delivering source.heap stack (.error .assertionError))
     | .error error => fail source.heap stack error
   | .running source (.assertFreevars test next) stack =>

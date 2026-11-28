@@ -16,7 +16,7 @@ open SeaOfNodes.Pure.ConstantFold
 open SeaOfNodes.Pure.SubZero (Opcode model word wordPort)
 open RVSDG (Locals Tuple extend)
 
-private theorem scan_agrees {args : List (Ty Unit)} {past sigs : List (List (Ty Unit))}
+theorem scan_agrees {args : List (Ty Unit)} {past sigs : List (List (Ty Unit))}
     (flow : Dataflow Opcode args past sigs) (known : Literals args past)
     (entry : Tuple (Val model.value) args) (locals : Locals (Val model.value) past)
     (agree : Scan.Literals.Agrees known entry locals) :
@@ -31,7 +31,7 @@ private theorem scan_agrees {args : List (Ty Unit)} {past sigs : List (List (Ty 
     cases operands
     rfl
 
-private theorem literalArm_eval {args : List (Ty Unit)} {past : List (List (Ty Unit))}
+theorem literalArm_eval {args : List (Ty Unit)} {past : List (List (Ty Unit))}
     (entry : Tuple (Val model.value) args) (locals : Locals (Val model.value) past) (value : BitVec 64) :
     (literalArm value).eval model entry locals = .cons value .nil := by
   exact congrArg (fun v : BitVec 64 => Tuple.cons (F := Val model.value) (t := wordPort) v .nil)

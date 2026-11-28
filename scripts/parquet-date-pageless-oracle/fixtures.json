@@ -1,0 +1,278 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "optional_middle": {
+      "parquet": {
+        "bytes": 312,
+        "sha256": "2a4b195ebf3c5e00f7968a605442858bdbec9bfac48b4b357d7130e9f35f491f"
+      },
+      "footer_start": 66,
+      "raw_groups": [
+        {
+          "row_group_ids": [
+            1,
+            2,
+            3,
+            5,
+            6
+          ],
+          "row_group_ordinal": null,
+          "row_group_file_offset": 4,
+          "row_group_total_byte_size": 29,
+          "row_group_total_compressed_size": 29,
+          "num_rows": 2,
+          "column_chunk_ids": [
+            2,
+            3
+          ],
+          "column_chunk_file_offset": 0,
+          "column_metadata_ids": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            9,
+            13,
+            16
+          ],
+          "physical_type": 1,
+          "encodings": [
+            3,
+            0
+          ],
+          "codec": 0,
+          "num_values": 2,
+          "total_uncompressed_size": 29,
+          "total_compressed_size": 29,
+          "data_page_offset": 4,
+          "encoding_stats_count": 1
+        },
+        {
+          "row_group_ids": [
+            1,
+            2,
+            3,
+            5,
+            6
+          ],
+          "row_group_ordinal": null,
+          "row_group_file_offset": 0,
+          "row_group_total_byte_size": 0,
+          "row_group_total_compressed_size": 0,
+          "num_rows": 0,
+          "column_chunk_ids": [
+            2,
+            3
+          ],
+          "column_chunk_file_offset": 0,
+          "column_metadata_ids": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            9,
+            13
+          ],
+          "physical_type": 1,
+          "encodings": [
+            3
+          ],
+          "codec": 0,
+          "num_values": 0,
+          "total_uncompressed_size": 0,
+          "total_compressed_size": 0,
+          "data_page_offset": 0,
+          "encoding_stats_count": 0
+        },
+        {
+          "row_group_ids": [
+            1,
+            2,
+            3,
+            5,
+            6
+          ],
+          "row_group_ordinal": null,
+          "row_group_file_offset": 33,
+          "row_group_total_byte_size": 33,
+          "row_group_total_compressed_size": 33,
+          "num_rows": 2,
+          "column_chunk_ids": [
+            2,
+            3
+          ],
+          "column_chunk_file_offset": 0,
+          "column_metadata_ids": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            9,
+            13,
+            16
+          ],
+          "physical_type": 1,
+          "encodings": [
+            3,
+            0
+          ],
+          "codec": 0,
+          "num_values": 2,
+          "total_uncompressed_size": 33,
+          "total_compressed_size": 33,
+          "data_page_offset": 33,
+          "encoding_stats_count": 1
+        }
+      ],
+      "signed_batches": [
+        [
+          -1,
+          null
+        ],
+        [],
+        [
+          11016,
+          0
+        ]
+      ],
+      "lean_ipc": {
+        "bytes": 664,
+        "sha256": "55f3bb1d44e6a909fc084795445f89a23448ae4e858de6a6d20a1d12c99cfc2e"
+      }
+    },
+    "required_empty": {
+      "parquet": {
+        "bytes": 136,
+        "sha256": "fe74004be6bb23a2415186355e2d6f09018ed184d7401c460c30b52f079d17fd"
+      },
+      "footer_start": 4,
+      "raw_groups": [
+        {
+          "row_group_ids": [
+            1,
+            2,
+            3,
+            5,
+            6
+          ],
+          "row_group_ordinal": null,
+          "row_group_file_offset": 0,
+          "row_group_total_byte_size": 0,
+          "row_group_total_compressed_size": 0,
+          "num_rows": 0,
+          "column_chunk_ids": [
+            2,
+            3
+          ],
+          "column_chunk_file_offset": 0,
+          "column_metadata_ids": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            9,
+            13
+          ],
+          "physical_type": 1,
+          "encodings": [
+            3
+          ],
+          "codec": 0,
+          "num_values": 0,
+          "total_uncompressed_size": 0,
+          "total_compressed_size": 0,
+          "data_page_offset": 0,
+          "encoding_stats_count": 0
+        }
+      ],
+      "signed_batches": [
+        []
+      ],
+      "lean_ipc": {
+        "bytes": 312,
+        "sha256": "fffc4b6735966b97f4c542b532f3287fb8eb31102e41c6871d44d1fb26aec437"
+      }
+    },
+    "required_schema_only": {
+      "parquet": {
+        "bytes": 93,
+        "sha256": "eb50605fb67aaadbc6472d02b966ade803a979f637526848c954a5369e7d0d7b"
+      },
+      "footer_start": 4,
+      "raw_groups": [],
+      "signed_batches": [],
+      "lean_ipc": {
+        "bytes": 152,
+        "sha256": "0d62f78d47dd09bc08dd6a4c25a8a65bc1d7e6606f348fa4d525af284ca195ca"
+      }
+    }
+  },
+  "controls": {
+    "value_count": {
+      "parquet": {
+        "bytes": 312,
+        "sha256": "bbf9fc89e45fe56c74964775fffe6af1201bfda6facd9cb9b488be02797c0cec"
+      },
+      "error": "(.validation .pageInterval)"
+    },
+    "positive_extent": {
+      "parquet": {
+        "bytes": 312,
+        "sha256": "02297a8e85ddf2b886d39cbb4f13907cece73e61777ed25ea1005776d26305fb"
+      },
+      "error": "(.validation .pageInterval)"
+    },
+    "positive_offset": {
+      "parquet": {
+        "bytes": 312,
+        "sha256": "5f0ab3a2e228358092fd3d28f96e19109f9bf60e57997dd85b0aa301aeebeb50"
+      },
+      "error": "(.validation .pageInterval)"
+    },
+    "dictionary_offset": {
+      "parquet": {
+        "bytes": 314,
+        "sha256": "13e8a1f3268279efcad6940ead23d310193043276ac208a72d2d6b4109eb774b"
+      },
+      "error": "(.validation .pageInterval)"
+    },
+    "page_encoding_stats": {
+      "parquet": {
+        "bytes": 319,
+        "sha256": "0afa1ca515e67eeba824ca5fcad2f074ad6b99020d5fe81c4c5437ea30406d74"
+      },
+      "error": "(.emptyMetadata 1)"
+    },
+    "wrong_ordinal": {
+      "parquet": {
+        "bytes": 314,
+        "sha256": "d17530999ff3dc019388e2da691bcde5969451a6f9ec609770950765f48f7bba"
+      },
+      "error": "(.ordinal 1)"
+    },
+    "overlapping_framed_group": {
+      "parquet": {
+        "bytes": 312,
+        "sha256": "9a6797206e762ca94b5eddfe8e545089c415e96233b090a6150c4718b32e7fca"
+      },
+      "error": "(.layout 2)"
+    }
+  }
+}

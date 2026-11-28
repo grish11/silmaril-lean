@@ -35,14 +35,10 @@ private theorem opDenotes (op : Φ) (A B : τ) (Γ : List τ)
     (Γ := instrSrc op :: Γ) (i := 0) rfl)
   simpa [Env.get] using dh
 
-private def branches : TyDen A ⊕ TyDen A → LabelDen [A, A]
-  | .inl a => Sum.inr (exit a)
-  | .inr a => Sum.inl a
-
 omit [LawfulElgotMonad m] in
 private theorem blockDenotes (s : Step Φ A) :
     RegionDenotes (m := m) ε (blockTyping s) (fun env =>
-      stepMap (m := m) (ε := ε) s env.2 >>= fun result => pure (branches result)) := by
+      stepMap (m := m) (ε := ε) s env.2 >>= fun result => pure (bodyTarget result)) := by
   have op := opDenotes (m := m) (ε := ε) s.op A (Silmaril.coprod A A) [A]
     s.input s.output (s.typing [A])
   have l : RegionDenotes (m := m) ε
@@ -68,11 +64,13 @@ private theorem blockDenotes (s : Step Φ A) :
     simp only [pure_bind]
     cases TypeModel.coprodEquiv A A (s.output ▸ result) <;> rfl
 
-theorem region_iterates (s : Step Φ A) :
-    RegionDenotes (m := m) ε (regionTyping s)
-      (fun env => iter (stepMap (m := m) (ε := ε) s) env.2 >>= fun a => pure (exit a)) := by
+theorem region_iterates_of_body {b : Region Φ} (typing : Region.HasType [A,A] b [A,A])
+    (step : TyDen A → m (TyDen A ⊕ TyDen A))
+    (body : RegionDenotes (m := m) ε typing
+      (fun env => step env.2 >>= fun result => pure (bodyTarget result))) :
+    RegionDenotes (m := m) ε (.cfg (fun _ : Fin 1 => A) (.br (ℓ := 0) rfl (.var (i := 0) rfl)) (fun _ => typing))
+      (fun env => iter step env.2 >>= fun a => pure (exit a)) := by
   let R : Fin 1 → τ := fun _ => A
-  let f := stepMap (m := m) (ε := ε) s
   let entry : Env [A] → m (LabelDen [A,A]) := fun env => pure (Sum.inl env.2)
   have entryDen : RegionDenotes (m := m) ε
       (.br (L := [A,A]) (ℓ := 0) rfl (.var (Φ := Φ) (Γ := [A]) (i := 0) rfl)) entry := by
@@ -80,19 +78,19 @@ theorem region_iterates (s : Step Φ A) :
       (Denotes.var (Φ := Φ) (Γ := [A]) (i := 0) rfl)
     simpa [Env.get, entry, LabelValue.inject] using d
   let dispatcher : Env [A] × FiniteLabelDen R → m (LabelDen [A,A]) :=
-    fun env => f env.2.2 >>= fun result => pure (branches result)
+    fun env => step env.2.2 >>= fun result => pure (bodyTarget result)
   have collective : CollectiveDenotes [A] R [A]
-      (fun _ env => f env.2 >>= fun result => pure (branches result)) dispatcher :=
+      (fun _ env => step env.2 >>= fun result => pure (bodyTarget result)) dispatcher :=
     ⟨fun _ _ _ => rfl⟩
-  have den := RegionDenotes.cfg _ _ entryDen (fun _ => blockDenotes (m := m) (ε := ε) s) collective
+  have den := RegionDenotes.cfg _ _ entryDen (fun _ => body) collective
   have eq : cfgDenotation (R := R) entry dispatcher =
-      (fun env => iter f env.2 >>= fun a => pure (exit a)) := by
+      (fun env => iter step env.2 >>= fun a => pure (exit a)) := by
     funext env
     let g : LabelDen [A] → m (LabelDen [A] ⊕ LabelDen [A]) := fun current =>
       dispatcher (env, labelDenToFinite R current) >>= fun next =>
         pure (LabelValue.appendSplit [A] [A] next)
     have g_spec (a : TyDen A) :
-        g (exit a) = f a >>= fun result => pure (Sum.map exit exit result) := by
+        g (exit a) = step a >>= fun result => pure (Sum.map exit exit result) := by
       have route : labelDenToFinite R (exit a) = finiteLabelInject R 0 a := by
         exact labelDenToFinite_recursiveInject R 0 rfl a
       unfold g
@@ -105,8 +103,13 @@ theorem region_iterates (s : Step Φ A) :
         (Sum.inl env.2 : LabelDen (List.ofFn R ++ [A])) = Sum.inr (exit env.2) := rfl
     simp only [cfgDenotation, entry, pure_bind, binaryCoproductIso_hom_labelAppendSplit, initial]
     change iter g (exit env.2) = _
-    exact iter_boundary f g exit exit g_spec env.2
+    exact iter_boundary step g exit exit g_spec env.2
   rw [eq] at den
   exact den
+
+theorem region_iterates (s : Step Φ A) :
+    RegionDenotes (m := m) ε (regionTyping s)
+      (fun env => iter (stepMap (m := m) (ε := ε) s) env.2 >>= fun a => pure (exit a)) :=
+  region_iterates_of_body (blockTyping s) _ (blockDenotes s)
 
 end Silmaril.SSA.RVSDG.LambdaSSA.OrderedTheta.Proofs

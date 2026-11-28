@@ -11,12 +11,20 @@ namespace Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor
 open Silmaril.MLIR.Arith (Env Width)
 open Silmaril.MLIR.Pure (Operands)
 open Silmaril.MLIR.CF.SwitchAssert (Cfg)
-open Loop.MLIR.CF (Program evalOp lower model)
+open Loop.MLIR.CF (Program TargetOp evalOp lower model)
 
 variable {Input : List Width} {carried result saved : Width}
 variable {entrySigs headerSigs : List (List (Diamond.Ty Width))}
 variable {g : Program Input carried result entrySigs headerSigs}
 variable {index : Nat} {cut : Point (SourceLabel carried result)} {output : Output Input carried result}
+
+/-- A synthesized cut is legal in the CFG read by the chooser. -/
+theorem chooseCfgCut?_sound
+    {cfg : Silmaril.MLIR.CF.Cfg TargetOp (SourceLabel carried result) Input [result]}
+    {operands : List (Point (SourceLabel carried result))} {uses : List (Use (SourceLabel carried result))}
+    (selected : chooseCfgCut? cfg operands uses = some cut) :
+    cut ∈ candidateCuts cfg blocks ∧ Legal cfg operands uses cut :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.chooseCfgCut?_sound selected
 
 /-- The synthesized corridor drives the same emitter and returns the same
 result as the existing hoist with the synthesized complete tree. -/

@@ -1,0 +1,83 @@
+{
+  "description": "Native PyArrow array slices and normalized IPC DATE bodies",
+  "fixture_license": "MIT",
+  "oracle": {
+    "cpython": "3.13.5",
+    "cpython_commit": "6cb20a219a860eaf687b2d968b41c480c7461909",
+    "pyarrow": "26.0.1",
+    "arrow_commit": "9e5d6978e9acf372cc989aaaf94e863fe8582c90",
+    "wheel": "pyarrow-26.0.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+    "wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c"
+  },
+  "source_epoch_days": [
+    0,
+    null,
+    -1,
+    2,
+    null,
+    11016,
+    -25509,
+    null,
+    1,
+    10957,
+    null,
+    -365,
+    3
+  ],
+  "cases": [
+    {
+      "unit": "day",
+      "start": 3,
+      "length": 10,
+      "artifacts": {
+        "ipc": {
+          "bytes": 328,
+          "sha256": "ef79c2e31b601371aa066cee64ae2ce31e15f0d1ae0169d2ff2eaaeff8b4ca40"
+        },
+        "bitmap": {
+          "bytes": 2,
+          "sha256": "649cfedad0fc1749313ec42ddd6f73d4330235b08bcb1c7c3404878d1b88d8a6"
+        },
+        "values": {
+          "bytes": 52,
+          "sha256": "c687f3d3f3107d2fc48b2e64170b8ebf8d33dc7e4055bd32bd3142b98bde01af"
+        },
+        "metadata": {
+          "bytes": 136,
+          "sha256": "440dcb7fd0eb85254ed171c238879accea9c8d5f7f0b24812fd9349a4f0b34a4"
+        },
+        "body": {
+          "bytes": 48,
+          "sha256": "0f0e0f8fb93ce32e4448627a0f57faf0c353a3ca1d20d182b0cc8bb877c52b2c"
+        }
+      }
+    },
+    {
+      "unit": "millisecond",
+      "start": 5,
+      "length": 8,
+      "artifacts": {
+        "ipc": {
+          "bytes": 344,
+          "sha256": "523717aad7fc1276997e0ed14d8437c689c7992ac4b4ac55093af936daac1bba"
+        },
+        "bitmap": {
+          "bytes": 2,
+          "sha256": "649cfedad0fc1749313ec42ddd6f73d4330235b08bcb1c7c3404878d1b88d8a6"
+        },
+        "values": {
+          "bytes": 104,
+          "sha256": "696266f20a991fb943e3ec335866ccfae9533222124fda6c0b466222d50aaabd"
+        },
+        "metadata": {
+          "bytes": 136,
+          "sha256": "72b4176f8c84a8c18114147bc3b03cc30314b7b20928ada6527dd0b726a59aac"
+        },
+        "body": {
+          "bytes": 72,
+          "sha256": "19115ef4fe9dde4af6dc3307bc29c27284e9bcd1349761754b375ea76d67d961"
+        }
+      }
+    }
+  ]
+}

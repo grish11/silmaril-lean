@@ -29,7 +29,18 @@ private theorem infer_sound {n : Nat} (ctx : BoundCtx (Ty Base) n) (expr : Tm Em
       rw [← eq]
       exact .op (ih ctx typed)
     · simp [infer, typed] at inferred
-  | let₁ | let₂ | inl | inr | case | abort => cases inferred
+  | let₁ value body ihValue ihBody =>
+    simp only [infer, Option.bind_eq_some_iff] at inferred
+    obtain ⟨B, valueType, bodyType⟩ := inferred
+    exact .let₁ (ihValue ctx valueType) (ihBody (.snoc ctx B) bodyType)
+  | let₂ value body ihValue ihBody =>
+    cases valueType : infer ctx value with
+    | none => simp [infer, valueType] at inferred
+    | some product =>
+      cases product <;> simp only [infer, valueType] at inferred
+      case product B C => exact .let₂ (ihValue ctx valueType) (ihBody (.snoc (.snoc ctx B) C) inferred)
+      all_goals cases inferred
+  | inl | inr | case | abort => cases inferred
 
 theorem checkBody_sound {labels n : Nat} (types : Fin labels → Ty Base)
     (ctx : BoundCtx (Ty Base) n) (body : LambdaSSA.Flat F labels n)

@@ -8,8 +8,8 @@ public section
 namespace Silmaril.SSA.SeaOfNodes.GVN.Pass
 
 open Diamond (Dataflow Model Signature Ty Val ValueSort)
-open RVSDG (Locals Tuple)
-open Elimination (Rewrite Routing)
+open RVSDG (Locals Origin Tuple)
+open Elimination (Rewrite Routing operandScope)
 
 universe u v w
 
@@ -23,6 +23,20 @@ theorem mem_candidates {out : ValueSort Data} (ref : Producer flow out) :
   Silmaril.Proofs.SSA.SeaOfNodes.GVN.Pass.mem_candidates ref
 
 variable [DecidableEq (ValueSort Data)] [∀ ins out, DecidableEq (Op ins out)]
+
+/-- One candidate uses the discovered earlier producer and its typed prefix wire. -/
+theorem eliminateCandidate?_checked {out : ValueSort Data} (candidate : Producer flow out) {result : Rewrite Op args past sigs}
+    (accepted : eliminateCandidate? candidate = some result) :
+    ∃ (representative : Producer flow out) (wire : Origin args (operandScope candidate) (.value out)),
+      Discovery.findRepresentative? candidate = some representative ∧
+        replacement? candidate representative = some wire ∧
+        Elimination.eliminate? candidate representative wire = some result :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GVN.Pass.eliminateCandidate_checked candidate accepted
+
+/-- Any discovered representative has a usable prefix wire. -/
+theorem eliminateCandidate?_eq_none_iff {out : ValueSort Data} (candidate : Producer flow out) :
+    eliminateCandidate? candidate = none ↔ Discovery.findRepresentative? candidate = none :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GVN.Pass.eliminateCandidate_none_iff candidate
 
 /-- A scan stops exactly when the current table has no checker-accepted pair. -/
 theorem step?_eq_none_iff (flow : Dataflow Op args past sigs) :

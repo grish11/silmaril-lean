@@ -19,22 +19,28 @@ also checks that every other used destination is a declared exit. -/
 def lookup (graph : Graph V K F) (target : Option K) : Option (Block V K F) :=
   target.bind fun key => graph.blocks.lookup key
 
+/-- Scope checking treats declared exits as returns. -/
+def scopeLabel (exits : List (Option K)) (target : Option K) : Option K :=
+  if exits.contains target then none else target
+
 /-- For scope analysis, identify the declared exits with the old return.
 This keeps their payload reads and leaves the internal φ rows intact. -/
 def forScope (graph : Graph V K F) (exits : List (Option K)) : Graph V K F :=
-  let label := fun target => if exits.contains target then none else target
-  ⟨graph.entry.relabel label, graph.blocks.map fun (key, block) =>
-    (key, ⟨block.rows, block.body.relabel label⟩)⟩
+  ⟨graph.entry.relabel (scopeLabel exits), graph.blocks.map fun (key, block) =>
+    (key, ⟨block.rows, block.body.relabel (scopeLabel exits)⟩)⟩
 
 /-- Distinct external labels may not name blocks. Every written branch names
-either a block or one of the supplied exits. The existing φ checker
-validates normalized predecessor rows, definitions, and arrival claims. -/
-def check [DecidableEq V] (graph : Graph V K F) (exits : List (Option K))
-    (inputs : List V) (certificate : GlobalSSA.Certificate V K) : Bool :=
+either a block or one of the supplied exits. -/
+def checkExits (graph : Graph V K F) (exits : List (Option K)) : Bool :=
   let targets := graph.entry.targets ++ graph.blocks.flatMap (fun item => item.2.body.targets)
   decide exits.Nodup && exits.all (fun exit => (lookup graph exit).isNone) &&
-    targets.all (fun target => (lookup graph target).isSome || exits.contains target) &&
-    GlobalSSA.check (forScope graph exits) inputs certificate
+    targets.all (fun target => (lookup graph target).isSome || exits.contains target)
+
+/-- Check the exit partition, normalized predecessor rows, definitions and
+arrival claims. -/
+def check [DecidableEq V] (graph : Graph V K F) (exits : List (Option K))
+    (inputs : List V) (certificate : GlobalSSA.Certificate V K) : Bool :=
+  checkExits graph exits && GlobalSSA.check (forScope graph exits) inputs certificate
 
 /-- Keep the predecessor, written destination and payload, and outgoing store. -/
 abbrev Pending (V K α : Type w) := Option K × Transfer V (Option K) α

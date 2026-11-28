@@ -39,6 +39,14 @@ def Value.truth : Value → Bool
   | .bool value => value
   | .none => false
 
+/-- Look up the newest equal entry in a checked dictionary display. -/
+def dictionaryGet {Key Item : Type} (same : Key → Key → Bool)
+    (entries : List (Key × Item)) (key : Key) (fallback : Item) : Item :=
+  ((entries.reverse.find? fun entry => same entry.1 key).map Prod.snd).getD fallback
+
+def scalarDictionaryGet (entries : List (Value × Value)) (key fallback : Value) : Value :=
+  dictionaryGet Value.equal entries key fallback
+
 /-- Exactly the singleton objects distinguished by the identity profile. -/
 inductive Singleton where
   | none_

@@ -33,6 +33,27 @@ theorem checked_module_globals {commands : List Command} {globals : List String}
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Entry.checked_module_globals
     declares checked
 
+/-- Validated module globals and file-local import aliases are jointly distinct. -/
+theorem validated_entry_names {program : Program} {source : Modules.Source}
+    (checked : validateSource program source = .ok ()) : (source.globals ++ source.fileNames).Nodup :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Entry.validated_entry_names checked
+
+/-- Successful validation gives a distinct module global layout. -/
+theorem validated_module_names {program : Program} {source : Modules.Source}
+    (checked : validateSource program source = .ok ()) : source.globals.Nodup :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Entry.validated_module_names checked
+
+theorem entered_cells (source : Modules.Source) (caller : State) :
+    (∀ binding address, (enter source caller).slots binding = some (.owned address) → caller.heap.size ≤ address) ∧
+    ∀ (address : Nat) cell, caller.heap[address]? = some cell → (enter source caller).heap[address]? = some cell :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Entry.entered_cells source caller
+
+theorem entered_blank (source : Modules.Source) (caller : State) (binding : Binding)
+    (declared : binding ∈ source.globals.map globalSlot ++ source.fileNames.map fileSlot) :
+    ∃ address, (enter source caller).slots binding = some (.owned address) ∧
+      (enter source caller).heap[address]? = some ⟨.binding none, false⟩ :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Entry.entered_blank source caller binding declared
+
 /-- Module entry allocates an uninitialized owned cell for each declared global. -/
 theorem checked_global_cell {commands : List Command} {globals : List String}
     {linked : Program} {resolved : ResolvedModule}

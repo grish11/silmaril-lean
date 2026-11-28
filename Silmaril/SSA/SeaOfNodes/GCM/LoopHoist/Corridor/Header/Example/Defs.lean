@@ -53,8 +53,10 @@ def opOrder : {Γ : List Width} → Block TargetOp (SourceLabel word word) Γ [w
     let name := match op with
       | .original (.constant _) => "constant"
       | .original (.binary _ .addi) | .addi _ => "addi"
+      | .original (.binary _ .subi) => "subi"
       | .original (.binary _ .muli) => "muli"
       | .ult _ => "ult"
+      | .slt _ => "slt"
     name :: opOrder rest
 
 /-- The actual selected block and cut, opcode order before and after, and

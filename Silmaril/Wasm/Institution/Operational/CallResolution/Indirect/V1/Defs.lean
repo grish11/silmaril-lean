@@ -16,20 +16,26 @@ requires only the allocated table.
 
 namespace Silmaril.Wasm.Institution.Operational.CallResolution.Indirect
 
-open Execution.Runtime (Frame Value)
+open Execution.Runtime (Frame FuncAddr TableInst Value)
 open Wasm.V1.Execution
+
+/-- Read the entry before the type. Both the native store and a checked
+allocation use this lookup with their own function-type projection. -/
+def resolveTable (table : TableInst) (expected : Option Wasm.V1.FuncType)
+    (funType : FuncAddr → Option Wasm.V1.FuncType) (selector : BitVec 32) : Option Outcome :=
+  match table.refs[selector.toNat]? with
+  | none => some .bounds
+  | some none => some .null
+  | some (some address) => do
+    let signature ← expected
+    let actual ← funType address
+    return if actual = signature then .resolved address else .mismatch address
 
 /-- Resolve the leading native indirect site using its live allocation. -/
 def v1Resolve {H : Type} (s : Store H) (caller : Frame) (index : TypeIdx) (selector : BitVec 32) :
     Option Outcome := do
   let table ← frameTable s caller
-  match table.refs[selector.toNat]? with
-  | none => some .bounds
-  | some none => some .null
-  | some (some address) => do
-    let expected ← caller.module.types[index.toNat]?
-    let fn ← s.funcs[address.value]?
-    return if fn.type = expected then .resolved address else .mismatch address
+  resolveTable table caller.module.types[index.toNat]? (fun a => s.funcs[a.value]?.map (·.type)) selector
 
 def v1Source {H : Type} (s : Store H) (caller : Frame) (index : TypeIdx) (selector : BitVec 32)
     (stack : List Value) (tail : List Admin) : Config H :=

@@ -13,7 +13,8 @@ open Silmaril.Languages.Starlark (Binding)
 open Silmaril.Languages.Starlark.Functions
 open Silmaril.Languages.Starlark.Functions.Lowering
 open Silmaril.Languages.Starlark.Lists
-open Silmaril.Languages.Starlark.Lists.Iteration (Flow finishState projectCell_finishState map_finishState)
+open Silmaril.Languages.Starlark.Lists.Iteration
+  (Cursor Flow acquireIterator finishState map_finishState projectCell_finishState truth)
 
 private theorem packAction (signature : Signature) (bound : BoundArguments) :
     FrameAction (packArgs signature bound) := by
@@ -24,6 +25,46 @@ private theorem packAction (signature : Signature) (bound : BoundArguments) :
   · exact actionBind (actionAllocateTuple _) fun _ => actionPure _
   · exact actionBind (actionAllocateTuple _) fun _ =>
       actionBind (actionAllocateDict _) fun _ => actionPure _
+
+private theorem truthCursorFrame (stop : Bool) (cursor : Cursor) :
+    FrameIndependent (Builtins.truthCursor stop cursor) := by
+  intro state bindings
+  conv =>
+    lhs
+    rw [Builtins.truthCursor]
+  conv =>
+    rhs
+    rw [Builtins.truthCursor]
+  cases step : cursor.advance with
+  | none => rfl
+  | some item =>
+    obtain ⟨value, rest⟩ := item
+    dsimp only
+    rw [frameTruth value state bindings]
+    cases tested : truth value state with
+    | error => rfl
+    | ok flag next =>
+      simp only [mapFrame, Outcome.resume]
+      by_cases decisive : flag = stop
+      · simp only [ite_eq_left decisive]
+      · simp only [ite_eq_right decisive]
+        exact truthCursorFrame stop rest next bindings
+termination_by cursor.remaining
+decreasing_by exact Cursor.advance_decreases step
+
+private theorem quantifyAction (id : Builtin) (stop : Bool) (value : Value) :
+    FrameAction (Builtins.quantify id stop value) := by
+  constructor
+  · intro state bindings
+    simp only [Builtins.quantify, (acquireAction value).1 state bindings]
+    cases acquireIterator value state with
+    | error => rfl
+    | ok iterator next =>
+      obtain ⟨_, cursor⟩ := iterator
+      exact truthCursorFrame stop cursor next bindings
+  · intro state
+    rw [Builtins.quantify_finishState]
+    exact ⟨rfl, rfl⟩
 
 private theorem builtinAction (id : Builtin) (actual : Actual) :
     FrameAction (Builtins.invoke id actual) := by
@@ -47,13 +88,11 @@ private theorem builtinAction (id : Builtin) (actual : Actual) :
   | nil =>
     cases positional with
     | nil =>
-      cases id
-      · exact actionPure _
-      · exact actionThrow _
-      · exact actionThrow _
-      · exact actionAllocate _
-      · exact actionAllocateTuple _
-      · exact actionThrow _
+      cases id with
+      | bool => exact actionPure _
+      | list => exact actionAllocate _
+      | tuple => exact actionAllocateTuple _
+      | _ => exact actionThrow _
     | cons value rest =>
       cases rest with
       | cons =>
@@ -67,6 +106,11 @@ private theorem builtinAction (id : Builtin) (actual : Actual) :
         | list => exact actionBind (itemsAction _ _) actionAllocate
         | tuple => exact actionBind (itemsAction _ _) actionAllocateTuple
         | range => exact actionExcept _
+        | abs =>
+          cases value with
+          | scalar v => cases v <;> first | exact actionPure _ | exact actionThrow _
+          | _ => exact actionThrow _
+        | any | all => exact quantifyAction _ _ _
 
 private def transportPlan (bindings : Binding → Option Value) {available : List DeclarationId} :
     Outcome (CallPlan available) → Outcome (CallPlan available)

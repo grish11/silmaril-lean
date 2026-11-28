@@ -41,10 +41,12 @@ theorem source_allowed {mode : MemoryMode} {calls : CallMode} {p : Program} {m :
 
 mutual
 
-private theorem code_sources {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr} (checked : p.checkV1 m mode calls = true)
-    {a : FuncAddr} {fn : Function} (found : p.lookup a = some fn)
+private theorem code_sources {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr}
+    {fn : Function} (links : ∀ target ∈ fn.targets, ∃ callee, p.lookup target.address = some callee ∧
+      fn.declaration.module.funcs[target.index.toNat]? = some target.address ∧ calls.permits fn.rank callee.rank)
     (slot : fn.declaration.module.memories[0]? = some m) (code : List Op)
-    (labels : List (List NumType)) (supported : supportedCode code labels mode = true)
+    (labels : List (List NumType))
+    (supported : supportedCode code labels mode (p.checkIndirect calls fn.rank fn.declaration.module) = true)
     (targets : ∀ target ∈ codeTargets code, target ∈ fn.targets) :
     ∀ i ∈ v1Code code, SourceAllowedFor mode p m calls fn.rank fn.declaration.module i := by
   cases code with
@@ -54,24 +56,27 @@ private theorem code_sources {mode : MemoryMode} {calls : CallMode} {p : Program
     intro i hi
     simp only [v1Code, List.mem_cons] at hi
     rcases hi with rfl | hi
-    · exact op_source checked found slot op labels checks.1
+    · exact op_source links slot op labels checks.1
         (fun target used => targets target (List.mem_append_left _ used))
-    · exact code_sources checked found slot rest labels checks.2
+    · exact code_sources links slot rest labels checks.2
         (fun target used => targets target (List.mem_append_right _ used)) i hi
 
-private theorem op_source {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr} (checked : p.checkV1 m mode calls = true)
-    {a : FuncAddr} {fn : Function} (found : p.lookup a = some fn)
+private theorem op_source {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr}
+    {fn : Function} (links : ∀ target ∈ fn.targets, ∃ callee, p.lookup target.address = some callee ∧
+      fn.declaration.module.funcs[target.index.toNat]? = some target.address ∧ calls.permits fn.rank callee.rank)
     (slot : fn.declaration.module.memories[0]? = some m) (op : Op)
-    (labels : List (List NumType)) (supported : op.supportedIn labels mode = true)
+    (labels : List (List NumType))
+    (supported : op.supportedIn labels mode (p.checkIndirect calls fn.rank fn.declaration.module) = true)
     (targets : ∀ target ∈ op.targets, target ∈ fn.targets) :
     SourceAllowedFor mode p m calls fn.rank fn.declaration.module op.v1 := by
   cases op with
+  | callIndirect index signature => exact .callIndirect supported
   | load offset => exact .load offset slot
   | store offset => exact .store offset slot
   | block result body =>
-    exact .block (code_sources checked found slot body (result.toList :: labels) supported targets)
+    exact .block (code_sources links slot body (result.toList :: labels) supported targets)
   | loop result body =>
-    exact .loop (code_sources checked found slot body ([] :: labels) supported targets)
+    exact .loop (code_sources links slot body ([] :: labels) supported targets)
   | size | grow =>
     cases mode with
     | fixed => contradiction
@@ -79,9 +84,9 @@ private theorem op_source {mode : MemoryMode} {calls : CallMode} {p : Program} {
   | if_ result left right =>
     have checks := Bool.and_eq_true_iff.mp supported
     exact .if_
-      (code_sources checked found slot left (result.toList :: labels) checks.1
+      (code_sources links slot left (result.toList :: labels) checks.1
         (fun target used => targets target (List.mem_append_left _ used)))
-      (code_sources checked found slot right (result.toList :: labels) checks.2
+      (code_sources links slot right (result.toList :: labels) checks.2
         (fun target used => targets target (List.mem_append_right _ used)))
   | ranked op =>
     cases op with
@@ -98,11 +103,27 @@ private theorem op_source {mode : MemoryMode} {calls : CallMode} {p : Program} {
     | return_ => exact .return_
     | call target =>
       have uses : target ∈ fn.targets := targets target (List.Mem.head _)
-      obtain ⟨callee, h, resolved, _, permitted⟩ := p.linked_target checked found uses
+      obtain ⟨callee, h, resolved, permitted⟩ := links target uses
       exact .call resolved h permitted
     | _ => contradiction
 
 end
+
+theorem tail_allowed {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr}
+    {fn : Function} (links : ∀ target ∈ fn.targets, ∃ callee, p.lookup target.address = some callee ∧
+      fn.declaration.module.funcs[target.index.toNat]? = some target.address ∧ calls.permits fn.rank callee.rank)
+    (slot : fn.declaration.module.memories[0]? = some m)
+    (supported : supportedCode fn.code fn.entryLabels mode
+      (p.checkIndirect calls fn.rank fn.declaration.module) = true) :
+    CodeAllowedFor mode p m calls fn.rank fn.declaration.module (expression (v1Code fn.code)) := by
+  intro admin member
+  obtain ⟨i, used, rfl⟩ := List.mem_map.mp member
+  exact .source (code_sources links slot fn.code fn.entryLabels supported
+    (fun target h => by
+      have targets : ∀ code, codeTargets code = code.flatMap Op.targets := by
+        intro code
+        induction code <;> simp_all [codeTargets]
+      simpa [targets, Function.targets] using h) i used)
 
 theorem body_allowed {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr} (checked : p.checkV1 m mode calls = true)
     {a : FuncAddr} {fn : Function} (found : p.lookup a = some fn) :
@@ -112,7 +133,12 @@ theorem body_allowed {mode : MemoryMode} {calls : CallMode} {p : Program} {m : M
   refine ⟨values_allowed _, ?_⟩
   intro x member
   obtain ⟨op, used, rfl⟩ := List.mem_map.mp member
-  exact .source (op_source checked found slot op fn.entryLabels (List.all_eq_true.mp supported op used)
+  have links (target : CallTarget) (uses : target ∈ fn.targets) :
+      ∃ callee, p.lookup target.address = some callee ∧
+        fn.declaration.module.funcs[target.index.toNat]? = some target.address ∧ calls.permits fn.rank callee.rank := by
+    obtain ⟨callee, present, resolved, _, permitted⟩ := p.linked_target checked found uses
+    exact ⟨callee, present, resolved, permitted⟩
+  exact .source (op_source links slot op fn.entryLabels (List.all_eq_true.mp supported op used)
     (fun target h => List.mem_flatMap.mpr ⟨op, used, h⟩))
 
 private theorem expression_allowed {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr} {rank : Nat} {mod : ModuleInst}
@@ -221,6 +247,8 @@ theorem preserve {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAd
     cases guard with
     | frame found permitted scope arity inside =>
       exact single_allowed.mpr (.frame found permitted ((edge_module move).trans scope) arity (ih inside))
+    | enteredFrame scalar permitted inside =>
+      exact single_allowed.mpr (.enteredFrame scalar permitted (ih inside))
   | get _ => exact single_allowed.mpr (value_allowed _)
   | set _ => exact values_allowed []
   | resolve resolved =>
@@ -229,6 +257,15 @@ theorem preserve {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAd
     | call linked found permitted =>
       cases Option.some.inj (linked.symm.trans resolved)
       exact single_allowed.mpr (.invoke found permitted)
+  | @indirect bytes frame index selector fixed outcome selected slot resolved =>
+    cases outcome with
+    | resolved address =>
+      have guard := source_allowed (ready _ (List.Mem.tail _ (List.Mem.head _)))
+      cases guard with
+      | callIndirect admitted =>
+        obtain ⟨fn, found, _, permitted⟩ := p.indirect_target admitted selected resolved
+        exact single_allowed.mpr (.invoke found permitted)
+    | bounds | null | mismatch => exact single_allowed.mpr .trap
   | @enter bytes f a fn args found count =>
     have guard := single_allowed.mp (append_allowed.mp ready).2
     cases guard with

@@ -163,7 +163,7 @@ def controls(source_path, lean_path):
 
     source = "value = bool()\n"
     assert cpython(source, stock, {"value": False}) == "normal"
-    check(source, source_path, lean_path, outcome(STOCK, "unsupported", "[]", "[.error .unsupported]"))
+    check(source, source_path, lean_path, outcome(STOCK, "normal", '[("value", .bool false)]', f"[{FALSE}]"))
     for source in ("assert bool(1, 2) is True", "assert bool(x=1) is True", "assert bool('x') is True",
                    "assert bool(0) is 0", "assert bool() is False is False"):
         check(source + "\n", source_path, lean_path, """#guard (

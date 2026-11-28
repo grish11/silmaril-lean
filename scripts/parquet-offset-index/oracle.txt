@@ -1,0 +1,7 @@
+v1-index.parquet e23639cd6be43674fffb7a59072cff7b106665b16129e7439564b35ca1ac3e2e
+  row group 0, index [328, 353), (offset, size, first row) = [(4, 35, 0), (39, 35, 4), (74, 35, 8)]
+  row group 1, index [353, 380), (offset, size, first row) = [(109, 35, 0), (144, 39, 4), (183, 35, 8)]
+v2-index.parquet 4433b34caef2f7c53c1b6cd0a94c5f6e3b748c4b830df633b96b40855e46f401
+  row group 0, index [334, 359), (offset, size, first row) = [(4, 36, 0), (40, 36, 4), (76, 36, 8)]
+  row group 1, index [359, 386), (offset, size, first row) = [(112, 36, 0), (148, 40, 4), (188, 36, 8)]
+v1-no-index.parquet 7b1053e77957f849fd6c72fbfb9e8260037ae20dfa2d0d550b3b97f7014ba915

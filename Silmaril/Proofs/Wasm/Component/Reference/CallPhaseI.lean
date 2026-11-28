@@ -52,12 +52,14 @@ theorem holds_trapCfgA {m : Machine.Config (E3 P) σ} {out : CallOutcome}
     (ho : out.Holds (answerHostS P g).hr ⟨0⟩ (trapCfg m)) : out = .trap :=
   holds_trapCfg' (g := g) ho
 
-theorem out_of_resolvesA {m₁ m' : Machine.Config (E3 P) σ} {rs : List Silmaril.Wasm.Component.Reference.Val}
+/-- A completed lift returns the lifted values and preserves the Core store and host state. -/
+theorem result_of_resolvesA {m₁ m' : Machine.Config (E3 P) σ} {rs : List Silmaril.Wasm.Component.Reference.Val}
     {tr : List (Label (E3 P) σ)} {out : CallOutcome} (hR : ResolvesA prof P g m₁ rs)
     (hs : Steps prof (answerHostS P g).hr (DA P g) m₁ tr m')
     (hev : ∀ ev, Label.host ev ∈ tr → CallHostEvent ⟨0⟩ ev)
-    (ho : out.Holds (answerHostS P g).hr ⟨0⟩ m') : out = .resolved (some rs) := by
-  obtain ⟨tr₃, mE, hlr, hctl, hlock, hres, htick⟩ := hR
+    (ho : out.Holds (answerHostS P g).hr ⟨0⟩ m') :
+    out = .resolved (some rs) ∧ m'.store.core = m₁.store.core ∧ m'.host = m₁.host := by
+  obtain ⟨tr₃, mE, hlr, hctl, hlock, hres, hcore, hhost, htick⟩ := hR
   rcases hlr.inv hs with hl | ⟨tr₄, e, r⟩
   · exact absurd ho (hl.not_holds _ _)
   have hev' : ∀ ev, Label.host ev ∈ tr₄ → CallHostEvent ⟨0⟩ ev :=
@@ -65,10 +67,17 @@ theorem out_of_resolvesA {m₁ m' : Machine.Config (E3 P) σ} {rs : List Silmari
   have hq := quiet hctl (by rw [hres]; simp) htick _ tr₄ m' le_rfl r hev'
   rcases hq with rfl | hl
   · cases out with
-    | resolved r => exact congrArg _ (Option.some.inj (ho.2.2.symm.trans hres))
+    | resolved r => exact ⟨congrArg _ (Option.some.inj (ho.2.2.symm.trans hres)), hcore, hhost⟩
     | trap => exact absurd (ho.symm.trans hlock) (by decide)
     | deadlock => exact absurd (ho.2.symm.trans hres) (by simp)
   · exact absurd ho (hl.not_holds _ _)
+
+theorem out_of_resolvesA {m₁ m' : Machine.Config (E3 P) σ} {rs : List Silmaril.Wasm.Component.Reference.Val}
+    {tr : List (Label (E3 P) σ)} {out : CallOutcome} (hR : ResolvesA prof P g m₁ rs)
+    (hs : Steps prof (answerHostS P g).hr (DA P g) m₁ tr m')
+    (hev : ∀ ev, Label.host ev ∈ tr → CallHostEvent ⟨0⟩ ev)
+    (ho : out.Holds (answerHostS P g).hr ⟨0⟩ m') : out = .resolved (some rs) :=
+  (result_of_resolvesA hR hs hev ho).1
 
 theorem out_of_trapsNextA {m₁ m' : Machine.Config (E3 P) σ}
     {tr : List (Label (E3 P) σ)} {out : CallOutcome} (hT : TrapsNextA prof P g m₁)

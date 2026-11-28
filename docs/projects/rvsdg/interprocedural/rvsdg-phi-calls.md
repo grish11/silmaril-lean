@@ -809,12 +809,105 @@ that takes its callable from a formal input.
 ### Running backward demand on a numbered λ export
 
 `Plan.analyzeNumbered` takes a typed numbered `Omega` and a demand plan
-for its exact recovered source. The admitted layout starts with one
-checked φ family, followed by ordered λ bindings, and exports the final
-checked λ. Both links use the same numbered module and initial store.
-The caller supplies the source correspondence and the φ readiness proofs.
-The existing prefix checks can reject a plan when callable membership or
-local resolution fails.
+for its exact recovered source. The layout starts with a checked φ
+family and ends at the final checked λ. `Plan.phi` admits another
+independently checked family in link order. Both runs use the same numbered
+module and initial store. The caller supplies the source correspondence
+and readiness for each family's actual captures. The prefix checks can
+reject a plan when callable membership or local resolution fails.
+
+Each added family contributes disjoint demand slots and reuses its own
+closed summaries and saved-suffix transport. The step checks the group's
+actual outer wires against the existing typed membership table. Later λ
+bodies can call members from either group with supplied static resolution.
+The extra φ step starts a fresh set of inference routes for subsequent λ
+bindings. A use of a callable defined before that step therefore needs
+supplied resolution. Use `Plan.phiWithEarlier` when the later group's
+own bodies also call earlier checked slots. The later family supplies
+summaries closed under its body transfer using both the earlier summaries
+and its own recursive slots. The readiness proofs resolve actual member
+operands and capture witnesses for all formals. The finite-prefix proof
+uses the earlier dispatch certificate for earlier calls and its
+smaller-depth induction for calls within the new family. This admits
+static calls within each group and backward across link order.
+
+Use `Family.CallTransfer.withEarlier` to synthesize the later group's
+summaries. Each round holds the already checked earlier summaries fixed
+and updates the later family's rows for every output mask. The existing
+finite solver proves the least pre-fixed table for this combined GenKill
+transfer. The height bound counts only the later group's input bits,
+though the number of masks still grows exponentially with output arity.
+`Template.admitWithEarlier` installs the computed table and its closure
+proof. `Plan.phiWithEarlier` still checks the actual linked capture
+positions and uses supplied typed resolution.
+[Ordered synthesis API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Groups/Synthesis/Thms.lean)
+
+To compute each group in link order, write it as a
+`Scope.GroupTemplate` and use `Scope.synthesizeGroup`. The template
+gets the earlier table from the current scope. Each admitted group
+extends that scope with its computed summaries and typed member
+positions. Use `Plan.analyzeNumberedFromOrdinary` to start at ordinary
+imports with an empty dispatch and admit λ and φ bindings using the
+existing plan. This entry point covers the plan's λ/φ fragment.
+[Ordered template API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Synthesis/Defs.lean)
+
+For a numbered module with one leading δ, use `DeltaPrefix.check` to
+run both initializations and obtain the exact typed result row on each
+side and a common post-link store. `Plan.analyzeNumberedAfterDelta`
+runs the same source-indexed λ/φ walk from that store and certifies its
+results against the original numbered link. A blocked initializer or
+unequal post-link stores fail prefix admission. The initializer adds
+no callable summaries. The existing typed capture check recognizes
+ordinary initialized globals by type and checks callable positions as
+before. This entry point analyzes the exported invocation after
+initialization. Interleaved δ bindings remain outside it.
+[Leading δ API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Delta/Thms.lean)
+
+The δ→φ→λ fixture uses a synthesized φ summary for the member that
+reads the initialized global. The export calls the actual member and
+passes the same global as its capture witness. The probe keeps that
+global live under empty demand. Varying the dead formal preserves
+exact return, the typed block and resumption through the λ's saved
+suffix. A same-payload global from another vertex fails the witness
+equality.
+[Leading δ fixture](../../../../Silmaril/Proofs/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Delta/Regression.lean)
+
+For repeated initializers, `LinkedRemainder.start` indexes the actual
+numbered link by the remaining source. `checkDelta` runs the next δ
+against the current typed locals and store on both sides. On success
+it appends the initialized rows and carries the callable dispatch
+unchanged. The returned scope is available for the next step, including
+group synthesis. `addGroup` reuses the checked group admission and
+`analyze` runs the existing demand plan on the remaining λ/φ suffix.
+Each δ must succeed at a common post-step store. The δ initialization
+itself is outside the invocation liveness guarantee.
+[Composable prefix API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Remainder/Thms.lean)
+
+The interleaved δ→φ→δ→λ regression reads the first initialized
+global in the second initializer and reuses the φ dispatch after
+the second δ. It checks both initialized captures are live under
+empty result demand, exact return and resumption, and rejection
+when the received stores diverge at the second initializer.
+[Interleaved δ fixture](../../../../Silmaril/Proofs/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Delta/Regression.lean)
+
+The cross-group fixture starts with a λ and synthesizes both groups'
+summaries in order. The exported λ calls the second group and then
+uses the leading λ for its saved suffix. The second group takes a
+member of the first from a typed capture, recurses once, then calls
+that member. GenKill makes the payload formal live only when the
+export result is requested. The blocking capture and recursion counter
+stay live even with empty result demand. Varying an unrelated dead
+formal preserves the exact return, the first group's block, and the
+resumed return through both non-tail suffixes.
+[Cross-group fixture](../../../../Silmaril/Proofs/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Groups/EarlierRegression.lean)
+
+`GraphPlan` and `admitGraph` certify paired numbered runtime behavior.
+That certificate has no demand-indexed summaries, so the analysis uses
+the per-family demand certificates directly. The two-group regression
+uses both public entry points on the same numbered module and checks one
+live data capture per group, a dead formal, and exact return, block and
+resumption through the λ suffix.
+[Two-group fixture](../../../../Silmaril/Proofs/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Groups/Regression.lean)
 
 The successful result exposes the existing `GenKill` problem through
 `problem`. Its executable `liveIn` list agrees with the least `mayOut 0`
@@ -833,6 +926,95 @@ and the proposed replacement at each dead port of the same typed tuple.
 chosen demand when the live captures agree. The θ/γ fixture proposes new
 values for all three formals, substitutes only the spare, and exercises
 the transformed invocation through return, block, and resumption.
+
+### Analyzing a numbered client with a checked provider
+
+`analyzeAllocatingClient` takes a checked numbered provider and an
+`Export` demand receipt for those same provider links. It checks the
+client's head import against the actual closure, seeds static dispatch
+from the receipt, and starts the client initializer at the provider's
+common post-link store. The client is one unshifted δ→λ in a distinct
+unit. `Scope.Checked.addInitialized` appends the two initialized rows
+when both runs reach the same post-initialization store. The client λ
+supplies typed static body resolution for those rows.
+[Provider composition API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Provider/Thms.lean)
+
+The fixture uses a provider λ that probes its initialized capture and a
+client λ that probes its own global after the provider call. The public
+analysis keeps both probe inputs live even at empty result demand.
+Substituting the client's dead formal preserves the exact return, the
+typed provider block, and resumption through the client suffix. A
+same-signature import with a stale capture fails admission.
+[Provider composition fixture](../../../../Silmaril/Proofs/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Provider/Regression.lean)
+
+### Looking up demand indices in a checked provider assembly
+
+`CheckedProviderAssembly.lookup name ty` returns a `LookupReceipt` indexed by
+the assembly, name and requested port type. Its `values` projection supplies
+the exact left and right closure with membership in the accumulated dispatch
+families. `LookupReceipt.values_left` and `values_right` identify these
+values with the original exports at the requested type.
+`LookupReceipt.checkImports` can certify equality when a client already
+has materialized imports.
+
+`LookupReceipt.entry.provider` retains the original
+`CheckedProviderReceipt`, including its typed `port`, full `outcomeL` and
+`outcomeR`, and `chain.checked.linkedL` and `linkedR`.
+`CheckedProviderReceipt.selectedL` and `selectedR` are singleton outcomes
+at that provider's own post-link stores. With a summary for `provider.fn`,
+use them as the indices of `Export actions summary` for the selected
+closure. The lookup supplies the indices and exact import values. The demand
+certificate still supplies the summary, static dispatch and common-store
+evidence. These projections read stored link results.
+
+`matchNamedExport` checks that an existing demand receipt belongs to
+the selected closure and its original store on each side. Use those
+equalities to reindex the receipt as a `NamedDemand`. `NamedImports`
+combines the checked dispatches in typed import order and checks the
+materialized tuple with each name's `checkImports`. The allocating
+entry point takes a successful client initializer receipt at the
+assembly's common final store and returns the usual `ExportAnalysis`.
+The client still supplies static resolution for its checked imports.
+[Named provider demand API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Provider/Named/Thms.lean)
+
+`NamedImports.analyzeLayouts` accepts independent typed initializer and
+capture layouts for the same λ body. It checks each import against its
+actual named export, reads the captures from the corresponding successful
+initializer row, and computes one GenKill summary. The two rows share a
+post-link store and the client supplies static resolution for each side.
+Pass the resulting receipt for both sides of
+`ExportAnalysis.relocated_substituted_starts` with the existing related-link
+and dispatch certificates. The two-provider fixture moves the second
+provider and client allocations to vertex 1 on the right, checks exact
+return, typed block and non-tail resumption, and rejects the stale provider
+closure with the same payload from vertex 0.
+
+`LookupReceipt.entry.traceL` and `traceR` are
+`AllocationHistory.Segment` witnesses with exact entry and exit stores.
+Use `AllocationHistory.Segment.reassemble` with the provider's own
+`chain.historyL` or `historyR` to recover the full trace. The witnesses
+cover certified links in disjoint allocation histories. Opaque allocations
+and shared ancestors are outside this interface.
+[Typed provider lookup](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/Isomorphism/RecursiveCall/Numbered/Admission/Prefix/Graph/Import/Allocation/Thms.lean)
+
+### Analyzing relocated allocating layouts
+
+`AllocationPlan.analyze` also accepts the allocating layout with an empty
+φ before δ. It rebuilds the typed demand scope from the actual linked δ
+row. `AllocationPlan.analyzeImported` checks each head import against a
+provider demand receipt for its own numbered links. The outer capture
+wires may move while the exported λ uses the same demand summary.
+
+Use `ExportAnalysis.relocated_substituted_starts` with two such receipts,
+the existing related-link evidence, and `admitAllocatingClient`'s dispatch
+certificate. Related original and replacement arguments yield related
+substituted starts. The linked family transports returns and blocks at
+exact stores. `relocated_resume` reuses the reached related frames with
+typed, related, admitted response packets at a common store. The fixture
+moves both allocations from vertex 0 to 1 and checks exact success, block
+and resumption in both layouts. The right client rejects a same-payload
+provider closure that still captures vertex 0.
+[Relocated allocation API](../../../../Silmaril/SSA/RVSDG/Interprocedural/Runtime/Recursive/PartialLink/StaticDemand/Ordered/Prefix/Analysis/Provider/Relocation/Thms.lean)
 
 ### Synthesizing direct call resolution
 

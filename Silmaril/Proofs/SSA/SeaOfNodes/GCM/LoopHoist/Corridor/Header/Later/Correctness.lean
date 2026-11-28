@@ -139,16 +139,27 @@ theorem moveAt?_refuses_lateUse {saved : Width}
       exact (Nat.not_le_of_gt passed (available.local_order sameBlock)).elim
   simp [moveAt?, moveCfgAt?, checkCfgDestination, checkBindingCut, found, refused]
 
+theorem moveCfgAt?_order (moved : moveCfgAt? cfg index cut = some out) :
+    ∃ (prefixOps crossed : List Operation) (chosen : Operation) (suffixOps : List Operation),
+      prefixOps.length = index ∧ prefixOps.length + crossed.length = afterRemoval index cut.cut ∧
+      operations (cfg.block .header) = prefixOps ++ (chosen :: (crossed ++ suffixOps)) ∧
+      operations (out.block .header) = prefixOps ++ crossed ++ (chosen :: suffixOps) := by
+  obtain ⟨checked, _, emitted, rfl⟩ := emitted_spec moved
+  let _ : DecidableEq (Target (SourceLabel carried result)) := sourceTargetDecEq carried result
+  unfold checkCfgDestination at checked
+  have later := (of_decide_eq_true (Bool.and_eq_true_iff.mp checked).1).2
+  obtain ⟨prefixOps, crossed, chosen, suffixOps, prefixLength, count, beforeOrder, afterOrder⟩ :=
+    moveLater?_order emitted
+  exact ⟨prefixOps, crossed, chosen, suffixOps, prefixLength, by omega, beforeOrder, afterOrder⟩
+
 theorem moveAt?_order (moved : moveAt? g index cut = some out) :
     ∃ (prefixOps crossed : List Operation) (chosen : Operation) (suffixOps : List Operation),
       prefixOps.length = index ∧ prefixOps.length + crossed.length = cut.cut - 1 ∧
       operations ((lower g).block .header) = prefixOps ++ (chosen :: (crossed ++ suffixOps)) ∧
       operations (out.block .header) = prefixOps ++ crossed ++ (chosen :: suffixOps) := by
-  obtain ⟨checked, _, emitted, rfl⟩ := emitted_spec moved
-  obtain ⟨_, later, translation, _⟩ := checkDestination_sound checked
-  obtain ⟨prefixOps, crossed, chosen, suffixOps, prefixLength, count, beforeOrder, afterOrder⟩ :=
-    moveLater?_order emitted
-  exact ⟨prefixOps, crossed, chosen, suffixOps, prefixLength, by omega, beforeOrder, afterOrder⟩
+  obtain ⟨_, _, translation, _⟩ := moveAt?_placement moved
+  obtain ⟨pre, crossed, chosen, suf, len, dest, beforeOrder, afterOrder⟩ := moveCfgAt?_order moved
+  exact ⟨pre, crossed, chosen, suf, len, translation ▸ dest, beforeOrder, afterOrder⟩
 
 theorem moveAt?_frames (moved : moveAt? g index cut = some out) (input : Env Input) :
     out.entry = (lower g).entry ∧

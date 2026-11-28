@@ -14,7 +14,7 @@ open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
 open Silmaril.Isotope.LambdaSSA.Semantics.Region (Eval)
 
 private def spec : Spec :=
-  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0⟩
+  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0, none, none⟩
 
 private def plan : Plan 2 where
   entry := .cons (.arg .head) (.cons (.arg (.tail .head)) .nil)

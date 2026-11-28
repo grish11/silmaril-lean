@@ -49,12 +49,28 @@ inductive Fragment where
   | core | collections
   deriving DecidableEq
 
+inductive BinderMap where
+  | image | function
+  deriving Repr
+
 /-- The additional denotations required for the collection fragment. -/
 structure CollectionOperations (V : Type u) extends DataOperations V where
   function : V → (V → V) → V
   record : List (String × V) → V
   functionSet : V → V → V
   recordSet : List (String × V) → V
+  domain : V → V
+  apply : V → V → V
+  tuple : List V → V
+  /-- The inverse of `tuple` on tuples with the specified length. -/
+  untuple : Nat → V → Option (List V)
+  /-- A flat product of set operands, with one tuple coordinate per operand. -/
+  product : List V → Option V
+  /-- An invalid product reports the original bounds, once per source group. -/
+  invalidBounds : BinderMap → List V → V
+  string : String → V
+  /-- Each clause receives the old leaf of the preceding result at its own path. -/
+  except : V → List (List V × (V → V)) → V
 
 /-- Core terms use the original operations. Collection terms require a full
 collection adapter. -/
@@ -121,6 +137,21 @@ structure Valuation (V : Type u) where
   rigid : BindingId → V
   flexible : BindingId → V
 
+inductive BinderPattern where
+  | name (slot : Nat)
+  | tuple (slots : List Nat)
+  deriving Repr
+
+def BinderPattern.slots : BinderPattern → List Nat
+  | .name slot => [slot]
+  | .tuple slots => slots
+
+inductive Bounded where
+  | quant (kind : Surface.Quantifier)
+  | filter
+  | map (kind : BinderMap)
+  deriving Repr
+
 /-- Expanded data syntax. A witness slot is fresh at each binder expansion.
 The external node carries the admitted declaration identity and actual arity. -/
 inductive Term (signature : ExternalSignature) (fragment : Fragment := .core) where
@@ -143,6 +174,12 @@ inductive Term (signature : ExternalSignature) (fragment : Fragment := .core) wh
   | quant (kind : Surface.Quantifier) (slot : Nat) (bound : Option (Term signature fragment))
       (body : Term signature fragment)
   | choose (slot : Nat) (bound : Option (Term signature fragment)) (body : Term signature fragment)
+  | chooseTuple (enabled : fragment = .collections) (slots : List Nat)
+      (bound : Option (Term signature fragment)) (body : Term signature fragment)
+  /-- Each group has its own outer-scope domain. Plain names contribute one
+  pattern each, and a tuple pattern contributes one possibly structured key. -/
+  | bounded (enabled : fragment = .collections) (kind : Bounded)
+      (groups : List (List BinderPattern × Term signature fragment)) (body : Term signature fragment)
   | function (enabled : fragment = .collections) (site : Site) (binder : BindingId)
       (slot : Nat) (bound body : Term signature fragment)
   | functionSet (enabled : fragment = .collections) (site : Site)
@@ -150,50 +187,122 @@ inductive Term (signature : ExternalSignature) (fragment : Fragment := .core) wh
   | record (enabled : fragment = .collections) (site : Site) (fields : List (String × Term signature fragment))
   | recordSet (enabled : fragment = .collections) (site : Site)
       (fields : List (String × Term signature fragment))
+  | graphDomain (enabled : fragment = .collections) (operand : Term signature fragment)
+  | index (enabled : fragment = .collections) (fn key : Term signature fragment)
+  | tuple (enabled : fragment = .collections) (items : List (Term signature fragment))
+  | string (enabled : fragment = .collections) (value : String)
+  | except (enabled : fragment = .collections) (base : Term signature fragment)
+      (clauses : List (Nat × List (Term signature fragment) × Term signature fragment))
+  | oldValue (enabled : fragment = .collections) (slot : Nat)
   | external (id : BindingId) (arity : Nat) (admitted : signature id = some arity)
       (args : List (Term signature fragment))
   deriving Repr
 
 variable {V : Type u} {signature : ExternalSignature} {fragment : Fragment}
 
+/-- Ordinary witnesses stay rigid under prime. Old values are in scope only at
+the endpoint of their binding EXCEPT. -/
+structure WitnessScope where
+  ordinary : List Nat
+  oldValues : List Nat := []
+  allowFreeOrdinary : Bool := false
+
+def WitnessScope.isFresh (scope : WitnessScope) (slot : Nat) : Bool :=
+  !scope.ordinary.contains slot && !scope.oldValues.contains slot
+
+def WitnessScope.binds (scope : WitnessScope) (slots : List Nat) : Bool :=
+  !slots.isEmpty && decide slots.Nodup && slots.all scope.isFresh
+
 mutual
 
-/-- Check the expanded witness scopes and external argument counts. -/
-def Term.isWellFormed (term : Term signature fragment) (scope : List Nat) : Bool :=
+def Term.checkScope (term : Term signature fragment) (scope : WitnessScope) : Bool :=
   match term with
-  | .rigid _ | .flexible _ | .numeral _ | .boolean _ | .booleanSet => true
-  | .witness slot => scope.contains slot
-  | .eq _ l r | .mem _ l r | .logic _ l r | .functionSet _ _ l r =>
-    l.isWellFormed scope && r.isWellFormed scope
-  | .not arg | .prime _ arg => arg.isWellFormed scope
-  | .ite c y n => c.isWellFormed scope && y.isWellFormed scope && n.isWellFormed scope
-  | .junction _ args | .enum args => argsWellFormed args scope
+  | .rigid _ | .flexible _ | .numeral _ | .boolean _ | .booleanSet | .string .. => true
+  | .witness slot => scope.allowFreeOrdinary || scope.ordinary.contains slot
+  | .oldValue _ slot => scope.oldValues.contains slot
+  | .eq _ l r | .mem _ l r | .logic _ l r | .functionSet _ _ l r | .index _ l r =>
+    l.checkScope scope && r.checkScope scope
+  | .not arg | .graphDomain _ arg => arg.checkScope scope
+  | .prime _ arg => arg.checkScope { scope with oldValues := [] }
+  | .ite c y n => c.checkScope scope && y.checkScope scope && n.checkScope scope
+  | .junction _ args | .enum args | .tuple _ args => checkArgs args scope
   | .filter slot bound body | .image slot bound body | .function _ _ _ slot bound body =>
-    !scope.contains slot && bound.isWellFormed scope && body.isWellFormed (slot :: scope)
+    scope.isFresh slot && bound.checkScope scope &&
+      body.checkScope { scope with ordinary := slot :: scope.ordinary }
   | .quant _ slot bound body | .choose slot bound body =>
     let domainOk := match bound with
       | none => true
-      | some domain => domain.isWellFormed scope
-    !scope.contains slot && domainOk && body.isWellFormed (slot :: scope)
-  | .external _ arity _ args => args.length == arity && argsWellFormed args scope
-  | .record _ _ fields | .recordSet _ _ fields => fieldsWellFormed fields scope
+      | some domain => domain.checkScope scope
+    scope.isFresh slot && domainOk &&
+      body.checkScope { scope with ordinary := slot :: scope.ordinary }
+  | .chooseTuple _ slots bound body =>
+    let domainOk := match bound with
+      | none => true
+      | some domain => domain.checkScope scope
+    scope.binds slots && domainOk && body.checkScope { scope with ordinary := slots ++ scope.ordinary }
+  | .bounded _ kind groups body =>
+    let slots := groups.flatMap fun (patterns, _) => patterns.flatMap BinderPattern.slots
+    let shapeOk := match kind with
+      | .filter => match groups with | [([_], _)] => true | _ => false
+      | _ => true
+    shapeOk && scope.binds slots && checkBounds groups scope &&
+      body.checkScope { scope with ordinary := slots ++ scope.ordinary }
+  | .external _ arity _ args => args.length == arity && checkArgs args scope
+  | .record _ _ fields | .recordSet _ _ fields => checkFields fields scope
+  | .except _ base clauses => !clauses.isEmpty && base.checkScope scope && checkClauses clauses scope
 termination_by structural term
 
-def Term.argsWellFormed (args : List (Term signature fragment)) (scope : List Nat) : Bool :=
+def Term.checkBounds (groups : List (List BinderPattern × Term signature fragment))
+    (scope : WitnessScope) : Bool :=
+  match groups with
+  | [] => true
+  | (patterns, domain) :: rest =>
+    !patterns.isEmpty && patterns.all (fun p => !p.slots.isEmpty) && domain.checkScope scope &&
+      checkBounds rest scope
+termination_by structural groups
+
+def Term.checkArgs (args : List (Term signature fragment)) (scope : WitnessScope) : Bool :=
   match args with
   | [] => true
-  | arg :: rest => arg.isWellFormed scope && argsWellFormed rest scope
+  | arg :: rest => arg.checkScope scope && checkArgs rest scope
 termination_by structural args
 
-def Term.fieldsWellFormed (fields : List (String × Term signature fragment))
-    (scope : List Nat) : Bool :=
+def Term.checkFields (fields : List (String × Term signature fragment))
+    (scope : WitnessScope) : Bool :=
   match fields with
   | [] => true
   | (name, value) :: rest =>
-    !rest.any (fun field => field.1 == name) && value.isWellFormed scope && fieldsWellFormed rest scope
+    !rest.any (fun field => field.1 == name) && value.checkScope scope && checkFields rest scope
 termination_by structural fields
 
+def Term.checkClauses
+    (clauses : List (Nat × List (Term signature fragment) × Term signature fragment))
+    (scope : WitnessScope) : Bool :=
+  match clauses with
+  | [] => true
+  | (slot, keys, body) :: rest =>
+    scope.isFresh slot && !keys.isEmpty && checkArgs keys scope &&
+      body.checkScope { scope with oldValues := slot :: scope.oldValues } &&
+      checkClauses rest scope
+termination_by structural clauses
+
 end
+
+/-- Check the expanded witness scopes and external argument counts. -/
+def Term.isWellFormed (term : Term signature fragment) (scope : List Nat) : Bool :=
+  term.checkScope { ordinary := scope }
+
+def Term.argsWellFormed (args : List (Term signature fragment)) (scope : List Nat) : Bool :=
+  checkArgs args { ordinary := scope }
+
+def Term.fieldsWellFormed (fields : List (String × Term signature fragment))
+    (scope : List Nat) : Bool :=
+  checkFields fields { ordinary := scope }
+
+/-- Test an expanded prime operand with ordinary witnesses left in scope.
+An old value must be bound by an EXCEPT inside the operand. -/
+def Term.validPrimeOperand (term : Term signature fragment) : Bool :=
+  term.checkScope { ordinary := [], allowFreeOrdinary := true }
 
 mutual
 
@@ -201,18 +310,28 @@ mutual
 def Term.firstPrime (term : Term signature fragment) : Option Site :=
   match term with
   | .prime site _ => some site
-  | .rigid _ | .flexible _ | .witness _ | .numeral _ | .boolean _ | .booleanSet => none
-  | .eq _ l r | .mem _ l r | .logic _ l r | .functionSet _ _ l r => l.firstPrime.or r.firstPrime
-  | .not arg => arg.firstPrime
+  | .rigid _ | .flexible _ | .witness _ | .numeral _ | .boolean _ | .booleanSet
+  | .oldValue .. | .string .. => none
+  | .eq _ l r | .mem _ l r | .logic _ l r | .functionSet _ _ l r | .index _ l r =>
+    l.firstPrime.or r.firstPrime
+  | .not arg | .graphDomain _ arg => arg.firstPrime
   | .ite c y n => c.firstPrime.or (y.firstPrime.or n.firstPrime)
-  | .junction _ args | .enum args | .external _ _ _ args => firstPrimeIn args
+  | .junction _ args | .enum args | .tuple _ args | .external _ _ _ args => firstPrimeIn args
   | .filter _ bound body | .image _ bound body | .function _ _ _ _ bound body =>
     bound.firstPrime.or body.firstPrime
-  | .quant _ _ none body | .choose _ none body => body.firstPrime
-  | .quant _ _ (some bound) body | .choose _ (some bound) body =>
+  | .quant _ _ none body | .choose _ none body | .chooseTuple _ _ none body => body.firstPrime
+  | .quant _ _ (some bound) body | .choose _ (some bound) body | .chooseTuple _ _ (some bound) body =>
     bound.firstPrime.or body.firstPrime
+  | .bounded _ _ groups body => (firstPrimeInBounds groups).or body.firstPrime
   | .record _ _ fields | .recordSet _ _ fields => firstPrimeInFields fields
+  | .except _ base clauses => base.firstPrime.or (firstPrimeInClauses clauses)
 termination_by structural term
+
+def Term.firstPrimeInBounds (groups : List (List BinderPattern × Term signature fragment)) : Option Site :=
+  match groups with
+  | [] => none
+  | (_, domain) :: rest => domain.firstPrime.or (firstPrimeInBounds rest)
+termination_by structural groups
 
 def Term.firstPrimeIn (args : List (Term signature fragment)) : Option Site :=
   match args with
@@ -225,6 +344,13 @@ def Term.firstPrimeInFields (fields : List (String × Term signature fragment)) 
   | [] => none
   | (_, value) :: rest => value.firstPrime.or (firstPrimeInFields rest)
 termination_by structural fields
+
+def Term.firstPrimeInClauses
+    (clauses : List (Nat × List (Term signature fragment) × Term signature fragment)) : Option Site :=
+  match clauses with
+  | [] => none
+  | (_, keys, body) :: rest => (firstPrimeIn keys).or (body.firstPrime.or (firstPrimeInClauses rest))
+termination_by structural clauses
 
 end
 
@@ -252,6 +378,55 @@ noncomputable def Logic.eval (op : Logic) (B : Booleans V) (left right : V) : V 
 def withWitness (witnesses : Nat → V) (slot : Nat) (value : V) : Nat → V :=
   fun i => if i = slot then value else witnesses i
 
+/-- Assign tuple components to the corresponding witness slots in source order. -/
+def withWitnesses (witnesses : Nat → V) (slots : List Nat) (values : List V) : Nat → V :=
+  (slots.zip values).foldl (fun env (slot, value) => withWitness env slot value) witnesses
+
+noncomputable def BinderPattern.bind (ops : CollectionOperations V) (pattern : BinderPattern)
+    (witnesses : Nat → V) (key : V) : Option (Nat → V) :=
+  match pattern with
+  | .name slot => some (withWitness witnesses slot key)
+  | .tuple slots => (ops.untuple slots.length key).map (withWitnesses witnesses slots)
+
+/-- Images and function bodies use the projections of `CHOOSE z : FALSE`
+when the value bound to a tuple pattern has the wrong shape. -/
+noncomputable def BinderPattern.bindTotal (ops : CollectionOperations V) (pattern : BinderPattern)
+    (witnesses : Nat → V) (key : V) : Nat → V :=
+  match pattern with
+  | .name slot => withWitness witnesses slot key
+  | .tuple slots =>
+    let values := (ops.untuple slots.length key).getD
+      ((List.range slots.length).map fun i => ops.apply ops.choice.noWitness (ops.numeral (i + 1)))
+    withWitnesses witnesses slots values
+
+def Bounded.axes (groups : List (List BinderPattern × V)) : List (BinderPattern × V) :=
+  groups.flatMap fun (patterns, domain) => patterns.map (·, domain)
+
+noncomputable def Bounded.quantify (ops : CollectionOperations V) (kind : Surface.Quantifier)
+    (predicate : (Nat → V) → Prop) : List (BinderPattern × V) → (Nat → V) → Prop
+  | [], witnesses => predicate witnesses
+  | (pattern, domain) :: rest, witnesses =>
+    match kind with
+    | .exists => ∃ x env, ops.mem x domain ∧ pattern.bind ops witnesses x = some env ∧
+        quantify ops kind predicate rest env
+    | .forall => ∀ x env, ops.mem x domain → pattern.bind ops witnesses x = some env →
+        quantify ops kind predicate rest env
+
+noncomputable def BinderMap.eval (kind : BinderMap) (ops : CollectionOperations V)
+    (groups : List (List BinderPattern × V)) (witnesses : Nat → V) (body : (Nat → V) → V) : V :=
+  let construct := match kind with | .image => ops.image | .function => ops.function
+  match Bounded.axes groups with
+  | [(pattern, domain)] => construct domain (fun x => body (pattern.bindTotal ops witnesses x))
+  | axes =>
+    match ops.product (axes.map Prod.snd) with
+    | none => ops.invalidBounds kind (groups.map Prod.snd)
+    | some domain => construct domain fun key =>
+      match ops.untuple axes.length key with
+      | none => ops.enum []
+      | some keys =>
+        body ((axes.map Prod.fst |>.zip keys).foldl
+          (fun env (pattern, x) => pattern.bindTotal ops env x) witnesses)
+
 open Classical
 
 mutual
@@ -267,7 +442,7 @@ noncomputable def Term.eval (ops : Operations V fragment) (B : Booleans V)
   match term with
   | .rigid id => valuation.rigid id
   | .flexible id => valuation.flexible id
-  | .witness slot => witnesses slot
+  | .witness slot | .oldValue _ slot => witnesses slot
   | .prime _ operand =>
     eval ops B external { valuation with flexible := target } operand witnesses target
   | .numeral value => base.numeral value
@@ -329,6 +504,27 @@ noncomputable def Term.eval (ops : Operations V fragment) (B : Booleans V)
     | some domain =>
       let set := eval ops B external valuation domain witnesses target
       base.choice.choose (fun x => base.mem x set ∧ predicate x)
+  | .chooseTuple enabled slots bound body =>
+    let collection := Operations.collection ops enabled
+    let inDomain := match bound with
+      | none => fun _ => True
+      | some t => fun x => base.mem x (eval ops B external valuation t witnesses target)
+    base.choice.choose fun x =>
+      inDomain x ∧ ∃ env, (BinderPattern.tuple slots).bind collection witnesses x = some env ∧
+        B.holds (eval ops B external valuation body env target)
+  | .bounded enabled kind groups body =>
+    let collection := Operations.collection ops enabled
+    let domains := evalBounds ops B external valuation groups witnesses target
+    let value := fun env => eval ops B external valuation body env target
+    match kind with
+    | .quant quantifier => B.ofProp (Bounded.quantify collection quantifier (fun env => B.holds (value env))
+        (Bounded.axes domains) witnesses)
+    | .filter =>
+      match domains with
+      | [([pattern], domain)] => base.sep domain fun x =>
+        ∃ env, pattern.bind collection witnesses x = some env ∧ B.holds (value env)
+      | _ => base.enum []
+    | .map mode => mode.eval collection domains witnesses value
   | .function enabled _ _ slot bound body =>
     (Operations.collection ops enabled).function (eval ops B external valuation bound witnesses target)
       (fun x => eval ops B external valuation body (withWitness witnesses slot x) target)
@@ -339,9 +535,31 @@ noncomputable def Term.eval (ops : Operations V fragment) (B : Booleans V)
     (Operations.collection ops enabled).record (evalFields ops B external valuation fields witnesses target)
   | .recordSet enabled _ fields =>
     (Operations.collection ops enabled).recordSet (evalFields ops B external valuation fields witnesses target)
+  | .graphDomain enabled operand =>
+    (Operations.collection ops enabled).domain (eval ops B external valuation operand witnesses target)
+  | .index enabled fn key =>
+    (Operations.collection ops enabled).apply (eval ops B external valuation fn witnesses target)
+      (eval ops B external valuation key witnesses target)
+  | .tuple enabled items =>
+    (Operations.collection ops enabled).tuple (evalList ops B external valuation items witnesses target)
+  | .string enabled value => (Operations.collection ops enabled).string value
+  | .except enabled root clauses =>
+    (Operations.collection ops enabled).except (eval ops B external valuation root witnesses target)
+      (evalClauses ops B external valuation clauses witnesses target)
   | .external id arity admitted args =>
     (external id arity admitted).apply (evalList ops B external valuation args witnesses target)
 termination_by structural term
+
+noncomputable def Term.evalBounds (ops : Operations V fragment) (B : Booleans V)
+    (external : ExternalInterpretation V signature) (valuation : Valuation V)
+    (groups : List (List BinderPattern × Term signature fragment)) (witnesses : Nat → V)
+    (target : BindingId → V) : List (List BinderPattern × V) :=
+  match groups with
+  | [] => []
+  | (patterns, domain) :: rest =>
+    (patterns, eval ops B external valuation domain witnesses target) ::
+      evalBounds ops B external valuation rest witnesses target
+termination_by structural groups
 
 noncomputable def Term.evalList (ops : Operations V fragment) (B : Booleans V)
     (external : ExternalInterpretation V signature) (valuation : Valuation V)
@@ -364,6 +582,18 @@ noncomputable def Term.evalFields (ops : Operations V fragment) (B : Booleans V)
     (name, eval ops B external valuation value witnesses target) ::
       evalFields ops B external valuation rest witnesses target
 termination_by structural fields
+
+noncomputable def Term.evalClauses (ops : Operations V fragment) (B : Booleans V)
+    (external : ExternalInterpretation V signature) (valuation : Valuation V)
+    (clauses : List (Nat × List (Term signature fragment) × Term signature fragment))
+    (witnesses : Nat → V) (target : BindingId → V) : List (List V × (V → V)) :=
+  match clauses with
+  | [] => []
+  | (slot, keys, body) :: rest =>
+    (evalList ops B external valuation keys witnesses target,
+      fun old => eval ops B external valuation body (withWitness witnesses slot old) target) ::
+    evalClauses ops B external valuation rest witnesses target
+termination_by structural clauses
 
 end
 

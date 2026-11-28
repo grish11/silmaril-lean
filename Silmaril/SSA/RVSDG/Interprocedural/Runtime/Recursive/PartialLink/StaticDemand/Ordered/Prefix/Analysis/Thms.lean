@@ -44,6 +44,22 @@ existing admission checks the actual dispatch and link on both inputs. -/
         (congrArg (fun g => Executable.link actions unitId g inputsR store) same),
       plan.problem, plan.mem_problem_iff⟩
 
+/-- Run the same ordered analysis from ordinary imports. The first checked
+binding may be a λ or a synthesized φ group. Capture checks still use the
+actual typed origin and its membership in the accumulated prefix. -/
+@[expose] def Plan.analyzeNumberedFromOrdinary (actions : Actions m σ) (unitId : Nat)
+    (graph : Omega Op imports [summary.fn.port] sigs) (inputsL inputsR : Tuple m.Val imports) (store : σ)
+    {source : OmegaTerm Op imports [summary.fn.port] sigs}
+    (plan : Plan inputsL inputsR (Scope.ordinary m) summary source.region)
+    (actual : graph.toTerm = source) :
+    Option (ExportAnalysis actions summary (Executable.link actions unitId graph inputsL store)
+      (Executable.link actions unitId graph inputsR store)) :=
+  let same := graph.toGraph_toTerm.symm.trans (congrArg OmegaTerm.toGraph actual)
+  (plan.walk actions unitId inputsL inputsR store (Scope.Checked.ordinary actions)).map fun linked =>
+    ⟨linked.relink (congrArg (fun g => Executable.link actions unitId g inputsL store) same)
+        (congrArg (fun g => Executable.link actions unitId g inputsR store) same),
+      plan.problem, plan.mem_problem_iff⟩
+
 theorem ExportAnalysis.mem_liveIn_iff (analysis : ExportAnalysis actions summary left right)
     (demand : Demand) (origin : Address) :
     origin ∈ analysis.liveIn demand ↔ origin ∈ (analysis.problem demand).mayOut 0 :=

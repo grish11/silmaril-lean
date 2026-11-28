@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Logic.Institution.Morphism
+public import Silmaril.LogicGraph.Nodes.SSA.MLIR.CF.Defs
 public import Silmaril.Project.Registry.Institution.Defs
 public import Silmaril.Project.Registry.IR.Defs
 public import Silmaril.SSA.MLIR.Arith.Defs

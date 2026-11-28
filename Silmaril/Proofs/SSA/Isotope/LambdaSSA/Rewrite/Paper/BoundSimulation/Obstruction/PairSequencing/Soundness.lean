@@ -189,11 +189,11 @@ theorem evalReturnRegion {Γ : VCtx (Ty α)} {t : Tm Φ} {A : Ty α}
       match evalTerm t env with
       | none => .fault
       | some v => .jump 0 v := by
-  have bound (t : Tm Φ) (env : Env) : evalRegion (.let₁ t (.br 0 (.var 0))) env =
+  have bound (t : Tm Φ) (env : Env) (shape : startsLet t = false) : evalRegion (.let₁ t (.br 0 (.var 0))) env =
       match evalTerm t env with
       | none => .fault
       | some v => .jump 0 v := by
-    rw [evalRegionWith]
+    simp only [evalRegionWith, shape, Bool.false_and, Bool.false_eq_true, ite_false]
     cases evalTerm t env <;> rfl
   induction ht generalizing env with
   | @let₁ _ a b A D ha hb ia ib =>
@@ -203,15 +203,16 @@ theorem evalReturnRegion {Γ : VCtx (Ty α)} {t : Tm Φ} {A : Ty α}
     | some v =>
       change evalRegion (returnRegion b) (extend env v) = _
       exact ib (he.extend (evalTerm_typed ha he h))
-  | _ => exact bound _ _
+  | _ => exact bound _ _ rfl
 
 theorem unary_fusion_same {Γ L : List (Ty α)} {r s : Region Φ}
+    (unmarked : observation.boundUnaryLet = false)
     (h : Paper.UnaryReturn.Step Γ r s L) : Same Γ r s := by
   cases h with
   | @fuse A D a b ha hb =>
     intro env _
     unfold Paper.RetainedLet.returnOnce
-    simp only [evalRegionWith, evalTermWith]
+    simp only [evalRegionWith, evalTermWith, unmarked, Bool.and_false, Bool.false_eq_true, ite_false]
     cases evalTerm a env <;> rfl
 
 theorem extension_same {Seed : VCtx (Ty α) → Region Φ → Region Φ → LCtx (Ty α) → Prop}
@@ -250,7 +251,8 @@ theorem extension_same {Seed : VCtx (Ty α) → Region Φ → Region Φ → LCtx
     rw [evalRegion_renameLabels, evalRegion_renameLabels, ih env he]
 
 theorem extended_same {Γ L : List (Ty α)} {r s : Region Φ}
+    (unmarked : observation.boundUnaryLet = false)
     (h : Paper.Extension.Eqv Paper.UnaryReturn.Step Γ r s L) : Same Γ r s :=
-  extension_same (fun h => unary_fusion_same h) h
+  extension_same (unary_fusion_same unmarked) h
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.PairSequencing.Observer

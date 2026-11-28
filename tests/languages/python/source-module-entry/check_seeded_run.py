@@ -54,7 +54,15 @@ private def detail : AssertionArgument → String
   | .empty => "empty"
   | .text text => "text:" ++ text
   | .integerPair left right => s!"pair:{left}:{right}"
+  | .numericPair left right => s!"numeric-pair:{reprStr left}:{reprStr right}"
+  | .boolean value => if value then "bool:True" else "bool:False"
   | .booleanPair left right => s!"bool-pair:{left}:{right}"
+  | .textPair left right =>
+    s!"text-pair:{reprStr (left.points.map UInt32.toNat)}:{reprStr (right.points.map UInt32.toNat)}"
+  | .tuplePair left right => s!"tuple-pair:{reprStr left}:{reprStr right}"
+  | .dictionaryPair left right => s!"dictionary-pair:{reprStr left}:{reprStr right}"
+  | .emptyTuple => "tuple:()"
+  | .listObject object => s!"list:{reprStr object.contents}"
 
 private def raised : Raised → String
   | .assertionError argument => "AssertionError:" ++ detail argument
@@ -763,12 +771,14 @@ result = isinstance(True, bool)
 after = 9
 """, ["unsupported", "int:5", "absent"]),
     ("isinstance_int_int", "legacy_bool_isinstance_builtin", "result = 5\nresult = isinstance(1, int)\nafter = 9\n",
-     ["unsupported", "int:5", "absent"]),
+     ["normal", "bool:True", "int:9"]),
     ("bool_direct", "legacy_bool_isinstance_preamble", "result = 5\nresult = bool(1)\nafter = 9\n",
-     ["unsupported", "int:5", "absent"]),
+     ["normal", "bool:True", "int:9"]),
 )
 
 NESTED_CALL_NAMES = {
+    "bool_direct": ["bool"],
+    "isinstance_int_int": ["isinstance"],
     "none_value_tags": [],
     "none_value_left_lookup": [],
     "none_value_right_lookup": [],
@@ -860,8 +870,8 @@ EXACT_FIXTURE_BINDINGS = {
     "isinstance_argument_order": '[("result", .int 5)]',
     "isinstance_distinct": '[("result", .int 5)]',
     "isinstance_shadowed_type": '[("bool", .int 7), ("result", .int 5)]',
-    "isinstance_int_int": '[("result", .int 5)]',
-    "bool_direct": '[("result", .int 5)]',
+    "isinstance_int_int": '[("after", .int 9), ("result", .bool true)]',
+    "bool_direct": '[("after", .int 9), ("result", .bool true)]',
 }
 
 IDENTITY_FIXTURE_BINDINGS = {
@@ -901,7 +911,13 @@ def assertion(error):
     if not error.args:
         return "AssertionError:empty"
     (argument,) = error.args
+    if type(argument) is bool:
+        return f"AssertionError:bool:{argument}"
+    if type(argument) is list:
+        return f"AssertionError:list:{argument!r}"
     if isinstance(argument, tuple):
+        if not argument:
+            return "AssertionError:tuple:()"
         left, right = argument
         if type(left) is bool and type(right) is bool:
             return f"AssertionError:bool-pair:{str(left).lower()}:{str(right).lower()}"
@@ -1005,6 +1021,19 @@ def pinned_source(checkout, path, sha256):
     raw = (checkout / path).read_bytes()
     assert hashlib.sha256(raw).hexdigest() == sha256, path
     return raw.decode("utf-8")
+
+
+def pinned_truth_helper(checkout):
+    path = "tests/python/evaluation/programs.py"
+    digest = "55091465bd9ff2b6f784d31b48798f50dfffb98b712e22c96fe4092b6e4eb37f"
+    harness = pinned_source(checkout, path, digest)
+    preamble, = (ast.literal_eval(stmt.value) for stmt in ast.parse(harness).body
+                 if isinstance(stmt, ast.Assign) and any(
+                     isinstance(target, ast.Name) and target.id == "LAMBDA_PY_PREAMBLE"
+                     for target in stmt.targets))
+    namespace = {}
+    exec(compile(preamble, path, "exec", dont_inherit=True, optimize=0), namespace)
+    return namespace["___assertTrue"]
 
 
 def guard_observation(profile, expected):

@@ -28,7 +28,7 @@ variable {layout : Layout τ A X Z L E D sigs}
 variable {g : Flat.Serial.Graph Φ A X Z L E D sigs}
 variable (actions : Actions (τ := τ) (ε := ε) (σ := σ) Φ)
 
-private theorem mapped_exit_iff (result : Part (LabelDen [E,D] × σ)) (exit : LabelDen [E,D]) (final : σ) :
+theorem mapped_exit_iff (result : Part (LabelDen [E,D] × σ)) (exit : LabelDen [E,D]) (final : σ) :
     Part.map (ExplicitRuntime.exitTuple (A := L)) result = Part.some (ExplicitRuntime.exitTuple (A := L) (exit, final)) ↔
       result = Part.some (exit, final) := by
   rw [Part.eq_some_iff, Part.mem_map_iff, Part.eq_some_iff]
@@ -52,6 +52,18 @@ theorem Fibre.run_iff (f : Fibre layout g)
       (Region.denote (ε := ε) (m := StateT σ Part.{u}) f.typing env).run initial = Part.some (exit, final) :=
   run_iff_of_observe actions (f.region_observe coherent env initial) exit final
 
+/-- The public emission and the original flat region have the same
+partial observation, including the returned token. -/
+theorem Source.compile_observe (source : Source Φ A X Z L E D sigs)
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := StateT σ Part.{u}))
+    (env : Env [A]) (initial : σ) :
+    observe (ε := ε) (compile source) env.2 initial = Part.map (ExplicitRuntime.exitTuple (A := L))
+      ((Region.denote (ε := ε) (m := StateT σ Part.{u}) source.fragment.typing env).run initial) :=
+  match source with
+  | .mixed s => WithNestedFeedback.Normalization.compile_observe s coherent env initial
+  | .routed s => s.agrees coherent env initial
+  | .routedMixed s _ => s.agrees coherent env initial
+
 /-- The same finite-return law starts at the original flat source and
 runs the compiled numbered graph. -/
 theorem Source.compile_run_iff (source : Source Φ A X Z L E D sigs)
@@ -60,13 +72,8 @@ theorem Source.compile_run_iff (source : Source Φ A X Z L E D sigs)
     (∃ fuel, run actions (compile source) fuel env.2 initial =
       some (ExplicitRuntime.exitTuple (A := L) (exit, final))) ↔
       (Region.denote (ε := ε) (m := StateT σ Part.{u}) source.fragment.typing env).run initial =
-        Part.some (exit, final) := by
-  cases source with
-  | mixed s =>
-    exact run_iff_of_observe actions
-      (WithNestedFeedback.Normalization.compile_observe s coherent env initial) exit final
-  | routed s => exact run_iff_of_observe actions (s.agrees coherent env initial) exit final
-  | routedMixed s _ => exact run_iff_of_observe actions (s.agrees coherent env initial) exit final
+        Part.some (exit, final) :=
+  run_iff_of_observe actions (source.compile_observe coherent env initial) exit final
 
 /-- A finite block of the numbered graph rules out runner success at every
 bound. A `none` result at a bound does not identify a block. -/

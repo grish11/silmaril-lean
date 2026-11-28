@@ -2,14 +2,14 @@ module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Defs
 import Silmaril.Semantics.ITree.Trace.Finite.Thms
-import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Runtime
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime.Thms
 
 @[expose] public section
 
 namespace Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible
 
 open Silmaril.Elgot Silmaril.Elgot.ITree
-open Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Runtime
+open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime
   (lookup_internal lookup_external ret_eq_pure iter_simulate)
 open Silmaril.Elgot.ITree.Finite (Event transition evaluate)
 open Silmaril.Isotope (Value)
@@ -41,7 +41,7 @@ private theorem output_injective : Function.Injective (Program.renderResult (b :
 
 private theorem numbered (r : Result b) :
     treeExitNumber program.exits (encodeResult program r) = Program.renderResult r :=
-  Runtime.numbered r.down.1 (encode r.down.2)
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime.numbered r.down.1 (encode r.down.2)
 
 private theorem step_square (input : Fin a) (flag : Bool) (s : program.State) :
     (transition program.step s >>= fun outcome =>

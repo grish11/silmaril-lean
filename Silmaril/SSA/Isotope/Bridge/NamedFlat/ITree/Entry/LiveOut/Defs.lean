@@ -11,18 +11,19 @@ namespace Silmaril.Isotope.Bridge.NamedFlat.Entry.LiveOut
 
 open Silmaril.SSA.LambdaRTL
 open LambdaSSA (FiniteCFG Region)
-open LambdaSSA.Semantics.Interaction (Transfer)
+open LambdaSSA.Semantics.Interaction (Primitive Transfer)
 open LambdaSSA.Semantics.Interaction.Typed (AtomValues ModelTree)
 open LambdaSSA.Semantics.Interaction.Typed.Ordered
 
 universe u v
-variable {κ V K : Type (u + 1)} {P : FlatInstitution.Signature.{u, v} κ}
 
 /-- Field order is the supplied list order. The record is right nested and
 terminates in unit, as in the versioner's own store packets. -/
-def recordType : List (V × Ty κ) → Ty κ
+def recordType {V : Type u} {κ : Type v} : List (V × Ty κ) → Ty κ
   | [] => .unit
   | (_, A) :: rest => .product A (recordType rest)
+
+variable {κ V K : Type (u + 1)} {P : FlatInstitution.Signature.{u, v} κ}
 
 /-- The input context and exit order are the original ones. Each exit now
 returns its old argument and the typed record specified for that label. -/
@@ -63,6 +64,15 @@ local notation "B" => Region.packedExitType (List.ofFn (Interface.external (exit
 def Admission.program (a : Admission P I fields source) : Program P.Instr A B :=
   Program.ofCFGEntry a.rtl.versioned.table.typed
 
+/-- Run the original mutable table with an explicit initial store and observe
+its ordered exit, payload, and selected live-outs. -/
+noncomputable def observeRaw {Events : Type u → Type u} {F : Type v} {α : Type (u + 1)}
+    (instr : Primitive Events F α) (exits : List K) (fields : K → List V)
+    (source : CFG V K F) (input : V → Value α) : ModelTree Events (Transfer α) :=
+  let model := treeModel instr
+  CFG.Cyclic.run model source input >>= fun final =>
+    pure (FiniteCFG.packedTreeOutput (treeExitNumber exits (obs (CFG.Cyclic.LiveOut.project model fields final))))
+
 variable [AtomValues κ] {Events : Type u → Type u}
 
 local notation "C" => AtomValues.carrier (κ := κ)
@@ -73,9 +83,6 @@ noncomputable def observe (M : Model (κ := κ) Events P.Instr) (I : Interface �
     (fields : K → List (V × Ty κ)) (source : CFG V K P.Instr)
     (x : Ty.denote C (Region.packedInputType I.context.toList)) :
     ModelTree Events (Transfer (Sigma C)) :=
-  let model := treeModel M.raw
-  CFG.Cyclic.run model source (store I.names I.context x) >>= fun final =>
-    pure (FiniteCFG.packedTreeOutput (treeExitNumber I.exits
-      (obs (CFG.Cyclic.LiveOut.project model (fun k => (fields k).map Prod.fst) final))))
+  observeRaw M.raw I.exits (fun k => (fields k).map Prod.fst) source (store I.names I.context x)
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.LiveOut

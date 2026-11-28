@@ -1,0 +1,138 @@
+{
+  "libbrotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "pyarrow": "26.0.1",
+  "thrift": "0.25.0",
+  "files": {
+    "producer-v1-raw-brotli": {
+      "provenance": "PyArrow",
+      "file_sha256": "1161da9558f354ef9cab9d7e1db7a2221594d075e4a9c6eb0100c111d2cc281b",
+      "file_bytes": 4447,
+      "wire_sha256": "7d0a42ae97c53dd08f9ef057d7f8ddcc025ec635dbe2deb5cf9b4ac38dcf67e8",
+      "expanded_body_sha256": "dc171d3f5761a8d3d80f49d5133cb37b37d3ef86e20f72c02929f59b2e3ad947",
+      "body_offset": 26,
+      "body_bytes": 4100,
+      "expanded_bytes": 4096,
+      "page_type": 0,
+      "raw_prefix": 0,
+      "flag": null,
+      "result": "match",
+      "controls": [
+        "wrong-codec",
+        "declared-input",
+        "declared-output-small",
+        "declared-output-large",
+        "input-cap",
+        "output-cap",
+        "window-cap",
+        "step-cap",
+        "truncated",
+        "trailing",
+        "default-codec-4"
+      ]
+    },
+    "producer-v1-entropy-brotli": {
+      "provenance": "PyArrow",
+      "file_sha256": "f4e24ba35211784ba5fd4c05f1e8d8951571cb41af7a59f204a14dad61907dd7",
+      "file_bytes": 4049,
+      "wire_sha256": "95b5dd767881a635df970a200fed394eca154a6154297931aa189ac7b67ab056",
+      "expanded_body_sha256": "0c5ef67da47453ccda6ec09c4091e26252fcfdfc2543928fd1614b69042ac29b",
+      "body_offset": 26,
+      "body_bytes": 3692,
+      "expanded_bytes": 3719,
+      "page_type": 0,
+      "raw_prefix": 0,
+      "flag": null,
+      "result": "unsupportedCompressed",
+      "controls": [
+        "unsupportedCompressed"
+      ]
+    },
+    "producer-v2-uncompressed-suffix": {
+      "provenance": "PyArrow",
+      "file_sha256": "2584e61f7b5a07ca2c635537d359155496241748ddac473c0552cf27a929c03a",
+      "file_bytes": 4080,
+      "wire_sha256": "012d545d3b204da2fb5e4ad3dd19b2c5f9f3ccf5f3a13b54e39e14a458dbef9f",
+      "expanded_body_sha256": "cb038861cfaae818af6deb9cfbc3b457dcd55273cbdde5db95acaa19ba390ac1",
+      "body_offset": 34,
+      "body_bytes": 3715,
+      "expanded_bytes": 3715,
+      "page_type": 3,
+      "raw_prefix": 131,
+      "flag": false,
+      "result": "match",
+      "controls": [
+        "levels-over-input",
+        "levels-over-output",
+        "true-flag-on-raw"
+      ]
+    },
+    "producer-v2-entropy-brotli": {
+      "provenance": "PyArrow",
+      "file_sha256": "ea27f56c625786039be9a673eae4e5be13f3c024890a6247a869a42fa9777dba",
+      "file_bytes": 511,
+      "wire_sha256": "9a9cbc2c64924d1efc0f7b111a776de9a4655cbb3f63a2acf0d0a803685bf64c",
+      "expanded_body_sha256": "cdcb74ebc304ffe112ae4794781287904eeb50fea21c1528f6d4725ae1c4c931",
+      "body_offset": 34,
+      "body_bytes": 146,
+      "expanded_bytes": 3715,
+      "page_type": 3,
+      "raw_prefix": 131,
+      "flag": true,
+      "result": "unsupportedCompressed",
+      "controls": [
+        "unsupportedCompressed"
+      ]
+    },
+    "authored-v2-raw-brotli": {
+      "provenance": "authored wrapper, PyArrow levels, libbrotli values",
+      "file_sha256": "f75f8cd9efb412773152b2554a09f0f475b7f1378995374a7ba5574024946326",
+      "file_bytes": 4084,
+      "wire_sha256": "beee3933c02d8111552e049392b32a6b46e041adfe36581125dccbd899c28dff",
+      "expanded_body_sha256": "cb038861cfaae818af6deb9cfbc3b457dcd55273cbdde5db95acaa19ba390ac1",
+      "body_offset": 34,
+      "body_bytes": 3719,
+      "expanded_bytes": 3715,
+      "page_type": 3,
+      "raw_prefix": 131,
+      "flag": true,
+      "result": "match",
+      "controls": [
+        "levels-over-input",
+        "levels-over-output",
+        "false-flag-on-compressed"
+      ]
+    },
+    "authored-v2-absent-flag": {
+      "provenance": "authored wrapper, PyArrow levels, libbrotli values",
+      "file_sha256": "b27b313bad0e6cd6606d53d88a563a016588efbfcb4f721e6f89f1e51f8ef807",
+      "file_bytes": 4084,
+      "wire_sha256": "beee3933c02d8111552e049392b32a6b46e041adfe36581125dccbd899c28dff",
+      "expanded_body_sha256": "cb038861cfaae818af6deb9cfbc3b457dcd55273cbdde5db95acaa19ba390ac1",
+      "body_offset": 34,
+      "body_bytes": 3719,
+      "expanded_bytes": 3715,
+      "page_type": 3,
+      "raw_prefix": 131,
+      "flag": null,
+      "result": "match",
+      "controls": []
+    },
+    "authored-v2-metadata": {
+      "provenance": "authored metadata and raw meta-block control",
+      "file_sha256": "ae9e1472cba66957a19f13c59972b28b2e56b95fd45d7da63a87c0475f9d6e88",
+      "file_bytes": 4085,
+      "wire_sha256": "cd617768d61f54bb4d82e4fed61429fcedd71cfdc78aa806a4a8ac0f47f896fc",
+      "expanded_body_sha256": "cb038861cfaae818af6deb9cfbc3b457dcd55273cbdde5db95acaa19ba390ac1",
+      "body_offset": 34,
+      "body_bytes": 3720,
+      "expanded_bytes": 3715,
+      "page_type": 3,
+      "raw_prefix": 131,
+      "flag": true,
+      "result": "unsupportedMetadata",
+      "controls": [
+        "unsupportedMetadata"
+      ]
+    }
+  }
+}

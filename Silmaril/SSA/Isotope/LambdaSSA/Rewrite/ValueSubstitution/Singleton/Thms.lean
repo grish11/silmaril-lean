@@ -1,9 +1,10 @@
 module
 
 public import Silmaril.SSA.Isotope.LambdaSSA.Categorical.Thms
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Defs
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.ValueSubstitution.Singleton
 
-/-! # A selected term denotation under singleton value substitution -/
+/-! # Selected denotations under singleton value substitution -/
 
 public section
 
@@ -21,6 +22,16 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
   [HasFiniteCoproducts V] [HasFiniteCoproducts C] [DistributiveTensor V] [DistributivePremonoidalCategory C]
   [Iteration C] [ElgotCategory C] (J : V ⥤ C) [StrongElgotFreydCategory J]
   (M : TypeModel τ V) [InstructionModel J M Φ]
+
+/-- Supply the only free variable of an exact region with a selected value arrow. -/
+theorem RegionDenotes.substSingleton {Δ : VCtx τ} {L : LCtx τ} {X : τ} {r : Region Φ}
+    {hr : Region.HasType [X] r L} {f : J.obj (ctxObj M [X]) ⟶ J.obj (labelObj M L)}
+    (d : RegionDenotes J M hr f) (σ : Nat → Tm Φ)
+    {hv : Tm.HasType Δ (σ 0) X} {v : ctxObj M Δ ⟶ M.obj X}
+    (dv : Denotes J M hv (J.map v)) :
+    ∃ h : Region.HasType Δ (r.substVars σ) L,
+      RegionDenotes J M h (J.map (v ≫ (λ_ (M.obj X)).inv) ≫ f) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.ValueSubstitution.Singleton.regionDenotes_substSingleton J M d σ dv
 
 /-- Supply the only free slot by a selected value arrow. The tail of the
 substitution is immaterial because the original context is a singleton. -/

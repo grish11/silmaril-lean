@@ -28,6 +28,7 @@ inductive Profile where
   | core
   | levelSyntax
   | instanceSyntax
+  | namedFunctionSyntax
   deriving DecidableEq, Repr
 
 structure CheckedModule where
@@ -196,10 +197,11 @@ private def bindFormals (scope : Scope) (site : Site) (params : List OperatorDec
       (List.replicate arity .expression) true
     return binding :: current
 
-private def bindNames (scope : Scope) (site : Site) (names : List Ident) : ModuleM Scope := do
+private def bindNames (scope : Scope) (site : Site) (names : List Ident)
+    (kind : BindingKind := .rigid) : ModuleM Scope := do
   requireNonempty site "empty binder group" names
   names.zipIdx.foldlM (init := scope) fun current (name, index) => do
-    let binding ← declare current (site.child (.binder index)) (.ident name) .rigid [] true
+    let binding ← declare current (site.child (.binder index)) (.ident name) kind [] true
     return binding :: current
 
 private def groupNames : BoundNames → List Ident
@@ -218,7 +220,8 @@ private def resolveBounds (visit : Site → Expr → ModuleM Unit) (scope : Scop
     bindNames current (site.child (.bound index)) (groupNames group.names)
 
 private def resolveDefinitionWith (visit : Scope → Site → Expr → ModuleM Unit)
-    (scope : Scope) (site : Site) (definition : Definition) (inLet : Bool) : ModuleM Scope := do
+    (scope : Scope) (site : Site) (definition : Definition) (inLet : Bool)
+    (profile : Profile) : ModuleM Scope := do
   match definition with
   | .operator vis head body =>
     let (name, params) := headSignature head
@@ -227,6 +230,14 @@ private def resolveDefinitionWith (visit : Scope → Site → Expr → ModuleM U
     -- Reserve the name for freshness checks, then keep it out of its own body.
     let withFormals ← bindFormals (binding :: scope) site params
     visit (withFormals.filter fun formal => formal.id ≠ binding.id) (site.child .body) body
+    return binding :: scope
+  | .function _ name [bound@⟨.names [_], _⟩] body =>
+    unless inLet && profile = .namedFunctionSyntax do
+      throw (diagnostic site (.unsupported .functionDefinition))
+    let binding ← declare scope site (.ident name) .namedFunction [] true
+    -- Only the body sees the recursive name and the bound index.
+    let withIndex ← resolveBounds (visit scope) (binding :: scope) site [bound]
+    visit withIndex (site.child .body) body
     return binding :: scope
   | .function .. => throw (diagnostic site (.unsupported .functionDefinition))
   | .namedInstance .. => throw (diagnostic site (.unsupported .instantiation))
@@ -348,7 +359,7 @@ private partial def resolveExprIn (profile : Profile) (oldValue : Option Binding
         let unsupported := if profile = .instanceSyntax then Unsupported.letInstance else .instantiation
         throw (diagnostic declSite (.unsupported unsupported))
       | .definition definition =>
-        resolveDefinitionWith descend current declSite definition true
+        resolveDefinitionWith descend current declSite definition true profile
       | .recursive _ => throw (diagnostic declSite (.unsupported .recursive))
     descend inner (site.child .body) body
   | .rigidQuant _ binders body =>
@@ -399,8 +410,10 @@ private partial def resolveExprIn (profile : Profile) (oldValue : Option Binding
   | .fairness _ subscript action =>
     if profile = .core then throw (diagnostic site (.unsupported .actionOrTemporal))
     operands [subscript, action]
-  | .temporalQuant .. =>
-    throw (diagnostic site (.unsupported .actionOrTemporal))
+  | .temporalQuant _ names body =>
+    if profile ≠ .levelSyntax then throw (diagnostic site (.unsupported .actionOrTemporal))
+    let inner ← bindNames scope site names .flexible
+    descend inner (site.child .body) body
   | .labeled .. => throw (diagnostic site (.unsupported .labeledExpression))
 
 private def resolveExpr (profile : Profile) : Scope → Site → Expr → ModuleM Unit :=
@@ -516,7 +529,7 @@ private def resolveUnit (context : ModuleContext) (scope : Scope) (site : Site) 
       return binding :: current
   | .definition (.namedInstance visibility name params body) =>
     resolveInstance context scope site visibility (some (name, params)) body
-  | .definition definition => resolveDefinitionWith (resolveExpr profile) scope site definition false
+  | .definition definition => resolveDefinitionWith (resolveExpr profile) scope site definition false profile
   | .instantiation visibility body => resolveInstance context scope site visibility none body
   | .recursive _ => throw (diagnostic site (.unsupported .recursive))
   | .submodule _ => throw (diagnostic site (.unsupported .submodule))

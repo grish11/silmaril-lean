@@ -19,7 +19,16 @@ variable {M : Shape.Model.{u,v,w,x} Φ ([] : List (Ty κ))}
 variable {captures points results states : Nat}
 variable (C : Carrier M X A B captures points results states)
 
-private theorem behaviour_order (lower upper : Result results states) :
+theorem routed_order {R L : List (Ty κ)} {α : Type w} {σ : Type x}
+    (D : PositionalCarrier R L α σ points results states) (lower upper : Result results states) :
+    lower.routed D ≤ upper.routed D ↔ lower.refines upper := by
+  have resultEq (a b : Fin results) :
+      (D.result a).1 = (D.result b).1 ∧ (D.result a).2 = (D.result b).2 ↔ a = b :=
+    ⟨fun h => D.result.injective (Prod.ext h.1 h.2), fun h => by subst b; exact ⟨rfl, rfl⟩⟩
+  cases upper <;> cases lower <;>
+    simp [Result.routed, Result.refines, WithTop.coe_le_coe, ← and_assoc, resultEq]
+
+theorem behaviour_order (lower upper : Result results states) :
     lower.behaviour C ≤ upper.behaviour C ↔ lower.refines upper := by
   have resultEq (a b : Fin results) : (C.result a).val = (C.result b).val ↔ a = b :=
     ⟨fun h => C.result.injective (Subtype.ext h), congrArg (fun i => (C.result i).val)⟩

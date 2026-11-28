@@ -1,0 +1,272 @@
+{
+  "libzstd_commit": "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+  "compression_level": 3,
+  "cases": {
+    "same-frame": {
+      "frame_bytes": 50883,
+      "frame_sha256": "6fb53d7c3100b6c9c30c275f3c7bb02fba4fd5ebb8dd96bcc4078ade9f24d73e",
+      "window": 135168,
+      "output_bytes": 135168,
+      "output_sha256": "36a609ca013d8a4eec845ad8ce724b05b1ec006e6f9ea9573c455651d7d953da",
+      "checksum": null,
+      "blocks": [
+        {
+          "header_offset": 9,
+          "kind": "compressed",
+          "size": 49308,
+          "body_bytes": 49308,
+          "body_sha256": "a003ab28cecf71ca533bdfab16d14934fb1a462ab1e15c172390eb4b026337b1"
+        },
+        {
+          "header_offset": 49320,
+          "kind": "compressed",
+          "size": 1560,
+          "body_bytes": 1560,
+          "body_sha256": "f25ec499e0fbbf234e4ff0eef03e5dead666178efcbccf00e13815ad33f1a959"
+        }
+      ]
+    },
+    "same-frame-checksum": {
+      "frame_bytes": 50887,
+      "frame_sha256": "fe1a09768f8f43164262c4f9b791c9d7de4f20d62ac330b8919375180d9e3d83",
+      "window": 135168,
+      "output_bytes": 135168,
+      "output_sha256": "36a609ca013d8a4eec845ad8ce724b05b1ec006e6f9ea9573c455651d7d953da",
+      "checksum": "db56e74e",
+      "blocks": [
+        {
+          "header_offset": 9,
+          "kind": "compressed",
+          "size": 49308,
+          "body_bytes": 49308,
+          "body_sha256": "a003ab28cecf71ca533bdfab16d14934fb1a462ab1e15c172390eb4b026337b1"
+        },
+        {
+          "header_offset": 49320,
+          "kind": "compressed",
+          "size": 1560,
+          "body_bytes": 1560,
+          "body_sha256": "f25ec499e0fbbf234e4ff0eef03e5dead666178efcbccf00e13815ad33f1a959"
+        }
+      ]
+    },
+    "physical-raw-rle-between": {
+      "frame_bytes": 50898,
+      "frame_sha256": "e1830712c46240e094f864569751b9daccd4cb5381ef4e36715dc0a59515ba6a",
+      "window": 135176,
+      "output_bytes": 135176,
+      "output_sha256": "318e9068ed8ed2e000c31356230913f8affe75601d807ba904833f6e2d730bf7",
+      "checksum": "0a762473",
+      "blocks": [
+        {
+          "header_offset": 9,
+          "kind": "compressed",
+          "size": 49308,
+          "body_bytes": 49308,
+          "body_sha256": "a003ab28cecf71ca533bdfab16d14934fb1a462ab1e15c172390eb4b026337b1"
+        },
+        {
+          "header_offset": 49320,
+          "kind": "raw",
+          "size": 4,
+          "body_bytes": 4,
+          "body_sha256": "58357b2950ce4a1b8e52bc6ab66cf2d33cb92a0bd410531cf762e69416e61805"
+        },
+        {
+          "header_offset": 49327,
+          "kind": "RLE",
+          "size": 4,
+          "body_bytes": 1,
+          "body_sha256": "18f5384d58bcb1bba0bcd9e6a6781d1a6ac2cc280c330ecbab6cb7931b721552"
+        },
+        {
+          "header_offset": 49331,
+          "kind": "compressed",
+          "size": 1560,
+          "body_bytes": 1560,
+          "body_sha256": "f25ec499e0fbbf234e4ff0eef03e5dead666178efcbccf00e13815ad33f1a959"
+        }
+      ]
+    },
+    "no-declared-content-size": {
+      "frame_bytes": 50884,
+      "frame_sha256": "feabbb3bed1ca5a63081b7ca9c560e5b565bfcb64852b745d1b1a6603dc8241c",
+      "window": 147456,
+      "output_bytes": 135168,
+      "output_sha256": "36a609ca013d8a4eec845ad8ce724b05b1ec006e6f9ea9573c455651d7d953da",
+      "checksum": "db56e74e",
+      "blocks": [
+        {
+          "header_offset": 6,
+          "kind": "compressed",
+          "size": 49308,
+          "body_bytes": 49308,
+          "body_sha256": "a003ab28cecf71ca533bdfab16d14934fb1a462ab1e15c172390eb4b026337b1"
+        },
+        {
+          "header_offset": 49317,
+          "kind": "compressed",
+          "size": 1560,
+          "body_bytes": 1560,
+          "body_sha256": "f25ec499e0fbbf234e4ff0eef03e5dead666178efcbccf00e13815ad33f1a959"
+        }
+      ]
+    },
+    "new-tree-fse-weights": {
+      "frame_bytes": 373,
+      "frame_sha256": "af70548698bcd138aed5f781b24802fcaa1a5044b67bd1c3c9df3e5c123d3ed4",
+      "window": 1024,
+      "output_bytes": 1024,
+      "output_sha256": "4204fcd8185f5dfb531f1208212d7859e231746f9c395ed89f5341481f71349f",
+      "checksum": null,
+      "blocks": [
+        {
+          "header_offset": 7,
+          "kind": "compressed",
+          "size": 363,
+          "body_bytes": 363,
+          "body_sha256": "1d23ebb0d3172b77e3ec3101458404c72687e823d938bb671c09074d4c7c7e48"
+        }
+      ]
+    },
+    "distance-one-below-window": {
+      "frame_bytes": 1048,
+      "frame_sha256": "a368f9c1241090619e2a188373f700e53fd7ce55b33673a4254406fce8df2673",
+      "window": 1024,
+      "output_bytes": 1040,
+      "output_sha256": "420df374189853c3b287c1b0593b7a3d71e76c663ac302adf7c099a497554c1e",
+      "checksum": null,
+      "blocks": [
+        {
+          "header_offset": 6,
+          "kind": "raw",
+          "size": 1024,
+          "body_bytes": 1024,
+          "body_sha256": "2bce1ba628720664be4b9fdd77aae0678e5f0f3f02fc6ff641ec879094f6a404"
+        },
+        {
+          "header_offset": 1033,
+          "kind": "RLE",
+          "size": 13,
+          "body_bytes": 1,
+          "body_sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+        },
+        {
+          "header_offset": 1037,
+          "kind": "compressed",
+          "size": 8,
+          "body_bytes": 8,
+          "body_sha256": "d50c882f314d014b20aacca69da56411d43ca574dd018bb7b0caf681b069af2b"
+        }
+      ]
+    }
+  },
+  "rejections": {
+    "zero first sequence marker": {
+      "frame_sha256": "7b6777511b7e8c718c00c1afcd76764ad7d81b111ce700f49062fee82f109e40",
+      "lean_error": "badEndMarker",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "missing checksum byte": {
+      "frame_sha256": "37a43aae336521571a66f1cded6fc3764214a7f135fa820fe7d45a4a9e5a902e",
+      "lean_error": "truncated",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "bad checksum": {
+      "frame_sha256": "23ff236fa0b26bf389650da28e41d2165f8b05b01615d89663a6014ec2c247d4",
+      "lean_error": "checksumMismatch",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "wrong declared size": {
+      "frame_sha256": "eb27e2ef00e2a9381ce233fa7333f2c6146e215c0e3d85e98663534a4537a3f0",
+      "lean_error": "contentSizeMismatch",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "truncated compressed extent": {
+      "frame_sha256": "9295a101ad8b06ae49b2bc7177d8aa437e74f85f4c2b11952e9cf897034c4453",
+      "lean_error": "truncated",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "trailing byte": {
+      "frame_sha256": "0412a52998230da92228da4e8625885f9c3f87d6f6a01fd22b599d823d647771",
+      "lean_error": "trailingInput",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "nonzero dictionary ID": {
+      "frame_sha256": "ffb8404f78216b309f49b76af08d3d5f4d047110fd81b547511b398fe12538ee",
+      "lean_error": "unsupportedDictionary 7",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "reserved block type": {
+      "frame_sha256": "9d1fe2a28ada51b6b8f8fad2971c6885fc1a1f262bd2b0011b6c1f5a4f385b45",
+      "lean_error": "reservedBlock",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "treeless after dictionary-free reset": {
+      "frame_sha256": "67ffb48a6251e87da702bedfe351ed2967ebe507e02041007ffbcc5cdc1ae7a0",
+      "lean_error": "unavailableTable",
+      "libzstd": "rejected",
+      "limits": {}
+    },
+    "concatenated frames": {
+      "frame_sha256": "1a8328ed46a1109a11bfa79725214a12e8504515ccc69ac41bfe4592fc1cf02f",
+      "lean_error": "trailingInput",
+      "libzstd": "accepted",
+      "limits": {}
+    },
+    "skippable frame": {
+      "frame_sha256": "bf1e84884e0067ecce29c9805ed2b279186cd98104abd75e690c336e2ab16fcb",
+      "lean_error": "skippableFrame",
+      "libzstd": "accepted",
+      "limits": {}
+    },
+    "distance-equal-to-window": {
+      "frame_sha256": "86bf5f8a4e683fb0ecab88bf8d8d3ea233de549150e24328bdd8db66036432e0",
+      "lean_error": "offsetOutsideWindow",
+      "libzstd": "accepted",
+      "limits": {
+        "window_cap": 1024
+      }
+    },
+    "one-less input cap": {
+      "frame_sha256": "fe1a09768f8f43164262c4f9b791c9d7de4f20d62ac330b8919375180d9e3d83",
+      "lean_error": "inputLimit",
+      "libzstd": "not compared for caller cap",
+      "limits": {
+        "input_cap": 50886
+      }
+    },
+    "one-less output cap": {
+      "frame_sha256": "fe1a09768f8f43164262c4f9b791c9d7de4f20d62ac330b8919375180d9e3d83",
+      "lean_error": "outputLimit",
+      "libzstd": "not compared for caller cap",
+      "limits": {
+        "output_cap": 135167
+      }
+    },
+    "one-less window cap": {
+      "frame_sha256": "fe1a09768f8f43164262c4f9b791c9d7de4f20d62ac330b8919375180d9e3d83",
+      "lean_error": "windowLimit",
+      "libzstd": "not compared for caller cap",
+      "limits": {
+        "window_cap": 135167
+      }
+    },
+    "one-less command cap": {
+      "frame_sha256": "fe1a09768f8f43164262c4f9b791c9d7de4f20d62ac330b8919375180d9e3d83",
+      "lean_error": "sequenceLimit",
+      "libzstd": "not compared for caller cap",
+      "limits": {
+        "commands": 27036
+      }
+    }
+  }
+}

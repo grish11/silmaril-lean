@@ -26,14 +26,15 @@ variable {sigs : List (Ports (OrderedRuntime.Structured.Ty τ))}
 
 /-- The selected decoder determines the supported layout at the typed
 graph boundary. Mixed links use homogeneous joins and may include nested
-feedback. Routed links have a producer θ and a γ with a bypass arm and
-either a consumer θ or a canonical mixed consumer in the other arm. -/
+feedback. Routed links end in a γ with a bypass arm and a consumer arm. The
+mixed routed layout recursively composes such links with canonical mixed leaves. -/
 inductive Layout (τ : Type u) [TypeFormers τ] :
     τ → τ → τ → τ → τ → τ → List (Ports (OrderedRuntime.Structured.Ty τ)) → Type u where
   | mixed {A X Z L E D : τ} {sigs : List (Ports (OrderedRuntime.Structured.Ty τ))} :
       Layout τ A X Z L E D sigs
   | routed {A E M D : τ} : Layout τ A E M M E D (Routed.Signatures A E M D)
-  | routedMixed {A E M D : τ} : Layout τ A E M M E D (Routed.Signatures A E M D)
+  | routedMixed {A X Z L E D : τ} {sigs : List (Ports (OrderedRuntime.Structured.Ty τ))} :
+      Layout τ A X Z L E D sigs
 
 /-- The admitted source syntax determines the layout and the typed boundaries. -/
 inductive Source (Φ : Type u) [HasTy Φ τ] :
@@ -42,8 +43,9 @@ inductive Source (Φ : Type u) [HasTy Φ τ] :
       WithNestedFeedback.Syntax Φ A X Z L E D sigs → Source Φ A X Z L E D sigs
   | routed {A B K E M C J D : τ} :
       Routed.Source Φ A B K M C J E D → Source Φ A E M M E D (Routed.Signatures A E M D)
-  | routedMixed {A E M D : τ} (s : Routed.Mixed.Components Φ A E M D) :
-      s.Supported → Source Φ A E M M E D (Routed.Signatures A E M D)
+  | routedMixed {A X Z L E D : τ} {sigs : List (Ports (OrderedRuntime.Structured.Ty τ))}
+      (s : Routed.Mixed.Component Φ A X Z L E D sigs) :
+      s.Supported → Source Φ A X Z L E D sigs
 
 def Source.layout (source : Source Φ A X Z L E D sigs) : Layout τ A X Z L E D sigs :=
   match source with
@@ -68,6 +70,21 @@ abbrev Related (layout : Layout τ A X Z L E D sigs) (g : Flat.Serial.Graph Φ A
 certificate for this particular input graph. -/
 abbrev Fibre (layout : Layout τ A X Z L E D sigs) (g : Flat.Serial.Graph Φ A X Z L E D sigs) :=
   Σ r : Region Φ, Related layout g r
+
+/-- Keep the typed block table represented by the recovered region.
+It can be relocated by the existing flat link and fork operations. -/
+def Fibre.fragment {layout : Layout τ A X Z L E D sigs} {g : Flat.Serial.Graph Φ A X Z L E D sigs}
+    (f : Fibre layout g) : Flat.Fragment Φ A E D := by
+  rcases f with ⟨r, witness⟩
+  cases layout with
+  | mixed => cases witness with | generated source => exact source.source
+  | routed => cases witness with | routed source _ => exact source.source
+  | routedMixed => cases witness with | generated source _ => exact source.source
+
+theorem Fibre.fragment_region {layout : Layout τ A X Z L E D sigs}
+    {g : Flat.Serial.Graph Φ A X Z L E D sigs} (f : Fibre layout g) : f.fragment.region = f.1 := by
+  rcases f with ⟨r, witness⟩
+  cases layout <;> cases witness <;> rfl
 
 theorem Fibre.typing {layout : Layout τ A X Z L E D sigs} {g : Flat.Serial.Graph Φ A X Z L E D sigs}
     (f : Fibre layout g) : Region.HasType [A] f.1 [E,D] := by

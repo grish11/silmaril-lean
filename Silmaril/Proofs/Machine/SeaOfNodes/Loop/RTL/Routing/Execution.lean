@@ -67,15 +67,22 @@ theorem bank_incoming_operand (r : BankRoutes payloads) (edge : Incoming) :
       some (1, r.incomingRegisters edge) := by
   cases edge <;> rfl
 
+theorem transfer_bank_from {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) (entry : Block Reg)
+    (s : State Reg) (column : List Reg) (values : WordTuple arity)
+    (func : s.point.func = 0) (reads : s.frame.readAll column = some (words values)) :
+    transfer (lowerBankFrom g entry) s 1 column =
+      .running ⟨⟨0, 1, 0⟩, bindWords arity s.frame values, s.stack, s.mem⟩ := by
+  have target : (lowerBankFrom g entry).block? 0 1 = some (bankHeader g) := rfl
+  have write : s.frame.writeAll (bankHeader g).params (words values) =
+      some (bindWords arity s.frame values) := bindWords_write arity s.frame values
+  simp [transfer, func, reads, target, write]
+
 theorem transfer_bank {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
     (s : State Reg) (column : List Reg) (values : WordTuple arity)
     (func : s.point.func = 0) (reads : s.frame.readAll column = some (words values)) :
     transfer (lowerBank g) s 1 column =
-      .running ⟨⟨0, 1, 0⟩, bindWords arity s.frame values, s.stack, s.mem⟩ := by
-  have target : (lowerBank g).block? 0 1 = some (bankHeader g) := rfl
-  have write : s.frame.writeAll (bankHeader g).params (words values) =
-      some (bindWords arity s.frame values) := bindWords_write arity s.frame values
-  simp [transfer, func, reads, target, write]
+      .running ⟨⟨0, 1, 0⟩, bindWords arity s.frame values, s.stack, s.mem⟩ :=
+  transfer_bank_from g (bankPreheader g) s column values func reads
 
 theorem step_bank_entry {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
     (input : WordTuple arity) (fr : Frame Reg) (stk : List (Activation Reg)) (mem : Memory)

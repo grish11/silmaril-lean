@@ -9,9 +9,9 @@ The manuscript SHA-256 is
 `8b13190b36a8aae0b7b1e622337d99263662487e18144d8e1b379dcea580548b`.
 [1993 manuscript](https://web.archive.org/web/20250330055404id_/https://softlib.rice.edu/pub/CRPC-TRs/reports/CRPC-TR93366-S.pdf)
 
-The checker admits an entry, one header split, two nonempty disjoint
-linear arms of potentially different lengths, one common merge, and
-one latch. The latch's true occurrence feeds back to the header and
+The checker admits an entry, one header split, two disjoint linear
+arms of potentially different lengths, one common merge, and one
+latch. One arm may go directly from the header to the merge. The latch's true occurrence feeds back to the header and
 its false occurrence returns a register. The emitter keeps the original
 IDs, emits typed `cf.br` and `cf.cond_br`, and passes a full bank as
 block arguments. Each edge resolves its operands from the predecessor's
@@ -24,8 +24,9 @@ its labeled copy in the block table.
 [Emitter](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Defs.lean)
 
 `split_frame` identifies the actual taken target after evaluating the
-header quads. `predecessor_frame` identifies the original last block of
-either arm and the entire bank it passes into the merge. `arm_run` covers
+header quads. `predecessor_frame` gives the bank sent by the last block
+of a nonempty arm or by the header when the test selects a direct
+edge. `arm_run` covers
 the intervening visits and `latch_frame` identifies both feedback and
 exit packets. For every source budget `n`, `lower_run` equates the
 original source run and the typed CF run at `n + 1`, including exhausted
@@ -290,3 +291,97 @@ open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Reindex.Comp
 #eval results (first.trans second) -- (some 22, some 22)
 #eval results reversed             -- (some 86, some 86)
 ```
+
+### Transport a partial equation through both permutations
+
+Import
+`Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Reindex.Composition.Equation.Thms`.
+`rvsdg_at_trans_iff` and `cf_at_trans_iff` compare two actual emitted
+programs at a final valuation. The corresponding native valuation is
+`pull first (pull second input)`. The `rvsdg_satisfaction_trans` and
+`cf_satisfaction_trans` laws lift this comparison to the existing
+native equation over all valuations. The CF law covers every typed
+environment of the final entry interface.
+[Public equation API](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Reindex/Composition/Equation/Thms.lean)
+
+The observations are partial values. Their equality includes the case
+where both sides have no finite return, and a finite return on only one
+side refutes the equation. To carry an original valuation forward, use
+`pull (first.trans second).symm` to supply the matching final input
+and `pull_roundtrip` to recover the original bank. The
+`graph_roundtrip` and `lowerCF_roundtrip` laws recover the original
+emitted graph and CFG by applying the inverse. These laws use the same
+checked pure unequal-arm profile, masks, and predecessor order.
+[Composition and inverse laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Reindex/Composition/Thms.lean)
+
+The runnable fixture reuses the short-arm inequation and the two mixed
+entry permutations above. The two programs take predecessors
+`[6, 0, 6]` with two feedback edges. At the paired valuation the base
+program returns 22 and the variant returns 24 in both targets. The
+Lean regression checks inequality of their partial observations at that
+valuation.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Reindex/Composition/Equation/Regression.lean)
+
+Build with
+`lake build --wfail +Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Reindex.Composition.Equation.Example.Defs`.
+Paste into `TransportQuadEquation.lean` and run
+`lake env lean -DwarningAsError=true TransportQuadEquation.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Reindex.Composition.Equation.Example.Defs
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Reindex.Composition.Equation.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Reindex.Composition.Equation.Example
+
+#eval results.1  -- (some 22, some 22)
+#eval results.2  -- (some 24, some 24)
+```
+
+
+## Take a direct edge to the merge
+
+The conditional assignment in *From Quads to Graphs* §3, Figure 4,
+has a bypass occurrence into the merge. Its Φ takes the current
+definition on that occurrence. In the checked profile a direct arm
+has zero intervening visits. The header is its original predecessor
+and supplies the post-header bank to the merge. In numbered RVSDG
+the corresponding γ child forwards its input wires. In typed CF the
+header branches directly to the original merge with the same values.
+The common merge still jumps to the distinct tested latch. At least
+one arm has a block, and a cycle inside an arm fails the source check.
+[1993 manuscript](https://web.archive.org/web/20250330055404id_/https://softlib.rice.edu/pub/CRPC-TRs/reports/CRPC-TR93366-S.pdf)
+
+For a checked projection, `Pruned.lower_run` relates the source and
+CF at budgets `n` and `n + 1`. The projected RVSDG
+`Checked.returns_iff` gives finite-return correspondence at the same
+typed input. `Comparison.source_diverges_iff` and
+`Comparison.diverges_iff` transfer absence of a return at **every**
+finite budget through both emitted graphs.
+[Projected RVSDG theorems](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/Prune/Thms.lean) ·
+[Comparison theorems](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/Comparison/Thms.lean)
+
+Build with
+`lake build --wfail +Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Bypass`.
+Paste the block into `PrunedQuadBypass.lean` and run
+`lake env lean -DwarningAsError=true PrunedQuadBypass.lean`.
+
+```lean
+module
+
+import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Bypass
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Bypass
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.MLIR.CF.Pruned.Example.Bypass
+
+#eval predecessors 3                              -- [0, 2, 0]
+#eval (runSource 14, runCF 15, runRVSDG 3)          -- (some 19, some 19, some 19)
+#eval (runSource 13, runCF 14, runRVSDG 2)          -- (none, none, none)
+```
+
+The second activation takes the bypass after feedback. Its CF edge
+from header 2 to merge 3 passes the newly written result 13. The
+fixture takes two feedback edges and removes one of seven carried
+header arguments.
+[Bypass regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/MLIR/CF/Pruned/BypassRegression.lean)

@@ -47,6 +47,24 @@ theorem step_decreases (job : Task carried) (state : State m.value carried out) 
       potential state (job :: pending) :=
   Proofs.step_decreases job state pending ascending
 
+/-- A different notifier can reuse the FIFO convergence proof. Unqueued
+equations must retain their right-hand sides across the pop. -/
+theorem run_with_wake
+    (notify : Task carried → State m.value carried out → State m.value carried out →
+      List (Task carried) → List (Task carried))
+    (quiet : ∀ job state pending reader,
+      let new := update m g input job state
+      reader ∉ notify job state new pending → reader ∉ pending ∧
+        get (SCCP.transfer m g input new) reader = get (SCCP.transfer m g input state) reader)
+    (bounded : ∀ job state new pending,
+      (notify job state new pending).length ≤ pending.length + (dataPorts carried).length.succ.succ)
+    (unchanged : ∀ job state pending, notify job state state pending = pending) :
+    let result := FIFO.runSteps (fun job state pending =>
+      let new := update m g input job state
+      (new, notify job state new pending)) (potential (⊥ : State m.value carried out) initial) ⊥ initial
+    result.pending = [] ∧ result.state = SCCP.solve m g input :=
+  Proofs.run_with_wake notify quiet bounded unchanged
+
 attribute [local irreducible] run solve SCCP.solve
 
 /-- The potential bounds the number of pops from the initial assignment. -/

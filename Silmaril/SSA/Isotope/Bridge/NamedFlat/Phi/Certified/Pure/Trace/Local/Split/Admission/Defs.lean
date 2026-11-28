@@ -78,20 +78,22 @@ def packetProfile (support : List V) (newSupport : List W)
 
 /-- Types reconstructed before running the checker. The retained slots
 recorded here are newly free register reads whose type comes from the moved φ column. -/
-structure ProfileCandidate (source : Phi.Graph V K F) (n : Nat) (Base : Type u) where
+structure ProfileCandidateFor (W Base : Type u) (n blockCount : Nat) where
   extra : List (Option W × Ty Base)
-  blocks : Fin (blockCount (plan.rewrite source)) → Ty Base
+  blocks : Fin blockCount → Ty Base
   movedSlots : List (Fin n × Ty Base)
 
+abbrev ProfileCandidate (source : Phi.Graph V K F) (n : Nat) (Base : Type u) :=
+  ProfileCandidateFor W Base n (blockCount (plan.rewrite source))
+
 /-- Build the candidate profiles in the actual versioner's register and block
-orders. Keep each old block's φ payload type. The forwarding block has a
-unit payload and uses the old destination's register types, extended with
-types recovered from the selected φ column. -/
-def profileCandidate (source : Phi.Graph V K F)
-    (names : Fin n → Option V) (blocks : Fin (blockCount source) → Ty Base) :
-    Option (ProfileCandidate plan source n Base) := do
-  let lowered := Phi.lower source
-  let target := Phi.lower (plan.rewrite source)
+orders. Both φ lowerings use the same internal packet layout. Keep each old
+block's φ payload type, and give the forwarder a unit payload and the old
+destination's register types extended with types from the moved column. -/
+def profileCandidateFor (source : Phi.Graph V K F)
+    (lowered : CFG (Option V) (Option K) F) (target : CFG (Option W) (Option J) F)
+    (names : Fin n → Option V) (blocks : Fin (Versioning.compile lowered).blocks.length → Ty Base) :
+    Option (ProfileCandidateFor W Base n (Versioning.compile target).blocks.length) := do
   let lexical := Versioning.compile lowered
   let splitLexical := Versioning.compile target
   let oldSupport := (Versioning.registers lowered).filterMap id
@@ -124,6 +126,11 @@ def profileCandidate (source : Phi.Graph V K F)
       else renamedBlocks.lookup label
     packetProfile plan oldSupport newSupport added old
   return ⟨extra, profiles, movedSlots⟩
+
+def profileCandidate (source : Phi.Graph V K F)
+    (names : Fin n → Option V) (blocks : Fin (blockCount source) → Ty Base) :
+    Option (ProfileCandidate plan source n Base) :=
+  profileCandidateFor plan source (Phi.lower source) (Phi.lower (plan.rewrite source)) names blocks
 
 def splitProfiles (source : Phi.Graph V K F)
     (names : Fin n → Option V) (blocks : Fin (blockCount source) → Ty Base) :

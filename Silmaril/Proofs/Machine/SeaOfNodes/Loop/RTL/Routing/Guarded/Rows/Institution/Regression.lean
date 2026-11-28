@@ -14,7 +14,7 @@ open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
 open Silmaril.Isotope.LambdaSSA.Semantics.Region (Eval)
 
 private def exitSpec : Spec :=
-  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0⟩
+  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0, none, none⟩
 
 private def spinSpec : Spec :=
   { exitSpec with entry := [0, 0], updates := [⟨.add, 0, 0, 1⟩, ⟨.sub, 1, 1, 1⟩] }
@@ -32,7 +32,9 @@ private def spinPlan : Plan 2 :=
   { exitPlan with
     entry := .cons (.arg .head) (.cons (.arg .head) .nil)
     updates := [⟨.add, 0, 0, 1⟩, ⟨.sub, 1, 1, 1⟩]
-    guardIndex := 0 }
+    guardIndex := 0
+    exitProducer := none
+    guardOperand := .limit }
 
 private def exitTargets : Checked.Phi.Targets :=
   (lowerBank exitPlan.graph, Generic.lower exitPlan.graph)

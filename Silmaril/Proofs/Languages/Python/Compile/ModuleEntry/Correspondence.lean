@@ -204,6 +204,13 @@ theorem operand_complete {scope : Source.Scope} {source : Source.Expr} {operand 
   | boolean => simp [lowerOperand]
   | none_ => simp [lowerOperand]
   | negativeInteger => simp [lowerOperand]
+  | literalDictionaryGet checked | literalDictionaryGetWith checked =>
+    rw [lowerOperand]
+    split
+    · rename_i value computed
+      cases Option.some.inj (computed.symm.trans checked)
+      rfl
+    · simp_all
   | literalSubscript selected =>
     rw [lowerOperand]
     split

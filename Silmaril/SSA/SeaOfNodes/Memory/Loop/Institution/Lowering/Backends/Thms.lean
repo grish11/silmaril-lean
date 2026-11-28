@@ -4,6 +4,7 @@ public import Silmaril.SSA.SeaOfNodes.Memory.Loop.Institution.Lowering.Thms
 public import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.Institution.Thms
 public import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.MemRef.CF.Institution.Thms
 public import Silmaril.SSA.SeaOfNodes.Memory.Loop.Institution.Lowering.Backends.Defs
+public import Silmaril.SSA.SeaOfNodes.Memory.Loop.Petri.Defs
 import Silmaril.SSA.RVSDG.NestedTheta.Petri.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Loop.MLIR.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Loop.Theta.Thms
@@ -22,6 +23,8 @@ open Memory.Diamond.Institution renaming Signature → EntrySignature, Model →
 open Memory.Diamond.LambdaSSA (Atom packet)
 open Memory.Diamond.MLIR.Finite (Profile evalOp)
 open Memory.Diamond.MLIR.Finite renaming encodeResult → encodeCFResult
+open RVSDG (Tuple)
+open Silmaril.MLIR.CF.Ordered (Block)
 open RVSDG.NestedTheta.Petri (Finishes finishes_iff)
 open Silmaril.MLIR.CF.SwitchAssert (Outcome)
 open Isotope (Value)
@@ -113,6 +116,20 @@ theorem memref_run_iff_theta_run (graph : Graph P.args) (model : EntryModel P)
     ∃ fuel, graph.lowerTheta.run (thetaRuntime model.cells) fuel (Memory.encodeInput initial model.input) =
       some (Memory.encodeResult word final) :=
   Proofs.memref_run_iff_theta_run graph model initial word final
+
+/-- A coloured activation seeded with the same typed operands and heap
+completes with tag one exactly when the emitted header selects its backedge
+with the same whole buffer. Tag zero selects exit with the invariant stop word. -/
+theorem petri_activation_iff_memref_header {args : List ValueSort} {cells : Nat}
+    (graph : Graph args) (input : Tuple (Val cells) args)
+    (initial next : Heap cells) (restart : Bool) :
+    Finishes (thetaRuntime cells) graph.activation (Memory.encodeInput initial input)
+        (.cons ⟨if restart then 1 else 0⟩ (Memory.encodeInput next input)) ↔
+      Block.eval (MLIR.MemRef.CF.evalBody input)
+          ((MLIR.MemRef.CF.lower cells graph).block MLIR.MemRef.CF.Label.header) .nil ⟨initial⟩ =
+        (.inl (if restart then ⟨MLIR.MemRef.CF.Label.header, .nil⟩
+          else ⟨MLIR.MemRef.CF.Label.exit, .cons (graph.stopWord input) .nil⟩), ⟨next⟩) :=
+  Proofs.petri_activation_iff_memref_header graph input initial next restart
 
 /-- A finite coloured completion observes exactly the same word and
 whole final heap as the emitted MemRef CFG. -/

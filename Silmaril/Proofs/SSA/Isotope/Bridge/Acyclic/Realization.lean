@@ -30,6 +30,15 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 
 local notation "Γ₀" => (Ctx.nil : Ctx Empty τ)
 
+omit [HasTy Φ τ] in
+theorem contextMap_isIso_proof {n : Nat} (β : BoundCtx τ n) : IsIso (contextMap M β) := by
+  induction β with
+  | nil => exact inferInstanceAs (IsIso (λ_ (𝟙_ V)).inv)
+  | snoc β A ih =>
+    let _ := ih
+    exact inferInstanceAs (IsIso ((contextMap M β ▷ M.obj A) ≫
+      (envSnocIso M Γ₀ β A).hom))
+
 private theorem lookup_contextMap {n : Nat} (β : BoundCtx τ n) (i : Fin n) :
     contextMap M β ≫ boundVar M (Γ := Γ₀) i =
       lookup M i.val (BoundCtx.getElem?_toList β i) := by

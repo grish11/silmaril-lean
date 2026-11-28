@@ -95,6 +95,13 @@ theorem installs_of_addresses (state : State) (free : List FreeName)
     ∃ captures, Installs state free captures :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Forwarding.installs_of_addresses state free addresses
 
+/-- Lookup in the installed vector recovers the defining-frame receipt. -/
+theorem find_receipt {state : State} {free : List FreeName} {captures : List Lists.Capture}
+    (installed : Installs state free captures) (binding : Binding) (present : reference binding ∈ free) :
+    ∃ capture, captures.find? (fun entry => entry.binding == binding) = some capture ∧
+      capture.binding = binding ∧ ReceivesAddress state (reference binding) capture :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Forwarding.find_receipt installed binding present
+
 /-- Allocating the parent's frame supplies all its child's capture slots.
 The parent receives its own free addresses as input. -/
 theorem child_installs (parent child : Frame) (owner current : State)

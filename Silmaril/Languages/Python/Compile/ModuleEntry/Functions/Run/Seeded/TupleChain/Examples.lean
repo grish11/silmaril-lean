@@ -46,7 +46,7 @@ private def chainEvidence (space : Core.Module.SeededCall.Namespace) (middle : I
   let source : Source.Module := ⟨[.assign "keep" (.integer 7), chain middle, .assign "tail" (.integer 9)]⟩
   let .ok compiled := Run.compile source | return false
   let [_, .assertTupleChain test, _] := compiled.instructions | return false
-  let actual := TupleChain.evaluate (fun _ => tupleBinding space) test
+  let actual := TupleChain.evaluate (tupleLookup space) test
   let heap : Core.Closure.Heap := ⟨1, fun address => if address = 0 then some (.int 23) else none⟩
   let lists : Core.Module.ListHeap := ⟨#[[.int 31]]⟩
   let outcome := run space compiled heap (lists := lists)
@@ -61,5 +61,143 @@ private def chainEvidence (space : Core.Module.SeededCall.Namespace) (middle : I
 #guard chainEvidence .empty 5 (.error (.raised (.runtime (.nameError "tuple")))) 3
 #guard chainEvidence .empty 6 (.error (.raised (.assertionError .empty))) 2
 #guard chainEvidence ((legacyTupleSeed .builtin).bindGlobal "tuple" .none) 5 (.error .unsupported) 3
+
+private def constructorIdentityEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let call name argument := Source.Expr.call (.name name) [argument]
+  let test left op right := Source.Expr.comparison (.name left) [(op, .name right)]
+  let assertion operand := Source.Stmt.expression (call "___assertTrue" operand)
+  let source : Source.Module := ⟨[
+    .assign "n" (.integer 7),
+    .assign "first" (.tuple [.name "n"]),
+    .assign "alias" (call "tuple" (.name "first")),
+    .assign "second" (.tuple [.name "n"]),
+    assertion (test "first" .is_ "alias"),
+    assertion (test "first" .isNot "second")]⟩
+  let .ok compiled := Run.compile source | return false
+  let space := legacyTupleIdentitySeed placement
+  let observed := run space compiled
+  let first : Core.Module.SeededCall.Value := .tupleObject ⟨some 0, [.int 7]⟩
+  let second : Core.Module.SeededCall.Value := .tupleObject ⟨some 1, [.int 7]⟩
+  return observed.completion == .ok () && observed.heap.next == 2 &&
+    observed.residual.builtins == space.builtins &&
+    observed.residual.lookupGlobal "first" == some first &&
+    observed.residual.lookupGlobal "alias" == some first &&
+    observed.residual.lookupGlobal "second" == some second &&
+    observed.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
+      [("tuple", .ok first, none), ("___assertTrue", .ok .none, none), ("___assertTrue", .ok .none, none)]
+
+#guard constructorIdentityEvidence .builtin
+#guard constructorIdentityEvidence .preamble
+
+private def closedOriginEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let call name arguments := Source.Expr.call (.name name) arguments
+  let test := Source.Expr.comparison (.name "original") [(.is_, .name "alias")]
+  let source : Source.Module := ⟨[
+    .expression (call "___assertEqual" [call "tuple" [], .tuple []]),
+    .assign "original" (.tuple [.integer 7]),
+    .assign "alias" (call "tuple" [.name "original"]),
+    .expression (call "___assertTrue" [test])]⟩
+  let .ok compiled := Run.compile source | return false
+  let space := legacyTupleIdentitySeed placement
+  let observed := run space compiled
+  let original : Core.Module.SeededCall.Value := .tupleObject ⟨some 0, [.int 7]⟩
+  return observed.completion == .ok () && observed.heap.next == 1 &&
+    (observed.heap.contents 0).map seededValue == some original &&
+    observed.residual.lookupGlobal "original" == some original &&
+    observed.residual.lookupGlobal "alias" == some original &&
+    observed.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
+      [("tuple", .ok (.returnedTuple []), none), ("___assertEqual", .ok .none, none),
+        ("tuple", .ok original, none), ("___assertTrue", .ok .none, none)]
+
+#guard closedOriginEvidence .builtin
+#guard closedOriginEvidence .preamble
+
+private def emptyListTupleEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let tupleCall := Source.Expr.call (.name "tuple") [.list_ []]
+  let equalCall := Source.Expr.call (.name "___assertEqual") [tupleCall, .tuple []]
+  let source : Source.Module := ⟨[.expression equalCall]⟩
+  let .ok compiled := Run.compile source | return false
+  let stock := legacyTupleSeed placement
+  let before : Core.Module.ListHeap := ⟨#[[.int 31]]⟩
+  let returned := run stock compiled (lists := before)
+  let masked := run (stock.bindGlobal "tuple" .none) compiled (lists := before)
+  return returned.completion == .ok () &&
+    returned.lists.objects == #[[.int 31], []] && returned.heap.next == 0 &&
+    returned.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
+      [("tuple", .ok (.returnedTuple []), none), ("___assertEqual", .ok .none, none)] &&
+    masked.completion == .error (.raised (.runtime .notCallable)) &&
+    masked.lists == returned.lists && masked.heap.next == 0 &&
+    masked.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
+      [("tuple", .error (.raised (.runtime .notCallable)), none)]
+
+#guard emptyListTupleEvidence .builtin
+#guard emptyListTupleEvidence .preamble
+
+private def freshListTupleEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let display : Source.Expr := .list_ [.boolean false, .none_, .integer 7]
+  let convert := Source.Expr.call (.name "tuple") [display]
+  let distinct := Source.Expr.comparison (.name "first") [(.isNot, .name "second")]
+  let source : Source.Module := ⟨[
+    .assign "first" convert, .assign "second" convert,
+    .expression (.call (.name "___assertTrue") [distinct])]⟩
+  let .ok compiled := Run.compile source | return false
+  let observed := run (legacyTupleIdentitySeed placement) compiled
+  let contents : List Core.Module.Value := [.bool false, .none, .int 7]
+  let items : List Core.Module.TupleDispatch.Element := contents.map .scalar
+  let first : Core.Module.SeededCall.Value := .tupleObject ⟨some 0, items⟩
+  let second : Core.Module.SeededCall.Value := .tupleObject ⟨some 1, items⟩
+  return observed.completion == .ok () && observed.lists.objects == #[contents, contents] &&
+    observed.heap.next == 2 && (observed.heap.contents 1).map seededValue == some (.returnedTuple items) &&
+    observed.residual.lookupGlobal "first" == some first &&
+    observed.residual.lookupGlobal "second" == some second &&
+    observed.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
+      [("tuple", .ok first, none), ("tuple", .ok second, none), ("___assertTrue", .ok .none, none)]
+
+#guard freshListTupleEvidence .builtin
+#guard freshListTupleEvidence .preamble
+
+private def textTupleEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let tupleCall points := Source.Expr.call (.name "tuple") [.text points]
+  let equalCall left right := Source.Stmt.expression (.call (.name "___assertEqual") [left, right])
+  let source : Source.Module := ⟨[
+    equalCall (tupleCall []) (.tuple []),
+    equalCall (tupleCall [233, 128512, 769, 55296])
+      (.tuple [.text [233], .text [128512], .text [769], .text [55296]])]⟩
+  let .ok compiled := Run.compile source | return false
+  let stock := legacyTupleIdentitySeed placement
+  let observed := run stock compiled
+  let items : List Core.Module.TupleDispatch.Element :=
+    [.text ⟨[233], by decide⟩, .text ⟨[128512], by decide⟩,
+      .text ⟨[769], by decide⟩, .text ⟨[55296], by decide⟩]
+  return observed.completion == .ok () &&
+    observed.residual.moduleGlobals == stock.moduleGlobals && observed.residual.builtins == stock.builtins &&
+    observed.lists.objects.isEmpty && observed.heap.next == 1 &&
+    (observed.heap.contents 0).map seededValue == some (.returnedTuple items) &&
+    observed.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
+      [("tuple", .ok (.returnedTuple []), none), ("___assertEqual", .ok .none, none),
+        ("tuple", .ok (.tupleObject ⟨some 0, items⟩), none), ("___assertEqual", .ok .none, none)]
+
+#guard textTupleEvidence .builtin
+#guard textTupleEvidence .preamble
+
+private def tupleTruthEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let assertTrue operand := Source.Stmt.expression (.call (.name "___assertTrue") [operand])
+  let source : Source.Module := ⟨[
+    assertTrue (.unary .not_ (.tuple [])),
+    assertTrue (.tuple [.integer 42]),
+    assertTrue (.tuple []),
+    .assign "unreached" (.integer 9)]⟩
+  let .ok compiled := Run.compile source | return false
+  let space := legacyTupleIdentitySeed placement
+  let result := run space compiled
+  let failure : Core.Module.SeededCall.Failure := .raised (.assertionError .emptyTuple)
+  return result.completion == .error (.ofCall failure) && result.heap.next == 0 && result.lists.objects.isEmpty &&
+    result.residual.moduleGlobals == space.moduleGlobals && result.residual.builtins == space.builtins &&
+    result.calls.map (fun call => (call.callee, call.observation.result, call.observation.caught)) ==
+      [("___assertTrue", .ok .none, none), ("___assertTrue", .ok .none, none),
+        ("___assertTrue", .error failure, none)]
+
+#guard tupleTruthEvidence .builtin
+#guard tupleTruthEvidence .preamble
 
 end Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded

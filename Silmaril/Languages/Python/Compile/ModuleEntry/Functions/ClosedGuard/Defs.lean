@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.NumericArgument.Defs
+public import Silmaril.Languages.Python.Core.Binary64.Defs
 public import Silmaril.Numeric.Ieee754.Operations
 
 /-! # Closed tests in module control flow
@@ -37,6 +38,7 @@ def literal? : Expr → Option Value
   | .boolean value => some (.scalar (.bool value))
   | .none_ => some (.scalar .none)
   | .floatBits bits => (F64.Finite.ofRaw? (F64.ofBits bits)).map .float
+  | .floatDecimal coefficient exponent => (Core.Binary64.ofDecimal? false coefficient exponent).map .float
   | .text points => if validText points then some (.text points) else none
   | _ => none
 
@@ -171,7 +173,7 @@ decreasing_by
       simp only [List.cons.sizeOf_spec] at smaller
       omega
     | have smaller := List.sizeOf_lt_of_mem link.property
-      have right : sizeOf link.val.2 < sizeOf link.val := by cases link.val; simp; omega
+      have right : sizeOf link.val.2 < sizeOf link.val := by cases link.val; simp
       simp only [List.cons.sizeOf_spec] at smaller
       omega
 

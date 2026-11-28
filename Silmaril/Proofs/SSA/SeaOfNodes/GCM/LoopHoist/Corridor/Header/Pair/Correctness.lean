@@ -36,7 +36,7 @@ theorem move?_checked (moved : move? cfg request = some out) :
     · simp [move?, earlier, checked] at moved
   · exact Header.Later.moveCfgAt?_checked (by simpa [move?, earlier] using moved)
 
-private theorem move?_header (moved : move? cfg request = some out) :
+theorem move?_header (moved : move? cfg request = some out) :
     ∃ header, out = withHeader cfg header ∧
       ∀ env, header.eval evalOp (fun term vals => term.eval vals) env =
         (cfg.block .header).eval evalOp (fun term vals => term.eval vals) env := by

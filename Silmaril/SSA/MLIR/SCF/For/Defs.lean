@@ -66,16 +66,19 @@ def denote (loop : For Op Input Result) (evalOp : Eval Op) (input : Env Input) :
 def run (loop : For Op Input Result) (evalOp : Eval Op) (input : Env Input) : Option (Env Result) :=
   if loop.Admitted input then some (loop.denote evalOp input) else none
 
-/-- The lowering adds only an unsigned comparison and an increment to the
-supplied body and continuation primitives. -/
+/-- Typed Arith instructions for the CF lowering. The unsigned `scf.for` emitter
+uses `arith.cmpi ult` and `arith.addi`. Other CF emitters may use
+`arith.cmpi slt` with the same `i1` result convention. -/
 inductive LowerOp (Op : OpSignature) : OpSignature where
   | original {args : List Width} {w : Width} (op : Op args w) : LowerOp Op args w
   | ult (w : Width) : LowerOp Op [w, w] i1
+  | slt (w : Width) : LowerOp Op [w, w] i1
   | addi (w : Width) : LowerOp Op [w, w] w
 
 def lowerEval (evalOp : Eval Op) : Eval (LowerOp Op)
   | _, _, .original op, args => evalOp op args
   | _, _, .ult _, .cons lhs (.cons rhs .nil) => BitVec.ofBool (lhs.ult rhs)
+  | _, _, .slt _, .cons lhs (.cons rhs .nil) => BitVec.ofBool (lhs.slt rhs)
   | _, _, .addi _, .cons lhs (.cons rhs .nil) => lhs + rhs
 
 inductive Label (w : Width) (Carried : List Width) : List Width → Type where

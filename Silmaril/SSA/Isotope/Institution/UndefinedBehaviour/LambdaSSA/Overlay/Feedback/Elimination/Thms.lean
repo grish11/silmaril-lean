@@ -14,6 +14,13 @@ open Institution.Observational
 
 universe u v w x
 
+/-- An infinite sequence of positive segments gives an infinite path of
+actual steps. The proof chooses successors within the segments. -/
+theorem transitive_segments_path {P : Type u} {step : P → P → Prop} (boundary : Nat → P)
+    (segments : ∀ n, Relation.TransGen step (boundary n) (boundary (n + 1))) :
+    ∃ path : Nat → P, path 0 = boundary 0 ∧ ∀ n, step (path n) (path (n + 1)) :=
+  Proofs.Isotope.LambdaSSA.UB.Overlay.Feedback.Elimination.path_of_segments boundary segments
+
 namespace Graph
 
 variable {P : Type u} {O : Type v} {g : Graph P O} {inside : P → Prop} {p q : P}

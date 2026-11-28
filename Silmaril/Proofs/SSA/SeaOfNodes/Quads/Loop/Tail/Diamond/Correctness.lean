@@ -78,22 +78,28 @@ theorem afterHeader_eval {args results : List (Ty Data)} {past suffix : List (Li
     erw [thenBase_eval (observe := observe) (agrees := agrees), Block.lowerFrom_eval]
     rfl
 
-theorem latch_model (bank : Bank (regs := regs) m) :
-    (model m).run (.route (.test p.again (.take 1) (.take 0))) bank =
-      RVSDG.Theta.bodyResult (model m) (bank.get p.again).down bank := by
-  by_cases h : (bank.get p.again).down = true <;>
+private theorem latch_model_with (again : RVSDG.Port (dataPorts regs) (.value .predicate))
+    (bank : Bank (regs := regs) m) :
+    (model m).run (.route (.test again (.take 1) (.take 0))) bank =
+      RVSDG.Theta.bodyResult (model m) (bank.get again).down bank := by
+  by_cases h : (bank.get again).down = true <;>
     simp [model, Join.Choice.eval, RVSDG.Theta.bodyResult, h]
 
-private theorem route_eval {past : List (List (Ty Data))}
-    (wires : Wires (dataPorts regs) past (dataPorts regs))
-    (fuel : Nat) (input : Bank (regs := regs) m) (locals : Locals (Val m.value) past) :
-    (p.routeLatch wires).eval (model m) fuel input locals =
-      some (RVSDG.Theta.bodyResult (model m) ((wires.read input locals).get p.again).down
+theorem latch_model (bank : Bank (regs := regs) m) :
+    (model m).run (.route (.test p.again (.take 1) (.take 0))) bank =
+      RVSDG.Theta.bodyResult (model m) (bank.get p.again).down bank :=
+  latch_model_with m p.again bank
+
+theorem routeLatchWith_eval {args : List (Ty Data)} {past : List (List (Ty Data))}
+    (again : RVSDG.Port (dataPorts regs) (.value .predicate)) (wires : Wires args past (dataPorts regs))
+    (fuel : Nat) (input : Tuple (Val m.value) args) (locals : Locals (Val m.value) past) :
+    (routeLatchWith again wires).eval (model m) fuel input locals =
+      some (RVSDG.Theta.bodyResult (model m) ((wires.read input locals).get again).down
         (wires.read input locals)) := by
   let bank := wires.read input locals
   change some ((lastBank past (bodyPorts regs)).read input (locals.snoc
-    ((model m).run (.route (.test p.again (.take 1) (.take 0))) bank))) = _
-  rw [lastBank_read m, latch_model p m]
+    ((model m).run (.route (.test again (.take 1) (.take 0))) bank))) = _
+  rw [lastBank_read m, latch_model_with m]
 
 theorem body_run (fuel : Nat) (old : Bank (regs := regs) m) :
     p.thetaBody.run (model m) fuel old =
@@ -106,19 +112,26 @@ theorem body_run (fuel : Nat) (old : Bank (regs := regs) m) :
     rfl
   · intro header locals
     exact afterHeader_eval p m header p.routeLatch fuel old locals route
-      (fun wires locals' => route_eval p m wires fuel old locals')
+      (fun wires locals' => routeLatchWith_eval m p.again wires fuel old locals')
 
-private def finish (p : Program src entry) {past : List (List (Ty Data))}
-    (input : Bank (regs := regs) m) (locals : Locals (Val m.value) past) (bank : Bank (regs := regs) m) :
-    Tuple (Val m.value) [.value out] :=
-  Wires.read (.cons ((lastBank past (dataPorts regs)).get p.result) .nil) input (locals.snoc bank)
-
-private theorem finish_eq {past : List (List (Ty Data))}
-    (input : Bank (regs := regs) m) (locals : Locals (Val m.value) past) (bank : Bank (regs := regs) m) :
-    finish m p input locals bank = .cons (bank.get p.result) .nil := by
-  change Tuple.cons (SeaOfNodes.Diamond.read m ((lastBank past (dataPorts regs)).get p.result)
-    input (locals.snoc bank)) .nil = _
-  rw [← read_get, lastBank_read m]
+theorem iterateThenReturnWith_eval {past sigs : List (List (Ty Data))}
+    (body : Term (Opcode Op) (dataPorts regs) [] sigs (bodyPorts regs))
+    (result : RVSDG.Port (dataPorts regs) (.value out)) (wires : Wires (dataPorts regs) past (dataPorts regs))
+    (fuel : Nat) (input : Bank (regs := regs) m) (locals : Locals (Val m.value) past) :
+    (iterateThenReturnWith body result wires).eval (model m) fuel input locals =
+      (iterate (body.run (model m) fuel) (fun tag => tag.down.val == 1) fuel (wires.read input locals)).map
+        (fun bank => .cons (bank.get result) .nil) := by
+  let executed := iterate (body.run (model m) fuel) (fun tag => tag.down.val == 1) fuel (wires.read input locals)
+  change executed.bind (fun bank => some
+    (Tuple.cons (SeaOfNodes.Diamond.read m ((lastBank past (dataPorts regs)).get result)
+      input (locals.snoc bank)) .nil)) = executed.map (fun bank => .cons (bank.get result) .nil)
+  cases executed with
+  | none => rfl
+  | some bank =>
+    change some (Tuple.cons (SeaOfNodes.Diamond.read m ((lastBank past (dataPorts regs)).get result)
+      input (locals.snoc bank)) .nil) = _
+    rw [← read_get, lastBank_read m]
+    rfl
 
 private abbrev iterateBody (old : Bank (regs := regs) m) :=
   some (RVSDG.Theta.bodyResult (model m) ((p.nextBank m old).get p.again).down (p.nextBank m old))
@@ -129,12 +142,8 @@ private theorem iterate_return_eval {past : List (List (Ty Data))}
     (p.iterateThenReturn wires).eval (model m) fuel input locals =
       (iterate (iterateBody p m) (fun tag => tag.down.val == 1) fuel (wires.read input locals)).map
         (fun bank => .cons (bank.get p.result) .nil) := by
-  change (iterate (p.thetaBody.run (model m) fuel) _ fuel (wires.read input locals)).bind
-    (fun bank => some (finish m p input locals bank)) = _
-  rw [show p.thetaBody.run (model m) fuel = iterateBody p m from funext (body_run p m fuel)]
-  cases iterate (iterateBody p m) (fun tag => tag.down.val == 1) fuel (wires.read input locals) with
-  | none => rfl
-  | some bank => exact congrArg some (finish_eq p m input locals bank)
+  rw [Program.iterateThenReturn, iterateThenReturnWith_eval,
+    show p.thetaBody.run (model m) fuel = iterateBody p m from funext (body_run p m fuel)] <;> rfl
 
 private theorem graph_run (fuel : Nat) (input : Bank (regs := regs) m) :
     p.lower.run (model m) fuel input =
@@ -175,7 +184,8 @@ theorem selected_start (bank : Bank (regs := regs) m) :
 
 theorem selected_predecessor (bank : Bank (regs := regs) m) :
     p.predecessor (p.stage.choice.eval bank) =
-      (if (bank.get p.condition).down then p.trueArm.lastBlock else p.falseArm.lastBlock) := by
+      (if (bank.get p.condition).down then p.trueArm.predecessor p.header
+        else p.falseArm.predecessor p.header) := by
   by_cases h : (bank.get p.condition).down = true
   · have chosen : p.stage.choice.eval bank = (0 : Fin 2) := by
       simp [Program.stage, Join.Choice.eval, h]

@@ -1,0 +1,173 @@
+{
+  "libbrotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "fixtures": {
+    "producer-v1-entropy-brotli": {
+      "provenance": "PyArrow",
+      "sha256": "95b5dd767881a635df970a200fed394eca154a6154297931aa189ac7b67ab056",
+      "header_sha256": "4e6151879bcfa2e1d8520fbea4465aac18b91d983b7ace51790e290f329fe5da",
+      "start": 24,
+      "payload": 729,
+      "counts": [
+        1,
+        1,
+        1
+      ],
+      "alphabets": [
+        256,
+        704,
+        64
+      ],
+      "distance": [
+        0,
+        0
+      ]
+    },
+    "producer-v2-entropy-brotli": {
+      "provenance": "PyArrow",
+      "sha256": "9a9cbc2c64924d1efc0f7b111a776de9a4655cbb3f63a2acf0d0a803685bf64c",
+      "header_sha256": "79ab9c630db538ae6c4b76b83386b65026de83f78c169bcff6909b42834c7f76",
+      "start": 24,
+      "payload": 89,
+      "counts": [
+        1,
+        1,
+        1
+      ],
+      "alphabets": [
+        256,
+        704,
+        64
+      ],
+      "distance": [
+        0,
+        0
+      ]
+    },
+    "cli-utf8-multiple": {
+      "provenance": "libbrotli CLI quality 11",
+      "sha256": "ac8ba0851fb288df3a2ade64937504756e499e6d436a2d2623ec25f790ca2cf5",
+      "header_sha256": "c2a985974b21859224086640f315c9cbab9b7d4335cc19217845c704b8f6604e",
+      "start": 24,
+      "payload": 1680,
+      "counts": [
+        3,
+        2,
+        2
+      ],
+      "alphabets": [
+        256,
+        704,
+        64
+      ],
+      "distance": [
+        0,
+        0
+      ]
+    },
+    "cli-signed-multiple": {
+      "provenance": "libbrotli CLI quality 11",
+      "sha256": "c113c1681c0fdacdffddd7b048034fd0f0b2dadf870f2b1e87649387f0cc7e97",
+      "header_sha256": "418da5c9ec0695bcf86c087186ccbc5cc04f2f12238c5191c3dd4cf475ea4d78",
+      "start": 24,
+      "payload": 1194,
+      "counts": [
+        3,
+        2,
+        2
+      ],
+      "alphabets": [
+        256,
+        704,
+        64
+      ],
+      "distance": [
+        0,
+        0
+      ]
+    },
+    "configured-postfix-0": {
+      "provenance": "libbrotli encoder API quality 7",
+      "sha256": "a7528475fc333e2a851117fca815181c0cc88617b48394d5ba2db44fa8d84a9e",
+      "header_sha256": "052d33209aac1267928dd7a8fb9215e6e70a81a47ba804917164c52d24f99fbc",
+      "start": 24,
+      "payload": 398,
+      "counts": [
+        1,
+        1,
+        1
+      ],
+      "alphabets": [
+        256,
+        704,
+        79
+      ],
+      "distance": [
+        0,
+        15
+      ]
+    },
+    "configured-postfix-1": {
+      "provenance": "libbrotli encoder API quality 7",
+      "sha256": "465471e51f8ddd4f32623f63f29b6e7ade2e5f486c3468aad545729bdafe30ab",
+      "header_sha256": "cb0127fbd0cac88dfa8a0dc9e2e38bcfecf807ff2d024bd4fe6d43f02c920e16",
+      "start": 24,
+      "payload": 419,
+      "counts": [
+        1,
+        1,
+        1
+      ],
+      "alphabets": [
+        256,
+        704,
+        124
+      ],
+      "distance": [
+        1,
+        12
+      ]
+    },
+    "configured-postfix-2": {
+      "provenance": "libbrotli encoder API quality 7",
+      "sha256": "4664e6ca5c22ed64d24f034db59f9d2a8dd1cf15c5dcc5359eba26b6c084be26",
+      "header_sha256": "619f8cef519aa18917dcf63f30e78a8e84b6d711ba8e4daef5d094817af80ecb",
+      "start": 24,
+      "payload": 431,
+      "counts": [
+        1,
+        1,
+        1
+      ],
+      "alphabets": [
+        256,
+        704,
+        268
+      ],
+      "distance": [
+        2,
+        60
+      ]
+    },
+    "configured-postfix-3": {
+      "provenance": "libbrotli encoder API quality 7",
+      "sha256": "b07f58d2233a260504ee2a3d0c278de9f195621d596466c2ea95249a98613612",
+      "header_sha256": "ed2bcac57bfaade0ce162c6f1c42eccb71e7287ff62cc1f03b31b2e5edce0266",
+      "start": 24,
+      "payload": 459,
+      "counts": [
+        1,
+        1,
+        1
+      ],
+      "alphabets": [
+        256,
+        704,
+        520
+      ],
+      "distance": [
+        3,
+        120
+      ]
+    }
+  }
+}

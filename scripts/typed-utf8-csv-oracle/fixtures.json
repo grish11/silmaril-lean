@@ -1,0 +1,262 @@
+{
+  "profile": "Explicit ordered nullable schema over the UTF-8 CSV wire profile",
+  "fixture_license": "MIT",
+  "oracle": {
+    "implementation": "CPython",
+    "version": "3.13.5",
+    "commit": "6cb20a219a860eaf687b2d968b41c480c7461909",
+    "source": "https://github.com/python/cpython/blob/6cb20a219a860eaf687b2d968b41c480c7461909/Modules/_csv.c",
+    "license": "PSF-2.0"
+  },
+  "accepted": [
+    {
+      "name": "tags_unicode_and_int32_boundaries",
+      "wire_sha256": "4b0213760d6427464fcd14f906446521d70ca636171302a2dbac8f4eb21e02aa",
+      "writer_sha256": "4b0213760d6427464fcd14f906446521d70ca636171302a2dbac8f4eb21e02aa",
+      "values": [
+        [
+          null,
+          -2147483648
+        ],
+        [
+          "",
+          null
+        ],
+        [
+          "N",
+          0
+        ],
+        [
+          "T",
+          -1
+        ],
+        [
+          "café,東京\"🙂\r\nβ\rγ\nδ",
+          2147483647
+        ]
+      ]
+    },
+    {
+      "name": "bare_fields_without_final_crlf",
+      "wire_sha256": "9daec3c7b19e61ebe7bca707e3549a6bd65aa76703b4d559e82232fbf9417c98",
+      "writer_sha256": "e387660b8de1eae855e14ea327e5165e785198b863de1d85fcbec3ebeb50d7b8",
+      "values": [
+        [
+          "é",
+          -7
+        ],
+        [
+          "é",
+          null
+        ]
+      ],
+      "wire_hex": "e5908de5898d2c6933320d0a5465cc812c542d370d0a54c3a92c4e"
+    },
+    {
+      "name": "header_only",
+      "wire_sha256": "2e01b46fb14df55f00c6bfbde2370686f46dc68cefa43225129a0526e7e42046",
+      "writer_sha256": "2e01b46fb14df55f00c6bfbde2370686f46dc68cefa43225129a0526e7e42046",
+      "values": []
+    }
+  ],
+  "rejected": [
+    {
+      "name": "empty_has_no_header",
+      "wire_hex": "",
+      "wire_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lean_error": [
+        "missingHeader"
+      ],
+      "rows": []
+    },
+    {
+      "name": "header_order_mismatch",
+      "wire_hex": "6933322ce5908de5898d0d0a4e2c4e",
+      "wire_sha256": "01a7c59a0d5db681aff1496808c3704a975ae94791c23303e56898b52cf4e9e2",
+      "lean_error": [
+        "headerMismatch"
+      ],
+      "rows": [
+        [
+          "i32",
+          "名前"
+        ],
+        [
+          "N",
+          "N"
+        ]
+      ]
+    },
+    {
+      "name": "short_row",
+      "wire_hex": "e5908de5898d2c6933320d0a4e",
+      "wire_sha256": "6516e4cae333cdfd796eb867241609460c2103d0ee08409571f7e389103bb19d",
+      "lean_error": [
+        "width",
+        2,
+        1
+      ],
+      "rows": [
+        [
+          "名前",
+          "i32"
+        ],
+        [
+          "N"
+        ]
+      ]
+    },
+    {
+      "name": "long_row",
+      "wire_hex": "e5908de5898d2c6933320d0a4e2c4e2c4e",
+      "wire_sha256": "750d184c659d2d44a3ee09915a2a31ad5e02b1bbcb64411f5f59a648f6e7f114",
+      "lean_error": [
+        "width",
+        2,
+        3
+      ],
+      "rows": [
+        [
+          "名前",
+          "i32"
+        ],
+        [
+          "N",
+          "N",
+          "N"
+        ]
+      ]
+    },
+    {
+      "name": "empty_cell_is_untagged",
+      "wire_hex": "e5908de5898d2c6933320d0a2c4e",
+      "wire_sha256": "34d01a687bf32758be91501d17e22b991ac136bf9174a4cb435ed7ecc02f7706",
+      "lean_error": [
+        "invalidTag",
+        0
+      ],
+      "rows": [
+        [
+          "名前",
+          "i32"
+        ],
+        [
+          "",
+          "N"
+        ]
+      ]
+    },
+    {
+      "name": "null_marker_with_suffix",
+      "wire_hex": "e5908de5898d2c6933320d0a4ec3a92c4e",
+      "wire_sha256": "dc4abb4cce93000041808c0e122cd6eea810ec6e282b5f7616746e5aed54c09d",
+      "lean_error": [
+        "invalidTag",
+        0
+      ],
+      "rows": [
+        [
+          "名前",
+          "i32"
+        ],
+        [
+          "Né",
+          "N"
+        ]
+      ]
+    },
+    {
+      "name": "empty_int32_is_present",
+      "wire_hex": "e5908de5898d2c6933320d0a4e2c54",
+      "wire_sha256": "2efe0ec9838e2cc615c8eb7879cfa984805fc2e1bb324ef520627a37c0b0c96b",
+      "lean_error": [
+        "parseCell",
+        1
+      ],
+      "rows": [
+        [
+          "名前",
+          "i32"
+        ],
+        [
+          "N",
+          "T"
+        ]
+      ]
+    },
+    {
+      "name": "int32_overflow",
+      "wire_hex": "e5908de5898d2c6933320d0a4e2c5432313437343833363438",
+      "wire_sha256": "47751fab802611af5f3d4d9d5736f9d15cf3b5794069112bb1de176f4c126a8e",
+      "lean_error": [
+        "parseCell",
+        1
+      ],
+      "rows": [
+        [
+          "名前",
+          "i32"
+        ],
+        [
+          "N",
+          "T2147483648"
+        ]
+      ]
+    },
+    {
+      "name": "int32_noncanonical",
+      "wire_hex": "e5908de5898d2c6933320d0a4e2c543031",
+      "wire_sha256": "0091bd9a9bc3aa0816bbe3a535c397159175a899d9f47c3b290fe96cacfad7e3",
+      "lean_error": [
+        "parseCell",
+        1
+      ],
+      "rows": [
+        [
+          "名前",
+          "i32"
+        ],
+        [
+          "N",
+          "T01"
+        ]
+      ]
+    },
+    {
+      "name": "malformed_quoted_csv",
+      "wire_hex": "e5908de5898d2c6933320d0a22546f70656e2c4e",
+      "wire_sha256": "7dc2c45bc64a3e06b19ce5475ae088f981701e4007de97c8a897dd16b6449868",
+      "lean_error": [
+        "malformedWire"
+      ],
+      "host_error": "csv"
+    },
+    {
+      "name": "malformed_utf8_in_present_cell",
+      "wire_hex": "e5908de5898d2c6933320d0a2254eda080222c4e",
+      "wire_sha256": "cc2405fce5762d4307f07c9a4859bdc2f8fcc51d623d58e03520a673c95b51e5",
+      "lean_error": [
+        "malformedWire"
+      ],
+      "host_error": "utf8"
+    },
+    {
+      "name": "valid_utf8_with_tab",
+      "wire_hex": "e5908de5898d2c6933320d0a2254c3a909222c4e",
+      "wire_sha256": "618fe93edbabe2b5f494bc7676b842b08c7cdcdc56912e8154ea8b5e6df3fa7d",
+      "lean_error": [
+        "malformedWire"
+      ],
+      "rows": [
+        [
+          "名前",
+          "i32"
+        ],
+        [
+          "Té\t",
+          "N"
+        ]
+      ]
+    }
+  ]
+}

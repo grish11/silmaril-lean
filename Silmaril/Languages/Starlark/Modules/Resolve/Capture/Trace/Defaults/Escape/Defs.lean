@@ -1,12 +1,13 @@
 module
 
-public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Body.Defs
+public import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Lexical.Defs
 
 public section
 
 namespace Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape
 
 open Functions
+open Assignment (LexicalBlock)
 open Lists (State Outcome)
 
 local notation "Expr" => Lowering.Resolve.SourceExpr
@@ -61,6 +62,13 @@ structure Spec where
 
 @[expose] def Spec.codes (wrapper : Spec) : List Lowering.Expr :=
   wrapper.defaults.map fun (_, operand) => operand.code wrapper.parameter
+
+@[expose] def Spec.planned (wrapper : Spec) : List PlainPositionalDefault :=
+  wrapper.defaults.map fun (name, operand) =>
+    ⟨name, operand.source wrapper.parameter, operand.code wrapper.parameter, operand.reads wrapper.parameter⟩
+
+@[expose] def Spec.legacyScope (wrapper : Spec) : LexicalBlock :=
+  ⟨[wrapper.parameter], [], []⟩
 
 @[expose] def Spec.childBody (wrapper : Spec) : Statement :=
   .ret (some (.scalar (.read wrapper.returned)))
@@ -137,40 +145,18 @@ theorem Admitted.wrapperNames {wrapper : Spec} (admitted : Admitted wrapper) : W
 @[expose] def Spec.saved (wrapper : Spec) (values : List Value) : List (Binding × Value) :=
   (wrapper.child.parameters.optional.map (fileSlot ∘ Prod.fst)).zip values
 
-/-- Definition-time operands use the wrapper's reached frame and address
-space. Allocating a list in one default extends that frame's heap. -/
-inductive Evaluates (parameter : String) (state : State) : Operand → Outcome Value → Prop where
-  | parameter : Evaluates parameter state .parameter (state.read (.bound (fileSlot parameter)))
-  | read (name : String) : Evaluates parameter state (.read name) (state.read (.bound (fileSlot name)))
-  | index (offset : Int) : Evaluates parameter state (.index offset)
-      ((state.read (.bound (fileSlot parameter))).resume fun receiver =>
-        Lists.readIndex receiver (.scalar (.int offset)))
-  | integer (value : Int) : Evaluates parameter state (.integer value) (.ok (.scalar (.int value)) state)
-  | list (value : Int) : Evaluates parameter state (.list value) (Lists.allocate [.scalar (.int value)] state)
-
-/-- The ordered source spine stops at the first error. -/
-inductive DefaultsIn (parameter : String) : State → List Operand → Outcome (List Value) → Prop where
-  | nil {state : State} : DefaultsIn parameter state [] (.ok [] state)
-  | next {state middle : State} {first : Operand} {tail : List Operand} {value : Value} {out : Outcome (List Value)} :
-      Evaluates parameter state first (.ok value middle) → DefaultsIn parameter middle tail out →
-      DefaultsIn parameter state (first :: tail) (out.resume fun values final => .ok (value :: values) final)
-  | failed {state final : State} {first : Operand} {tail : List Operand} {error : Lists.Error} :
-      Evaluates parameter state first (.error error final) →
-      DefaultsIn parameter state (first :: tail) (.error error final)
-
 /-- The shared wrapper rules install captures in the reached defining
 frame. A failed default cannot reach installation or the rebinding. -/
-inductive ReturnsWith (wrapper : Spec) (childId : Nat) (free : List FreeName)
+inductive ReturnsWith (wrapper : Spec) (block : LexicalBlock) (items : List PlainPositionalDefault)
+    (childId : Nat) (free : List FreeName)
     (updates : List (String × Int)) (caller active : State) : Outcome Value → Prop where
   | failed {error : Lists.Error} {final : State} :
-      DefaultsIn wrapper.parameter active
-        (wrapper.defaults.map Prod.snd) (.error error final) →
-      ReturnsWith wrapper childId free updates caller active (.error error (restoreCaller caller final))
+      Lexical.Evaluates block active items (.error error final) →
+      ReturnsWith wrapper block items childId free updates caller active (.error error (restoreCaller caller final))
   | child {values : List Value} {final : State} {captures : List Lists.Capture} :
-      DefaultsIn wrapper.parameter active
-        (wrapper.defaults.map Prod.snd) (.ok values final) →
+      Lexical.Evaluates block active items (.ok values final) →
       Installs final free captures →
-      ReturnsWith wrapper childId free updates caller active (.ok (.function final.heap.size)
+      ReturnsWith wrapper block items childId free updates caller active (.ok (.function final.heap.size)
         (restoreCaller caller (applyUpdates updates
           ((Defaults.install (fileSlot wrapper.childName) childId captures (wrapper.saved values) final).write
             (fileSlot wrapper.parameter) (.scalar (.int wrapper.rebound))))))
@@ -181,14 +167,14 @@ the last reached default. -/
 inductive Returns (wrapper : Spec) (childId : Nat) (caller : State) (argument : Value) :
     Outcome Value → Prop where
   | failed {error : Lists.Error} {final : State} :
-      DefaultsIn wrapper.parameter
+      Lexical.Evaluates wrapper.legacyScope
         (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
-        (wrapper.defaults.map Prod.snd) (.error error final) →
+        wrapper.planned (.error error final) →
       Returns wrapper childId caller argument (.error error (restoreCaller caller final))
   | child {values : List Value} {final : State} :
-      DefaultsIn wrapper.parameter
+      Lexical.Evaluates wrapper.legacyScope
         (activate caller (wrapper.frame childId).declaration [] [(fileSlot wrapper.parameter, argument)])
-        (wrapper.defaults.map Prod.snd) (.ok values final) →
+        wrapper.planned (.ok values final) →
       Returns wrapper childId caller argument (.ok (.function final.heap.size)
         (restoreCaller caller ((Defaults.install (fileSlot wrapper.childName) childId [] (wrapper.saved values) final).write
           (fileSlot wrapper.parameter) (.scalar (.int wrapper.rebound)))))

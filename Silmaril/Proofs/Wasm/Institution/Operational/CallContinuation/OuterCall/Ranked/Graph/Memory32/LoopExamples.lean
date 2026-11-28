@@ -1,6 +1,18 @@
 module
 
 import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Run.Thms
+import Silmaril.Proofs.Wasm.Institution.Operational.Loops.IndexedHost.Examples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.Examples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.IfExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.BranchExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.FunctionBranchExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.BranchTableExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.SuffixLoopExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.IndexedLoop.IndirectExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.MemoryExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.CycleExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.MemoryFunctionBranchExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.HostCall.Lime1.GrowthExamples
 import Silmaril.Wasm.Institution.Operational.MemoryQuery.Native.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryWrite.Native.Thms
 
@@ -26,7 +38,7 @@ private def fn : Function :=
   ⟨⟨{ memories := [slot] }, ⟨0⟩, [.int .i32, .int .i32, .int .i32], [], [.int .i32]⟩,
     0, [i32 4], [.loop resultType region, .ranked (.numeric (.bin .i32 .sub))]⟩
 
-private def program : Program := ⟨[some fn]⟩
+private def program : Program := { functions := [some fn] }
 private def base : Store Unit :=
   { memories := [sentinel, memory], funcs := [.wasm fn.declaration.type fn.declaration.module fn.v1Func] }
 private theorem checked : program.checkV1 slot = true := rfl

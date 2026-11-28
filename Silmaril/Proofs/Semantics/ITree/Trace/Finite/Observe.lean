@@ -11,7 +11,7 @@ namespace Silmaril.Proofs.Semantics.Elgot.ITree.Finite
 open Silmaril.Elgot Silmaril.Elgot.ITree Silmaril.Elgot.ITree.Finite
 
 universe u
-variable {Q : Type} {R S : Type u} (step : S → Step Q R S)
+variable {Q : Type} {Reply : Q → Type} {R S : Type u} (step : S → Step Q R S Reply)
 
 private theorem normalize_transition (s : S) :
     normalizeStep (transition step) (transition step s) =
@@ -26,8 +26,8 @@ private theorem normalize_transition (s : S) :
     funext reply
     exact pure_bind _ _
 
-private theorem reaches_runs {s : S} {head : Head Q R S}
-    (run : Reaches step s head) {node : Visible (Event Q) R (Tree (Event Q) R)}
+private theorem reaches_runs {s : S} {head : Head Q R S Reply}
+    (run : Reaches step s head) {node : Visible (Event Q Reply) R (Tree (Event Q Reply) R)}
     (found : node ∈ head.render (evaluate step)) :
     Elgot.Part.Runs (normalizeStep (transition step)) (transition step s) node := by
   induction run with
@@ -42,7 +42,7 @@ private theorem reaches_runs {s : S} {head : Head Q R S}
     rw [normalize_transition, edge]
     exact Part.mem_some _
 
-private theorem runs_reaches {s : S} {node : Visible (Event Q) R (Tree (Event Q) R)}
+private theorem runs_reaches {s : S} {node : Visible (Event Q Reply) R (Tree (Event Q Reply) R)}
     (run : Elgot.Part.Runs (normalizeStep (transition step)) (transition step s) node) :
     ∃ head, Reaches step s head ∧ node ∈ head.render (evaluate step) := by
   generalize equal : transition step s = tree at run

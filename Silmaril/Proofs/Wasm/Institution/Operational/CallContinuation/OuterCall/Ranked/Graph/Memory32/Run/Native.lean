@@ -5,6 +5,7 @@ import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.G
 import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Run.Guard
 import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Computed.Native.Thms
 import Silmaril.Wasm.Institution.Operational.CallContinuation.Native.Thms
+import Silmaril.Wasm.Institution.Operational.CallResolution.Indirect.V1.Thms
 import Silmaril.Wasm.Versions.Lime1.Execution.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryQuery.Native.Thms
 import Silmaril.Wasm.Institution.Operational.MemoryWrite.Native.Thms
@@ -16,6 +17,7 @@ namespace Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranke
 
 open Execution.Runtime (Frame FuncAddr MemAddr MemInst ModuleInst Value)
 open Wasm.V1.Execution
+open CallResolution
 
 private theorem selected {H : Type} {p : Program} {base : Store H} {m : MemAddr} {initial : MemInst}
     (layout : Layout p base m initial) {f : Frame} (slot : f.module.memories[0]? = some m) (bytes : ByteArray) :
@@ -29,6 +31,27 @@ private theorem update_bytes {H : Type} (base : Store H) (m : MemAddr) (initial 
     setMemory (storeWithBytes base m initial before) m { initial with data := after } =
       storeWithBytes base m initial after := by
   simp [storeWithBytes, setMemory, List.set_set]
+
+theorem indirect_resolution {H : Type} {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr}
+    {base : Store H} {initial : MemInst} (checked : p.checkV1 m mode calls = true)
+    (layout : Layout p base m initial) {fixed : FixedTable} (selected : p.fixedTable = some fixed)
+    {f : Frame} (slot : f.module.tables[0]? = some fixed.address) (bytes : ByteArray)
+    (index : TypeIdx) (selector : BitVec 32) :
+    Indirect.v1Resolve (storeWithBytes base m initial bytes) f index selector =
+      p.resolveIndirect fixed f.module index selector := by
+  have table : frameTable (storeWithBytes base m initial bytes) f = some fixed.table := by
+    simp [frameTable, slot, storeWithBytes, setMemory, layout.table fixed selected]
+  cases entry : fixed.table.refs[selector.toNat]? with
+  | none => simp [Indirect.v1Resolve, table, Program.resolveIndirect, Indirect.resolveTable, entry]
+  | some value =>
+    cases value with
+    | none => simp [Indirect.v1Resolve, table, Program.resolveIndirect, Indirect.resolveTable, entry]
+    | some address =>
+      obtain ⟨fn, found⟩ := p.table_target checked selected (List.mem_of_getElem? entry)
+      have allocated : (storeWithBytes base m initial bytes).funcs[address.value]? =
+          some (.wasm fn.declaration.type fn.declaration.module fn.v1Func) := layout.functions address fn found
+      simp [Indirect.v1Resolve, table, Program.resolveIndirect, Indirect.resolveTable, entry, found, allocated,
+        Execution.Runtime.FuncInst.type]
 
 theorem enter_rendered {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
     (layout : Layout p base m initial) {address : FuncAddr} {fn : Function}
@@ -55,6 +78,9 @@ theorem sound {H : Type} {mode : MemoryMode} {calls : CallMode} {p : Program} {m
   | get found => exact .localGet _ _ _ _ found
   | set found => exact .localSet _ _ _ _ _ found
   | resolve found => exact .call _ _ _ _ found
+  | @indirect bytes f i selector fixed out selected slot resolved =>
+    exact (Indirect.v1_step_iff (stack := []) (tail := [])).mpr
+      ⟨out, (indirect_resolution checked layout selected slot bytes i selector).trans resolved, rfl⟩
   | enter found count => exact enter_rendered layout found (p.function_checked checked found).1 count
   | load slot rule =>
     exact (MemoryWrite.v1_context_load_step_iff_at (saved := []) (tail := []) (selected layout slot _)).mpr
@@ -112,8 +138,25 @@ private theorem source_last {mode : MemoryMode} {calls : CallMode} {p : Program}
     SourceAllowedFor mode p m calls rank mod op :=
   source_allowed (guard _ (List.mem_of_getLast? last))
 
+private theorem reflect_indirect {H : Type} {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr}
+    {base s : Store H} {initial : MemInst} (checked : p.checkV1 m mode calls = true)
+    (layout : Layout p base m initial) {bytes : ByteArray} (same : s = storeWithBytes base m initial bytes)
+    {f : Frame} {rank : Nat} {index : TypeIdx} {selector : BitVec 32} {dst : Config H}
+    (guard : SourceAllowedFor mode p m calls rank f.module (.callIndirect index))
+    (step : Step CallFrame.v1NoHost ⟨s, f, [value (.int .i32 selector), .source (.callIndirect index)]⟩ dst) :
+    ∃ out, EdgeAt mode p m ⟨bytes, f, [value (.int .i32 selector), .source (.callIndirect index)]⟩ out ∧
+      dst = render base m initial out := by
+  subst s
+  cases guard with
+  | callIndirect admitted =>
+    obtain ⟨fixed, selected, slot, _, _, _⟩ := p.indirect_link admitted
+    obtain ⟨out, computed, eq⟩ := (Indirect.v1_step_iff (stack := []) (tail := [])).mp step
+    rw [indirect_resolution checked layout selected slot bytes index selector] at computed
+    exact ⟨_, .indirect selected slot computed, eq⟩
+
 theorem readback {H : Type} {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}
-    (layout : Layout p base m initial) (matched : mode.matches initial) {src dst : Config H} (move : Step CallFrame.v1NoHost src dst)
+    (checked : p.checkV1 m mode calls = true) (layout : Layout p base m initial)
+    (matched : mode.matches initial) {src dst : Config H} (move : Step CallFrame.v1NoHost src dst)
     (bytes : ByteArray) (same : src.store = storeWithBytes base m initial bytes)
     {rank : Nat} (ready : CodeAllowedFor mode p m calls rank src.frame.module src.code) :
     ∃ out, EdgeAt mode p m ⟨bytes, src.frame, src.code⟩ out ∧ dst = render base m initial out := by
@@ -138,13 +181,25 @@ theorem readback {H : Type} {mode : MemoryMode} {calls : CallMode} {p : Program}
         (fun c : Config H => (⟨c.store, c.frame, [.label 0 [.loop result body] c.code]⟩ : Config H)) eq⟩
   | frame move n outer ih =>
     have guard := single_allowed.mp ready
-    cases guard with | frame found permitted scope arity inside =>
-      obtain ⟨next, rule, eq⟩ := ih bytes same inside
+    cases guard <;> rename_i inside <;>
+      obtain ⟨next, rule, eq⟩ := ih bytes same inside <;>
       exact ⟨_, .frame rule n outer, congrArg
         (fun c : Config H => (⟨c.store, outer, [.frame n c.frame c.code]⟩ : Config H)) eq⟩
   | localGet s f i v found => exact ⟨_, .get found, by simp [render, ← same]⟩
   | localSet s f i v old found => exact ⟨_, .set found, by simp [render, ← same]⟩
   | call s f i address found => exact ⟨_, .resolve found, by simp [render, ← same]⟩
+  | callIndirect s f i selector table address fn ft tableFound typeFound entry found agrees =>
+    exact reflect_indirect checked layout same (source_last ready rfl)
+      (.callIndirect s f i selector table address fn ft tableFound typeFound entry found agrees)
+  | callIndirectBounds s f i selector table tableFound entry =>
+    exact reflect_indirect checked layout same (source_last ready rfl)
+      (.callIndirectBounds s f i selector table tableFound entry)
+  | callIndirectNull s f i selector table tableFound entry =>
+    exact reflect_indirect checked layout same (source_last ready rfl)
+      (.callIndirectNull s f i selector table tableFound entry)
+  | callIndirectType s f i selector table address fn ft tableFound typeFound entry found differs =>
+    exact reflect_indirect checked layout same (source_last ready rfl)
+      (.callIndirectType s f i selector table address fn ft tableFound typeFound entry found differs)
   | invokeWasm s f address ty mod fn args found count arity =>
     have guard := single_allowed.mp (append_allowed.mp ready).2
     cases guard with
@@ -240,7 +295,7 @@ theorem step_iff {H : Type} {mode : MemoryMode} {calls : CallMode} {p : Program}
       ∃ out, EdgeAt mode p m src out ∧ ReadyFor mode p m calls rank initial.data.size out ∧ dst = render base m initial out := by
   constructor
   · intro step
-    obtain ⟨out, edge, eq⟩ := readback layout matched step src.bytes rfl ready.2
+    obtain ⟨out, edge, eq⟩ := readback checked layout matched step src.bytes rfl ready.2
     exact ⟨out, edge, ⟨extent_preserved edge ready.1, preserve checked edge ready.2⟩, eq⟩
   · rintro ⟨out, edge, _, rfl⟩
     exact sound checked layout matched edge

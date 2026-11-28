@@ -21,9 +21,7 @@ theorem run_segment (path : Segment src target site) (m : Model.{u, v, w} Op)
     src.runFrom m (fuel + path.blocks.length) site old =
       src.runFrom m fuel target (path.quads.eval m old) := by
   induction path generalizing old with
-  | last site edge =>
-    simp only [Segment.blocks, List.length_cons, List.length_nil, Nat.zero_add, Source.runFrom,
-      edge, Terminator.select, Segment.quads]
+  | empty => simp [Segment.blocks, Segment.quads, Block.eval]
   | jump site edge rest ih =>
     simp only [Segment.blocks, List.length_cons, Nat.add_succ, Source.runFrom, edge,
       Terminator.select, Segment.quads, Block.eval, List.foldl_append]
@@ -33,10 +31,7 @@ theorem run_short (path : Segment src target site) (m : Model.{u, v, w} Op)
     (fuel : Nat) (old : Bank (regs := regs) m)
     (short : fuel < path.blocks.length) : src.runFrom m fuel site old = none := by
   induction path generalizing fuel old with
-  | last =>
-    have zero : fuel = 0 := by simpa [Segment.blocks] using short
-    subst fuel
-    rfl
+  | empty => simp [Segment.blocks] at short
   | jump site edge rest ih =>
     cases fuel with
     | zero => rfl

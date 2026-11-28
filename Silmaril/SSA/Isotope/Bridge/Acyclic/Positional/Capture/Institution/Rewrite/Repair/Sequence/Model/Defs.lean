@@ -1,7 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Institution.Rewrite.Repair.Sequence.Defs
-public import Silmaril.SSA.Isotope.LetIter.Categorical.Kleisli.Thms
+public import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Institution.Rewrite.Repair.Kleisli.Defs
 public import Silmaril.Semantics.ElgotMonads.Thms
 public import Mathlib.Algebra.FreeMonoid.Basic
 
@@ -21,7 +21,7 @@ open LetIter.Semantics.Categorical (ofTypeModel ofInstructionModel)
 writer preserves the words emitted before the error. -/
 abbrev Trace := ExceptT Bool (WriterT (FreeMonoid Bool) Part)
 
-abbrev value := Ty.denote (Empty.elim : Empty → Type)
+abbrev value := Kleisli.value
 
 def model : Isotope.Semantics.InstructionModel value signature.Instr Trace where
   eval
@@ -30,7 +30,7 @@ def model : Isotope.Semantics.InstructionModel value signature.Instr Trace where
 
 local notation "Γ₀" => (Ctx.nil : Ctx Empty Sorts)
 
-def noFree : FreeEnv value Γ₀ := fun x => x.elim
+def noFree : FreeEnv value Γ₀ := Kleisli.noFree
 
 /-- Observe the actual monadic evaluation at a chosen bound environment. -/
 def run {n : Nat} {β : BoundCtx Sorts n} {t : Tm Empty signature.Instr n} {A : Sorts}
@@ -51,7 +51,7 @@ noncomputable abbrev traceInstructions := ofInstructionModel value model
 /-- The operation algebra uses the standard distributive Kleisli Freyd
 interpretation and the same primitive computations. -/
 noncomputable def traceAlgebra : CaseAlgebra signature :=
-  freydCaseAlgebra traceJ traceTypes traceInstructions
+  Kleisli.algebra model
 
 /-- Place the trace algebra in the existing room given exact region typing
 coherence for its primitive interpretation. -/
@@ -60,7 +60,6 @@ noncomputable def validatedTrace
       LambdaSSA.Semantics.Categorical.RegionTypingCoherent (Φ := signature.Instr)
         traceJ traceTypes) :
     (grammarRoom traceJ signature).Mod :=
-  ShrinkHoms.toShrinkHoms (Discrete.mk
-    ((expandFreyd traceJ traceTypes traceInstructions coherent).validate traceJ))
+  Kleisli.validated model coherent
 
 end Silmaril.Isotope.Institution.Acyclic.Captured.Rewrite.Sequence

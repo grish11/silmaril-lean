@@ -19,7 +19,7 @@ open Silmaril.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Body
 open Silmaril.Languages.Starlark.Functions
 open Silmaril.Languages.Starlark.Functions.Lowering.Resolve
 
-private theorem resolves_at {block : LexicalBlock} {source : SourceExpr} {code : Lowering.Expr}
+theorem resolves_at {block : LexicalBlock} {source : SourceExpr} {code : Lowering.Expr}
     {reads : List Binding} (operand : Operand block source code reads) (initial : List Binding) :
     resolveExpr block.context source initial = .ok (code, reads.reverse ++ initial) := by
   induction operand generalizing initial with
@@ -45,7 +45,7 @@ private theorem resolves_at {block : LexicalBlock} {source : SourceExpr} {code :
     rw [resolveExpr.eq_def]
     simp [ih, bind, StateT.bind, Except.bind, pure, StateT.pure, Except.pure]
 
-private theorem resolves {block : LexicalBlock} {source : SourceExpr} {code : Lowering.Expr}
+theorem resolves {block : LexicalBlock} {source : SourceExpr} {code : Lowering.Expr}
     {reads : List Binding} (operand : Operand block source code reads) :
     resolveTracked block.context source = .ok (code, reads) := by
   simp [resolveTracked, resolves_at operand, Except.map]
@@ -129,6 +129,47 @@ private theorem emits {globals : List String} {definition : Definition} (plan : 
   rw [signature, emitted, optional]
   simp [Plan.declaration, Defaults.Parameters.signature, layout, readNames, capture]
 
+theorem compile_nested_body {globals enclosing : List String} (name : String) (parameters : Defaults.Parameters)
+    {source : Statement} {occurrences locals : List String} (collected : BodyBinders source occurrences)
+    (binders : LocalBinders parameters.names occurrences locals)
+    (body : ResolvedBody) {free : List FreeName}
+    (selected : Selects ⟨parameters.names ++ locals, enclosing, globals⟩ body.reads free)
+    (defaults : List PlainPositionalDefault)
+    (same : defaults.map (fun item => (item.name, item.source)) = parameters.optional)
+    (tracked : ∀ item ∈ defaults, resolveTracked ⟨enclosing, globals⟩ item.source = .ok (item.value, item.reads))
+    (seed middle : Program)
+    (compiled : compileBody ⟨(LexicalBlock.mk (parameters.names ++ locals) enclosing globals).context, .local⟩
+      source seed = .ok (body, middle)) :
+    compileBody ⟨⟨enclosing, globals⟩, .local⟩ (.define name parameters.source source) seed =
+      .ok (⟨.define (fileSlot name) middle.size,
+          defaults.flatMap PlainPositionalDefault.reads ++ free.map FreeName.source⟩,
+        middle.push ⟨parameters.signature (defaults.map PlainPositionalDefault.value), locals.map fileSlot, free, body.code⟩) := by
+  let parent : BlockContext := ⟨⟨enclosing, globals⟩, .local⟩
+  let layout : FunctionLayout := ⟨locals, ⟨(LexicalBlock.mk (parameters.names ++ locals) enclosing globals).context, .local⟩⟩
+  have signature : parameters.source =
+      { positional := parameters.required.map (fun name => ⟨name, none⟩) ++
+          defaults.map PlainPositionalDefault.parameter } := by
+    simp [Defaults.Parameters.source, ← same, List.map_map, PlainPositionalDefault.parameter, Function.comp_def]
+  have localNames := Block.localNames_eq (collected)
+  have localOrder := Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Block.local_names binders
+  have layoutBuilt : collectFunctionLayout parent.reads parameters.source source = .ok layout := by
+    simp [collectFunctionLayout, localNames, functionLayout, names_eq, layout, parent, LexicalBlock.context, Except.map]
+    simpa using localOrder
+  rw [signature] at layoutBuilt
+  have emitted := compileBody_plainPositionalDefinition parent name parameters.required
+    defaults source seed middle layout _ tracked layoutBuilt compiled
+  have readNames := names_eq parameters
+  rw [signature] at readNames
+  have capture : captureNames (parameters.names ++ locals) body.reads = free :=
+    Capture.captureNames_eq selected
+  have optional : defaults.map PlainPositionalDefault.resolved =
+      ((parameters.optional.map (fileSlot ∘ Prod.fst)).zip (defaults.map PlainPositionalDefault.value)).map
+        (fun (slot, code) => (⟨slot, some code⟩ : Parameter)) := by
+    simp [← same, List.map_map, List.zip_map', PlainPositionalDefault.resolved, Function.comp_def]
+  change compileBody parent (.define name parameters.source source) seed = _
+  rw [signature, emitted, optional]
+  simp [Defaults.Parameters.signature, layout, readNames, capture]
+
 theorem compile_nested {globals enclosing : List String} {definition : Definition}
     (plan : Plan globals definition enclosing)
     (defaults : List PlainPositionalDefault)
@@ -139,36 +180,11 @@ theorem compile_nested {globals enclosing : List String} {definition : Definitio
         (.define definition.name definition.parameters.source definition.body.source) program =
       .ok (⟨.define (fileSlot definition.name) program.size,
           defaults.flatMap PlainPositionalDefault.reads ++ plan.free.map FreeName.source⟩,
-        program.push (plan.declaration (defaults.map PlainPositionalDefault.value))) := by
-  let parent : BlockContext := ⟨⟨enclosing, globals⟩, .local⟩
-  let layout : FunctionLayout := ⟨plan.locals, ⟨plan.block.context, .local⟩⟩
-  have signature : definition.parameters.source =
-      { positional := definition.parameters.required.map (fun name => ⟨name, none⟩) ++
-          defaults.map PlainPositionalDefault.parameter } := by
-    simp [Defaults.Parameters.source, ← same, List.map_map, PlainPositionalDefault.parameter, Function.comp_def]
-  have localNames := Block.localNames_eq (collects definition.body)
-  have localOrder := Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Block.local_names plan.binders
-  have layoutBuilt : collectFunctionLayout parent.reads definition.parameters.source definition.body.source = .ok layout := by
-    simp [collectFunctionLayout, localNames, functionLayout, names_eq, layout, parent, Plan.block,
-      LexicalBlock.context, Except.map]
-    simpa using localOrder
-  rw [signature] at layoutBuilt
-  have compiled := compile_suite plan.elaborates program
-  have emitted := compileBody_plainPositionalDefinition parent definition.name definition.parameters.required
-    defaults definition.body.source program program layout _ tracked layoutBuilt compiled
-  have readNames := names_eq definition.parameters
-  rw [signature] at readNames
-  have capture : captureNames (definition.parameters.names ++ plan.locals) plan.reads = plan.free :=
-    Capture.captureNames_eq plan.selects
-  have optional : defaults.map PlainPositionalDefault.resolved =
-      ((definition.parameters.optional.map (fileSlot ∘ Prod.fst)).zip (defaults.map PlainPositionalDefault.value)).map
-        (fun (slot, code) => (⟨slot, some code⟩ : Parameter)) := by
-    simp [← same, List.map_map, List.zip_map', PlainPositionalDefault.resolved, Function.comp_def]
-  change compileBody parent (.define definition.name definition.parameters.source definition.body.source) program = _
-  rw [signature, emitted, optional]
-  simp [Plan.declaration, Defaults.Parameters.signature, layout, readNames, capture]
+        program.push (plan.declaration (defaults.map PlainPositionalDefault.value))) :=
+  compile_nested_body definition.name definition.parameters (collects definition.body) plan.binders
+    ⟨plan.code, plan.reads⟩ plan.selects defaults same tracked program program (compile_suite plan.elaborates program)
 
-private theorem operand_origins {block : LexicalBlock} {source : SourceExpr} {code : Lowering.Expr}
+theorem operand_origins {block : LexicalBlock} {source : SourceExpr} {code : Lowering.Expr}
     {reads : List Binding} (related : Operand block source code reads) :
     ∀ binding ∈ reads, ∃ origin, ReadOrigin block binding origin := by
   induction related with
@@ -182,7 +198,17 @@ private theorem operand_origins {block : LexicalBlock} {source : SourceExpr} {co
     exact (List.mem_append.mp member).elim (first binding) (tail binding)
   | list _ ih => exact ih
 
-private theorem body_origins {block : LexicalBlock} {source : Suite}
+theorem prefix_read_origins {block : LexicalBlock}
+    {source : List (String × SourceExpr)} {code : List (String × Lowering.Expr)}
+    {reads : List Binding} (related : ElaboratesPrefix block source code reads) :
+    ∀ binding ∈ reads, ∃ origin, ReadOrigin block binding origin := by
+  induction related with
+  | nil => simp
+  | cons _ operand _ tail =>
+    intro binding member
+    exact (List.mem_append.mp member).elim (operand_origins operand binding) (tail binding)
+
+theorem body_origins {block : LexicalBlock} {source : Suite}
     {code : Silmaril.Languages.Starlark.Functions.Body} {reads : List Binding}
     (related : Elaborates block source code reads) :
     ∀ binding ∈ reads, ∃ origin, ReadOrigin block binding origin := by

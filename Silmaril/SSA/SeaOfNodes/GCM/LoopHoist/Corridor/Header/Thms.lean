@@ -18,6 +18,36 @@ variable {g : Program Input carried result entrySigs headerSigs}
 variable {index : Nat} {cut : Point (SourceLabel carried result)}
 variable {out : Cfg TargetOp (SourceLabel carried result) Input [result]}
 
+/-- On any typed label family, the swap retains the branch decision and frame. -/
+theorem Typed.swapAt?_eval {Labels : List Width → Type} {Result : List Width} {insertion : Nat}
+    {before after : Block TargetOp Labels Γ Result}
+    (swapped : Typed.swapAt? insertion before = some after) (env : Env Γ) :
+    after.eval evalOp (fun term vals => term.eval vals) env =
+      before.eval evalOp (fun term vals => term.eval vals) env :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.swapAt_typed_eval swapped env
+
+/-- Compare typed argument packets for all occurrences, including an untaken edge. -/
+theorem Typed.swapAt?_edgePackets {Labels : List Width → Type} {Result : List Width} {insertion : Nat}
+    {before after : Block TargetOp Labels Γ Result}
+    (swapped : Typed.swapAt? insertion before = some after) (env : Env Γ) :
+    after.eval evalOp Typed.edgePackets env = before.eval evalOp Typed.edgePackets env :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.swapAt_edgePackets swapped env
+
+/-- Exact agreement of entry code and block transfers gives agreement at every block fuel. -/
+theorem Typed.run_eq_of_frames {Labels : List Width → Type} {Result : List Width}
+    {source target : Cfg TargetOp Labels Input Result} (input : Env Input)
+    (entry : target.entry = source.entry)
+    (block : ∀ frame : Frame Labels,
+      (target.block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input) =
+        (source.block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input))
+    (fuel : Nat) : target.run evalOp fuel input = source.run evalOp fuel input :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.run_eq_of_frames input entry block fuel
+
+/-- The label-polymorphic swap specializes to the source-header swap. -/
+theorem Typed.swapAt?_source (insertion : Nat) (code : Block TargetOp (SourceLabel carried result) Γ [result]) :
+    Typed.swapAt? insertion code = Header.swapAt? insertion code :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.swapAt_source insertion code
+
 /-- The local swap preserves the branch decision and the complete typed frame
 or return value, for every header environment. -/
 theorem swapAt?_eval {insertion : Nat}

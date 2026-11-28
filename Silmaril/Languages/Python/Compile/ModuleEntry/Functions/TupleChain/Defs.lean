@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Defs
+public import Silmaril.Languages.Python.Core.Module.TupleDispatch.Defs
 
 @[expose] public section
 
@@ -9,16 +10,19 @@ namespace Silmaril.Languages.Python.Compile.ModuleEntry.Functions
 open Source (Scope)
 
 inductive TupleOperand (scope : Scope) where
-  | literal (contents : List Core.Module.Value)
-  | add (left right : List Core.Module.Value)
-  | boundAdd (receiver argument : List Core.Module.Value)
-  | unboundAdd (reference : GlobalReference scope "tuple") (receiver argument : List Core.Module.Value)
+  | literal (contents : List Core.Module.TupleDispatch.Element)
+  | global (name : String) (reference : GlobalReference scope name)
+  | add (left right : List Core.Module.TupleDispatch.Element)
+  | boundAdd (receiver argument : List Core.Module.TupleDispatch.Element)
+  | unboundAdd (reference : GlobalReference scope "tuple") (receiver argument : List Core.Module.TupleDispatch.Element)
 
-  | construct (reference : GlobalReference scope "tuple") (argument : Option (List Core.Module.Value))
+  | construct (reference : GlobalReference scope "tuple") (argument : Option (List Core.Module.TupleDispatch.Element))
+  | constructGlobal (reference : GlobalReference scope "tuple") (name : String)
+      (argument : GlobalReference scope name)
 
 def TupleOperand.usesCall {scope : Scope} : TupleOperand scope → Bool
-  | .literal _ | .add .. => false
-  | .boundAdd .. | .unboundAdd .. | .construct .. => true
+  | .literal _ | .global .. | .add .. => false
+  | .boundAdd .. | .unboundAdd .. | .construct .. | .constructGlobal .. => true
 
 inductive TupleAddCall : Source.Expr → Source.Expr → List (Source.ArgumentKind × Source.Expr) → Prop where
   | plain (receiver arguments) :
@@ -52,12 +56,15 @@ def tupleScalar? : Source.Expr → Option Core.Module.Value
   | .none_ => some .none
   | source => scalarLiteral? source
 
-def constructorTuple? : Source.Expr → Option (List Core.Module.Value)
-  | .tuple elements => elements.mapM tupleScalar?
+def scalarTupleElements? (source : Source.Expr) : Option (List Core.Module.TupleDispatch.Element) :=
+  (scalarTuple? source).map (List.map .scalar)
+
+def constructorTuple? : Source.Expr → Option (List Core.Module.TupleDispatch.Element)
+  | .tuple elements => (elements.mapM tupleScalar?).map (List.map .scalar)
   | _ => none
 
 inductive TupleConstructorArgument :
-    List (Source.ArgumentKind × Source.Expr) → Option (List Core.Module.Value) → Prop where
+    List (Source.ArgumentKind × Source.Expr) → Option (List Core.Module.TupleDispatch.Element) → Prop where
   | empty : TupleConstructorArgument [] none
   | exact {source values} (checked : constructorTuple? source = some values) :
       TupleConstructorArgument [(.positional, source)] (some values)
@@ -73,32 +80,38 @@ def tupleConstructorArgument? :
   | _ => none
 
 inductive TupleOperandTranslation (scope : Scope) : Source.Expr → TupleOperand scope → Prop where
-  | literal {source values} (checked : scalarTuple? source = some values) :
+  | literal {source values} (checked : scalarTupleElements? source = some values) :
       TupleOperandTranslation scope source (.literal values)
+  | global (name : String) (reference : GlobalReference scope name) :
+      TupleOperandTranslation scope (.name name) (.global name reference)
   | add {left right first second}
-      (checkedLeft : scalarTuple? left = some first) (checkedRight : scalarTuple? right = some second) :
+      (checkedLeft : scalarTupleElements? left = some first) (checkedRight : scalarTupleElements? right = some second) :
       TupleOperandTranslation scope (.binary .add left right) (.add first second)
   | boundAdd {source receiver argument left right}
       (call : TupleAddCall source receiver [(.positional, argument)])
-      (checkedReceiver : scalarTuple? receiver = some left) (checkedArgument : scalarTuple? argument = some right) :
+      (checkedReceiver : scalarTupleElements? receiver = some left) (checkedArgument : scalarTupleElements? argument = some right) :
       TupleOperandTranslation scope source (.boundAdd left right)
   | unboundAdd {source receiver argument left right reference}
       (call : TupleAddCall source (.name "tuple") [(.positional, receiver), (.positional, argument)])
-      (checkedReceiver : scalarTuple? receiver = some left) (checkedArgument : scalarTuple? argument = some right) :
+      (checkedReceiver : scalarTupleElements? receiver = some left) (checkedArgument : scalarTupleElements? argument = some right) :
       TupleOperandTranslation scope source (.unboundAdd reference left right)
 
   | construct {source arguments reference operand}
       (call : TupleConstructorCall source arguments) (checked : TupleConstructorArgument arguments operand) :
       TupleOperandTranslation scope source (.construct reference operand)
+  | constructGlobal {source name reference argument}
+      (call : TupleConstructorCall source [(.positional, .name name)]) :
+      TupleOperandTranslation scope source (.constructGlobal reference name argument)
 
 def tupleValueOperand? (scope : Scope) : (source : Source.Expr) →
     Option {operand // TupleOperandTranslation scope source operand}
+  | .name name => (globalReference? scope name).map fun reference => ⟨.global name reference, .global name reference⟩
   | .binary .add left right =>
-    match checkedLeft : scalarTuple? left, checkedRight : scalarTuple? right with
+    match checkedLeft : scalarTupleElements? left, checkedRight : scalarTupleElements? right with
     | some first, some second => some ⟨.add first second, .add checkedLeft checkedRight⟩
     | _, _ => none
   | source =>
-    match checked : scalarTuple? source with
+    match checked : scalarTupleElements? source with
     | some values => some ⟨.literal values, .literal checked⟩
     | none => none
 
@@ -106,16 +119,21 @@ def tupleOperand? (scope : Scope) (source : Source.Expr) :
     Option {operand // TupleOperandTranslation scope source operand} := do
   if let some ⟨arguments, call⟩ := tupleConstructorCall? source then
     let reference ← globalReference? scope "tuple"
-    let ⟨operand, checked⟩ ← tupleConstructorArgument? arguments
-    return ⟨.construct reference operand, .construct call checked⟩
+    match arguments, call with
+    | [(.positional, .name name)], call =>
+      let argument ← globalReference? scope name
+      return ⟨.constructGlobal reference name argument, .constructGlobal call⟩
+    | arguments, call =>
+      let ⟨operand, checked⟩ ← tupleConstructorArgument? arguments
+      return ⟨.construct reference operand, .construct call checked⟩
   match tupleAddCall? source with
   | some ⟨(receiver, [(.positional, argument)]), call⟩ =>
-    match checkedLeft : scalarTuple? receiver, checkedRight : scalarTuple? argument with
+    match checkedLeft : scalarTupleElements? receiver, checkedRight : scalarTupleElements? argument with
     | some left, some right => some ⟨.boundAdd left right, .boundAdd call checkedLeft checkedRight⟩
     | _, _ => none
   | some ⟨(.name "tuple", [(.positional, receiver), (.positional, argument)]), call⟩ =>
     let reference ← globalReference? scope "tuple"
-    match checkedLeft : scalarTuple? receiver, checkedRight : scalarTuple? argument with
+    match checkedLeft : scalarTupleElements? receiver, checkedRight : scalarTupleElements? argument with
     | some left, some right => some ⟨.unboundAdd reference left right, .unboundAdd call checkedLeft checkedRight⟩
     | _, _ => none
   | some _ => none

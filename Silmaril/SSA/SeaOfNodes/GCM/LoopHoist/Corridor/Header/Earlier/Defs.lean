@@ -19,8 +19,8 @@ variable {entrySigs headerSigs : List (List (Diamond.Ty Width))}
 abbrev Operation := (args : List Width) × (width : Width) × TargetOp args width
 
 /-- Project the binding order, ignoring the de Bruijn names of operands. -/
-def operations : {Γ : List Width} →
-    Block TargetOp (SourceLabel carried result) Γ [result] → List Operation
+def operations {Labels : List Width → Type} {Result : List Width} : {Γ : List Width} →
+    Block TargetOp Labels Γ Result → List Operation
   | _, .terminator _ => []
   | _, .letOp op _ rest => ⟨_, _, op⟩ :: operations rest
 

@@ -39,6 +39,8 @@ catalog metadata. Mathematical comparisons are stated in the cited theorems.
 | --- | --- | --- | --- |
 | `mlir.llvm.scalar` | Simple SSA, one block | `mlir.llvm.scalar_eval` evaluates admitted scalar blocks in order, yielding bits or immediate division-by-zero UB | |
 | `mlir.arith.isolated` | Scalar SSA with isolated single-block application | `mlir.arith.bitvector` denotes a total function from typed environments to bitvectors | `ssa.mlir.isolated` |
+| `mlir.cf.basic_scalar_loop` | Typed CFG at a fixed scalar loop profile | `mlir.cf.basic_scalar_loop_part` observes a partial singleton return | `ssa.mlir.cf.scalar_loop` |
+| `mlir.cf.switch_assert` | Typed CFG with switch cases and assertions | `mlir.cf.switch_assert_run` executes with a finite block budget. `mlir.cf.switch_assert_part` denotes a return or abort, with divergence undefined. | |
 
 The LLVM slice has regionless bodies. Scoped application belongs to the
 landed Arith subset. The two pure MLIR institutions are bundled as
@@ -49,6 +51,16 @@ has no recorded institution link. [Arith correspondence theorem](../../Silmaril/
 [LLVM model](mlir-llvm-scalar.md) ·
 [Pure institutions](mlir-institutions.md) ·
 [Registrations](../../Silmaril/LogicGraph/Nodes/SSA/MLIR/Defs.lean)
+
+Both CFG subsets belong to `mlir.cf` and use the `typed_ssa_cfg` syntax kind.
+The Basic profile fixes the captured input widths, latch width, result width,
+and interpreter. Its institution uses the registered observation to interpret
+equations and termination sentences. `satisfaction_induced` preserves and
+reflects satisfaction for admitted source sentences. For SwitchAssert,
+`Cfg.mem_denotePart_iff` relates defined outcomes to finite runs.
+[Basic profile and institution](sea-of-nodes-loop-mlir-institution.md) ·
+[SwitchAssert semantics](mlir-cf-switch-assert.md#partial-denotation) ·
+[CF registrations](../../Silmaril/LogicGraph/Nodes/SSA/MLIR/CF/Defs.lean)
 
 ## Export and checks
 
@@ -64,6 +76,17 @@ from its normal database.
 make check CHECK_TARGETS=+Silmaril.LogicGraph.Nodes.SSA.MLIR.Defs
 cargo test --locked --manifest-path tools/silmaril-project/Cargo.toml ir_registry
 make project-check
+```
+
+To exercise the actual exported CF rows and the institution route in Chromium,
+serve the `make project-check` output and run the focused browser check. Set
+`PLAYWRIGHT_CORE` to the installed `playwright-core/index.mjs` if needed.
+
+```sh
+python3 -I tools/silmaril-project/tests/explore/pages_server.py \
+  --root .lake/silmaril --port 8766 --log /tmp/silmaril-ir-requests.jsonl
+# Run from another terminal.
+node tools/silmaril-project/tests/explore/ir.mjs http://127.0.0.1:8766/explore.html
 ```
 
 The IR page is a catalog. Syntax-specific program rendering, model comparison

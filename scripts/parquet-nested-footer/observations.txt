@@ -1,0 +1,7 @@
+PyArrow 26.0.1 optional struct
+SHA-256 fa0408e5c83e3cd1b37c5cb25d55e71cf951112fe746ab8ee1389e8325475c60 footer [150, 814)
+schema [('schema', None, 0, 1), ('point', None, 1, 2), ('signed', 1, 0, None), ('wide', 2, 1, None)], physical columns [(('point', 'signed'), 1), (('point', 'wide'), 2)], schema extent (2, 3, 53, [(4, 17), (17, 29), (29, 42), (42, 53)])
+annotated parent: abdea265172f77a94ba5cfe40b4813af1fbc54b87fb705aef2e76605a0e5db15, insertion at file byte 178
+required parent control
+SHA-256 9f8d9f6ad788c35df1099f2e338a6694bc6c873c9b1b3e8f471ef4e0573c2adb footer [138, 792)
+schema [('schema', None, 0, 1), ('point', None, 0, 2), ('signed', 1, 0, None), ('wide', 2, 1, None)], physical columns [(('point', 'signed'), 1), (('point', 'wide'), 2)], schema extent (2, 3, 53, [(4, 17), (17, 29), (29, 42), (42, 53)])

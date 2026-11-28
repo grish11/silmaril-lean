@@ -28,7 +28,7 @@ private def again : List Op := [get ⟨2⟩, get ⟨1⟩, .ranked (.call self), 
 private def write : List Op := [get ⟨0⟩, get ⟨1⟩, .store 1]
 private def select : Op := .if_ none again write
 private def fn : Function := ⟨decl, 0, [i32 0], [get ⟨0⟩, select, .load 1]⟩
-private def graph : Program := ⟨[some fn]⟩
+private def graph : Program := { functions := [some fn] }
 private def base : Store Unit :=
   { memories := [memory], funcs := [.wasm decl.type decl.module fn.v1Func] }
 private def updated : Store Unit := storeWithBytes base slot memory written
@@ -46,7 +46,7 @@ example : graph.checkV1 slot = false := rfl
 example : graph.checkV1 ⟨1⟩ .fixed .recursive = false := rfl
 
 private def withTarget (target : CallTarget) : Program :=
-  ⟨[some { fn with initial := [], code := [get ⟨0⟩, get ⟨1⟩, .ranked (.call target)] }]⟩
+  { functions := [some { fn with initial := [], code := [get ⟨0⟩, get ⟨1⟩, .ranked (.call target)] }] }
 
 example : (withTarget self).checkV1 slot .fixed .recursive = true := rfl
 

@@ -38,7 +38,7 @@ private theorem evalCapture (operands : Operands (carried :: Input) args)
       obtain ⟨tail, translated, rfl⟩ := Option.map_eq_some_iff.mp found
       simp only [Operands.eval, Env.get, ih translated]
 
-private theorem evalRename (rename : Rename Γ Δ) (source : Env Γ) (target : Env Δ)
+theorem evalRename (rename : Rename Γ Δ) (source : Env Γ) (target : Env Δ)
     (same : ∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref)
     (operands : Operands Γ args) :
     (For.renameOperands rename operands).eval target = operands.eval source := by
@@ -205,7 +205,7 @@ theorem pickAndHoist?_routes (picked : pickAndHoist? g tree = some (cut, output)
   exact ⟨_, op, operands, captured, rest, header, capture, evalEntry op captured rest input,
     evalBlock op operands captured rest header capture input⟩
 
-private theorem runEqOfRoutes
+theorem runEqOfRoutes
     {source : Cfg TargetOp (SourceLabel carried result) Input [result]}
     {target : Cfg TargetOp (Label saved carried result extra) Input [result]}
     {input : Env Input} {values : Env (extra ++ [saved])}
@@ -253,10 +253,6 @@ theorem pickAndHoist?_returns_iff (picked : pickAndHoist? g tree = some (cut, ou
     (exists_congr (fun fuel => by rw [← pickAndHoist?_run_eq picked input fuel]))
 
 
-private def CapturesAgree (origins : Origins Input Γ) (env : Env Γ) (input : Env Input) : Prop :=
-  ∀ {w} (ref : Var Γ w) (captured : Var Input w),
-    origins ref = .inl captured → env.get ref = input.get captured
-
 private theorem headerCapturesAgree (old : BitVec carried.val) (input : Env Input) :
     CapturesAgree headerOrigins (.cons old input) input := by
   intro _ ref cap origin
@@ -264,7 +260,7 @@ private theorem headerCapturesAgree (old : BitVec carried.val) (input : Env Inpu
   | here => cases origin
   | there ref => cases origin; rfl
 
-private theorem evalCaptureOrigins (origins : Origins Input Γ)
+theorem evalCaptureOrigins (origins : Origins Input Γ)
     (operands : Operands Γ args) {captured : Operands Input args}
     (found : captureOrigins? origins operands = some captured)
     (env : Env Γ) (input : Env Input) (agree : CapturesAgree origins env input) :
@@ -325,15 +321,19 @@ private theorem evalBinding
 
 variable {index : Nat}
 
-private theorem nominated_spec (picked : pickBindingAndHoist? g tree index = some (cut, output)) :
+theorem hoistCodeWith?_spec
+    {entry : Block TargetOp (SourceLabel carried result) Input [result]}
+    {header : Block TargetOp (SourceLabel carried result) (carried :: Input) [result]}
+    {choose : List (Point (SourceLabel carried result)) → List (Use (SourceLabel carried result)) →
+      Option (Point (SourceLabel carried result))}
+    (picked : hoistCodeWith? entry header index choose = some (cut, output)) :
     ∃ binding : Binding Input (carried :: Input) output.1 carried result,
-      findBinding index 0 headerOrigins ((lower g).block .header) = some ⟨output.1, binding⟩ ∧
-      LoopForest.choosePlacement tree blocks binding.operands binding.uses = some cut ∧
+      findBinding index 0 headerOrigins header = some ⟨output.1, binding⟩ ∧
+      choose binding.operands binding.uses = some cut ∧
       cut = ⟨none, 0⟩ ∧
       ∃ operands : Operands Input binding.args,
         binding.captured? = some operands ∧
-        output.2 = emitHeader (lower g).entry binding.op operands (binding.rewrite Var.there .here) := by
-  unfold pickBindingAndHoist? hoistBindingWith? at picked
+        output.2 = emitHeader entry binding.op operands (binding.rewrite Var.there .here) := by
   obtain ⟨⟨_, binding⟩, found, ranked⟩ := Option.bind_eq_some_iff.mp picked
   obtain ⟨chosen, selected, emitted⟩ := Option.bind_eq_some_iff.mp ranked
   split at emitted
@@ -346,6 +346,16 @@ private theorem nominated_spec (picked : pickBindingAndHoist? g tree index = som
     exact ⟨binding, found, selected, preheader, operands, captured, rfl⟩
   · contradiction
 
+private theorem nominated_spec (picked : pickBindingAndHoist? g tree index = some (cut, output)) :
+    ∃ binding : Binding Input (carried :: Input) output.1 carried result,
+      findBinding index 0 headerOrigins ((lower g).block .header) = some ⟨output.1, binding⟩ ∧
+      LoopForest.choosePlacement tree blocks binding.operands binding.uses = some cut ∧
+      cut = ⟨none, 0⟩ ∧
+      ∃ operands : Operands Input binding.args,
+        binding.captured? = some operands ∧
+        output.2 = emitHeader (lower g).entry binding.op operands (binding.rewrite Var.there .here) :=
+  hoistCodeWith?_spec picked
+
 theorem pickBindingAndHoist?_placement (picked : pickBindingAndHoist? g tree index = some (cut, output)) :
     cut = ⟨none, 0⟩ ∧ cut ∈ candidateCuts (lower g) blocks ∧
     ∃ binding : Binding Input (carried :: Input) output.1 carried result,
@@ -356,6 +366,41 @@ theorem pickBindingAndHoist?_placement (picked : pickBindingAndHoist? g tree ind
   obtain ⟨candidate, legal⟩ := LoopForest.choosePlacement_sound ranked
   exact ⟨preheader, candidate, binding, found, ranked, legal⟩
 
+theorem emitHeader_routes
+    {cfg : Cfg TargetOp (SourceLabel carried result) Input [result]}
+    (exit : cfg.block .exit = .terminator (.ret (.cons .here .nil)))
+    (binding : Binding Input (carried :: Input) saved carried result)
+    (found : findBinding index 0 headerOrigins (cfg.block .header) = some ⟨saved, binding⟩)
+    (operands : Operands Input binding.args) (captured : binding.captured? = some operands)
+    (input : Env Input) :
+    Routes cfg (emitHeader cfg.entry binding.op operands (binding.rewrite Var.there .here))
+      input (evalOp binding.op (operands.eval input)) := by
+  refine ⟨?_, ?_⟩
+  · exact evalCode cfg.entry Var.there input (.cons (evalOp binding.op (operands.eval input)) input)
+      (fun _ => rfl) .here
+  · intro frame
+    cases frame with
+    | mk label values =>
+      cases label with
+      | exit =>
+        rw [exit]
+        rfl
+      | header =>
+        cases values with
+        | cons old tail =>
+          cases tail
+          exact evalBinding (cfg.block .header) index 0 headerOrigins binding found
+            operands captured input (.cons old input) (headerCapturesAgree old input)
+            (.cons (evalOp binding.op (operands.eval input)) (.cons old input))
+            Var.there (fun _ => rfl) .here rfl
+
+theorem routes_run_eq
+    {cfg : Cfg TargetOp (SourceLabel carried result) Input [result]}
+    {target : Cfg TargetOp (Label saved carried result) Input [result]} {input : Env Input}
+    {value : BitVec saved.val} (routing : Routes cfg target input value) (fuel : Nat) :
+    target.run evalOp fuel input = cfg.run evalOp fuel input :=
+  runEqOfRoutes (values := .cons value .nil) ⟨routing.entry, routing.block⟩ fuel
+
 theorem pickBindingAndHoist?_routes (picked : pickBindingAndHoist? g tree index = some (cut, output))
     (input : Env Input) :
     ∃ (binding : Binding Input (carried :: Input) output.1 carried result)
@@ -365,29 +410,13 @@ theorem pickBindingAndHoist?_routes (picked : pickBindingAndHoist? g tree index 
       Routes (lower g) output.2 input (evalOp binding.op (operands.eval input)) := by
   obtain ⟨binding, found, _, _, operands, captured, emitted⟩ := nominated_spec picked
   rw [emitted]
-  refine ⟨binding, operands, found, captured, ⟨?_, ?_⟩⟩
-  · exact evalCode (lower g).entry Var.there input (.cons (evalOp binding.op (operands.eval input)) input)
-      (fun _ => rfl) .here
-  · intro frame
-    cases frame with
-    | mk label values =>
-      cases label with
-      | exit => rfl
-      | header =>
-        cases values with
-        | cons old tail =>
-          cases tail
-          exact evalBinding ((lower g).block .header) index 0 headerOrigins binding found
-            operands captured input (.cons old input) (headerCapturesAgree old input)
-            (.cons (evalOp binding.op (operands.eval input)) (.cons old input))
-            Var.there (fun _ => rfl) .here rfl
+  exact ⟨binding, operands, found, captured, emitHeader_routes rfl binding found operands captured input⟩
 
 theorem pickBindingAndHoist?_run_eq (picked : pickBindingAndHoist? g tree index = some (cut, output))
     (input : Env Input) (fuel : Nat) :
     output.2.run evalOp fuel input = (lower g).run evalOp fuel input := by
-  obtain ⟨binding, operands, _, _, routing⟩ := pickBindingAndHoist?_routes picked input
-  exact runEqOfRoutes (values := .cons (evalOp binding.op (operands.eval input)) .nil)
-    ⟨routing.entry, routing.block⟩ fuel
+  obtain ⟨_, _, _, _, routing⟩ := pickBindingAndHoist?_routes picked input
+  exact routes_run_eq routing fuel
 
 theorem pickBindingAndHoist?_budget (picked : pickBindingAndHoist? g tree index = some (cut, output))
     (input : Env Input) (budget : Nat) :

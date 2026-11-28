@@ -23,7 +23,7 @@ private def firstOfSecond := i32 (BitVec.ofNat 32 Memory.pageSize)
 
 private def reader : Function :=
   ⟨⟨{ memories := [slot] }, ⟨0⟩, [], [], [.int .i32]⟩, 0, [firstOfSecond], [.load 0]⟩
-private def program : Program := ⟨[some reader]⟩
+private def program : Program := { functions := [some reader] }
 private def base : Store Unit :=
   { memories := [sentinel, memory], funcs := [.wasm reader.declaration.type reader.declaration.module reader.v1Func] }
 private def caller : Frame := ⟨[Value.int .i64 7], { funcs := [address], memories := [slot] }⟩
@@ -177,7 +177,7 @@ private def observer : Function :=
   ⟨⟨{ memories := [slot], funcs := [growerAddress] }, ⟨0⟩, [.int .i32], [.int .i32, .int .i32], [.int .i32]⟩,
     1, [firstOfSecond], [.ranked (.numeric (.get ⟨0⟩)), .ranked (.call growTarget),
       .ranked (.set ⟨1⟩), .size, .ranked (.set ⟨2⟩), .load 0]⟩
-private def graph : Program := ⟨[some observer, some grower]⟩
+private def graph : Program := { functions := [some observer, some grower] }
 private def graphBase : Store Unit :=
   { memories := [sentinel, memory], funcs := [observer, grower].map
       (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }
@@ -193,7 +193,7 @@ private theorem graphLayout : Layout graph graphBase slot memory where
 example : graph.checkV1 slot = false := rfl
 example : Function.checkV1 { grower with declaration := { grower.declaration with params := [.int .i64] } }
     slot mode = false := rfl
-example : (Program.mk [some { observer with rank := 0 }, some grower]).checkV1 slot mode = false := rfl
+example : (Program.mk [some { observer with rank := 0 }, some grower] none).checkV1 slot mode = false := rfl
 example : graph.checkV1 ⟨0⟩ mode = false := rfl
 
 private def observerFrame (delta : BitVec 32) := observer.declaration.frame [i32 delta]

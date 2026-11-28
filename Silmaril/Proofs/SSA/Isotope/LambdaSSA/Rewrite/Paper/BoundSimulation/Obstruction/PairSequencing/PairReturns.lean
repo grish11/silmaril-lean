@@ -19,6 +19,7 @@ variable {α : Type u} {Φ : Type v} [HasTy Φ (Ty α)] {ε : Type w} [HasEff Φ
 
 theorem pair_join_same {observation : TermObservation (α := α) Φ}
     (unmarkedCase : observation.caseTerm = false) (unmarkedPair : observation.pairLet = false)
+    (unmarkedLet : observation.boundUnaryLet = false)
     {Γ L : List (Ty α)} {r s : Region Φ}
     (h : Paper.Extension.Eqv (Paper.WithPairReturns.JoinedStep pe) Γ r s L) :
     SameWith observation Γ r s := by
@@ -26,8 +27,8 @@ theorem pair_join_same {observation : TermObservation (α := α) Φ}
   intro Γ L r s step
   rcases step with (base | returned) | pair
   · exact projectionUnitSeed_same base
-  · exact returned.elim unary_fusion_same (caseReturnSeed_same unmarkedCase)
+  · exact returned.elim (unary_fusion_same unmarkedLet) (caseReturnSeed_same unmarkedCase)
   · cases pair with
-    | seq ha hb => exact fun env _ => sequence_pair unmarkedPair _ _ env
+    | seq ha hb => exact fun env _ => sequence_pair unmarkedPair unmarkedLet _ _ env
 
 end Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.PairSequencing.Observer

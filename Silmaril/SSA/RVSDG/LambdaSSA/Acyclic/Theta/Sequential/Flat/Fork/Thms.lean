@@ -33,4 +33,14 @@ theorem denote_fork (p : Fragment Φ M E D) (q : Fragment Φ Y E D)
         | .inr y => Region.denote (ε := ε) (m := m) q.typing (PUnit.unit, y) :=
   Proofs.flat_fork_denote p q gate coherent env
 
+/-- The actual flat case executes only the selected relocated arm. -/
+theorem denote_forkCase (p : Fragment Φ M E D) (q : Fragment Φ Y E D)
+    (gate : TwoBlock.Instruction Φ A (Silmaril.coprod M Y))
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m) (forkCase p q gate).typing env =
+      callCase (ε := ε) gate env.2 >>= fun
+        | .inl x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x)
+        | .inr y => Region.denote (ε := ε) (m := m) q.typing (PUnit.unit,y) :=
+  Proofs.flat_forkCase_denote p q gate coherent env
+
 end Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat

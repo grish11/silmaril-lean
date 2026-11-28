@@ -122,7 +122,7 @@ theorem step_eq (index : Index g) (job : Task carried) (state : State m.value ca
     Index.step m input index job state pending = Split.step m g input job state pending :=
   congrArg (Prod.mk (Split.update m g input job state)) (wake_eq index state _ pending)
 
-private theorem changedAt_iff (job : Task carried) (state new : State m.value carried out)
+theorem changedAt_iff (job : Task carried) (state new : State m.value carried out)
     (updated : new = Split.update m g input job state) (field : Phi.Job carried) :
     new.2.1 field ≠ state.2.1 field ↔ job = .phi field ∧ bankChangedAfter job state new = true := by
   subst new

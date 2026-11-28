@@ -9,6 +9,7 @@ open Silmaril.MLIR.Arith (Env)
 open Silmaril.MLIR.CF (Cfg)
 open Silmaril.SSA.SeaOfNodes.GCM
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist
+open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Example
 open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF (TargetOp evalOp lower)
@@ -47,5 +48,14 @@ private def transfer (cfg : Cfg TargetOp (SourceLabel word word) Inputs [word])
     some [some (1, 6), some (2, 12)]
 #guard ((pickAndMove? (loop false) 2).bind fun (_, cfg) =>
     (cfg.run evalOp 3 (input 6 6 1)).map (fun env => (env.get .here).toNat)) == some 36
+
+private def swapNamedInsertion? :=
+  Header.swapAt? (insertion := 1) (Γ := word :: Inputs) (carried := word) (result := word)
+    ((lower (loop false)).block .header)
+
+#guard swapNamedInsertion?.map opOrder == some ["addi", "addi", "muli", "ult"]
+#guard (swapNamedInsertion?.map fun header =>
+    let cfg := Header.withHeader (lower (loop false)) header
+    [transfer cfg 4, transfer cfg 6]) == some [some (1, 6), some (2, 12)]
 
 end Silmaril.Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Regression

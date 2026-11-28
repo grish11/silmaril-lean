@@ -92,8 +92,12 @@ theorem boundary_eq [DecidableEq Data] (d : Descriptor g) (b : Boundary g d)
     intro t p
     simp only [rows, get_map, ports_get, expected]
   have selected : readCarried g (ports carried) = some rows := collectRows b unique _
+  have feedback (t : Ty Data) (p : Port carried t) :
+      nodeAt g (d.theta.get p) =
+        .ofLabel (.theta 0) (.cons (d.initial.get p) (.cons (d.next.get p) .nil)) :=
+    b.thetaRow t p
   unfold inferBoundary
-  simp only [b.evalRow, b.thetaRow, b.initialRow, b.passRow, b.negationRow, Node.ofLabel, Tuple.get,
+  simp only [b.evalRow, feedback, b.initialRow, b.passRow, b.negationRow, Node.ofLabel, Tuple.get,
     count, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, selected, theta, initial, step]
   cases d
   rfl
@@ -102,14 +106,9 @@ private theorem check_isSome_rank [DecidableEq Data] [∀ ins out, DecidableEq (
     (d : Descriptor g) (guard body : List (Fin n)) {a b : DemandRank n 1}
     (validA : a.check g = true) (validB : b.check g = true) :
     (Region.check g d ⟨guard, body, a⟩).isSome = (Region.check g d ⟨guard, body, b⟩).isSome := by
-  unfold Region.check
-  split <;> try rfl
-  split <;> try rfl
-  split <;> try rfl
-  split <;> try rfl
-  split <;> try rfl
-  split <;> try rfl
-  dsimp only
+  unfold Region.check Region.checkWith
+  cases checkBoundary g d false <;> try rfl
+  simp only [dite_eq_left validA, dite_eq_left validB]
   cases Schedule.check g d.guardRoots guard d.theta <;>
     cases Schedule.check g d.next body d.theta <;> rfl
 
@@ -117,7 +116,7 @@ theorem checkScheduled_isSome_rank [DecidableEq Data] [∀ ins out, DecidableEq 
     (d : Descriptor g) {a b : DemandRank n 1}
     (validA : a.check g = true) (validB : b.check g = true) :
     (checkScheduled g d a).isSome = (checkScheduled g d b).isSome := by
-  unfold checkScheduled
+  unfold checkScheduled checkScheduledWith
   cases sliceOrder g d d.guardRoots <;> cases sliceOrder g d d.next <;> try rfl
   exact check_isSome_rank d _ _ validA validB
 

@@ -27,6 +27,14 @@ theorem Literals.push_agrees {args : List (Ty Unit)} {past : List (List (Ty Unit
     Literals.Agrees (known.push hint) entry (locals.snoc (.cons actual .nil)) :=
   Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.push_agrees agree sound
 
+/-- A successful literal lookup of the ordered typed wires returns their actual values. -/
+theorem literalInputs_sound {args : List (Ty Unit)} {past : List (List (Ty Unit))}
+    {known : Literals m args past} {entry : Tuple (Val m.value) args} {locals : Locals (Val m.value) past}
+    (agree : known.Agrees entry locals) {ports : List (Ty Unit)} (operands : Wires args past ports)
+    {values : Tuple (Val m.value) ports} (found : literalInputs? known operands = some values) :
+    operands.read entry locals = values :=
+  Silmaril.Proofs.SSA.SeaOfNodes.Pure.ConstantFold.literalInputs_sound agree operands found
+
 /-- Any literal predicted by the existing rule has the binding's value. -/
 theorem Rule.replacement_sound {args : List (Ty Unit)} {past : List (List (Ty Unit))}
     {known : Literals m args past} {entry : Tuple (Val m.value) args}

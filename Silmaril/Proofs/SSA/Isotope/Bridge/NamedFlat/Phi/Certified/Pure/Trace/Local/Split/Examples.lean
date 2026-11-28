@@ -3,6 +3,7 @@ module
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Split.Thms
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.InstructionMap.Thms
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.Reverse.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Entry.OrderedExits.Execution.Thms
 
 /-! A visible loop swaps two live values on the split edge. The admitted
 entry fixtures also exercise a second split after extending the record. -/
@@ -677,5 +678,63 @@ theorem readmitted_cycle_trace (ambient : Env Runtime) :
       finishedTrace := by
   rw [← seedOriginal.observe_reverse_roundTrip (I := reversePorts) reversed readmitted model seedRecord ambient]
   exact seed_finished
+
+section OrderedCycle
+
+open NamedFlat.Entry.Reverse (numberedInterface Lowered lowerCheckedWith observeAttached)
+
+private def orderedFields (_ : Option Key) : List (Reg × Ty SortName) := reversePorts.liveOut
+
+private def orderedPorts := numberedInterface seedTypes ([none] : List (Option Key)) (fun _ => num)
+
+private def orderedSeed : OrderedExits.Admission signature orderedPorts orderedFields seedLayout :=
+  (OrderedExits.admit orderedPorts orderedFields seedLayout source [seedX, seedY]
+    arrivals (fun _ => .product pairPacket pairPacket)).get (by decide)
+
+-- The entry uses a separate local range. The block retains the physical
+-- live-out registers and the self-edge preserves their declared ordering.
+private def orderedEntry : NamedFlat.Entry.Reverse.Registers Reg := ⟨rtlRegisters.parameter, fun i => ⟨30 + i⟩⟩
+
+private def orderedLowered : Lowered orderedPorts orderedFields orderedSeed.code :=
+  (lowerCheckedWith orderedPorts orderedFields orderedEntry
+    (fun _ => rtlRegisters.localAt) (fun _ => some rtlHeader) orderedSeed.code).get (by decide)
+
+private theorem orderedAccepted :
+    lowerCheckedWith orderedPorts orderedFields orderedEntry
+      (fun _ => rtlRegisters.localAt) (fun _ => some rtlHeader) orderedSeed.code = some orderedLowered :=
+  (Option.some_get _).symm
+
+example : (orderedLowered.source.blocks.lookup (some rtlHeader)).any
+    (fun block => block.body.targets.contains (some rtlHeader)) := by decide
+
+private theorem ordered_finished : HasTrace (orderedSeed.observe model seedRecord) finishedTrace := by
+  rw [orderedSeed.observe_packed model seedRecord (fun _ => .unit)]
+  exact seed_packed_trace (fun _ => .unit) source_finish
+
+/-- Actual attached RTL with per-body locals makes the same three visible
+requests across the swap and returns the later reply and ordered live-outs. -/
+theorem ordered_bodyLocal_cycle_trace :
+    HasTrace (observeAttached model orderedPorts orderedFields
+      orderedLowered.source seedRecord) finishedTrace :=
+  (orderedSeed.bodyLocal_commutes orderedAccepted model seedRecord (fun _ => .unit)).2.1 ▸ ordered_finished
+
+private def orderedRecompiled : NamedFlat.Entry.LiveOut.Admission signature
+    orderedPorts orderedFields orderedLowered.source :=
+  (NamedFlat.Entry.LiveOut.admit (P := signature) orderedPorts orderedFields orderedLowered.source
+    (fun _ => .product (.product pairPacket pairPacket) pairPacket)).get (by decide)
+
+local notation "OrderedExit" => Region.packedExitType (List.ofFn
+  (NamedFlat.Entry.Interface.external (NamedFlat.Entry.LiveOut.exitInterface orderedPorts orderedFields)))
+
+/-- The typed re-admitted program exposes the same visible trace and packed
+return, including both live-outs in their declared order. -/
+theorem ordered_bodyLocal_recompiled_trace (ambient : Env Runtime) :
+    HasTrace (((show ModelTree Event (Ty.denote (AtomValues.carrier (κ := SortName)) OrderedExit) from
+      (orderedRecompiled.program.denote model).of seedRecord) >>=
+        fun result => pure (0, encodeValue _ OrderedExit result))) finishedTrace :=
+  (orderedSeed.observe_recompiled_denote orderedLowered orderedRecompiled model seedRecord ambient) ▸
+    ordered_finished
+
+end OrderedCycle
 
 end Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.PureCapture.Local.Split.Examples

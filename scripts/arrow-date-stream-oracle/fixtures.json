@@ -1,0 +1,54 @@
+{
+  "description": "Arrow V5 one-column DATE streams and deterministic controls",
+  "fixture_license": "MIT",
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "arrow_commit": "9e5d6978e9acf372cc989aaaf94e863fe8582c90",
+  "wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "streams": {
+    "date32": {
+      "bytes": 568,
+      "sha256": "0ec91598b529b464a90997d0516a24094ae9d35147b0166e8f5577fc9cfa3791"
+    },
+    "date64": {
+      "bytes": 576,
+      "sha256": "13ddb6fbf5665af3e7c44173c21e6a9b994720fe2bc16f31aab01de3ef87cb52"
+    },
+    "schema_only": {
+      "bytes": 136,
+      "sha256": "85e7f176bac1de2d14dc966f46520e33daddbf5e494fbf87f605c1136c86cfa1"
+    },
+    "missing_eos": {
+      "bytes": 560,
+      "sha256": "ea01ed6490baf02b4a8c7f343e2090c8001164e0631871e4add35474b79f61ab"
+    },
+    "trailing_bytes": {
+      "bytes": 569,
+      "sha256": "10b502198ebbb3947f6457d12c255f0a0cae3fe4bf8ec928ebe1a9328bfb756c"
+    },
+    "truncated_body": {
+      "bytes": 559,
+      "sha256": "3bf8c45ee094e20b4f3ec0dc6d40a8859aa137ac795dbc991339ec75f3386d58"
+    },
+    "repeated_schema": {
+      "bytes": 696,
+      "sha256": "56874c832225fef61a9d74882c4bc7851a61c6b28e67111bcec4811528994cf2"
+    },
+    "corrupt_record": {
+      "bytes": 568,
+      "sha256": "b28a5ae9643dd6095d1deac7cfc1b22642d31cf91b9f8cae79e8d66a0a7ee386"
+    },
+    "primitive_schema": {
+      "bytes": 136,
+      "sha256": "3e9b1c2d288574cb95322cbcc9d912ca3352fa8254b1b868dcca169385b006e9"
+    },
+    "primitive_schema_in_suffix": {
+      "bytes": 696,
+      "sha256": "5f39925ee560add44d5fa36d03959a07a3581d66b70c568940c75ccf1b340c44"
+    },
+    "date64_remainder": {
+      "bytes": 576,
+      "sha256": "8353f8fda205b81b6d9f3106cfb57b076653fe3dc0ed03360959534df9f58051"
+    }
+  }
+}

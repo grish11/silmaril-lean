@@ -1,8 +1,10 @@
 module
 
 import Silmaril.SSA.PEG.Thms
+import Silmaril.SSA.PEG.Figure19.Structured.Thms
 import Silmaril.SSA.PEG.Semantics.Reindex.Thms
 import Mathlib.Logic.Equiv.Basic
+meta import Silmaril.SSA.PEG.Figure19.Structured.Defs
 
 namespace Silmaril.SSA.PEG.Tests
 
@@ -605,3 +607,127 @@ example : firstTrue (fun _ => some false) = none := by
 end Denotation
 
 end Silmaril.SSA.PEG.Tests
+
+namespace Silmaril.SSA.PEG.Figure19.Tests
+
+open PEG PEG.Simple
+open RVSDG (Tuple)
+
+private inductive Op : InstructionSet Unit where
+  | positive : Op [.count] .bool
+  | odd : Op [.count] .bool
+  | pred : Op [.count] .count
+  | predTwo : Op [.count] .count
+  | yes : Op [] .bool
+  | not : Op [.bool] .bool
+
+private def model : Interpretation Op where
+  carrier _ := Unit
+  run
+    | .positive, .cons n .nil => some ⟨n.down != 0⟩
+    | .odd, .cons n .nil => some ⟨n.down % 2 == 1⟩
+    | .pred, .cons n .nil => some ⟨n.down - 1⟩
+    | .predTwo, .cons n .nil => some ⟨n.down - 2⟩
+    | .yes, .nil => some ⟨true⟩
+    | .not, .cons b .nil => some ⟨!b.down⟩
+
+private abbrev store : List (Ty Unit) := [.count]
+
+private def input (n : Nat) : Tuple model.Value store := .cons ⟨n⟩ .nil
+
+private def step (op : Op [.count] .count) : Stmt Op true store store :=
+  .seq (.assign (.op op (.cons (.var .head) .nil))) (.project (.cons .head .nil))
+
+private def guard : Expr Op store .bool := .op .positive (.cons (.var .head) .nil)
+
+private def inner : Stmt Op true store store :=
+  .while rfl guard
+    (.branch (.op .odd (.cons (.var .head) .nil)) (step .pred) (step .predTwo))
+
+private def source : Program Op true store .count := ⟨store, .while rfl guard inner, .head⟩
+
+private def compiled := PEG.Simple.Structured.translate source Op.not
+
+-- The outer feedback executes a child while. The child's feedback
+-- contains a φ whose two arms use different primitive instructions.
+#guard (Structured.check source .not 32).isSome
+#guard (Figure19.check compiled .printed 32).isNone
+
+example : CFGContext compiled (inferDepth compiled.forest
+    (PEG.Simple.Structured.program source Op.not).nodes.length) .inward :=
+  (PEG.Simple.Structured.translate_figure19 source .not).2
+
+private abbrev pairStore : List (Ty Unit) := [.count, .count]
+
+private def exchange (op : Op [.count] .count) : Stmt Op true pairStore pairStore :=
+  .seq (.assign (.op op (.cons (.var (.tail .head)) .nil)))
+    (.project (.cons .head (.cons (.tail .head) .nil)))
+
+-- Both values are captured by the child. Each child's next value
+-- depends on the other old value, with the first update selected by φ.
+private def nestedExchange : Program Op true pairStore .count :=
+  let test : Expr Op pairStore .bool := .op .positive (.cons (.var .head) .nil)
+  ⟨pairStore, .while rfl test (.while rfl test
+    (.branch (.op .odd (.cons (.var .head) .nil)) (exchange .pred) (exchange .predTwo))), .head⟩
+
+#guard (Structured.check nestedExchange .not 64).isSome
+
+example :
+    let g := PEG.Simple.Structured.translate nestedExchange Op.not
+    let depth := inferDepth g.forest (PEG.Simple.Structured.program nestedExchange Op.not).nodes.length
+    FitsForest g.forest depth ∧ CFGContext g depth .inward :=
+  PEG.Simple.Structured.translate_figure19 nestedExchange .not
+
+private theorem sourceReturns : source.Returns model (input 3) ⟨0⟩ := by
+  have first : Exec model (step .pred) (input 3) (some (input 2)) :=
+    .seq (.assign rfl) .project
+  have second : Exec model (step .predTwo) (input 2) (some (input 0)) :=
+    .seq (.assign rfl) .project
+  have child : Exec model inner (input 3) (some (input 0)) :=
+    .whileStep rfl (.branchTrue rfl first)
+      (.whileStep rfl (.branchFalse rfl second) (.whileStop rfl))
+  exact ⟨input 0, .whileStep rfl child (.whileStop rfl), rfl⟩
+
+example (ok : (Structured.check source .not 32).isSome)
+    (i : Index (PEG.Simple.Structured.program source Op.not).nodes.length) :
+    let admitted := (Structured.check source .not 32).get ok
+    compiled.observe model (compiled.denote model (input 3) admitted.demandWellFounded) i =
+      .cons (some ⟨0⟩) .nil :=
+  Structured.observe_of_returns ((Structured.check source .not 32).get ok)
+    model (input 3) (fun _ => rfl) sourceReturns i
+
+private def pairedSort (i : Fin 4) : Ty Unit := if i = 3 then .bool else .count
+
+private def paired (passKey : Fin 2) : Graph Op store [.count] 4 2 where
+  forest := ⟨fun _ => none⟩
+  sort := pairedSort
+  node i := match i with
+  | 0 => .ofLabel (.eval 0) (.cons ⟨2, rfl⟩ (.cons ⟨1, rfl⟩ .nil))
+  | 1 => .ofLabel (.pass passKey) (.cons ⟨3, rfl⟩ .nil)
+  | 2 => .ofLabel (.param .head) .nil
+  | 3 => .ofLabel (.op .yes) .nil
+  roots := .cons ⟨0, rfl⟩ .nil
+
+private def pairedRank : DemandRank 4 2 := [.phase fun i => 4 - i.val]
+
+-- Both keys have depth one. Changing only the pass key preserves the
+-- checked demand rank but violates the eval/pass pairing clause.
+#guard (checkGuarded (paired 0) .inward 8 pairedRank).isSome
+#guard (checkGuarded (paired 1) .inward 8 pairedRank).isNone
+
+example (depth : Fin 2 → Nat) : ¬ CFGContext (paired 0) depth .printed :=
+  fun typed => typed.printed_no_root_eval 0 rfl
+
+example : WellFounded (paired 1).Demand :=
+  (paired 1).demandWellFounded_of_check pairedRank (by decide)
+
+example (depth : Fin 2 → Nat) : ¬ CFGContext (paired 1) depth .inward := by
+  intro typed
+  have boundary := (typed 0).evalBoundary
+  change ∃ host, host ≤ 0 ∧ EvalDirection.inward.Allows host (depth 0) ∧
+    ∃ test, Node.ofLabel (.pass (1 : Fin 2)) (.cons ⟨3, rfl⟩ .nil :
+      Tuple (Ref pairedSort) [.bool]) = .ofLabel (.pass 0) test at boundary
+  obtain ⟨host, _, _, test, different⟩ := boundary
+  cases different
+
+end Silmaril.SSA.PEG.Figure19.Tests

@@ -128,6 +128,19 @@ private theorem output_observed {ty : Ty V S} {pc p : Nat} {plan : DemandPlan}
   | state => rfl
   | control | value => exact List.contains_iff_mem.2 live
 
+/-- A checked call at a specified finite observation depth. -/
+abbrev MemberDispatchAt (actions : Actions m σ) (observed : Demand) (depth : Nat)
+    (final : Ports (Ty V S)) (summary : MemberSummary V S)
+    (guardL guardR : m.Val summary.fn.port → Tuple m.Val summary.captures → Prop) : Prop :=
+  ∀ (wanted : Demand) (fL fR : m.Val summary.fn.port) (capsL capsR : Tuple m.Val summary.captures)
+    (argsL argsR : Tuple m.Val summary.fn.args) (store : σ) (left right : Stack m summary.fn.results final),
+    guardL fL capsL → guardR fR capsR →
+    ScopeAgrees (scope := []) (summary.live wanted)
+      (prependContext argsL capsL) (prependContext argsR capsR) PUnit.unit PUnit.unit →
+    ResumeAgrees actions observed wanted (some depth) left right (fun _ => True) (fun _ => True) →
+    PrefixMatches actions observed depth
+      ⟨.eval (.call fL argsL) left, store⟩ ⟨.eval (.call fR argsR) right, store⟩
+
 /-- The member-call premise covers any smaller finite observation depth. -/
 @[expose] def MemberDispatch (actions : Actions m σ) (observed : Demand)
     {member : Option (MemberSummaries V S)} (guardL guardR : MemberResolution m member)
@@ -135,17 +148,9 @@ private theorem output_observed {ty : Ty V S} {pc p : Nat} {plan : DemandPlan}
   match member with
   | none => True
   | some table =>
-    ∀ (depth : Nat), depth ≤ budget →
-      ∀ i : Fin table.members.length,
+    ∀ (depth : Nat), depth ≤ budget → ∀ i : Fin table.members.length,
       let summary := table.at i
-      ∀ (wanted : Demand) (fL fR : m.Val summary.fn.port) (capsL capsR : Tuple m.Val summary.captures)
-        (argsL argsR : Tuple m.Val summary.fn.args) (store : σ) (left right : Stack m summary.fn.results final),
-        guardL i fL capsL → guardR i fR capsR →
-        ScopeAgrees (scope := []) (summary.live wanted)
-          (prependContext argsL capsL) (prependContext argsR capsR) PUnit.unit PUnit.unit →
-        ResumeAgrees actions observed wanted (some depth) left right (fun _ => True) (fun _ => True) →
-        PrefixMatches actions observed depth
-          ⟨.eval (.call fL argsL) left, store⟩ ⟨.eval (.call fR argsR) right, store⟩
+      MemberDispatchAt actions observed depth final summary (guardL i) (guardR i)
 
 private theorem dispatch_weaken {actions : Actions m σ} {observed : Demand}
     {guardL guardR : MemberResolution m member} {small large : Nat} (le : small ≤ large)

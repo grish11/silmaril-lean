@@ -10,7 +10,8 @@ public import Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Dominance.Defs
 namespace Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor
 
 open Silmaril.MLIR.Arith (Width)
-open Loop.MLIR.CF (Program lower)
+open Silmaril.MLIR.CF (Cfg)
+open Loop.MLIR.CF (Program TargetOp lower)
 open LoopHoist.Dominance (stage)
 
 variable {Input : List Width} {carried result : Width}
@@ -36,14 +37,20 @@ def synthesizedTree? (g : Program Input carried result entrySigs headerSigs) :
   letI := sourceTargetDecEq carried result
   GCM.Dominance.Tree.Synthesis.synthesize? (lower g) blocks stage (by exact fun {_ _} same => stage_injective same)
 
+/-- Choose on the supplied typed CFG, using its actual edges and local cuts. -/
+def chooseCfgCut? (cfg : Cfg TargetOp (SourceLabel carried result) Input [result])
+    (operands : List (Point (SourceLabel carried result))) (uses : List (Use (SourceLabel carried result))) :
+    Option (Point (SourceLabel carried result)) :=
+  letI := sourceTargetDecEq carried result
+  GCM.Corridor.chooseSynthesized? cfg blocks stage
+    (by exact fun {_ _} same => stage_injective same) operands uses
+
 /-- Choose a source cut using the synthesized corridor. The chooser accepts
 any legal result of ranking, including cuts outside the hoist's destination. -/
 def chooseCut? (g : Program Input carried result entrySigs headerSigs)
     (operands : List (Point (SourceLabel carried result))) (uses : List (Use (SourceLabel carried result))) :
     Option (Point (SourceLabel carried result)) :=
-  letI := sourceTargetDecEq carried result
-  GCM.Corridor.chooseSynthesized? (lower g) blocks stage
-    (by exact fun {_ _} same => stage_injective same) operands uses
+  chooseCfgCut? (lower g) operands uses
 
 /-- Find the nominated binding, rank its exact definition and use sites,
 and pass the selected cut to the existing typed hoist. -/

@@ -1,13 +1,14 @@
 module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Split.Defs
+import Silmaril.SSA.LambdaRTL.CFG.Thms
 
 public section
 
 namespace Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Phi.Split
 
 open Silmaril.SSA.LambdaRTL
-open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi (Graph Row)
+open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi (Graph Row assign)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Split (Plan)
 
 universe w
@@ -103,5 +104,74 @@ theorem lookup_forward (source : Graph V K F) (edge : plan.hasEdge source = true
         apply ih
         simpa only [List.lookup_cons, missed] using present
 
+
+section Evaluation
+
+variable {M : Type w → Type w} {α : Type w} [Monad M]
+  [DecidableEq V] [DecidableEq W] (model : Model F M α)
+
+omit [DecidableEq K] [DecidableEq J] [Monad M] in
+private theorem update {β : Type w} (store : V → β) (x : V) (value : β) :
+    upd (plan.renameStore store) (plan.register x) value =
+      plan.renameStore (upd store x value) := by
+  funext y
+  obtain ⟨y, rfl⟩ := plan.register.surjective y
+  simp [Plan.renameStore, upd]
+
+omit [DecidableEq V] [DecidableEq W] [DecidableEq K] [DecidableEq J] in
+omit [Monad M] in
+private theorem val_eval (store : V → α) (value : Val V) :
+    (value.rename plan.register).eval model (plan.renameStore store) =
+      value.eval model store := by
+  induction value with
+  | var x => simp [Val.rename, Val.eval, Plan.renameStore]
+  | unit => rfl
+  | pair a b ihA ihB => simp only [Val.rename, Val.eval, ihA, ihB]
+
+omit [DecidableEq V] [DecidableEq W] [DecidableEq K] [DecidableEq J] in
+private theorem op_eval (store : V → α) (op : Op V F) :
+    (op.rename plan.register).eval model (plan.renameStore store) =
+      op.eval model store := by
+  cases op <;> simp [Op.rename, Op.eval, val_eval]
+
+omit [DecidableEq K] [DecidableEq J] in
+private theorem term_exec {β : Type w} (route : Option K → Option J)
+    (next : Option J → α → (W → α) → M β)
+    (term : CFG.Term V (Option K) F) (store : V → α) :
+    (plan.renameTerm route term).exec model next (plan.renameStore store) =
+      term.exec model (fun k a s => next (route k) a (plan.renameStore s)) store := by
+  induction term generalizing store with
+  | br key value => simp [Plan.renameTerm, CFG.Term.exec, val_eval]
+  | case op x left y right ihL ihR =>
+    simp only [Plan.renameTerm, CFG.Term.exec, op_eval, update]
+    congr 1
+    funext branch
+    cases branch <;> simp [ihL, ihR]
+
+omit [DecidableEq K] [DecidableEq J] in
+theorem exec_rename {β : Type w} (route : Option K → Option J)
+    (next : Option J → α → (W → α) → M β)
+    (body : CFG.Body V (Option K) F) (store : V → α) :
+    (plan.renameBody route body).exec model next (plan.renameStore store) =
+      body.exec model (fun k a s => next (route k) a (plan.renameStore s)) store := by
+  induction body generalizing store with
+  | term term => exact term_exec plan model route next term store
+  | let1 x op body ih => simp [Plan.renameBody, CFG.Body.exec, op_eval, update, ih]
+  | let2 x y op body ih => simp [Plan.renameBody, CFG.Body.exec, op_eval, update, ih]
+
+omit [Monad M] in
+theorem assign_rename (target : K) (pred : Option K) (rows : List (Row V K))
+    (snapshot store : V → α) :
+    assign model (plan.rekey target pred) (plan.renameStore snapshot)
+        (rows.map (plan.renameRow target)) (plan.renameStore store) =
+      plan.renameStore (assign model pred snapshot rows store) := by
+  induction rows generalizing store with
+  | nil => rfl
+  | cons row rows ih =>
+    simp only [List.map_cons, assign, operand_rename plan, val_eval]
+    change assign model _ _ _ (upd (plan.renameStore store) (plan.register row.dst) _) = _
+    rw [update, ih]
+
+end Evaluation
 
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Phi.Split

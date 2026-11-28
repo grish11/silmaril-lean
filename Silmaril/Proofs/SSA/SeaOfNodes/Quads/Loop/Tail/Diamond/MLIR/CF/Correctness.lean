@@ -135,27 +135,37 @@ private theorem block_eval {Γ : List Width} (block : SourceBlock Op regs out si
         (block.terminator.select model (block.body.eval model old))) :=
   block_eval_with fullJump_agrees block scope env old ok
 
-variable (p : Program src entry)
-
-theorem entry_eval (input : Bank (regs := regs) model) :
-    (lower p).entry.eval evalOp (fun term env => term.eval env) (encodeValues input) =
+theorem source_entry_eval (input : Bank (regs := regs) model) :
+    (lowerSource src entry).entry.eval evalOp (fun term env => term.eval env) (encodeValues input) =
       .inl (destinationFrame ((src entry).body.eval model input)
         ((src entry).terminator.select model ((src entry).body.eval model input))) :=
   block_eval _ _ _ _ (entryNames_agree input)
+
+theorem source_site_eval (input bank : Bank (regs := regs) model) (id : Fin size) :
+    ((lowerSource src entry).block (.site id)).eval evalOp (fun term env => term.eval env)
+        ((encodeValues bank).append (encodeValues input)) =
+      .inl (destinationFrame ((src id).body.eval model bank)
+        ((src id).terminator.select model ((src id).body.eval model bank))) :=
+  block_eval _ _ _ _ (blockNames_agree (encodeValues input) bank)
+
+variable (p : Program src entry)
 
 theorem site_eval (input bank : Bank (regs := regs) model) (id : Fin size) :
     ((lower p).block (.site id)).eval evalOp (fun term env => term.eval env)
         ((encodeValues bank).append (encodeValues input)) =
       .inl (destinationFrame ((src id).body.eval model bank)
         ((src id).terminator.select model ((src id).body.eval model bank))) :=
-  block_eval _ _ _ _ (blockNames_agree (encodeValues input) bank)
+  source_site_eval input bank id
 
 /-- Every source exit makes one additional CF visit. This induction works
 for both full and projected source-to-CF frame relations. -/
-theorem runBlock_eq_of_frames_with {captures : List Width} {Labels : List Width → Type}
+theorem runBlock_eq_of_frames_on {captures : List Width} {Labels : List Width → Type}
     (cfg : Cfg TargetOp Labels captures [valueWidth out]) (input : Env captures)
     (frame : Fin size → Bank (regs := regs) model → Frame Labels) (exit : Labels [valueWidth out])
-    (siteEval : ∀ id old,
+    (site : Fin size → Prop)
+    (closed : ∀ id (bank : Bank (regs := regs) model) next,
+      (src id).terminator.select model bank = .jump next → site next)
+    (siteEval : ∀ id, site id → ∀ old,
       let current := frame id old
       let next := (src id).body.eval model old
       (cfg.block current.label).eval evalOp (fun term env => term.eval env)
@@ -177,12 +187,33 @@ theorem runBlock_eq_of_frames_with {captures : List Width} {Labels : List Width 
   | succ fuel ih =>
     rw [Cfg.runBlock, step]
     simp only [Tail.Source.runFrom]
-    cases (src id).terminator.select model ((src id).body.eval model old) with
-    | jump site => exact ih site _ _ _ (siteEval site _)
+    cases selected : (src id).terminator.select model ((src id).body.eval model old) with
+    | jump next => exact ih next _ _ _ (siteEval next (closed id _ next selected) _)
     | ret _ =>
       simp only [destinationFrameWith, returnFrame]
       rw [exitBlock]
       rfl
+
+theorem runBlock_eq_of_frames_with {captures : List Width} {Labels : List Width → Type}
+    (cfg : Cfg TargetOp Labels captures [valueWidth out]) (input : Env captures)
+    (frame : Fin size → Bank (regs := regs) model → Frame Labels) (exit : Labels [valueWidth out])
+    (siteEval : ∀ id old,
+      let current := frame id old
+      let next := (src id).body.eval model old
+      (cfg.block current.label).eval evalOp (fun term env => term.eval env)
+          (current.args.append input) =
+        .inl (destinationFrameWith frame (returnFrame exit) next ((src id).terminator.select model next)))
+    (exitBlock : cfg.block exit = .terminator (.ret (.cons .here .nil)))
+    (fuel : Nat) (id : Fin size) (old : Bank (regs := regs) model)
+    {Γ : List Width} (block : Block TargetOp Labels Γ [valueWidth out]) (env : Env Γ)
+    (step :
+      let next := (src id).body.eval model old
+      block.eval evalOp (fun term env => term.eval env) env =
+        .inl (destinationFrameWith frame (returnFrame exit) next ((src id).terminator.select model next))) :
+    cfg.runBlock evalOp input (fuel + 1) block env =
+      (src.runFrom model fuel id old).map (fun value => Env.cons (valueBits value) .nil) :=
+  runBlock_eq_of_frames_on cfg input frame exit (fun _ => True) (fun _ _ _ _ => trivial)
+    (fun site _ old => siteEval site old) exitBlock fuel id old block env step
 
 theorem runBlock_eq_of_frames {Labels : List Width → Type}
     (cfg : Cfg TargetOp Labels (Widths regs) [valueWidth out]) (input : Bank (regs := regs) model)
@@ -211,11 +242,16 @@ theorem from_run (input : Bank (regs := regs) model) (fuel : Nat) (id : Fin size
   runBlock_eq_of_frames (lower p) input siteFrame .exit (fun id old => site_eval p input old id) rfl
     fuel id old _ _ (site_eval p input old id)
 
+theorem lowerSource_run (fuel : Nat) (input : Bank (regs := regs) model) :
+    (lowerSource src entry).run evalOp (fuel + 1) (encodeValues input) =
+      (src.runFrom model fuel entry input).map (fun value => Env.cons (valueBits value) .nil) :=
+  runBlock_eq_of_frames (lowerSource src entry) input siteFrame .exit
+    (fun id old => source_site_eval input old id) rfl fuel entry input _ _ (source_entry_eval input)
+
 theorem lower_run (fuel : Nat) (input : Bank (regs := regs) model) :
     (lower p).run evalOp (fuel + 1) (encodeValues input) =
       (src.runFrom model fuel entry input).map (fun value => Env.cons (valueBits value) .nil) :=
-  runBlock_eq_of_frames (lower p) input siteFrame .exit (fun id old => site_eval p input old id) rfl
-    fuel entry input _ _ (entry_eval p input)
+  lowerSource_run fuel input
 
 theorem split_frame (input old : Bank (regs := regs) model) :
     ((lower p).block (.site p.header)).eval evalOp (fun term env => term.eval env)
@@ -227,20 +263,36 @@ theorem split_frame (input old : Bank (regs := regs) model) :
   split <;> simp_all [destinationFrame, destinationFrameWith, Program.armStart]
   rfl
 
-private theorem last_edge {join site : Fin size} (path : Chain.Segment src join site) :
-    (src path.lastBlock).terminator = .transfer (.jump join) := by
-  induction path with
-  | last _ edge => exact edge
-  | jump _ _ _ ih => exact ih
+private theorem last_edge {join site : Fin size} (path : Chain.Segment src join site)
+    (caller : Fin size) (nonempty : path.blocks ≠ []) :
+    (src (path.predecessor caller)).terminator = .transfer (.jump join) := by
+  induction path generalizing caller with
+  | empty => exact False.elim (nonempty rfl)
+  | jump site edge rest ih =>
+    cases rest with
+    | empty => exact edge
+    | jump => exact ih site (by simp [Chain.Segment.blocks])
 
-theorem predecessor_frame (input old : Bank (regs := regs) model) (occurrence : Fin 2) :
+private theorem empty_origin {join site : Fin size} (path : Chain.Segment src join site)
+    (caller : Fin size) (empty : path.blocks = []) :
+    site = join ∧ path.predecessor caller = caller := by
+  cases path with
+  | empty => exact ⟨rfl, rfl⟩
+  | jump => simp [Chain.Segment.blocks] at empty
+
+theorem predecessor_frame (input old : Bank (regs := regs) model) (occurrence : Fin 2)
+    (selectDirect : (p.armPath occurrence).blocks = [] → p.selected model old = occurrence) :
     ((lower p).block (.site (p.predecessor occurrence))).eval evalOp (fun term env => term.eval env)
         ((encodeValues old).append (encodeValues input)) =
       .inl (siteFrame p.join ((src (p.predecessor occurrence)).body.eval model old)) := by
-  have edge : (src (p.predecessor occurrence)).terminator = .transfer (.jump p.join) :=
-    last_edge (p.armPath occurrence)
-  rw [site_eval p, edge]
-  rfl
+  by_cases empty : (p.armPath occurrence).blocks = []
+  · obtain ⟨start, origin⟩ := empty_origin (p.armPath occurrence) p.header empty
+    change p.predecessor occurrence = p.header at origin
+    rw [origin, split_frame p, selectDirect empty, start]
+  · have edge : (src (p.predecessor occurrence)).terminator = .transfer (.jump p.join) :=
+      last_edge (p.armPath occurrence) p.header empty
+    rw [site_eval p, edge]
+    rfl
 
 theorem arm_run (input bank : Bank (regs := regs) model) (occurrence : Fin 2) (fuel : Nat) :
     (lower p).runFrom evalOp (fuel + (p.armPath occurrence).blocks.length + 1)

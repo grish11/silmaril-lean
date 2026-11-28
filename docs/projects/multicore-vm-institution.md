@@ -126,10 +126,82 @@ satisfies `Placed.Instruction.Refines`. That simulation supplies inclusion
 from actual placed runs. Equality with the abstract behavior would also
 require execution witnesses in the other direction.
 
+## Atomic, critical-region and yield-only models
+
+Import `Silmaril.Machine.MulticoreVM.Institution.Schedulers.Thms`.
+`Scheduler.atomic`, `Scheduler.critical` and `Scheduler.cooperative` use
+their existing finite schedule relations. The programs supply the
+instruction and state carriers, including any local, program or shared
+state. The cooperative adapter also takes a dispatch policy. Programs with
+a separate internal effect type can use `interpretEffects` to interpret
+each raw effect as a fragment of the signature's event language.
+[Scheduler API][schedulers] · [Critical-region semantics][critical]
+
+In `classic scheduledWords`, a candidate is the chronological list of
+thread IDs and move kinds paired with the chronological effect word. Move
+kinds distinguish ordinary instructions, enter, leave, dispatch, yield and
+retirement. An ordinary instruction still contributes a decision when its
+effect fragment is empty. `classic countedWords` retains the ordinary
+instruction count and the same effect word. Both profiles use successful
+finite prefixes and hide final states and instruction operands. The
+operational refinement theorems retain those endpoints and the full erased
+schedule. `Scheduler.namedModel_eq` recovers the original named model
+by keeping just the effect word.
+
+For `f : A ⟶ B`, the original signature homomorphism renames thread
+IDs injectively and maps events and core labels by functions. These profiles
+use the thread and event maps, including the participant lists of
+synchronization letters. `scheduledToCounted` and `countedToNamed` are
+natural projections. `Scheduler.satisfaction_renaming` and
+`Scheduler.satisfaction_counted_renaming` specialize the institution's
+sentence translation and inverse-image reduct to actual scheduler models.
+Reduct tests each candidate by translating it into the target signature.
+For example, a schedule atom translated along erasure tests the counted
+observation, allowing any schedule witness with that count and word.
+
+A forward operational interpretation requires a separate witness:
+
+- `StepMap` maps states and instructions and preserves the atomic relation
+  with the renamed effect fragment. `StepMap.ofEffects` also maps raw effects,
+  with preservation of the raw transition and commutation with its observer.
+- `CriticalMap` preserves both control continuations and reflects completion
+  on mapped threads for the activity guard. It maps the optional owner by
+  the thread embedding, preserving the dispatcher's free and owner cases.
+- `CooperativeMap` preserves yield continuations and allowed dispatch
+  decisions. Its finished predicate must agree on mapped threads, since
+  retirement needs completion and ordinary steps need activity. Runnable
+  witnesses then map by the ordinary and yield transition laws.
+
+`StepMap.scheduled` maps a run to a target run from the mapped initial state
+with the mapped endpoint. `CriticalMap.atomicSchedule_map` and
+`CooperativeMap.atomicSchedule_map` commute with erasure of control
+decisions. At the model level, `Scheduler.countedImage_natural` identifies
+the two paths that rename and erase the same source executions, and
+`Scheduler.Forward.countedModel_image_subset` puts that common image inside
+the target's actual behavior. Equality with the full target model requires
+witnesses lifting its observations to executions of the source. The logical
+reduct still exists for every signature map. It does not supply such lifts.
+
+`Scheduler.critical_counted_subset` and
+`Scheduler.cooperative_counted_subset` give refinement into the same atomic
+model. `Scheduler.countedModel_regionFree` and
+`Scheduler.countedModel_everyAtomic` give equalities for the region-free and
+every-atomic-yield boundary modes respectively. The counted comparison
+makes no equality claim about the richer schedule logs.
+
+The regressions check a silent atomic step inside a region, a foreign step
+enabled by the program but excluded by ownership, and the actual switch
+after leave. The second interpretation changes thread names from `Bool` to
+`Nat`, adds a mode to the state, maps instructions into an option type,
+and changes optional raw effects into lists of reports. It checks forward
+execution and satisfaction of a renamed schedule test.
+[Lean regressions][scheduler-tests]
+
 ## Scoped checks
 
 ```sh
 make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.Institution.Thms +Silmaril.Proofs.Machine.MulticoreVM.Institution.Regression +Silmaril.Proofs.Machine.MulticoreVM.Institution.ProjectionRegression'
+make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.Institution.Schedulers.Thms +Silmaril.Proofs.Machine.MulticoreVM.Institution.Schedulers.Regression'
 ```
 
 [defs]: ../../Silmaril/Machine/MulticoreVM/Institution/Defs.lean
@@ -141,3 +213,6 @@ make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.Institution.Thms +Silmar
 [projection]: ../../Silmaril/Machine/MulticoreVM/Institution/Projection/Thms.lean
 [projection-tests]: ../../Silmaril/Proofs/Machine/MulticoreVM/Institution/ProjectionRegression.lean
 [placed]: ../../Silmaril/Machine/MulticoreVM/Institution/Placed/Thms.lean
+[schedulers]: ../../Silmaril/Machine/MulticoreVM/Institution/Schedulers/Thms.lean
+[critical]: multicore-vm.md#flat-critical-regions
+[scheduler-tests]: ../../Silmaril/Proofs/Machine/MulticoreVM/Institution/Schedulers/Regression.lean

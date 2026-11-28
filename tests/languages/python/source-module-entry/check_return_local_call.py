@@ -193,7 +193,5 @@ if __name__ == "__main__":
     )
     with tempfile.TemporaryDirectory() as temp:
         source_path, lean_path = Path(temp) / "Example.py", Path(temp) / "Example.lean"
-        for source, guard in fixtures:
-            shared["emit"](source_path, lean_path, source)
-            shared["check_lean"](lean_path, LEAN + "\n" + guard + "\n", extra_imports=IMPORTS)
+        shared["check_lean_batch"](source_path, lean_path, fixtures, LEAN, extra_imports=IMPORTS)
     print(f"CPython {sys.version.split()[0]} and Lean checked returned local calls and seeded argument effects.")

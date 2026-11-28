@@ -71,6 +71,14 @@ theorem moveAt?_refuses_lateUse {saved : Width}
   Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Later.moveAt?_refuses_lateUse
     found member resolved sameBlock passed
 
+/-- The typed CFG emitter inserts the nominated binding at the translated index. -/
+theorem moveCfgAt?_order (moved : moveCfgAt? cfg index cut = some out) :
+    ∃ (prefixOps crossed : List Operation) (chosen : Operation) (suffixOps : List Operation),
+      prefixOps.length = index ∧ prefixOps.length + crossed.length = afterRemoval index cut.cut ∧
+      operations (cfg.block .header) = prefixOps ++ (chosen :: (crossed ++ suffixOps)) ∧
+      operations (out.block .header) = prefixOps ++ crossed ++ (chosen :: suffixOps) :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Later.moveCfgAt?_order moved
+
 /-- The nominated operation appears at the translated insertion index.
 Every crossed operation retains its relative order. -/
 theorem moveAt?_order (moved : moveAt? g index cut = some out) :

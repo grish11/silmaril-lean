@@ -21,7 +21,7 @@ universe w
 
 variable {arity : Nat} {past sigs ports : List (List PortTy)} {t : PortTy}
 
-private theorem get_pullTuple {F : PortTy → Type w} {source target : List PortTy}
+theorem get_pullTuple {F : PortTy → Type w} {source target : List PortTy}
     (rename : ∀ {t}, Port source t → Port target t) (input : Tuple F target) (p : Port source t) :
     (InputPermutation.pullTuple (fun p => rename p) input).get p = input.get (rename p) := by
   induction p with
@@ -37,12 +37,14 @@ private theorem argumentPort_slot {n : Nat} (p : Port (wordPorts n) wordPort) :
     | head => rfl
     | tail p => exact congrArg Port.tail (ih p)
 
-private theorem port_symm (perm : InputPermutation arity) (p : Port (wordPorts arity) t) :
+theorem port_symm (perm : InputPermutation arity) (p : Port (wordPorts arity) t) :
     InputPermutation.port perm.symm (perm.port p) = p := by
   have sameSort := InputPermutation.slotSort p
   subst t
-  simpa only [InputPermutation.port, InputPermutation.slot_argumentPort, Equiv.symm_apply_apply]
-    using argumentPort_slot p
+  change argumentPort arity (perm.symm
+    (InputPermutation.slot (argumentPort arity (perm (InputPermutation.slot p))))) = p
+  rw [InputPermutation.slot_argumentPort, Equiv.symm_apply_apply]
+  exact argumentPort_slot p
 
 private theorem tuple_ext {F : PortTy → Type w} {outputs : List PortTy} (xs ys : Tuple F outputs)
     (agree : ∀ {s} (p : Port outputs s), xs.get p = ys.get p) : xs = ys := by
@@ -57,25 +59,39 @@ theorem pull_symm {value : Unit → Type w} (perm : InputPermutation arity)
     perm.pull (InputPermutation.pull perm.symm input) = input := by
   apply tuple_ext
   intro _ p
-  simp only [InputPermutation.pull, get_pullTuple, port_symm]
+  simp only [InputPermutation.pull, InputMap.pull, get_pullTuple]
+  exact congrArg input.get (port_symm perm p)
 
-private theorem read_column (perm : InputPermutation arity) {F : PortTy → Type w}
-    (input : Tuple F (wordPorts arity)) {outputs : List PortTy}
-    (wires : Wires (wordPorts arity) [] outputs) :
-    (perm.column wires).read input PUnit.unit =
-      wires.read (InputPermutation.pullTuple (fun p => perm.port p) input) PUnit.unit := by
+theorem read_mapColumn {F : PortTy → Type w} {source target out : List PortTy}
+    (map : ∀ {t}, Port source t → Port target t) (input : Tuple F target)
+    (wires : Wires source past out) (locals : Locals F past) :
+    (mapColumn (fun p => map p) wires).read input locals =
+      wires.read (InputPermutation.pullTuple (fun p => map p) input) locals := by
   induction wires with
   | nil => rfl
   | cons wire rest ih =>
     cases wire with
-    | arg p =>
-      exact congrArg₂ Tuple.cons (get_pullTuple (fun p => perm.port p) input p).symm ih
-    | output i _ => exact i.elim0
+    | arg p => exact congrArg₂ Tuple.cons (get_pullTuple (fun p => map p) input p).symm ih
+    | output _ _ => exact congrArg (fun tail => Tuple.cons _ tail) ih
+
+theorem pull_comp {middle target : Nat} {value : Unit → Type w}
+    (first : InputMap arity middle) (second : InputMap middle target)
+    (input : Tuple (Val value) (wordPorts target)) :
+    InputMap.pull (second ∘ first) input = first.pull (second.pull input) := by
+  apply tuple_ext
+  intro sort p
+  have sameSort := InputPermutation.slotSort p
+  subst sort
+  simp only [InputMap.pull, get_pullTuple]
+  change input.get (argumentPort target (second (first (InputPermutation.slot p)))) =
+    input.get (argumentPort target
+      (second (InputPermutation.slot (argumentPort middle (first (InputPermutation.slot p))))))
+  rw [InputPermutation.slot_argumentPort]
 
 theorem initial_reindex (p : Plan arity) (perm : InputPermutation arity)
     (m : Model WordOp) (input : Tuple (Val m.value) (wordPorts arity)) :
     (p.reindexInputs perm).graph.initial m input = p.graph.initial m (perm.pull input) :=
-  read_column perm input p.entry
+  read_mapColumn (fun p => perm.port p) input p.entry PUnit.unit
 
 -- Every header operand names an old bank slot or a producer.
 private def Local (wire : Origin (bankArgs arity) past t) : Prop :=
@@ -165,9 +181,23 @@ private theorem local_append (flow : Dataflow WordOp (bankArgs arity) past sigs)
   | nil => exact last
   | cons op args rest ih => exact ⟨first.1, ih tail first.2 last⟩
 
+private theorem local_setup {producers : Nat} (limit : Silmaril.Machine.Lir.Word)
+    (operand : GuardOperand arity producers) :
+    LocalFlow (guardSetup (past := past) limit operand) := by
+  cases operand with
+  | limit => exact ⟨local_nil, trivial⟩
+  | bank _ | computed _ => trivial
+
+private theorem local_rhs (p : Plan arity) (operand : GuardOperand arity p.updates.length) :
+    Local (guardRhsWire p.producerWire operand) := by
+  cases operand with
+  | limit | computed _ => trivial
+  | bank i => exact local_old (argumentPort arity i)
+
 private theorem local_test (p : Plan arity) : LocalFlow p.test :=
-  ⟨local_nil, local_cons (local_weaken _ (wire := p.guardWire) trivial)
-    (local_cons (head := newest .head) trivial local_nil), trivial⟩
+  local_append p.guardSetup _ (local_setup p.limit p.guardOperand)
+    ⟨local_cons (local_keep p.guardSetup (wire := p.guardWire) trivial)
+      (local_cons (local_rhs p p.guardOperand) local_nil), trivial⟩
 
 private theorem local_feedback (p : Plan arity) : LocalColumn (p.graph.phiInputs .backedge) := by
   have base : LocalColumn (p.copies.map fun _ wire =>
@@ -182,7 +212,7 @@ private theorem local_feedback (p : Plan arity) : LocalColumn (p.graph.phiInputs
   have row : LocalColumn p.feedbackColumn := rowColumn_local p.updates [] _ base
   intro sort port
   change Local ((p.feedbackColumn.map fun _ wire => joinedOrigin
-    (past := []) (sigs := rowSigs p.updates) (tail := guardSigs) (keepOrigin p.test wire)).get port)
+    (past := []) (sigs := rowSigs p.updates) (tail := p.guardSigs) (keepOrigin p.test wire)).get port)
   rw [tuple_get_map]
   exact local_cast _ (local_keep p.test (row port))
 
@@ -216,28 +246,38 @@ private theorem eval_localFlow (flow : Dataflow WordOp (bankArgs arity) past sig
     simp only [Dataflow.eval, read_localColumn m left right old args stable.1 locals]
     exact ih stable.2 _
 
+theorem step_capture_congr (p : Plan arity) :
+    p.graph.step m left old = p.graph.step m right old := by
+  let locals := p.graph.header.eval m (appendTuple old right) PUnit.unit
+  have sameLocals := eval_localFlow m left right old p.graph.header
+    (local_append p.row p.test (local_row p.updates []) (local_test p)) PUnit.unit
+  have predLocal : Local p.graph.predicate := local_cast _ (local_cast _ trivial)
+  have exitLocal : Local p.exitWire := by
+    cases selected : p.exitProducer with
+    | none =>
+      simpa only [Plan.exitWire, selected, Option.elim] using
+        (local_old (past := p.rowPast) (argumentPort arity p.exitSlot))
+    | some index =>
+      simp only [Plan.exitWire, selected, Option.elim]
+      trivial
+  have resultLocal : Local p.graph.result := local_cast _ (local_keep p.test exitLocal)
+  change _ = locals at sameLocals
+  change (if (read m p.graph.predicate (appendTuple old left)
+    (p.graph.header.eval m (appendTuple old left) PUnit.unit)).down then
+      Sum.inr ((p.graph.phiInputs .backedge).read (appendTuple old left)
+        (p.graph.header.eval m (appendTuple old left) PUnit.unit))
+    else Sum.inl (read m p.graph.result (appendTuple old left)
+      (p.graph.header.eval m (appendTuple old left) PUnit.unit))) = _
+  rw [sameLocals, read_local m left right old _ predLocal locals,
+    read_local m left right old _ resultLocal locals]
+  exact congrArg (fun bank => if (read m p.graph.predicate (appendTuple old right) locals).down
+    then Sum.inr bank else Sum.inl (read m p.graph.result (appendTuple old right) locals))
+    (read_localColumn m left right old _ (local_feedback p) locals)
+
 theorem step_reindex (p : Plan arity) (perm : InputPermutation arity)
     (input old : Tuple (Val m.value) (wordPorts arity)) :
-    (p.reindexInputs perm).graph.step m input old = p.graph.step m (perm.pull input) old := by
-  suffices same : p.graph.step m input old = p.graph.step m (perm.pull input) old from same
-  let captured := perm.pull input
-  let locals := p.graph.header.eval m (appendTuple old captured) PUnit.unit
-  have sameLocals := eval_localFlow m input captured old p.graph.header
-    (local_append p.row p.test (local_row p.updates []) (local_test p)) PUnit.unit
-  have predLocal : Local p.graph.predicate := local_cast _ (wire := newest .head) trivial
-  have resultLocal : Local p.graph.result := ⟨argumentPort arity p.exitSlot, rfl⟩
-  change _ = locals at sameLocals
-  change (if (read m p.graph.predicate (appendTuple old input)
-    (p.graph.header.eval m (appendTuple old input) PUnit.unit)).down then
-      Sum.inr ((p.graph.phiInputs .backedge).read (appendTuple old input)
-        (p.graph.header.eval m (appendTuple old input) PUnit.unit))
-    else Sum.inl (read m p.graph.result (appendTuple old input)
-      (p.graph.header.eval m (appendTuple old input) PUnit.unit))) = _
-  rw [sameLocals, read_local m input captured old _ predLocal locals,
-    read_local m input captured old _ resultLocal locals]
-  exact congrArg (fun bank => if (read m p.graph.predicate (appendTuple old captured) locals).down
-    then Sum.inr bank else Sum.inl (read m p.graph.result (appendTuple old captured) locals))
-    (read_localColumn m input captured old _ (local_feedback p) locals)
+    (p.reindexInputs perm).graph.step m input old = p.graph.step m (perm.pull input) old :=
+  step_capture_congr m input (perm.pull input) old p
 
 theorem denote_reindex (p : Plan arity) (perm : InputPermutation arity)
     (input : Tuple (Val m.value) (wordPorts arity)) :

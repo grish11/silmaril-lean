@@ -49,7 +49,7 @@ private theorem replacement_exists (candidate representative : Producer flow out
 
 variable [DecidableEq (ValueSort Data)] [∀ ins out, DecidableEq (Op ins out)]
 
-private theorem eliminateCandidate_none_iff (candidate : Producer flow out) :
+theorem eliminateCandidate_none_iff (candidate : Producer flow out) :
     eliminateCandidate? candidate = none ↔ Discovery.findRepresentative? candidate = none := by
   cases found : Discovery.findRepresentative? candidate with
   | none => simp [eliminateCandidate?, found]
@@ -71,19 +71,28 @@ theorem step_none_iff (flow : Dataflow Op args past sigs) :
     exact (eliminateCandidate_none_iff candidate).2
       ((Discovery.findRepresentative?_eq_none_iff candidate).2 (normal sort candidate))
 
+theorem eliminateCandidate_checked (candidate : Producer flow out) {result : Rewrite Op args past sigs}
+    (accepted : eliminateCandidate? candidate = some result) :
+    ∃ (representative : Producer flow out) (wire : Origin args (Elimination.operandScope candidate) (.value out)),
+      Discovery.findRepresentative? candidate = some representative ∧
+        replacement? candidate representative = some wire ∧
+        Elimination.eliminate? candidate representative wire = some result := by
+  cases rep : Discovery.findRepresentative? candidate with
+  | none => simp [eliminateCandidate?, rep] at accepted
+  | some representative =>
+    cases source : replacement? candidate representative with
+    | none => simp [eliminateCandidate?, rep, source] at accepted
+    | some wire =>
+      exact ⟨representative, wire, rfl, source, by simpa [eliminateCandidate?, rep, source] using accepted⟩
+
 private theorem step_elimination {result : Rewrite Op args past sigs}
     (accepted : step? flow = some result) :
     ∃ (sort : ValueSort Data) (candidate representative : Producer flow sort)
       (wire : Origin args (Elimination.operandScope candidate) (.value sort)),
       Elimination.eliminate? candidate representative wire = some result := by
   obtain ⟨⟨sort, candidate⟩, _, found⟩ := List.exists_of_findSome?_eq_some accepted
-  cases rep : Discovery.findRepresentative? candidate with
-  | none => simp [eliminateCandidate?, rep] at found
-  | some representative =>
-    cases source : replacement? candidate representative with
-    | none => simp [eliminateCandidate?, rep, source] at found
-    | some wire =>
-      exact ⟨sort, candidate, representative, wire, by simpa [eliminateCandidate?, rep, source] using found⟩
+  obtain ⟨representative, wire, _, _, checked⟩ := eliminateCandidate_checked candidate found
+  exact ⟨sort, candidate, representative, wire, checked⟩
 
 theorem step_size {result : Rewrite Op args past sigs} (accepted : step? flow = some result) :
     result.sigs'.length + 1 = sigs.length := by

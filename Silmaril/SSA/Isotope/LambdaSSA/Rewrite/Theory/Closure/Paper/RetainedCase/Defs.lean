@@ -26,17 +26,19 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 def boundCase (l r : Region Φ) : Region Φ :=
   .case (.var 0) (l.renameVars (lift Nat.succ)) (r.renameVars (lift Nat.succ))
 
-theorem boundCase_typed (hl : ValueBranches [A, X] l [D]) (hr : ValueBranches [B, X] r [D]) :
-    ValueBranches [Silmaril.coprod A B, X] (boundCase l r) [D] :=
+theorem boundCase_typed {Γ : VCtx τ} {L : LCtx τ}
+    (hl : ValueBranches (A :: Γ) l L) (hr : ValueBranches (B :: Γ) r L) :
+    ValueBranches (Silmaril.coprod A B :: Γ) (boundCase l r) L :=
   .case (.var (i := 0) rfl)
-    (hl.renameVars ((Ren.wk [X] (Silmaril.coprod A B)).lift A))
-    (hr.renameVars ((Ren.wk [X] (Silmaril.coprod A B)).lift B))
+    (hl.renameVars ((Ren.wk Γ (Silmaril.coprod A B)).lift A))
+    (hr.renameVars ((Ren.wk Γ (Silmaril.coprod A B)).lift B))
 
-theorem boundCase_hasType (hl : HasType [A, X] l [D]) (hr : HasType [B, X] r [D]) :
-    HasType [Silmaril.coprod A B, X] (boundCase l r) [D] :=
+theorem boundCase_hasType {Γ : VCtx τ} {L : LCtx τ}
+    (hl : HasType (A :: Γ) l L) (hr : HasType (B :: Γ) r L) :
+    HasType (Silmaril.coprod A B :: Γ) (boundCase l r) L :=
   .case (.var (i := 0) rfl)
-    (hl.renameVars ((Ren.wk [X] (Silmaril.coprod A B)).lift A))
-    (hr.renameVars ((Ren.wk [X] (Silmaril.coprod A B)).lift B))
+    (hl.renameVars ((Ren.wk Γ (Silmaril.coprod A B)).lift A))
+    (hr.renameVars ((Ren.wk Γ (Silmaril.coprod A B)).lift B))
 
 /-- A case on the tagged pair, dispatching to arms expecting their packed input. -/
 def packedArms (l r : Region Φ) : Region Φ :=

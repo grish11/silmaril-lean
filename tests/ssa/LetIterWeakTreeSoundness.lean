@@ -1,6 +1,10 @@
 module
 
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithPairReturns.Iteration.RequestBlocks.Thms
+import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithPairReturns.Iteration.RequestBlocks.LetIter.Thms
+import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithPairReturns.Iteration.RequestBlocks.LetIter.Indexed.Thms
+import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithPairReturns.Iteration.RequestBlocks.LetIter.Mixed.Thms
+import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithPairReturns.Iteration.RequestBlocks.LetIter.Transfer.ITree.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Extension.Singleton.Iteration.Chosen.Laws.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithPairReturns.StructuralValues.Thms
 import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.RetainedCase.Distributor.Thms
@@ -4686,6 +4690,358 @@ example :
     translated_loops.1, translated_loops.2, joined_region_expansion⟩
 
 end LambdaSSARequestBlocks
+
+namespace LambdaSSARequestBlockTransport
+
+open Silmaril Silmaril.Isotope
+open Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite
+open Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous
+open Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.RequestBlockTransport
+
+private abbrev bit : Code := .sum .unit .unit
+private abbrev replies : Code := .sum .unit bit
+private def family : Family 2 where
+  argument := Fin.cases .unit (fun _ => bit)
+  reply := Fin.cases replies (fun _ => .unit)
+
+private abbrev read : Opcode family := ⟨0⟩
+private abbrev notify : Opcode family := ⟨1⟩
+private abbrev Fx := Bool × Bool
+private abbrev strict : Fx := (true, false)
+local instance : HasEff (Opcode family) Fx := ⟨fun _ => strict⟩
+local instance : EffectIteration Fx := EffectIteration.complete Fx
+
+private def continuation : read.replyCode.Value → Row family .unit bit
+  | .inl _ => .call read PUnit.unit (fun
+      | .inl _ => .inr PUnit.unit
+      | .inr b => .inl b)
+  | .inr (.inl _) => .call notify (.inr PUnit.unit) (fun _ => .inl (.inl PUnit.unit))
+  | .inr (.inr _) => .ret (.inr PUnit.unit)
+
+private def expandedTable := (plans read PUnit.unit continuation).expand
+
+-- The low reply schedules another read, whose low reply returns to the original state.
+example : ∃ next : read.replyCode.Value → bit.Value ⊕ (Code.sum .unit replies).Value,
+    expandedTable (.inr (.inl PUnit.unit)) = .call read PUnit.unit next ∧
+    next (.inl PUnit.unit) = .inr (.inl PUnit.unit) :=
+  ⟨_, rfl, rfl⟩
+
+-- The two nested replies select a typed notify argument and an immediate return.
+example : expandedTable (.inr (.inr (.inl PUnit.unit))) =
+    .call notify (.inr PUnit.unit) (fun _ => .inl (.inl PUnit.unit)) := rfl
+
+example : expandedTable (.inr (.inr (.inr PUnit.unit))) = .ret (.inr PUnit.unit) := rfl
+
+-- The first reply selects different opcodes, and a later reply can repeat.
+-- Both native lowerings use the bound strictly below top.
+example :
+    strict < (⊤ : Fx) ∧
+    HasTypeEffect (ε := Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil (fusedNative read PUnit.unit continuation) bit.ty strict ∧
+    HasTypeEffect (ε := Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil (expandedNative read PUnit.unit continuation) bit.ty strict ∧
+    ∃ r s, eraseLoop .unit (fusedNative read PUnit.unit continuation) = some r ∧
+      eraseLoop (.sum .unit read.replyCode) (expandedNative read PUnit.unit continuation) = some s ∧
+      Silmaril.Isotope.LambdaSSA.Region.Paper.Extension.Eqv (targetSeed (F := family) (⊥ : Fx)) [Ty.unit] r s [bit.ty] := by
+  obtain ⟨hf, he, _, r, s, left, right, _, _, eq⟩ :=
+    endpoint_transport (e := strict) read PUnit.unit continuation (fun _ => le_rfl) (by rfl)
+  refine ⟨lt_of_le_of_ne le_top (fun h => Bool.noConfusion (congrArg Prod.snd h)), hf, he, r, s, left, right, eq⟩
+
+end LambdaSSARequestBlockTransport
+
+namespace LambdaSSAIndexedRequestBlockTransport
+
+open Silmaril Silmaril.Isotope
+open Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite
+open Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous
+open Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.RequestBlockTransport (targetSeed eraseLoop)
+open Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.RequestBlockTransport.Indexed
+
+private abbrev Bit : Code := .sum .unit .unit
+private def family : Family 3 where
+  argument := Fin.cases .unit (Fin.cases .unit (fun _ => Bit))
+  reply := Fin.cases Bit (fun _ => .unit)
+
+private abbrev read : Opcode family := ⟨0⟩
+private abbrev tick : Opcode family := ⟨1⟩
+private abbrev notify : Opcode family := ⟨2⟩
+private abbrev state₀ : Bit.Value := .inl PUnit.unit
+private abbrev state₁ : Bit.Value := .inr PUnit.unit
+private abbrev Fx := Bool × Bool
+private abbrev strict : Fx := (true, false)
+local instance : HasEff (Opcode family) Fx := ⟨fun _ => strict⟩
+local instance : EffectIteration Fx := EffectIteration.complete Fx
+
+private def next : read.replyCode.Value → Row family Bit .unit
+  | .inl _ => .call read PUnit.unit (fun
+      | .inl _ => .inr state₁
+      | .inr _ => .inl PUnit.unit)
+  | .inr _ => .call notify (.inr PUnit.unit) (fun _ => .inl PUnit.unit)
+
+private def fixture : Rows family Bit .unit Bit :=
+  .split (.leaf read PUnit.unit next)
+    (.leaf tick PUnit.unit (fun _ => .call notify (.inl PUnit.unit) (fun _ => .inl PUnit.unit)))
+
+private def expandedTable := Plans.expand fixture.plans
+
+-- Distinct original states have different first-reply codes at the leaves
+-- of the pending-state code.
+example : fixture.pending = Code.sum Bit .unit := rfl
+
+example : expandedTable (.inl state₀) =
+    .call read PUnit.unit (fun reply => .inr (.inr (.inl reply))) := rfl
+
+example : expandedTable (.inl state₁) =
+    .call tick PUnit.unit (fun reply => .inr (.inr (.inr reply))) := rfl
+
+-- A second read can transfer from the first original state to the other
+-- one. The other first reply instead selects notify and returns.
+example : ∃ k : read.replyCode.Value → Code.unit.Value ⊕ (Code.sum Bit fixture.pending).Value,
+    expandedTable (.inr (.inl (.inl PUnit.unit))) = .call read PUnit.unit k ∧
+    k (.inl PUnit.unit) = .inr (.inl state₁) :=
+  ⟨_, rfl, rfl⟩
+
+example : expandedTable (.inr (.inl (.inr PUnit.unit))) =
+    .call notify (.inr PUnit.unit) (fun _ => .inl PUnit.unit) := rfl
+
+example :
+    strict < (⊤ : Fx) ∧ state₀ ≠ state₁ ∧
+    HasTypeEffect (ε := Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil (fusedNative fixture state₀) Ty.unit strict ∧
+    HasTypeEffect (ε := Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil (expandedNative fixture state₀) Ty.unit strict ∧
+    ∃ r s, eraseLoop Bit (fusedNative fixture state₀) = some r ∧
+      eraseLoop (.sum Bit fixture.pending) (expandedNative fixture state₀) = some s ∧
+      Silmaril.Isotope.LambdaSSA.Region.Paper.Extension.Eqv (targetSeed (F := family) (⊥ : Fx)) [Ty.unit] r s [Ty.unit] := by
+  obtain ⟨hf, he, _, r, s, hl, hr, _, _, eq⟩ :=
+    endpoint_transport (e := strict) fixture state₀ (fun _ => le_rfl) (by rfl)
+  refine ⟨lt_of_le_of_ne le_top (fun h => Bool.noConfusion (congrArg Prod.snd h)), ?_, hf, he, r, s, hl, hr, eq⟩
+  intro h
+  cases h
+
+end LambdaSSAIndexedRequestBlockTransport
+
+namespace LambdaSSAMixedRequestBlockTransport
+
+open Silmaril Silmaril.Isotope
+open Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite
+open Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Heterogeneous
+open Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.RequestBlockTransport (targetSeed eraseLoop)
+open Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.RequestBlockTransport.Mixed
+
+private abbrev Bit := Code.sum .unit .unit
+private def family : Family 2 where
+  argument := Fin.cases .unit (fun _ => Bit)
+  reply := Fin.cases Bit (fun _ => .unit)
+
+private abbrev read : Opcode family := ⟨0⟩
+private abbrev notify : Opcode family := ⟨1⟩
+private abbrev state₀ : Bit.Value := .inl PUnit.unit
+private abbrev state₁ : Bit.Value := .inr PUnit.unit
+private abbrev Fx := Bool × Bool
+private abbrev strict : Fx := (true, false)
+
+local instance : HasEff (Opcode family) Fx := ⟨fun _ => strict⟩
+local instance : EffectIteration Fx := EffectIteration.complete Fx
+
+private def reply : read.replyCode.Value → Row family Bit .unit
+  | .inl _ => .call read PUnit.unit (fun
+      | .inl _ => .inr state₁
+      | .inr _ => .inl PUnit.unit)
+  | .inr _ => .call notify state₁ (fun _ => .inl PUnit.unit)
+
+private def nativeMixed : Rows family Bit .unit Bit :=
+  .split (.leaf (.two read PUnit.unit reply)) (.leaf (.one (.ret PUnit.unit)))
+
+private def nativeExpanded := Plans.expand nativeMixed.plans
+
+-- The second original row returns directly in the actual #3846 table.
+example : nativeExpanded (.inl state₁) = .ret PUnit.unit := rfl
+
+example : ∃ k : read.replyCode.Value → Code.unit.Value ⊕ (Code.sum Bit nativeMixed.pending).Value,
+    nativeExpanded (.inr (.inl (.inl PUnit.unit))) = .call read PUnit.unit k ∧
+      k (.inl PUnit.unit) = .inr (.inl state₁) :=
+  ⟨_, rfl, rfl⟩
+
+example : nativeExpanded (.inr (.inl (.inr PUnit.unit))) =
+    .call notify state₁ (fun _ => .inl PUnit.unit) := rfl
+
+example :
+    strict < (⊤ : Fx) ∧
+    HasTypeEffect (ε := Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil (fusedLoop nativeMixed state₀) Ty.unit strict ∧
+    HasTypeEffect (ε := Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil (expandedLoop nativeMixed state₀) Ty.unit strict ∧
+    ∃ r s, eraseLoop Bit (fusedLoop nativeMixed state₀) = some r ∧
+      eraseLoop (.sum Bit nativeMixed.pending) (expandedLoop nativeMixed state₀) = some s ∧
+      Silmaril.Isotope.LambdaSSA.Region.Paper.Extension.Eqv (targetSeed (F := family) (⊥ : Fx)) [Ty.unit] r s [Ty.unit] := by
+  obtain ⟨hf, he, _, r, s, hl, hr, _, _, eq⟩ :=
+    endpoint_transport (e := strict) nativeMixed state₀ (fun _ => le_rfl) (by rfl)
+  exact ⟨lt_of_le_of_ne le_top (fun h => Bool.noConfusion (congrArg Prod.snd h)), hf, he, r, s, hl, hr, eq⟩
+
+open Silmaril.Isotope.LambdaSSA.Region.Paper.WithPairReturns.RequestBlockTransport
+
+private def nativeCycle : Transfer.Rows family Bit .unit Bit :=
+  .split (.leaf (.ordinary (.two read PUnit.unit reply))) (.leaf (.transfer state₀))
+
+private def cycleExpanded := TransferPlans.expand nativeCycle.plans
+
+-- A constructor jump from state₁ to state₀ bypasses the pending-reply state.
+example : nativeCycle.plans state₁ = .transfer state₀ := rfl
+example : cycleExpanded (.inl state₁) = .transfer (.inl state₀) := rfl
+example : (nativeCycle.plans state₁).source.toLetIter 1 =
+    some (.inr (.inl .unit) : NTm family 1) := rfl
+example : (cycleExpanded (.inl state₁)).source.toLetIter 1 =
+    some (.inr (.inl (.inl .unit)) : NTm family 1) := rfl
+
+-- State₀ enters the pending block via the first request. A second read can take
+-- the back edge to state₁, while the first reply can also select notify and exit.
+example : cycleExpanded (.inl state₀) =
+    .ordinary (.call read PUnit.unit (fun r => .inr (.inr (.inl r)))) := rfl
+
+example : ∃ k : read.replyCode.Value → Code.unit.Value ⊕ (Code.sum Bit nativeCycle.pending).Value,
+    cycleExpanded (.inr (.inl (.inl PUnit.unit))) = .ordinary (.call read PUnit.unit k) ∧
+      k (.inl PUnit.unit) = .inr (.inl state₁) :=
+  ⟨_, rfl, rfl⟩
+
+example : cycleExpanded (.inr (.inl (.inr PUnit.unit))) =
+    .ordinary (.call notify state₁ (fun _ => .inl PUnit.unit)) := rfl
+
+example : (TransferPlans.source nativeCycle.plans).toLetIter 1 = some (nativeCycle.fused.native 0) ∧
+    cycleExpanded.source.toLetIter 1 = some (nativeCycle.expanded.native 0) :=
+  ⟨Transfer.fused_lowers nativeCycle, Transfer.expanded_lowers nativeCycle⟩
+
+example :
+    strict < (⊤ : Fx) ∧
+    HasTypeEffect (ε := Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil
+      (Transfer.fusedLoop nativeCycle state₁) Ty.unit strict ∧
+    HasTypeEffect (ε := Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil
+      (Transfer.expandedLoop nativeCycle state₁) Ty.unit strict ∧
+    AbortEquiv (⊥ : Fx) (Ctx.nil : Ctx Empty (Ty Unit)) .nil
+      (Transfer.fusedLoop nativeCycle state₁) (Transfer.expandedLoop nativeCycle state₁) Ty.unit ∧
+    ∃ r s, eraseLoop Bit (Transfer.fusedLoop nativeCycle state₁) = some r ∧
+      eraseLoop (.sum Bit nativeCycle.pending) (Transfer.expandedLoop nativeCycle state₁) = some s ∧
+      Silmaril.Isotope.LambdaSSA.Region.Paper.Extension.Eqv (targetSeed (F := family) (⊥ : Fx))
+        [Ty.unit] r s [Ty.unit] := by
+  obtain ⟨hf, he, hn, r, s, hl, hr, _, _, eq⟩ :=
+    Transfer.endpoint_transport (e := strict) nativeCycle state₁ (fun _ => le_rfl) (by rfl)
+  exact ⟨lt_of_le_of_ne le_top (fun h => Bool.noConfusion (congrArg Prod.snd h)), hf, he, hn, r, s, hl, hr, eq⟩
+
+open Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured
+open Silmaril.Isotope.LambdaSSA.Semantics.Interaction (region)
+open Silmaril.Isotope.Semantics (InstructionModel)
+
+private abbrev CycleEvents := Event (Φ := Opcode family) carriers
+private abbrev CycleTree (A : Type 1) := ITree.Tree CycleEvents A
+
+private theorem cycleVisible (f : Opcode family) : ¬ IsPure (⊥ : Fx) f := by
+  change strict ≠ (⊥ : Fx)
+  decide
+
+private def noPureCycle : PureMaps (Φ := Opcode family) (ε := Fx) carriers :=
+  fun f h => (cycleVisible f h).elim
+
+private noncomputable def cycleInstr := instructions carriers noPureCycle
+
+private noncomputable def cycleRun (s : Bit.Value) : CycleTree Code.unit.Large :=
+  Silmaril.Elgot.iter (nativeCycle.fused.denote cycleInstr) (Bit.raise s)
+
+private def round {A : Type 1} (done again : CycleTree A) : CycleTree A :=
+  ITree.vis (.call read PUnit.unit) (fun
+    | .inl _ => ITree.vis (.call read PUnit.unit) (fun
+        | .inl _ => again
+        | .inr _ => done)
+    | .inr _ => ITree.vis (.call notify state₁) (fun _ => done))
+
+-- The first state transfer is silent. The repeating reply goes back to that
+-- same state, so the next visible event is another read on the unit argument.
+set_option backward.isDefEq.respectTransparency false in
+set_option backward.isDefEq.respectTransparency.types false in
+private theorem cycle_unfold :
+    cycleRun state₁ = round (pure PUnit.unit) (cycleRun state₁) := by
+  let body : Bit.Large → CycleTree (Code.unit.Large ⊕ Bit.Large) :=
+    nativeCycle.fused.denote cycleInstr
+  have jump := congrFun (ITree.iterate_fixpoint body) (Bit.raise state₁)
+  have step : body (Bit.raise state₁) = pure (Sum.inr (Bit.raise state₀)) := rfl
+  change cycleRun state₁ = (body (Bit.raise state₁) >>= _) at jump
+  rw [step, pure_bind] at jump
+  change cycleRun state₁ = cycleRun state₀ at jump
+  refine jump.trans ?_
+  have first := congrFun (ITree.iterate_fixpoint body) (Bit.raise state₀)
+  change cycleRun state₀ = (body (Bit.raise state₀) >>= _) at first
+  rw [first]
+  change ((cycleInstr.eval read (Code.unit.raise PUnit.unit) >>= _) >>= _) = _
+  rw [bind_assoc]
+  change ((instructions carriers noPureCycle).eval read _ >>= _) = _
+  rw [eval_bind_of_not_pure carriers noPureCycle (cycleVisible read)]
+  unfold round
+  congr 1
+  funext firstReply
+  cases firstReply with
+  | inl v =>
+    change (((instructions carriers noPureCycle).eval read (Code.unit.raise PUnit.unit) >>= _) >>= _) = _
+    rw [bind_assoc, eval_bind_of_not_pure carriers noPureCycle (cycleVisible read)]
+    congr 1
+    funext secondReply
+    cases secondReply <;> exact pure_bind _ _
+  | inr v =>
+    change (((instructions carriers noPureCycle).eval notify (Bit.raise state₁) >>= _) >>= _) = _
+    rw [bind_assoc, eval_bind_of_not_pure carriers noPureCycle (cycleVisible notify)]
+    congr 1
+    funext secondReply
+    exact pure_bind _ _
+
+private def packCycleResult (b : Code.unit.Large) : CycleTree (Nat × RawValue) :=
+  pure (0, encode .unit b)
+
+set_option backward.isDefEq.respectTransparency false in
+set_option backward.isDefEq.respectTransparency.types false in
+private theorem ordered_round :
+    (round (pure PUnit.unit) (cycleRun state₁) >>= packCycleResult) =
+      round (pure (0, .unit)) (cycleRun state₁ >>= packCycleResult) := by
+  unfold round
+  rw [ITree.vis_bind]
+  congr 1
+  funext firstReply
+  cases firstReply with
+  | inl _ =>
+    rw [ITree.vis_bind]
+    congr 1
+    funext secondReply
+    cases secondReply
+    · rfl
+    · exact pure_bind _ _
+  | inr _ =>
+    rw [ITree.vis_bind]
+    congr 1
+    funext secondReply
+    exact pure_bind _ _
+
+local notation "Free" => (Ctx.nil : Ctx Empty (Ty Unit))
+local notation "D" => Ty.denote (Lifted carriers)
+local notation "γ" => (fun x : Empty => x.elim)
+local notation "ρ₀" => (fun i : Fin 0 => i.elim0)
+
+/-- Both actual native lowerings and both exact erased CFGs exhibit the same
+request order. The terminating branches return label zero and unit. -/
+example
+    (d : Derivation (Opcode family) Free .nil (Transfer.fusedLoop nativeCycle state₁) Ty.unit)
+    (d' : Derivation (Opcode family) Free .nil (Transfer.expandedLoop nativeCycle state₁) Ty.unit) :
+    d.denote D cycleInstr γ ρ₀ = round (pure PUnit.unit) (cycleRun state₁) ∧
+    d'.denote D cycleInstr γ ρ₀ = round (pure PUnit.unit) (cycleRun state₁) ∧
+    ∃ r s, eraseLoop Bit (Transfer.fusedLoop nativeCycle state₁) = some r ∧
+      eraseLoop (.sum Bit nativeCycle.pending) (Transfer.expandedLoop nativeCycle state₁) = some s ∧
+      region (rawInstructions cycleInstr) (fun _ => .unit) r =
+        round (pure (0, .unit)) (cycleRun state₁ >>= packCycleResult) ∧
+      region (rawInstructions cycleInstr) (fun _ => .unit) s =
+        round (pure (0, .unit)) (cycleRun state₁ >>= packCycleResult) := by
+  have pureInstr := respectsPure carriers noPureCycle
+  have same := TransferPlans.denote_expand_eq nativeCycle.plans state₁ cycleInstr pureInstr
+    rfl (Transfer.fused_lowers nativeCycle) rfl (Transfer.expanded_lowers nativeCycle) d d'
+  obtain ⟨_, r, s, hr, hs, _, _, _, er, es⟩ :=
+    Transfer.endpoint_observations (e := strict) pureInstr (rawInstructions_compatible cycleInstr)
+      nativeCycle state₁ (fun _ => le_rfl) (by rfl) (fun _ => .unit) d d'
+  have left := (native_loop_denote pureInstr nativeCycle.fused state₁ d).trans cycle_unfold
+  have right := same.symm.trans left
+  exact ⟨left, right, r, s, hr, hs,
+    er.trans ((congrArg (· >>= packCycleResult) left).trans ordered_round),
+    es.trans ((congrArg (· >>= packCycleResult) right).trans ordered_round)⟩
+
+end LambdaSSAMixedRequestBlockTransport
 
 namespace LetIterHeterogeneousFeedbackFixture
 

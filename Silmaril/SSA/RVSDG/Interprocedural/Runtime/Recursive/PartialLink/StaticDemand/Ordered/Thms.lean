@@ -38,6 +38,18 @@ A synthesized family can enter directly via `Family.Template.admit`. -/
   right := ⟨memberRow table.members (family.memberValue groupR)
     (fun i => .callable i _ (family.capturedAt groupR i) ⟨rfl, rfl⟩), PUnit.unit⟩
 
+/-- Use one typed λ body with the actual captures read at each placement. -/
+theorem Dispatch.lambda_transport_withCaptures (earlier : Dispatch actions table) (binding : Binding Op table imports past fn)
+    {pastR : List (Ports (Ty V S))} (capturesR : Wires imports pastR binding.context)
+    (inputsL inputsR : Tuple m.Val imports) (localsL : Locals m.Val past) (localsR : Locals m.Val pastR)
+    (resolvedL : binding.resolved earlier.left inputsL localsL)
+    (resolvedR : (binding.withCaptures capturesR).resolved earlier.right inputsR localsR) :
+    ∀ i fL fR capsL capsR,
+      binding.extendGuard earlier.left inputsL localsL i fL capsL →
+      (binding.withCaptures capturesR).extendGuard earlier.right inputsR localsR i fR capsR →
+      CallAgrees actions ((prepend binding.summary table).at i) fL fR capsL capsR :=
+  Proofs.lambda_transport earlier binding capturesR inputsL inputsR localsL localsR resolvedL resolvedR
+
 theorem Dispatch.lambda_transport (earlier : Dispatch actions table) (binding : Binding Op table imports past fn)
     (inputsL inputsR : Tuple m.Val imports) (localsL localsR : Locals m.Val past)
     (resolvedL : binding.resolved earlier.left inputsL localsL)
@@ -46,7 +58,7 @@ theorem Dispatch.lambda_transport (earlier : Dispatch actions table) (binding : 
       binding.extendGuard earlier.left inputsL localsL i fL capsL →
       binding.extendGuard earlier.right inputsR localsR i fR capsR →
       CallAgrees actions ((prepend binding.summary table).at i) fL fR capsL capsR :=
-  Proofs.lambda_transport earlier binding inputsL inputsR localsL localsR resolvedL resolvedR
+  earlier.lambda_transport_withCaptures binding binding.captures inputsL inputsR localsL localsR resolvedL resolvedR
 
 theorem Known.weaken {ty : Ty V S} {value : m.Val ty} {guard : Guard m table}
     (binding : Binding Op table imports past fn) (inputs : Tuple m.Val imports) (locals : Locals m.Val past) :
@@ -64,6 +76,29 @@ theorem Known.weaken {ty : Ty V S} {value : m.Val ty} {guard : Guard m table}
       (binding.value inputs locals) (binding.captures.read inputs locals) ⟨rfl, rfl⟩⟩
   | _, .tail p => nomatch p
 
+/-- Check actual capture origins against the checked imports and earlier link prefix, then
+attach the computed summary and extend the saved-suffix transport. The
+caller supplies the static target/capture resolution proof for all
+formals. The new λ cannot name its own slot in its body. -/
+@[expose] def CheckedPrefix.addLambdaWithImports {localsL localsR : Locals m.Val past}
+    (earlier : CheckedPrefix actions table localsL localsR) (binding : Binding Op table imports past fn)
+    (inputsL inputsR : Tuple m.Val imports)
+    (importedL : Row (Known earlier.dispatch.left) inputsL)
+    (importedR : Row (Known earlier.dispatch.right) inputsR)
+    (resolvedL : binding.resolved earlier.dispatch.left inputsL localsL)
+    (resolvedR : binding.resolved earlier.dispatch.right inputsR localsR) :
+    Option (CheckedPrefix actions (prepend binding.summary table)
+      (localsL.snoc (.cons (binding.value inputsL localsL) .nil))
+      (localsR.snoc (.cons (binding.value inputsR localsR) .nil))) :=
+  if (checkWires (entry := inputsL) (earlier.left.availableWithImports Known.ordinary importedL) binding.captures).isSome &&
+      (checkWires (entry := inputsR) (earlier.right.availableWithImports Known.ordinary importedR) binding.captures).isSome then
+    let dispatch : Dispatch actions (prepend binding.summary table) :=
+      ⟨binding.extendGuard earlier.dispatch.left inputsL localsL, binding.extendGuard earlier.dispatch.right inputsR localsR,
+        Dispatch.lambda_transport earlier.dispatch binding inputsL inputsR localsL localsR resolvedL resolvedR⟩
+    some ⟨dispatch, (earlier.left.lift (Known.weaken binding inputsL localsL)).snoc (binding.checkedRow inputsL localsL),
+      (earlier.right.lift (Known.weaken binding inputsR localsR)).snoc (binding.checkedRow inputsR localsR)⟩
+  else none
+
 /-- Check actual capture origins against the earlier link prefix, then
 attach the computed summary and extend the saved-suffix transport. The
 caller supplies the static target/capture resolution proof for all
@@ -76,14 +111,7 @@ formals. The new λ cannot name its own slot in its body. -/
     Option (CheckedPrefix actions (prepend binding.summary table)
       (localsL.snoc (.cons (binding.value inputsL localsL) .nil))
       (localsR.snoc (.cons (binding.value inputsR localsR) .nil))) :=
-  if (checkWires (entry := inputsL) (earlier.left.available Known.ordinary) binding.captures).isSome &&
-      (checkWires (entry := inputsR) (earlier.right.available Known.ordinary) binding.captures).isSome then
-    let dispatch : Dispatch actions (prepend binding.summary table) :=
-      ⟨binding.extendGuard earlier.dispatch.left inputsL localsL, binding.extendGuard earlier.dispatch.right inputsR localsR,
-        Dispatch.lambda_transport earlier.dispatch binding inputsL inputsR localsL localsR resolvedL resolvedR⟩
-    some ⟨dispatch, (earlier.left.lift (Known.weaken binding inputsL localsL)).snoc (binding.checkedRow inputsL localsL),
-      (earlier.right.lift (Known.weaken binding inputsR localsR)).snoc (binding.checkedRow inputsR localsR)⟩
-  else none
+  earlier.addLambdaWithImports binding inputsL inputsR (fun _ => none) (fun _ => none) resolvedL resolvedR
 
 /-- The term linker adds exactly the λ value used to index the checked row. -/
 theorem Binding.link_step (binding : Binding Op table imports past fn)

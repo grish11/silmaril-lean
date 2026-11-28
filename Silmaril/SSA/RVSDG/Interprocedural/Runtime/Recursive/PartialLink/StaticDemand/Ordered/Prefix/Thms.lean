@@ -18,6 +18,21 @@ variable {table : MemberSummaries V S} {imports outs : Ports (Ty V S)}
 variable {past sigs : List (Ports (Ty V S))} {fn : Function V S}
 variable {actions : Actions m σ}
 
+theorem add_preserves_guards_with_imports {localsL localsR : Locals m.Val past}
+    (earlier : CheckedPrefix actions table localsL localsR) (binding : Binding Op table imports past fn)
+    (inputsL inputsR : Tuple m.Val imports)
+    (importedL : Isomorphism.RecursiveCall.Numbered.Prefix.Row (Known earlier.dispatch.left) inputsL)
+    (importedR : Isomorphism.RecursiveCall.Numbered.Prefix.Row (Known earlier.dispatch.right) inputsR)
+    (left : binding.resolved earlier.dispatch.left inputsL localsL)
+    (right : binding.resolved earlier.dispatch.right inputsR localsR)
+    {next : CheckedPrefix actions (prepend binding.summary table)
+      (localsL.snoc (.cons (binding.value inputsL localsL) .nil))
+      (localsR.snoc (.cons (binding.value inputsR localsR) .nil))}
+    (added : earlier.addLambdaWithImports binding inputsL inputsR importedL importedR left right = some next) :
+    next.dispatch.left = binding.extendGuard earlier.dispatch.left inputsL localsL ∧
+      next.dispatch.right = binding.extendGuard earlier.dispatch.right inputsR localsR :=
+  Proofs.added_guards_with_imports earlier binding inputsL inputsR importedL importedR left right added
+
 theorem add_preserves_guards {localsL localsR : Locals m.Val past}
     (earlier : CheckedPrefix actions table localsL localsR) (binding : Binding Op table imports past fn)
     (inputsL inputsR : Tuple m.Val imports)
@@ -29,7 +44,7 @@ theorem add_preserves_guards {localsL localsR : Locals m.Val past}
     (added : earlier.addLambda binding inputsL inputsR left right = some next) :
     next.dispatch.left = binding.extendGuard earlier.dispatch.left inputsL localsL ∧
       next.dispatch.right = binding.extendGuard earlier.dispatch.right inputsR localsR :=
-  Proofs.added_guards earlier binding inputsL inputsR left right added
+  add_preserves_guards_with_imports earlier binding inputsL inputsR (fun _ => none) (fun _ => none) left right added
 
 theorem link_finish (binding : Binding Op table imports past fn) (actions : Actions m σ) (unitId : Nat)
     (inputs : Tuple m.Val imports) (locals : Locals m.Val past) (store : σ) :
@@ -57,19 +72,79 @@ variable {scope : Scope m}
 
 /-- Check one λ's typed capture positions and transport its local evidence
 from the plan's guards to the guards computed by the ordered admission. -/
-@[expose] def Scope.Checked.add (checked : scope.Checked actions)
+@[expose] def Scope.Checked.addWithImports (checked : scope.Checked actions)
     (binding : Binding Op scope.table imports scope.past fn) (inputsL inputsR : Tuple m.Val imports)
+    (importedL : Isomorphism.RecursiveCall.Numbered.Prefix.Row (Known scope.guardL) inputsL)
+    (importedR : Isomorphism.RecursiveCall.Numbered.Prefix.Row (Known scope.guardR) inputsR)
     (left : binding.resolved scope.guardL inputsL scope.localsL)
     (right : binding.resolved scope.guardR inputsR scope.localsR) :
     Option ((scope.add binding inputsL inputsR).Checked actions) :=
   let resolvedL : binding.resolved checked.state.dispatch.left inputsL scope.localsL := checked.left.symm ▸ left
   let resolvedR : binding.resolved checked.state.dispatch.right inputsR scope.localsR := checked.right.symm ▸ right
-  match h : checked.state.addLambda binding inputsL inputsR resolvedL resolvedR with
+  let rowL : Isomorphism.RecursiveCall.Numbered.Prefix.Row (Known checked.state.dispatch.left) inputsL :=
+    checked.left.symm ▸ importedL
+  let rowR : Isomorphism.RecursiveCall.Numbered.Prefix.Row (Known checked.state.dispatch.right) inputsR :=
+    checked.right.symm ▸ importedR
+  match h : checked.state.addLambdaWithImports binding inputsL inputsR rowL rowR resolvedL resolvedR with
   | none => none
   | some state =>
-    let guards := add_preserves_guards checked.state binding inputsL inputsR resolvedL resolvedR h
+    let guards := add_preserves_guards_with_imports checked.state binding inputsL inputsR rowL rowR resolvedL resolvedR h
     some ⟨state, guards.1.trans (congrArg (fun g => binding.extendGuard g inputsL scope.localsL) checked.left),
       guards.2.trans (congrArg (fun g => binding.extendGuard g inputsR scope.localsR) checked.right)⟩
+
+/-- Check one λ's typed capture positions and transport its local evidence
+from the plan's guards to the guards computed by the ordered admission. -/
+@[expose] def Scope.Checked.add (checked : scope.Checked actions)
+    (binding : Binding Op scope.table imports scope.past fn) (inputsL inputsR : Tuple m.Val imports)
+    (left : binding.resolved scope.guardL inputsL scope.localsL)
+    (right : binding.resolved scope.guardR inputsR scope.localsR) :
+    Option ((scope.add binding inputsL inputsR).Checked actions) :=
+  checked.addWithImports binding inputsL inputsR (fun _ => none) (fun _ => none) left right
+
+/-- Read actual checked capture positions and attach the transport
+certificate for the new group at its disjoint demand slots. -/
+@[expose] def Scope.Checked.attachGroup {later calls : MemberSummaries V S} {familyPast : List (Ports (Ty V S))}
+    (checked : scope.Checked actions)
+    (binding : GroupBinding Op later imports scope.past calls familyPast) (inputsL inputsR : Tuple m.Val imports)
+    (transport : ∀ i, DispatchAt actions (later.at i)
+      (binding.family.guard (binding.read inputsL scope.localsL) i)
+      (binding.family.guard (binding.read inputsR scope.localsR) i)) :
+    Option ((scope.addGroup binding inputsL inputsR).Checked actions) :=
+  if (Isomorphism.RecursiveCall.Numbered.checkWires
+      (checked.state.left.available (entry := inputsL) Known.ordinary) binding.captures).isSome &&
+      (Isomorphism.RecursiveCall.Numbered.checkWires
+      (checked.state.right.available (entry := inputsR) Known.ordinary) binding.captures).isSome then
+    let left := binding.read inputsL scope.localsL
+    let right := binding.read inputsR scope.localsR
+    let group : Dispatch actions later := ⟨binding.family.guard left, binding.family.guard right, transport⟩
+    let dispatch := checked.state.dispatch.combine group
+    let extendedL := (checked.state.left.lift (Known.oldSlot group.left)).snoc
+      (binding.checkedRow checked.state.dispatch.left left)
+    let extendedR := (checked.state.right.lift (Known.oldSlot group.right)).snoc
+      (binding.checkedRow checked.state.dispatch.right right)
+    some ⟨⟨dispatch, extendedL, extendedR⟩,
+      congrArg (fun guard => guard.combine group.left) checked.left,
+      congrArg (fun guard => guard.combine group.right) checked.right⟩
+  else none
+
+/-- Admit a group whose member calls stay within its own table. -/
+@[expose] def Scope.Checked.addGroup {later : MemberSummaries V S} (checked : scope.Checked actions)
+    (binding : GroupBinding Op later imports scope.past) (inputsL inputsR : Tuple m.Val imports)
+    (readyL : binding.family.Ready (binding.read inputsL scope.localsL))
+    (readyR : binding.family.Ready (binding.read inputsR scope.localsR)) :
+    Option ((scope.addGroup binding inputsL inputsR).Checked actions) :=
+  checked.attachGroup binding inputsL inputsR (Dispatch.seed_transport binding.family _ _ readyL readyR)
+
+/-- Admit a group that uses the actual earlier dispatch and its own recursion. -/
+@[expose] def Scope.Checked.addGroupWithEarlier {later : MemberSummaries V S} (checked : scope.Checked actions)
+    (binding : GroupBinding Op later imports scope.past (append scope.table later) scope.past) (inputsL inputsR : Tuple m.Val imports)
+    (readyL : binding.family.ReadyWith (binding.read inputsL scope.localsL)
+      (scope.guardL.combine (binding.family.guard (binding.read inputsL scope.localsL))))
+    (readyR : binding.family.ReadyWith (binding.read inputsR scope.localsR)
+      (scope.guardR.combine (binding.family.guard (binding.read inputsR scope.localsR)))) :
+    Option ((scope.addGroup binding inputsL inputsR).Checked actions) :=
+  checked.attachGroup binding inputsL inputsR
+    (checked.state.dispatch.group_transport binding.family _ _ (checked.left.symm ▸ readyL) (checked.right.symm ▸ readyR))
 
 /-- Use the same admission step with a synthesized local certificate. -/
 @[expose] def Scope.Checked.addDirect (checked : scope.Checked actions)
@@ -130,6 +205,16 @@ linker membership table. -/
   | scope, _, _, _, .lambdaDirect binding (rest := rest) next, checked, routes => do
     let added ← checked.addDirect binding inputsL inputsR routes
     let receipt ← walk actions unitId inputsL inputsR store next added (routes.add binding)
+    pure (receipt.relink (binding.link_step actions unitId inputsL scope.localsL rest store)
+      (binding.link_step actions unitId inputsR scope.localsR rest store))
+  | scope, _, _, _, .phi binding readyL readyR (rest := rest) next, checked, _ => do
+    let added ← checked.addGroup binding inputsL inputsR readyL readyR
+    let receipt ← walk actions unitId inputsL inputsR store next added
+    pure (receipt.relink (binding.link_step actions unitId inputsL scope.localsL rest store)
+      (binding.link_step actions unitId inputsR scope.localsR rest store))
+  | scope, _, _, _, .phiWithEarlier binding readyL readyR (rest := rest) next, checked, _ => do
+    let added ← checked.addGroupWithEarlier binding inputsL inputsR readyL readyR
+    let receipt ← walk actions unitId inputsL inputsR store next added
     pure (receipt.relink (binding.link_step actions unitId inputsL scope.localsL rest store)
       (binding.link_step actions unitId inputsR scope.localsR rest store))
   | scope, _, _, _, .skipLambda definition (rest := rest) next, checked, routes =>

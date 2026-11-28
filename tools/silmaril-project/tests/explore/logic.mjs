@@ -170,25 +170,53 @@ try {
   await p.fill("#lg-cons-q", "zfc");
   await p.waitForTimeout(200);
   check(/q=zfc/.test(await p.evaluate(() => location.hash)) && (await rows("#lg-cons")).length >= 2, "the search is kept in the URL");
-  // the coverage matrix: every family against every feature, no completeness claimed, absences explained
+  // The original features have evidence for every family. The Lean NDJSON column covers extensional MLTT.
+  const ndjsonFeature = "Lean NDJSON syntactic consequence";
+  const ndjsonNamespace = "Silmaril.ProofFormats.LeanNDJSON.MLTT";
+  const ndjsonTheorem = `${ndjsonNamespace}.derives_iff_mltt`;
+  const features = ["abstract syntax", "institution", "derivability", "semantic consequence", "soundness",
+    "identity, weakening, cut", "substitution", "completeness", "concrete syntax", "concrete institution",
+    "concrete consequence systems", "explorer: abstract", "explorer: concrete", ndjsonFeature];
+  const ndjsonBlankFamilies = ["HOL", "intensional MLTT", "λΠ modulo rewriting", "Metamath",
+    "PA (peano.mm)", "ZF (set.mm)", "ZFC (set.mm)"];
+  const families = ["extensional MLTT", ...ndjsonBlankFamilies];
   const mx = await p.evaluate(() => {
     const t = document.getElementById("lg-matrix"); if (!t) return null;
     const heads = [...t.querySelectorAll("thead th")].map((th) => th.textContent);
     const rowsM = [...t.querySelectorAll("tbody tr")].map((tr) => ({ fam: tr.querySelector("th").textContent,
       cells: [...tr.querySelectorAll("td")].map((td) => ({ s: td.dataset.strength || "", note: (td.querySelector(".lg-mx-note") || {}).textContent || "",
-        links: td.querySelectorAll(".lg-mx-decls a").length })) }));
+        label: td.querySelector(".lg-proved")?.textContent, empty: td.matches(":empty"),
+        links: [...td.querySelectorAll(".lg-mx-decls a")].map((a) => a.getAttribute("href")) })) }));
     return { heads, rows: rowsM };
   });
-  check(mx && mx.rows.length === 8 && mx.heads.length === 14, `the coverage matrix: 8 families, 13 features (${mx && mx.rows.length}, ${mx && mx.heads.length - 1})`);
-  if (mx) {
-    const ci = mx.heads.indexOf("completeness") - 1;
-    check(mx.rows.every((r) => r.cells.every((c) => c.s && c.links > 0)), "every cell has a status and names its declarations");
+  const columns = mx?.heads.slice(1) ?? [];
+  const renderedFamilies = mx?.rows.map((r) => r.fam) ?? [];
+  const columnsMatch = mx?.heads[0] === "family" && columns.length === features.length && features.every((f) => columns.includes(f));
+  const rowsMatch = renderedFamilies.length === families.length && families.every((f) => renderedFamilies.includes(f)) &&
+    mx.rows.every((r) => r.cells.length === features.length);
+  check(columnsMatch, `the coverage matrix has the 14 expected feature columns (${columns.join(" | ")})`);
+  check(rowsMatch, `the coverage matrix has the 8 expected families with one cell per feature (${renderedFamilies.join(" | ")})`);
+  if (columnsMatch && rowsMatch) {
+    const ni = columns.indexOf(ndjsonFeature);
+    const ci = columns.indexOf("completeness");
+    check(mx.rows.every((r) => r.cells.every((c, i) => i === ni || (c.s && c.links.length > 0))),
+      "every cell in the original 13 features has a status and names its declarations");
+    const ndjson = mx.rows.find((r) => r.fam === "extensional MLTT").cells[ni];
+    const ndjsonLinks = [`${ndjsonNamespace}.pi`, ndjsonTheorem, `${ndjsonNamespace}.derives_weaken_iff`]
+      .map((decl) => `#/source/${encodeURIComponent(decl)}`);
+    check(ndjson.s === "proved" && ndjson.label === "✓ proved" &&
+      ndjson.links.length === ndjsonLinks.length && ndjsonLinks.every((href) => ndjson.links.includes(href)),
+      "extensional MLTT's Lean NDJSON consequence is labelled proved and links its declarations");
+    for (const family of ndjsonBlankFamilies) {
+      const cell = mx.rows.find((r) => r.fam === family).cells[ni];
+      check(!cell.s && cell.empty, `the Lean NDJSON consequence cell is blank for ${family}`);
+    }
     check(ci >= 0 && mx.rows.every((r) => r.cells[ci].s === "not claimed"), "completeness is not claimed for any family");
     check(mx.rows.every((r) => r.cells.every((c) => c.s !== "absent" || c.note)), "every absent cell says why");
-    const hol = mx.rows.find((r) => r.fam === "HOL"), si = mx.heads.indexOf("concrete syntax") - 1;
+    const hol = mx.rows.find((r) => r.fam === "HOL"), si = columns.indexOf("concrete syntax");
     check(hol && hol.cells[si].s === "proved", "HOL's concrete syntax is proved to round-trip");
     // formal definition and explorer registration are separate columns
-    const ea = mx.heads.indexOf("explorer: abstract") - 1, ec = mx.heads.indexOf("explorer: concrete") - 1;
+    const ea = columns.indexOf("explorer: abstract"), ec = columns.indexOf("explorer: concrete");
     check(ea >= 0 && ec >= 0, "the matrix separates registering abstract and concrete systems from defining them");
     const concreteRegistered = mx.rows.filter((r) => r.cells[ec].s === "registered").map((r) => r.fam).sort();
     check(JSON.stringify(concreteRegistered) === JSON.stringify(["HOL", "extensional MLTT"]), `concrete systems are registered for exactly HOL and extensional MLTT (${concreteRegistered})`);
@@ -240,6 +268,7 @@ try {
   // the source of the concrete declarations and of the parser examples
   if (await p.evaluate(() => document.getElementById("source-meta").textContent.trim() !== "null")) {
     for (const [decl, file] of [["Silmaril.Consequence.Concrete.holToAbstract", "Silmaril/Logic/Consequence/Concrete/Defs.lean"],
+        [ndjsonTheorem, "Silmaril/ProofFormats/LeanNDJSON/MLTT/Thms.lean"],
         ["Silmaril.Logic.HOLLight.SExp.parseTm_printTm", "Silmaril/Logic/HOLLight/SExp/Thms.lean"],
         ["Silmaril.Logic.HOLLight.SExp.Examples.idEqId", "Silmaril/Logic/HOLLight/SExp/Examples.lean"],
         ["Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp.Examples.polyId", "Silmaril/Logic/TypeTheory/ExtensionalMLTT/SExp/Examples.lean"]]) {

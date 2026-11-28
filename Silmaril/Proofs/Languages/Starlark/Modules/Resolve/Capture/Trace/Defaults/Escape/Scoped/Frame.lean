@@ -58,7 +58,7 @@ theorem prefix_frame {globals : List String} {spec : Spec} (plan : Plan globals 
     Defaults.Body.Frame (spec.block globals) plan.moduleFree caller.heap.size
       (activate caller (plan.frame childId).declaration moduleCaptures assigned) := by
   exact Defaults.Body.selected_frame (spec.block globals) (plan.frame childId).declaration (prefix_slots plan childId)
-    plan.leadingSelects caller caller moduleCaptures installed cells assigned
+    plan.selects caller caller moduleCaptures installed cells assigned
 
 theorem prefix_module_read {globals : List String} {spec : Spec} (plan : Plan globals spec)
     (childId : Nat) (caller : State) (moduleCaptures : List Capture)
@@ -124,13 +124,13 @@ theorem failed_local_unbound {globals : List String} {spec : Spec} (names : Name
     (childId : Nat) (caller : State) (moduleCaptures : List Capture) {values : List Value} {assigned : List (Binding × Value)}
     (bound : Entry.Binds spec.parameters values (.ok assigned)) (name : String) (localName : name ∈ spec.updates.map Prod.fst)
     {error : Silmaril.Languages.Starlark.Lists.Error} {next : State}
-    (failed : Defaults.Escape.ReturnsWith spec.wrapper childId plan.body.free spec.updates caller
+    (failed : Defaults.Escape.ReturnsWith spec.wrapper (spec.block globals) plan.defaultItems childId plan.body.free spec.updates caller
       (activate caller (spec.frame childId).declaration moduleCaptures assigned) (.error error next)) :
     let active := activate caller (spec.frame childId).declaration moduleCaptures assigned
     ∃ address, active.slots (fileSlot name) = some (.owned address) ∧
       next.heap[address]? = some ⟨.binding none, false⟩ ∧ next.slots = caller.slots ∧ next.bindings = caller.bindings := by
   obtain ⟨address, owned, stored⟩ := local_unbound names childId caller moduleCaptures bound name localName
-  obtain ⟨slots, bindings, kept⟩ := Defaults.Escape.failed_keeps failed
+  obtain ⟨slots, bindings, kept⟩ := Defaults.Escape.failed_keeps plan.defaults failed
   exact ⟨address, owned, kept _ _ _ stored, slots, bindings⟩
 
 private theorem installs_order {active : State} {free : List FreeName} {captures : List Capture}
@@ -156,14 +156,14 @@ private theorem selected_unique {block : LexicalBlock} {reads : List Binding} {f
 
 theorem capture_order {globals : List String} {spec : Spec} (plan : Plan globals spec)
     {active : State} {captures : List Capture} (installed : Installs active plan.body.free captures) :
-    captures.map Capture.binding = (plan.body.declaration spec.wrapper.codes).free.map FreeName.target ∧
+    captures.map Capture.binding = (plan.childDeclaration).free.map FreeName.target ∧
       (captures.map Capture.binding).Nodup := by
   have ordered := installs_order installed
   exact ⟨ordered, by rw [ordered]; exact selected_unique plan.body.selects⟩
 
 theorem returns_total {globals : List String} {spec : Spec} (names : Names spec)
     (plan : Plan globals spec) (program : Program) (available : List DeclarationId) (childId : Nat)
-    (found : program[childId]? = some (plan.body.declaration spec.wrapper.codes))
+    (found : program[childId]? = some (plan.childDeclaration))
     (caller : State) (moduleCaptures : List Capture) (moduleInstalled : Installs caller plan.moduleFree moduleCaptures)
     (moduleCells : Defaults.Body.CaptureCells caller moduleCaptures) (assigned : List (Binding × Value)) :
     let active := activate caller (plan.frame childId).declaration moduleCaptures assigned
@@ -172,8 +172,7 @@ theorem returns_total {globals : List String} {spec : Spec} (names : Names spec)
       (∀ value next, out = .ok value next → ∃ address values reached captures,
         value = .function address ∧ values.length = spec.child.parameters.optional.length ∧
         Defaults.Body.RunsPrefix (spec.block globals) active spec.leading plan.leadingCode (.ok () reached) ∧
-        (∃ defaultsState, Defaults.Escape.DefaultsIn spec.wrapper.parameter reached
-          (spec.wrapper.defaults.map Prod.snd) (.ok values defaultsState)) ∧
+        (∃ defaultsState, Defaults.Lexical.Evaluates (spec.block globals) reached plan.defaultItems (.ok values defaultsState)) ∧
         Installs reached plan.body.free captures ∧
         next.heap[address]? = some ⟨.function ⟨childId, captures, spec.wrapper.saved values⟩, false⟩ ∧
         Bindings.Preserves caller next ∧ Defaults.Body.CaptureCells next captures ∧
@@ -204,7 +203,7 @@ theorem returns_total {globals : List String} {spec : Spec} (names : Names spec)
       exact stable.2 address stored low ((Wrapper.activation_preserves caller frame.declaration moduleCaptures assigned address low).trans found)
     obtain ⟨captures, installed, cells⟩ := reached_installs plan live
     obtain ⟨out, bodyOut, returned, ranTail, restored, progress⟩ := Defaults.Escape.returns_from_total
-      program available spec.wrapper names.wrapper childId (plan.body.declaration spec.wrapper.codes) found rfl
+      program available spec.wrapper names.wrapper childId plan.childDeclaration found plan.defaults rfl
       spec.additional (spec.leading.map Prod.fst) names.childFresh spec.updates names.localUpdates globals
       caller reached ⟨live.owned, by simp⟩ separate earlier captures installed cells
     have ran := Defaults.Body.prefix_sound program available leadingRun tail bodyOut (by
@@ -234,7 +233,7 @@ private theorem returns_unique {globals : List String} {spec : Spec} {plan : Pla
 
 theorem returns_sound {globals : List String} {spec : Spec} (names : Names spec)
     (plan : Plan globals spec) (program : Program) (available : List DeclarationId) (childId : Nat)
-    (found : program[childId]? = some (plan.body.declaration spec.wrapper.codes))
+    (found : program[childId]? = some (plan.childDeclaration))
     (caller : State) (moduleCaptures : List Capture) (moduleInstalled : Installs caller plan.moduleFree moduleCaptures)
     (moduleCells : Defaults.Body.CaptureCells caller moduleCaptures) (assigned : List (Binding × Value)) {out : Outcome Value}
     (source : Returns plan childId caller moduleCaptures assigned out) :
@@ -245,15 +244,14 @@ theorem returns_sound {globals : List String} {spec : Spec} (names : Names spec)
 
 theorem returned_frame {globals : List String} {spec : Spec} (names : Names spec)
     (plan : Plan globals spec) (program : Program) (available : List DeclarationId) (childId : Nat)
-    (found : program[childId]? = some (plan.body.declaration spec.wrapper.codes))
+    (found : program[childId]? = some (plan.childDeclaration))
     (caller : State) (moduleCaptures : List Capture) (moduleInstalled : Installs caller plan.moduleFree moduleCaptures)
     (moduleCells : Defaults.Body.CaptureCells caller moduleCaptures) (assigned : List (Binding × Value)) {address : Nat} {next : State}
     (source : Returns plan childId caller moduleCaptures assigned (.ok (.function address) next)) :
     let active := activate caller (plan.frame childId).declaration moduleCaptures assigned
     ∃ reached values captures, values.length = spec.child.parameters.optional.length ∧
       Defaults.Body.RunsPrefix (spec.block globals) active spec.leading plan.leadingCode (.ok () reached) ∧
-      (∃ defaultsState, Defaults.Escape.DefaultsIn spec.wrapper.parameter reached
-        (spec.wrapper.defaults.map Prod.snd) (.ok values defaultsState)) ∧
+      (∃ defaultsState, Defaults.Lexical.Evaluates (spec.block globals) reached plan.defaultItems (.ok values defaultsState)) ∧
       Installs reached plan.body.free captures ∧
       next.heap[address]? = some ⟨.function ⟨childId, captures, spec.wrapper.saved values⟩, false⟩ ∧
       next.slots = caller.slots ∧ next.bindings = caller.bindings ∧
@@ -263,7 +261,7 @@ theorem returned_frame {globals : List String} {spec : Spec} (names : Names spec
         next.heap[parameter]? = some ⟨.binding (some (.scalar (.int spec.wrapper.rebound))), frozen⟩) ∧
       ∀ arguments : List (Binding × Value),
         Defaults.Body.Frame plan.body.block plan.body.free next.heap.size
-          (activate next (plan.body.declaration spec.wrapper.codes) captures arguments) := by
+          (activate next (plan.childDeclaration) captures arguments) := by
   obtain ⟨_, _, independently, _, _, progress⟩ := returns_total names plan program available childId found caller moduleCaptures moduleInstalled moduleCells assigned
   obtain ⟨actual, values, reached, captures, same, count, leading, defaults, installed, cell, kept, cells, rebound⟩ :=
     progress _ _ (returns_unique independently source)
@@ -272,7 +270,7 @@ theorem returned_frame {globals : List String} {spec : Spec} (names : Names spec
   · cases source with
     | entered _ exit => cases exit; rfl
   · intro arguments
-    exact Defaults.Body.captured_frame plan.body _ (Defaults.Escape.code_length spec.wrapper) next reached
+    exact Defaults.Body.captured_frame plan.body _ (Defaults.Lexical.code_length plan.defaults) next reached
       captures installed cells arguments
 
 end Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped

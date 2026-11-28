@@ -19,7 +19,7 @@ open Silmaril.Machine.RTL.SSA (Activation Block Label Op Prog State Steps StepsN
 open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp emitOpsWith model)
 open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow Val read)
 open Silmaril.SSA.SeaOfNodes.Loop (Incoming appendTuple)
-open Silmaril.SSA.RVSDG (Locals Origin Port Tuple Wires extend)
+open Silmaril.SSA.RVSDG (Address Locals Origin Port Tuple Wires extend)
 open Silmaril.SSA.SeaOfNodes.GVN (keepOrigin)
 
 theorem rowFrameAt_read {fields arity : Nat} (slot : Fin fields → Port (wordPorts arity) wordPort)
@@ -87,12 +87,13 @@ theorem bindWords_args {arity : Nat} (values : WordTuple arity) :
     ArgsMatch (bindWords 0 Frame.empty values) values :=
   Proofs.bindWords_args values
 
-theorem bank_matches_at {arity : Nat} {fr : Frame Reg} {input : WordTuple arity}
-    (agree : ArgsMatch fr input) (values : WordTuple arity) :
+theorem bank_matches_at {arity bank : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    (agree : ArgsMatch fr input) (values : WordTuple bank) :
     ArgsMatch (bindWords arity fr values) (appendTuple values input) :=
   Proofs.bank_matches_at agree values
 
-theorem input_matches_at {arity : Nat} {fr : Frame Reg} {input old : WordTuple arity}
+theorem input_matches_at {arity bank : Nat} {fr : Frame Reg} {input : WordTuple arity}
+    {old : WordTuple bank}
     (agree : ArgsMatch fr (appendTuple old input)) : ArgsMatch fr input :=
   Proofs.input_matches_at agree
 
@@ -117,6 +118,15 @@ theorem checkColumn_registers {scope arity : Nat} {indices : List Nat}
     {wires : ArgumentColumn scope arity} (ok : checkColumn scope arity indices = some wires) :
     emitColumn wires = indices.map Reg.arg :=
   Proofs.checkColumn_registers ok
+
+/-- Read an ordered typed column using the predecessor's register layout. -/
+theorem readColumnWith_eq {args : List PortTy} {past : List (List PortTy)} {arity : Nat}
+    (resolve : Address → Reg) (wires : Wires args past (wordPorts arity)) (input : Tuple (Val model.value) args)
+    (locals : Locals (Val model.value) past) (fr : Frame Reg)
+    (agree : ∀ wire : Origin args past wordPort,
+      fr.get (resolve wire.address) = some (read model wire input locals)) :
+    fr.readAll (wires.addresses.map resolve) = some (words (wires.read input locals)) :=
+  Proofs.readColumnWith_eq resolve wires input locals fr agree
 
 /-- Resolve every operand in the predecessor frame before binding any
 destination. This law is independent of the number of word slots. -/

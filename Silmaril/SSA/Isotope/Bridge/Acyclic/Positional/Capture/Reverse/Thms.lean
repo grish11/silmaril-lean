@@ -19,6 +19,19 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 theorem Plan.checked (p : Plan Φ β L (A :: R)) : p.toTable.check = true :=
   plan_check_proof p
 
+/-- Rendering the checked table tree at any capture scope agrees with the
+actual forward compiler at the same local label. -/
+theorem tableTree_render (p : Table Φ β L n) (ok : p.check = true)
+    (i : Fin (n + 1)) {m : Nat} {γ : BoundCtx τ m} (s : Scope β γ) :
+    (tableTree p ok i).render s = p.compileAt ok i s :=
+  tableTree_render_proof p ok i s
+
+/-- Numbering a tree preserves the rendering at its new front row. -/
+theorem Tree.build_compile (t : Tree Φ β L A) (p : Plan Φ β L R)
+    {m : Nat} {γ : BoundCtx τ m} (s : Scope β γ) :
+    (t.build p).plan.toTable.compileAt (t.build p).plan.checked 0 s = t.render s :=
+  tree_build_compile_proof t p _ s
+
 theorem Program.toTable_checked (p : Program Φ β L) : p.toTable.check = true :=
   p.build.plan.checked
 

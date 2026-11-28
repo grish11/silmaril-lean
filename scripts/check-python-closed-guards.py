@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Replay the checked closed guards against CPython 3.13.5."""
+"""Replay checked module guards against CPython 3.13.5."""
 
 import argparse
 import ast
@@ -24,9 +24,12 @@ PINS = {
     "test_floats.py": "542adfd37c7603f9d3a6eed1db110317d343077f1e94f671c7d88de05c7df1a0",
     "types_truthy1.py": "7f336f91ab2d495e50fda286bf18744ae86d8eb02eccd9dc25fffcf5ec1da70e",
 }
+SLICE_PIN = "test_string_slices.py"
+SLICE_SHA = "91c68c8b2c75f4caf9df187217c98faa4e9ad1ba9e96d1acaee87726497b203c"
 PROFILES = ("empty", "legacy_builtin", "legacy_preamble", *SUITE["OPT_IN_PROFILES"])
 IMPORTS = (*SUITE["IMPORTS"],
-           "meta import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ClosedGuard.Defs")
+           "meta import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ClosedGuard.Defs",
+           "meta import Silmaril.Languages.Python.Core.Text.Slice.Defs")
 LEAN = SUITE["LEAN"] + """
 open Compile.ModuleEntry.Functions.ClosedGuard (omitted?)
 
@@ -56,18 +59,24 @@ private def noInstructions (source : Source.Module) : Bool :=
   | .ok compiled => compiled.instructions.isEmpty && compiled.linked.isEmpty
   | .error _ => false
 
+private def guardError : Raised → String
+  | .runtime .zeroSliceStep => "ValueError:slice step cannot be zero"
+  | error => raised error
+
 private def ordinaryGuard (source : Source.Module) (status : String)
     (bindings : List (String × Option Value)) : Bool := Id.run do
   let .ok compiled := Compile.ModuleEntry.Functions.Run.compile source | return false
-  let session := Compile.ModuleEntry.Functions.Run.seed .empty guardHeap
+  let lists : Core.Module.ListHeap := ⟨#[[.int 31]]⟩
+  let session := { Compile.ModuleEntry.Functions.Run.seed .empty guardHeap with lists := lists }
   let (events, final) := Compile.ModuleEntry.Functions.Run.runPrefix compiled.table 1000
     (.ready session compiled.instructions)
   let .finished residual completion := final | return false
   let observed := match completion with
     | .normal => "normal"
-    | .raised error => raised (.runtime error)
+    | .raised error => guardError (.runtime error)
+    | .scalarProfile => "unsupported"
     | _ => "unexpected completion"
-  return observed == status && retained residual.heap && events.isEmpty &&
+  return observed == status && retained residual.heap && residual.lists == lists && events.isEmpty &&
     bindings.all (fun (name, value) => (residual.globals name).map
       Compile.ModuleEntry.Functions.Run.Seeded.seededValue == value)
 
@@ -79,7 +88,8 @@ private def seededGuard (source : Source.Module) (profile : String) (status : St
   let outcome := Compile.ModuleEntry.Functions.Run.Seeded.run space compiled guardHeap (lists := lists)
   let completion := match outcome.completion with
     | .ok () => "normal"
-    | .error (.raised error) => raised error
+    | .error (.raised error) => guardError error
+    | .error .unsupported => "unsupported"
     | .error _ => "unexpected completion"
   return completion == status && outcome.residual.moduleGlobals == bindings ++ space.moduleGlobals &&
     outcome.residual.builtins == space.builtins && outcome.lists == lists &&
@@ -92,9 +102,9 @@ private def rejected (source : Source.Module) : Bool :=
 """
 
 
-def cpython(source, builtins=None):
+def cpython(source, builtins=None, globals_=None):
     bindings = {} if builtins is None else builtins
-    namespace = {"__builtins__": bindings}
+    namespace = {**(globals_ or {}), "__builtins__": bindings}
     stdout, stderr = StringIO(), StringIO()
     with redirect_stdout(stdout), redirect_stderr(stderr):
         try:
@@ -104,6 +114,8 @@ def cpython(source, builtins=None):
             status = f"NameError:{error.name}"
         except ZeroDivisionError:
             status = "ZeroDivisionError"
+        except ValueError as error:
+            status = f"ValueError:{error}"
     assert not stdout.getvalue() and not stderr.getvalue()
     assert namespace.pop("__builtins__") is bindings
     return status, namespace
@@ -159,6 +171,101 @@ def replay(checkout, paths):
         results[name] = {"sha256": digest, "guards": observed, "seeded_placements": len(PROFILES),
                          "receipts": 0}
     return results
+
+
+def slice_replay(checkout, paths):
+    source = SUITE["pinned_source"](checkout, f"{PIN_DIRECTORY}/{SLICE_PIN}", SLICE_SHA)
+    parsed = ast.parse(source)
+    assert len(parsed.body) == 9 and parsed.body[1].lineno == 2
+    assert parsed.body[1].end_lineno == 2
+    prefix = "".join(source.splitlines(keepends=True)[:2])
+    expected = {"a": "0123456789"}
+    guards = []
+    for suffix, text in (("throughLineTwo", prefix), ("pythonSource", source)):
+        assert cpython(text) == ("normal", expected)
+        assert cpython(text, {"Exception": Exception}) == ("normal", expected)
+        value = f".text (Core.Text.ofString {json.dumps(expected['a'])})"
+        guards.append(f'#guard ordinaryGuard {suffix} "normal" [("a", some ({value}))]')
+        for profile in PROFILES:
+            assert SUITE["cpython"](text, profile, expected_globals=expected) == ["normal", "absent", "absent"]
+            guards.append(f'#guard seededGuard {suffix} {json.dumps(profile)} "normal" [("a", {value})]')
+    check(source, paths, "private def throughLineTwo : Source.Module := ⟨pythonSource.body.take 2⟩", *guards)
+    return {"sha256": SLICE_SHA, "guards": len(parsed.body) - 1,
+            "ordinary_and_seeded": "normal", "receipts": 0}
+
+
+def slice_controls(paths):
+    def points(text):
+        return str(list(map(ord, text)))
+
+    def optional(value):
+        return "none" if value is None else f"(some ({value}))"
+
+    value = "Aé😀e\u0301\ud800Z"
+    guard_terms = []
+    for start, stop, step in (
+        (None, None, None), (None, None, 2), (1, None, 2),
+        (None, None, -1), (None, None, -2), (3, None, -2),
+        (-100, 100, None), (100, -100, -1), (-100, 100, 2),
+        (None, -1, -1), (None, -8, -1), (-1, None, -1),
+        (-100, None, -2), (100, None, 2), (3, 1, 2), (1, 4, -2),
+        (-(10**40), 10**40, 10**40), (10**40, -(10**40), -(10**40)),
+    ):
+        selected = value[slice(start, stop, step)]
+        bounds = ", ".join(map(optional, (start, stop, step)))
+        guard_terms.append(
+            f"#guard ((Core.Text.mk {points(value)} (by decide)).slice? ⟨{bounds}⟩).map "
+            f"Core.Text.points == some {points(selected)}"
+        )
+    for step in (1, -1, 2, -2):
+        guard_terms.append(
+            f"#guard ((Core.Text.ofString \"\").slice? ⟨none, none, {optional(step)}⟩).map Core.Text.points == some []"
+        )
+    check("pass\n", paths, *guard_terms)
+
+    fixtures = []
+    unicode_slice = f"a = {ascii(value)}\nException = 0\n"
+    unicode_slice += f"if not (a[None:None:-2] == {ascii(value[::-2])}): raise Exception('dead')\n"
+    unicode_slice += "tail = a\n"
+    examples = (
+        (unicode_slice, "normal", {"a": value, "Exception": 0, "tail": value}),
+        ("a = 'xyz'\nif not (a[::0] == missing): raise Exception('dead')\ntail = 9\n",
+         "ValueError:slice step cannot be zero", {"a": "xyz"}),
+        ("a = 'xyz'\nif not (missing[::0] == a): raise Exception('dead')\ntail = 9\n",
+         "NameError:missing", {"a": "xyz"}),
+        ("a = 'xyz'\nif not (missing == a[::0]): raise Exception('dead')\ntail = 9\n",
+         "NameError:missing", {"a": "xyz"}),
+        ("a = 'xyz'\nif not (a[:] == a[::0]): raise Exception('dead')\ntail = 9\n",
+         "ValueError:slice step cannot be zero", {"a": "xyz"}),
+        ("a = 'xyz'\nleft = 2\nif not (left == a[::0]): raise Exception('dead')\ntail = 9\n",
+         "ValueError:slice step cannot be zero", {"a": "xyz", "left": 2}),
+        ("a = 'xyz'\nif not (a[:] == 'bad'): raise Exception('reached')\ntail = 9\n",
+         "NameError:Exception", {"a": "xyz"}),
+    )
+
+    for source, status, residual in examples:
+        assert cpython(source) == (status, residual)
+        names = list(reversed(residual))
+
+        def lean(name):
+            stored = residual[name]
+            return f".text ⟨{points(stored)}, by decide⟩" if type(stored) is str else f".int {stored}"
+
+        seeded = "[" + ", ".join(f'("{name}", {lean(name)})' for name in names) + "]"
+        ordinary = "[" + ", ".join(f'("{name}", some ({lean(name)}))' for name in names)
+        ordinary += (', ("tail", none)' if "tail" not in residual else "") + "]"
+        fixtures.append((source, "\n".join((
+            f"#guard ordinaryGuard pythonSource {json.dumps(status)} {ordinary}",
+            f'#guard seededGuard pythonSource "legacy_builtin" {json.dumps(status)} {seeded}',
+            f'#guard seededGuard pythonSource "legacy_preamble" {json.dumps(status)} {seeded}',
+        ))))
+
+    for bound in ("index", "True", "2.0"):
+        fixtures.append((f"a = 'xyz'\nindex = 1\nif not (a[::{bound}] == a): raise Exception('bound')\n",
+                         "#guard rejected pythonSource"))
+    INTAKE["check_lean_batch"](*paths, fixtures, LEAN, extra_imports=IMPORTS)
+    return {"code_point_checks": len(guard_terms), "source_controls": len(fixtures),
+            "zero_step": "ValueError:slice step cannot be zero"}
 
 
 def controls(paths):
@@ -246,4 +353,7 @@ if __name__ == "__main__":
         paths = (path, path.with_suffix(".lean"))
         pins = replay(args.upstream, paths)
         controls(paths)
-    print(json.dumps({"cpython": "3.13.5", "upstream": revision, "pins": pins, "controls": "passed"}))
+        pins[SLICE_PIN] = slice_replay(args.upstream, paths)
+        slices = slice_controls(paths)
+    print(json.dumps({"cpython": "3.13.5", "upstream": revision, "pins": pins,
+                      "controls": "passed", "text_slices": slices}))

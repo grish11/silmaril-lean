@@ -22,19 +22,19 @@ theorem resolved_target {H : Type} {site : Site} {program : Memory32.Program} {m
     ∃ fn, program.lookup address = some fn ∧ fn.declaration.type = site.signature := by
   have table : frameTable (Memory32.storeWithBytes base m initial bytes) caller = some site.table := checked.table
   cases entry : site.table.refs[selector.toNat]? with
-  | none => simp [v1Resolve, table, entry] at resolved
+  | none => simp [v1Resolve, resolveTable, table, entry] at resolved
   | some slot =>
     cases slot with
-    | none => simp [v1Resolve, table, entry] at resolved
+    | none => simp [v1Resolve, resolveTable, table, entry] at resolved
     | some target =>
       obtain ⟨fn, found⟩ := checked.targets target (List.mem_of_getElem? entry)
       have alloc : (Memory32.storeWithBytes base m initial bytes).funcs[target.value]? =
           some (.wasm fn.declaration.type fn.declaration.module fn.v1Func) := layout.functions target fn found
       by_cases same : fn.declaration.type = site.signature
-      · simp [v1Resolve, table, entry, checked.signature, alloc, Execution.Runtime.FuncInst.type, same] at resolved
+      · simp [v1Resolve, resolveTable, table, entry, checked.signature, alloc, Execution.Runtime.FuncInst.type, same] at resolved
         subst target
         exact ⟨fn, found, same⟩
-      · simp [v1Resolve, table, entry, checked.signature, alloc, Execution.Runtime.FuncInst.type, same] at resolved
+      · simp [v1Resolve, resolveTable, table, entry, checked.signature, alloc, Execution.Runtime.FuncInst.type, same] at resolved
 
 private theorem rigid_step {H : Type} {a b : Config H} {saved : List Value} {tail : List Admin}
     (rigid : Rigid a.store a.code) (step : Step CallFrame.v1NoHost (v1Plug saved tail a) b) :

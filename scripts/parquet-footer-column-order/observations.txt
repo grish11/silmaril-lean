@@ -1,0 +1,16 @@
+PyArrow 26.0.1 fixture e429fed1f404dc10876d68b5a4785bd804279fae80e0836375e850ce986180b0 footer [242, 797)
+Thrift original orders [{1: {}}, {1: {}}]; second leaf converted=13, logical=INTEGER/isSigned=false
+original schema and order field/item extents [(2, 3, 54, [(4, 17), (17, 30), (30, 54)]), (7, 547, 554, [(548, 551), (551, 554)])]
+second arm 2: 7d2d96fe3426841817d15d819e6cc51e2bc87891d3dc19f2ee2f1ce834c5fa1f order items [(548, 551), (551, 554)]
+second arm 3: 840d098e8e755edf0393b3eed05efb357198ee5e8a362d8779f5359a169fb844 order items [(548, 551), (551, 554)]
+second unknown arm: 5b3fe4d431ede94ad5e697bf79ed9927a815fde04982f441c02f0673bda8f077 order items [(548, 551), (551, 554)]
+absent: d14c4303072c6124fa91f1027db1935dc4dafb5687aa7e96b27e94e38bd5a181 order items None
+short: 07d309b225f430ef86c7b1ee354e3ecba5f8cc17f99e3c49b7c50a3975361d64 order items [(548, 551)]
+surplus: e116acf71ce74ff4431eefa8f0a5f9f4a4b266e42898ad6eaa9b0126488a4f33 order items [(548, 551), (551, 554), (554, 557)]
+wrong list field type: 65c9d1c6c60064376f86359e8f47f5383e951fd93d7e0a49cbd836cc4356e798 order items None
+wrong element type: 22a9f1dba0f995c23c3d8a5abab424902113f3cd92634be1107461fa5b6c5b82 order items [(548, 549), (549, 550)]
+empty second union: 39ff222b3d6a6a2e9e061f1c6629442bfb7e154e1d5503c4aff1d5788a30762b order items [(548, 551), (551, 552)]
+two second arms: ae62459d947a4cf89994a03f5272e8a110058d837a97f25f7e1d9ce56640d4c6 order items [(548, 551), (551, 556)]
+nonempty second marker: f2ecca2acccdc887f90b70412ba063e1ae7bf430a5d3a6360215d70be60c9f71 order items [(548, 551), (551, 555)]
+first arm 2 with boolean payload: e269222864a0f18d31db793141e69dbc9f45fa238f11d770e8a02f334203f625 order items [(548, 550), (550, 553)]
+duplicate field 7: 9707682feb87698f5a66d923c0ede3749955d79524ea69ee43c85b2b224bed6b order fields [(7, 547, 554, [(548, 551), (551, 554)]), (7, 556, 563, [(557, 560), (560, 563)])]

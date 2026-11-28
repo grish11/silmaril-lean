@@ -26,6 +26,27 @@ universe u v w u₃ v₃
 variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
   {V : Type u₃} [Category.{v₃} V] [CartesianMonoidalCategory V] [SymmetricCategory V]
 
+section PackedBodyDenotation
+
+universe u₄ v₄
+variable {K : Type u₄} [Category.{v₄} K]
+  [PremonoidalCategory K] [SymmetricPremonoidalCategory K]
+  [HasFiniteCoproducts V] [HasFiniteCoproducts K]
+  [DistributiveTensor V] [DistributivePremonoidalCategory K]
+  [Iteration K] [ElgotCategory K] (J : V ⥤ K) [StrongElgotFreydCategory J]
+  (M : TypeModel τ V) [InstructionModel J M Φ]
+
+/-- Recover the exact environment and bound payload before running a packed body. -/
+theorem denote_applyPacked [RegionTypingCoherent (Φ := Φ) J M]
+    {X A D : τ} {p : Region Φ} (hp : ValueBranches [Silmaril.product X A] p [D]) :
+    denoteRegion J M (Paper.PackedBody.applyPacked_typed hp).hasType ≫
+        J.map (singletonLabelPayload M D) =
+      J.map (((λ_ (M.obj X)).hom ▷ M.obj A) ≫ (M.productIso X A).inv) ≫
+        denoteSingletonRegion J M hp.hasType :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.SingletonReification.denote_applyPacked J M hp
+
+end PackedBodyDenotation
+
 set_option hygiene false in
 local notation "C" => Paper.TypeCategory (τ := τ) Φ
 

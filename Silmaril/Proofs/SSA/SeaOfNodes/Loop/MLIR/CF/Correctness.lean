@@ -28,12 +28,12 @@ theorem opcode_correct {ins : List (ValueSort Width)} {out : ValueSort Width}
   | arithmetic op =>
     cases op with
     | constant => cases input; rfl
-    | binary op =>
+    | binary =>
       cases input with | cons x tail =>
       cases tail with | cons y tail =>
       cases tail
-      cases op <;> rfl
-  | ult =>
+      rfl
+  | ult | slt =>
     cases input with | cons x tail =>
     cases tail with | cons y tail =>
     cases tail
@@ -75,6 +75,11 @@ private theorem carried_names (input : Env Γ) {widths : List Width} (old : Valu
       cases port with
       | head => rfl
       | tail p => exact weaken_names (ih tail) value p
+
+theorem headerScope_agrees (input : Env Γ) (old : Values carried) :
+    (Bank.headerScope Γ carried).Agrees ((bankEnv old).append input)
+      (appendTuple old (sourceInputs input)) PUnit.unit :=
+  ⟨append_names (captured_names input old) (carried_names input old), trivial⟩
 
 private theorem bankOperands_eval {args : List (Diamond.Ty Width)} {past : List (List (Diamond.Ty Width))}
     {Δ widths : List Width} {scope : Scope args past Δ} {env : Env Δ}
@@ -120,7 +125,7 @@ private theorem header_eval (old : Values carried) :
       .inl (stepFrame (g.step model (sourceInputs input) old)) := by
   let args := appendTuple old (sourceInputs input)
   have bindings : (Bank.headerScope Γ carried).Agrees ((bankEnv old).append input) args PUnit.unit :=
-    ⟨append_names (captured_names input old) (carried_names input old), trivial⟩
+    headerScope_agrees input old
   refine lowerCode_eval opcode evalOp model.run opcode_correct g.header _ _ args _ bindings
     (Bank.headerTerm g) (fun term env => term.eval env) _ ?_
   intro Δ scope env ok

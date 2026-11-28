@@ -25,7 +25,7 @@ private theorem lift_agrees (h : ∀ i : Fin n, env' (ρ i.val) = env i.val) (va
     ∀ i : Fin (n + 1), (extend env' value) (lift ρ i.val) = (extend env value) i.val :=
   Fin.cases rfl h
 
-private theorem erase_term_rename (a : LetCase.LocallyNameless.Tm Empty Φ n)
+theorem erase_term_rename (a : LetCase.LocallyNameless.Tm Empty Φ n)
     (agree : ∀ i : Fin n, env' (ρ i.val) = env i.val) :
     term instr env' ((erase a).rename ρ) = term instr env (erase a) := by
   induction a generalizing env env' ρ with

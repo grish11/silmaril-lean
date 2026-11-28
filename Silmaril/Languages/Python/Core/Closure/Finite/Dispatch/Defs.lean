@@ -52,6 +52,7 @@ def dispatch (rows : CodeRows Body) (callee : Value) (arguments : List Value)
     (heap : HeapTable) (caller : Call.Saved Continuation) (stack : List (Call.Saved Continuation)) :
     Except Closure.Dispatch.Failure (Active Body Continuation) :=
   match callee with
+  | .exceptionClass _ => .error (.call .unsupportedCallable)
   | .function fn =>
     match Closure.Dispatch.resolve rows.project fn.code with
     | .error error => .error error

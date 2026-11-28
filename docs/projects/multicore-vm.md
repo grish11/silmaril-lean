@@ -36,6 +36,88 @@ schedule. Operational commutation requires a separate proof about the
 transition relation. The correspondence covers successful finite prefixes.
 Fairness and termination are outside its scope.
 
+## Yield-only cooperative scheduling
+
+Import `Silmaril.Machine.MulticoreVM.Cooperative.Thms`. The program supplies
+an atomic transition, a separate explicit yield transition, and a completion
+predicate over its own state. The dispatcher starts idle. A dispatch decision
+can select a policy-approved thread with an ordinary or yield instruction
+available. Ordinary instructions retain the owner, including silent
+instructions and the last instruction of a thread. A yield commits its
+continuation and releases the owner. The next dispatch can select the same
+thread if it is runnable. The runtime can retire a finished owner through
+`complete`, which also releases the dispatcher. Lack of an available
+instruction alone does not retire an owner or allow a different thread
+to run.
+
+The schedule distinguishes `dispatch`, `atomic`, `yield`, and `complete`.
+Only atomic instructions contribute to the chronological word. Under
+`Program.Refines`, ordinary steps realize the corresponding abstract
+transition with the same fragment and yields preserve the abstract state
+view. Then `scheduled_refines` erases administrative decisions and preserves
+the initial and final states under that view, along with the entire
+chronological word. Silent atomic steps still count toward the projected
+schedule length.
+
+`everyAtomic` instruments any atomic transition with a pending-yield bit.
+Each ordinary instruction sets it, and the synthetic yield clears it and
+releases ownership. The yield remains available after a terminal atomic
+instruction. After it is consumed, dispatch once again requires an available
+underlying step. With `anyDispatch`, `scheduled_instrument` lifts every successful
+finite arbitrary schedule by inserting dispatch before each atomic decision
+and yield after it. The lift starts and ends idle, including the empty
+schedule, and preserves the word and underlying VM state.
+`observedOutcomes_everyAtomic` gives equality with the arbitrary
+`namedOutcomes` at each atomic step count. The comparison concerns finite
+prefixes and assumes unrestricted dispatch for the converse. A more
+restrictive policy can exclude particular schedules. There is no fairness or
+progress requirement.
+[Definitions][coop] · [Theorems][coop-thms] · [Regressions][coop-tests]
+
+The optional [ThreadSync bridge][coop-thread-sync] checks an already-owned
+yield with an empty wake choice. When the generic program delegates this
+instruction to the keyed VM and the owner is live, both policies install the
+same continuation and release ownership. The generic schedule records the
+yield as a silent decision, while ThreadSync emits its yield event. ThreadSync
+combines selection with instruction execution and releases on parking or
+program exhaustion. The bridge covers the owned yield transition.
+[ThreadSync guide][thread-sync]
+
+## Flat critical regions
+
+Import `Silmaril.Machine.MulticoreVM.CriticalRegion.Thms` for a single
+dispatcher with an optional owner. Outside a region it can select any thread
+with an enabled instruction. Enter acquires the free region. Inside, the
+owner can execute ordinary instructions or leave. Leave releases ownership
+and makes all enabled threads eligible at the next boundary.
+`actor_eq_of_held` and `held_without_leave` give the exclusion facts.
+`atomic_when_free` characterizes the ordinary steps available after release.
+[Definitions][critical] · [Theorems][critical-thms]
+
+Regions are flat. A second enter while held and a leave while free have no
+transition. An owner that finishes without leaving produces a stuck prefix.
+`Program.Completed` requires a free region and every thread finished.
+Finite prefixes may stop inside a region. The result is scheduler-level
+mutual exclusion for atomic instructions. Fairness, progress and physical
+memory semantics are outside this model.
+
+The program supplies its state, ordinary instruction relation, completion
+predicate and enter and leave continuations. Control instructions appear in
+the schedule and emit an empty effect fragment. `Program.Refines` requires
+those continuation updates to preserve the abstract state view. This lets
+enter and leave advance a concrete program counter without adding abstract
+steps. `scheduled_refines` erases controls and preserves projected endpoint
+states and the chronological effect word. The length of the erased schedule
+counts every ordinary instruction, including silent instructions.
+
+`observedOutcomes_regionFree` recovers the arbitrary atomic VM in both
+directions at every atomic length. `observedOutcomes_everyAtomic` compares
+this fragment with the yield-only VM under unrestricted dispatch and
+an inserted yield after each atomic instruction. The comparison observes the
+same underlying final state, effect word and instruction count. Programs
+with critical regions refine the arbitrary atomic VM when they satisfy
+`Program.Refines`. [Typed scheduler models][scheduler-inst]
+
 ## Explicit core placement
 
 `Placed.Config` has separate core and thread IDs and stores. Its placement is a
@@ -151,10 +233,17 @@ registers, output, and spawn. [Machine traces][machine] · [Process.Mt][process]
 ```sh
 make check CHECK_TARGETS='+Silmaril.Proofs.Machine.MulticoreVM.Regression +Silmaril.Proofs.Semantics.ConcurrentTrace.Regression +Silmaril.Proofs.Machine.MulticoreVM.Placed.Regression +Silmaril.Proofs.Machine.MulticoreVM.Institution.ProjectionRegression'
 make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.Scheduler.Thms +Silmaril.Proofs.Machine.MulticoreVM.Scheduler.ThreadSyncWitness +Silmaril.Proofs.Machine.MulticoreVM.Placed.Regression +Silmaril.Proofs.Machine.MulticoreVM.ThreadSync.Regression +Silmaril.Proofs.Machine.MulticoreVM.Regression +Silmaril.Proofs.Semantics.ConcurrentTrace.Regression'
+make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.Cooperative.Thms +Silmaril.Machine.MulticoreVM.Cooperative.ThreadSync.Thms +Silmaril.Proofs.Machine.MulticoreVM.Cooperative.Regression +Silmaril.Proofs.Machine.MulticoreVM.ThreadSync.Regression'
+make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.CriticalRegion.Thms +Silmaril.Machine.MulticoreVM.Institution.Schedulers.Thms +Silmaril.Proofs.Machine.MulticoreVM.Institution.Schedulers.Regression'
 ```
 
 [defs]: ../../Silmaril/Machine/MulticoreVM/Defs.lean
 [thms]: ../../Silmaril/Machine/MulticoreVM/Thms.lean
+[coop]: ../../Silmaril/Machine/MulticoreVM/Cooperative/Defs.lean
+[coop-thms]: ../../Silmaril/Machine/MulticoreVM/Cooperative/Thms.lean
+[coop-tests]: ../../Silmaril/Proofs/Machine/MulticoreVM/Cooperative/Regression.lean
+[coop-thread-sync]: ../../Silmaril/Machine/MulticoreVM/Cooperative/ThreadSync/Thms.lean
+[thread-sync]: multicore-vm-thread-sync.md
 [placed]: ../../Silmaril/Machine/MulticoreVM/Placed/Defs.lean
 [placed-thms]: ../../Silmaril/Machine/MulticoreVM/Placed/Thms.lean
 [placed-outcomes]: ../../Silmaril/Machine/MulticoreVM/Placed/Outcomes/Thms.lean
@@ -170,3 +259,6 @@ make check CHECK_TARGETS='+Silmaril.Machine.MulticoreVM.Scheduler.Thms +Silmaril
 [trace]: concurrent-traces.md
 [machine]: ../../Silmaril/Machine/Trace.lean
 [process]: ../../Silmaril/Process/Mt/Defs.lean
+[critical]: ../../Silmaril/Machine/MulticoreVM/CriticalRegion/Defs.lean
+[critical-thms]: ../../Silmaril/Machine/MulticoreVM/CriticalRegion/Thms.lean
+[scheduler-inst]: multicore-vm-institution.md#atomic-critical-region-and-yield-only-models

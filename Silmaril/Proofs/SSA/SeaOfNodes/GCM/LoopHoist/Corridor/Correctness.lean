@@ -5,6 +5,7 @@ public import Silmaril.SSA.MLIR.CF.SwitchAssert.Denotation.Defs
 import Silmaril.SSA.MLIR.CF.SwitchAssert.Thms
 import Silmaril.SSA.MLIR.CF.SwitchAssert.Denotation.Thms
 import Silmaril.SSA.SeaOfNodes.GCM.Corridor.Thms
+import Silmaril.SSA.SeaOfNodes.GCM.LoopForest.Thms
 import Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Thms
 
 public section
@@ -18,12 +19,23 @@ open Silmaril.SSA.SeaOfNodes.GCM
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist
 open Silmaril.SSA.SeaOfNodes
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor
-open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF (Program evalOp lower model)
+open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF (Program TargetOp evalOp lower model)
 
 variable {Input : List Width} {carried result saved : Width}
 variable {entrySigs headerSigs : List (List (Diamond.Ty Width))}
 variable {g : Program Input carried result entrySigs headerSigs}
 variable {index : Nat} {cut : Point (SourceLabel carried result)} {output : Output Input carried result}
+
+theorem chooseCfgCut?_sound
+    {cfg : Silmaril.MLIR.CF.Cfg TargetOp (SourceLabel carried result) Input [result]}
+    {operands : List (Point (SourceLabel carried result))} {uses : List (Use (SourceLabel carried result))}
+    (selected : chooseCfgCut? cfg operands uses = some cut) :
+    cut ∈ candidateCuts cfg blocks ∧ Legal cfg operands uses cut := by
+  let _ : DecidableEq (Target (SourceLabel carried result)) := sourceTargetDecEq carried result
+  unfold chooseCfgCut? at selected
+  rw [Silmaril.SSA.SeaOfNodes.GCM.Corridor.chooseSynthesized?_eq] at selected
+  obtain ⟨_, _, ranked⟩ := Option.bind_eq_some_iff.mp selected
+  exact LoopForest.choosePlacement_sound ranked
 
 private theorem chooseCut_eq (operands : List (Point (SourceLabel carried result)))
     (uses : List (Use (SourceLabel carried result))) :
@@ -37,7 +49,7 @@ theorem pickAndHoist?_eq :
       pickBindingAndHoist? g tree.1 index := by
   cases synthesized : synthesizedTree? g with
   | none =>
-    unfold LoopHoist.Corridor.pickAndHoist? hoistBindingWith?
+    unfold LoopHoist.Corridor.pickAndHoist? hoistBindingWith? hoistCodeWith?
     cases findBinding index 0 headerOrigins ((lower g).block .header)
     · simp
     · simp [chooseCut_eq, synthesized]
@@ -60,7 +72,7 @@ theorem refuses_otherCut {binding : Binding Input (carried :: Input) saved carri
   have outsideEntry : ¬ (cut.block = none ∧ cut.cut = 0) := by
     intro atEntry
     exact outside (by cases cut; simp_all)
-  simp [LoopHoist.Corridor.pickAndHoist?, hoistBindingWith?, found, selected, outsideEntry]
+  simp [LoopHoist.Corridor.pickAndHoist?, hoistBindingWith?, hoistCodeWith?, found, selected, outsideEntry]
 
 theorem pickAndHoist?_placement (picked : LoopHoist.Corridor.pickAndHoist? g index = some (cut, output)) :
     cut = ⟨none, 0⟩ ∧ cut ∈ candidateCuts (lower g) blocks ∧

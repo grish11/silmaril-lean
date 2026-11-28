@@ -150,6 +150,11 @@ termination_by structural _ k => k
 
 end
 
+theorem tree_build_compile_proof (t : Tree Φ β L A) (p : Plan Φ β L R)
+    (ok : (t.build p).plan.toTable.check = true) {m : Nat} {γ : BoundCtx τ m} (s : Scope β γ) :
+    (t.build p).plan.toTable.compileAt ok 0 s = t.render s :=
+  (plan_compileAt (t.build p).plan ok 0 s).trans (tree_build t p s)
+
 theorem program_toFiniteExit_proof (p : Program Φ β L) (ok : p.toTable.check = true) :
     p.toTable.toFiniteExit ok 0 p.entry = p.toFiniteExit := by
   unfold Program.toTable Table.toFiniteExit Program.toFiniteExit

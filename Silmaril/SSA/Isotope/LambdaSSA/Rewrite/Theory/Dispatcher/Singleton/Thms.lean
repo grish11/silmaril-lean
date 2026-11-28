@@ -50,6 +50,21 @@ theorem payload_labelInject (A : τ) :
     labelInject M (i + 1) (L := A :: L) hi ≫ labelAppendSplit M [A] L = labelInject M i hi ≫ coprod.inl :=
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.SingletonDispatcher.labelAppendSplit_succ M A hi
 
+section CollectiveOne
+
+variable {C : Type u₂} [Category.{v₂} C] (J : V ⥤ C)
+
+/-- In a one-block dispatcher, decode the local payload and run block zero. -/
+theorem collectiveOne {Γ : VCtx τ} {L : LCtx τ} {A : τ}
+    {fb : Fin 1 → (J.obj (ctxObj M (A :: Γ)) ⟶ J.obj (labelObj M (A :: L)))}
+    {c : J.obj (ctxObj M Γ ⊗ finiteLabelObj M (fun _ : Fin 1 => A)) ⟶ J.obj (labelObj M (A :: L))}
+    (dc : CollectiveDenotes J M Γ (fun _ : Fin 1 => A) L fb c) :
+    J.map (ctxObj M Γ ◁ labelObjToFinite M (fun _ : Fin 1 => A)) ≫ c =
+      J.map (ctxObj M Γ ◁ singletonLabelPayload M A) ≫ fb 0 :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.SingletonDispatcher.collectiveOne M J dc
+
+end CollectiveOne
+
 variable {C : Type u₂} [Category.{v₂} C] [SymmetricCategory V]
   [PremonoidalCategory C] [SymmetricPremonoidalCategory C] [HasFiniteCoproducts C]
   [DistributiveTensor V] [DistributivePremonoidalCategory C]
@@ -59,6 +74,21 @@ section Denotation
 
 variable [Iteration C] [ElgotCategory C] [StrongElgotFreydCategory J]
   [InstructionModel J M Φ] [RegionTypingCoherent (Φ := Φ) J M]
+
+omit [RegionTypingCoherent (Φ := Φ) J M] in
+/-- Assemble the actual one-block CFG arrow from supplied graph witnesses at
+the indicated local label type. No global coherence premise is needed. -/
+theorem cfgOne {Γ : VCtx τ} {L : LCtx τ} {A : τ} {e p : Region Φ}
+    {he : Region.HasType Γ e (A :: L)} {hp : Region.HasType (A :: Γ) p (A :: L)}
+    {fe : J.obj (ctxObj M Γ) ⟶ J.obj (labelObj M (A :: L))}
+    {fp : J.obj (ctxObj M (A :: Γ)) ⟶ J.obj (labelObj M (A :: L))}
+    (de : RegionDenotes J M he fe) (dp : RegionDenotes J M hp fp) :
+    RegionDenotes J M (.cfg (fun _ : Fin 1 => A) he (fun _ => hp))
+      (caseWithContext J (fe ≫ J.map (labelAppendSplit M [A] L))
+        (J.map (snd (ctxObj M Γ) (labelObj M L)))
+        (contextualLoop J (J.map (ctxObj M Γ ◁ singletonLabelPayload M A) ≫
+          fp ≫ J.map (labelAppendSplit M [A] L)))) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.SingletonDispatcher.cfgOne M J de dp
 
 theorem denoteSingleCfg {Γ : VCtx τ} {L : LCtx τ} {A : τ} {e p : Region Φ}
     (he : Region.HasType Γ e (A :: L)) (hp : Region.HasType (A :: Γ) p (A :: L)) :

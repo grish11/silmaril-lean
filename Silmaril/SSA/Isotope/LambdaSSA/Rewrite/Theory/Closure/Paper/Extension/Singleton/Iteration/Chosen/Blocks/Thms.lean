@@ -32,6 +32,14 @@ theorem iterateChosen_rows {A D B : Q} (d : A ⨿ D ⟶ (B ⨿ A) ⨿ D) :
     I (d ≫ (coprod.associator B A D).hom) = coprod.desc left (right ≫ coprod.desc (𝟙 B) left) :=
   ChosenBlockFeedback.iterate_rows Seed d
 
+/-- Eliminate a pending-reply block whose rows return to the original
+control type. The first step can either enter that block or bypass it
+by returning a result or transferring to an original state. -/
+theorem iterateChosen_bypass {S R B : Q} (first : S ⟶ (B ⨿ S) ⨿ R) (second : R ⟶ B ⨿ S) :
+    I (first ≫ coprod.desc (𝟙 (B ⨿ S)) second) =
+      coprod.inl ≫ I (coprod.desc first (second ≫ coprod.inl) ≫ (coprod.associator B S R).hom) :=
+  ChosenBlockFeedback.iterate_bypass Seed first second
+
 /-- Reassociating a block step preserves and reflects its square. -/
 theorem iterateChosen_block_square_iff {A D E B : Q} (h : D ⟶ E)
     (d : A ⨿ D ⟶ (B ⨿ A) ⨿ D) (e : A ⨿ E ⟶ (B ⨿ A) ⨿ E) :
