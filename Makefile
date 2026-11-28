@@ -126,12 +126,13 @@ check-prebuild:
 	if [ -n "$$targets" ]; then echo $(LAKE) build --wfail $$targets; $(LAKE) build --wfail $$targets; fi
 
 # Runtime observations read the completed build.
-.PHONY: check-prebuild check-runtime check-runtime-core check-runtime-rvsdg check-integrations $(CHECK_INTEGRATION_GROUPS) tla-import-check
+.PHONY: check-prebuild check-runtime check-runtime-core check-runtime-rvsdg check-integrations $(CHECK_INTEGRATION_GROUPS) tla-import-check tla-acp-source-check
 check-runtime: check-runtime-core
 	$(MAKE) check-runtime-rvsdg
 
 check-runtime-core:
 	$(MAKE) process-gates
+	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.%,$(CHECK_TARGETS)),$(MAKE) tla-acp-source-check)
 	$(if $(filter Silmaril +Silmaril.Logic.Abstraction +Silmaril.Logic.Abstraction.% +Silmaril.Proofs.Logic.Abstraction.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Logic.Abstraction && \
 		for suite in Regression Soundness Comparisons; do \
 			$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/logic/abstraction/$$suite.lean || exit $$?; \
@@ -237,6 +238,9 @@ check-runtime-rvsdg:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Isomorphism.Tail.Prefix.% +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Tail.Prefix.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Isomorphism.Tail.Prefix.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.Tail.Prefix.% +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.TailCall.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.TailCall.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Isomorphism.Tail.Prefix.Thms +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.TailCall.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGRecursivePrimitivePrefix.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Descent.ThetaReach.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGRecursiveContinuations.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Descent.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Descent.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Descent.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGRecursiveDescent.lean)
+
+tla-acp-source-check:
+	LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-acp-source-acceptance/check.py
 
 tla-import-check:
 	$(LAKE) build --wfail +Silmaril.Logic.Temporal.TLA.Import.Defs +Silmaril.Logic.Temporal.TLA.Kernel.Thms +Silmaril.Logic.Temporal.TLA.Elaborator.Thms +Silmaril.ProofFormats.TLA.SurfaceSExp.Defs
