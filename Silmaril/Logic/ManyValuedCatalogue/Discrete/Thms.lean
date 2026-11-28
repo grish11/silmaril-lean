@@ -1,5 +1,6 @@
 module
 
+public import Silmaril.Logic.ManyValued.Thms
 public import Silmaril.Logic.ManyValuedCatalogue.Discrete.Defs
 import Silmaril.Proofs.Logic.ManyValuedCatalogue.Discrete
 
@@ -60,6 +61,19 @@ theorem and_unknown :
     toGrid (Bochvar.and (some false) none) = 1 ∧
       Goedel.and (toGrid (some false)) (toGrid none) = 0 := by
   decide
+
+open Silmaril.Logic.ManyValued (K3)
+
+theorem k3_neg (x : K3) : Bochvar.neg x.toOptionBool = x.neg.toOptionBool :=
+  (K3.toOptionBool_neg x).symm
+
+theorem k3_materialIff (x y : K3) :
+    Bochvar.iff x.toOptionBool y.toOptionBool = (x.materialIff y).toOptionBool := by
+  cases x <;> cases y <;> rfl
+
+theorem k3_designated (x : K3) :
+    Bochvar.designated x.toOptionBool ↔ x.isDesignated = true := by
+  cases x <;> simp [designated, K3.toOptionBool, K3.isDesignated]
 
 end Bochvar
 
