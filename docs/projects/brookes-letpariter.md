@@ -16,7 +16,7 @@ iteration uses the omega union of finite completed approximants
 from the [Brookes model][iteration]. To reuse the adapter for another store
 type, import `Silmaril.Semantics.Brookes.Parallel.Pairing.Defs` and pass
 `Behavior.parallelPairing Store` to the consumer. Its fields are the pure-map
-and tuple laws exercised by the [ordered Freyd probe][probe].
+and tuple laws described in the [ordered Freyd guide][ordered-freyd].
 
 - The `InstructionModel` has a pure identity on words. Its
   `denote_pure` field proves agreement with monadic return at effect
@@ -57,5 +57,5 @@ lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/BrookesLetPar
 [primitives]: brookes-sc-concrete.md
 [iteration]: sc-brookes-iteration.md
 [regression]: ../../Silmaril/Proofs/SSA/Isotope/BrookesLetParIter/Regression.lean
-[probe]: https://github.com/hiloopai/silmaril-lean/blob/5fda52f53b1cc6bcff1e1affca9cb60617216028/docs/projects/letpariter-ordered-freyd.md#L295-L304
+[ordered-freyd]: letpariter-ordered-freyd.md
 [audit]: ../../Silmaril/Proofs/SSA/Isotope/BrookesLetParIter/Axioms.lean
