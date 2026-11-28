@@ -2355,17 +2355,56 @@ The continuation cannot jump back to its own label.
   the readback of its checked table, up to the exit adapter. The shape
   and the rank check are evaluated on the elaborated graph; no theorem
   derives them from the φ graph. Both direct diamonds are instantiated,
-  on the declarations of the previous item. One edge of the diagram
-  remains. The ranked institution gives the table an arrow in a
-  category, for a model of regions over a signature in the lowest
-  universe, with the packed sum unpacked into the ordered exits; here
-  the table has a weak tree, over sorts one universe higher, with the
-  exits packed. Relating the two needs the weak-tree Kleisli category as
-  a model of regions at one signature and universe, and the existing
-  equation between the arrow of a table and the denotation of its
-  readback, read in that model. It is not attempted here.
+  on the declarations of the previous item. This item gives the table a
+  weak tree with the exits packed; its arrow at the ordered exits is the
+  next item.
   [Shape of the fragment](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Fragment/Defs.lean) ·
   [Readback and packed program](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceReadback/Thms.lean) ·
+  [Both diamonds](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemanticsRegression.lean)
+- The arrow of the checked table is related to the weak trees of the
+  previous item, in the existing weak-tree Kleisli model. The native law
+  of a checked table equates its arrow with the categorical denotation
+  of its readback, between a context map and the unpacking of the packed
+  sum into the ordered exits, in any strong Elgot Freyd category with a
+  central unit and coherent region typing. The Kleisli category of the
+  tree monad is one: a model of the ordered weak-tree semantics gives
+  coherent region typing by its compatibility, and the unit of a Kleisli
+  category of a strong monad is central. So the law is instantiated as
+  stated, at any signature over sorts with carriers one universe above
+  the replies of the events; no semantic definition is added. One link
+  was missing. The categorical denotation of a LetCase term was related
+  to the direct monadic one at another presentation of the structural
+  type model. The two presentations are proved equal: they differ in
+  the witness that the empty type is initial, which is unique. With
+  that, the categorical denotation of a LetCase term in this model
+  returns the weak tree of the erased term, by the existing agreements.
+  The common observable is a weak tree at the ordered exits that returns
+  the position of the exit taken and its encoded payload. Unpacking a
+  value of the packed sum and packing the exit at label zero returns the
+  encoded value, and packing is injective on exits. So the arrow of a
+  checked table with each exit packed is the tree of its readback at
+  label zero, and when the readback returns the packing of an ordered
+  tree the arrow has that tree. For the checked table of a flat graph in
+  the fragment, at the supplied record as a point of the captured
+  context: the arrow has the tree of the flat graph at the ordered
+  exits, and with each exit packed it has the tree of the typed packed
+  program. Composed with the source: under the hypotheses of the
+  previous item, the φ run of the original graph with its exit numbered
+  in the ordered exits is the arrow of the checked table of the
+  elaborated graph, with no exit adapter. Both direct diamonds are
+  instantiated on the same declarations. The arrow is in the weak-tree
+  model only, and an arrow of another model is not a weak tree. The
+  ranked institution fixes sorts and signatures in the lowest universe
+  and categories with objects one universe up; the weak-tree category
+  is at least one universe above that in sorts, objects and morphisms,
+  because a tree over an event family is one universe above its
+  replies. So the weak-tree model is not a model of that institution,
+  and the arrow here is the region denotation that the institution's
+  denotation of the entry of a checked table unfolds to. Stating it
+  through the institution needs those universe ascriptions generalized
+  across the institution's syntax and rooms; that is not attempted.
+  [Weak-tree arrow of a table](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Categorical/WeakTree/Thms.lean) ·
+  [From the φ source to the arrow](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Phi/SourceCategorical/Thms.lean) ·
   [Both diamonds](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/Phi/SourceSemanticsRegression.lean)
 - At fixed source syntax, value context, and exits, lifting all target
   denotation witnesses up to equality of transported arrows is equivalent

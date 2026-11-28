@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.SourceReadback.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.SourceCategorical.Thms
 import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Split.Defs
 
 /-! # The two direct diamonds through the source square
@@ -206,6 +206,47 @@ example (incoming : Reg) (h : incoming = .e ∨ incoming = .a) :
               (FlatLetCase.Witness.table_check w delimited ranked)).toLetCase.1) >>=
             fun value => pure (0, value)) :=
   source_readback_infer (P := signature) (direct incoming) exits inputs arrivals rank types exitType
+    captures (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel) (by rcases h with rfl | rfl <;> decide +kernel)
+    (by rcases h with rfl | rfl <;> decide +kernel) (by decide)
+    (by rcases h with rfl | rfl <;> decide +kernel) (by decide) rfl
+    (by rcases h with rfl | rfl <;> decide +kernel)
+
+/-! ## The arrow of the checked table
+
+The same two diamonds, to the arrow of the checked table in the
+weak-tree Kleisli model of each model of the four primitives. The
+hypotheses are those of the readback above. The conclusion is an
+equality of trees at the two ordered exits, with no adapter: the φ run,
+with its exit numbered in the ordered exits, is the arrow of the table
+at the supplied record. -/
+
+open Silmaril.Isotope.LambdaSSA.Acyclic in
+open Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.WeakTree in
+open Silmaril.Isotope.Bridge.NamedFlat.Phi.SourceReadback in
+open Silmaril.Isotope.Bridge.NamedFlat.Phi.SourceCategorical in
+example (incoming : Reg) (h : incoming = .e ∨ incoming = .a) :
+    ∃ (code : FiniteCFG Op (Versioning.compile (Phi.OrderedExits.lower
+          (Phi.Forward.forward (direct incoming)
+            (Phi.Forward.infer (direct incoming) exits inputs)))).blocks.length exits.length 2)
+      (w : FlatLetCase.Witness (recount (b := 4 + 1) rfl code) context
+        (fun i => internal (Phi.Forward.forward (direct incoming)
+          (Phi.Forward.infer (direct incoming) exits inputs)) (forwardTypes types)
+          (Fin.cast rfl i)) (external exits exitType))
+      (delimited : w.Delimited)
+      (ranked : Positional.Rank.check
+        (FlatLetCase.localTargets (recount (b := 4 + 1) rfl code)) = true),
+      NamedFlat.compile (Phi.OrderedExits.lower (Phi.Forward.forward (direct incoming)
+          (Phi.Forward.infer (direct incoming) exits inputs))) exits captures.names = some code ∧
+      ∀ {Events : Type → Type} (M : Model (κ := SortName) Events signature.Instr)
+        (record : Input context),
+        (Phi.OrderedExits.run (treeModel M.raw) (direct incoming)
+            (captures.store record ∘ Sum.inl) >>= fun p => pure (treeExitNumber exits p)) =
+          exitTree (List.ofFn (external exits exitType))
+            (arrow M (w.checkedTable delimited
+              (FlatLetCase.Witness.table_check w delimited ranked)))
+            (packed context record) :=
+  source_arrow_infer (P := signature) (direct incoming) exits inputs arrivals rank types exitType
     captures (by rcases h with rfl | rfl <;> decide +kernel)
     (by rcases h with rfl | rfl <;> decide +kernel) (by rcases h with rfl | rfl <;> decide +kernel)
     (by rcases h with rfl | rfl <;> decide +kernel) (by decide)

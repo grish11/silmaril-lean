@@ -45,14 +45,10 @@ has to encode a typed one, which the decoded captures do.
 
 ## What is not here
 
-The ranked institution of the atom regressions gives the table an arrow
-in a category, for a model of regions over a signature in `Type`, with
-the packed sum unpacked into the ordered exits. This file gives the table
-a weak tree, for a tree model over sorts in a higher universe, with the
-exits packed. The arrow and the tree are not related here. That edge
-needs the weak-tree Kleisli category as a model of regions at the same
-signature and universe, and the existing equation between the arrow of
-the table and the denotation of its readback, read in that model.
+This file gives the table a weak tree with the exits packed. Its arrow
+in the weak-tree Kleisli model, with the packed sum unpacked into the
+ordered exits, is related to these trees in
+`Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.SourceCategorical.Thms`.
 -/
 
 public section
