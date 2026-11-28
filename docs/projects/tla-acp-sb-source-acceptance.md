@@ -1,4 +1,4 @@
-# Pinned ACP_SB state and transition denotations
+# Pinned ACP_SB denotations and type invariance
 
 The fixture proves exact graph-schema equations for `Init` and `TypeInv`
 from intact ACP_SB. Under the explicit model premise
@@ -7,7 +7,8 @@ type invariant at the same state, and every `progN` step from a state
 satisfying `TypeInv` takes it to a state satisfying `TypeInv`. The proofs
 allow any tagged set `P`, including the empty set and infinite sets. Other
 rigid values may coincide, and flexible valuations and fixed adapter
-policies are arbitrary.
+policies are arbitrary. Under the same premise, the lowered source
+`Spec` entails `[]TypeInv`.
 
 ## Source and selection
 
@@ -22,10 +23,12 @@ The native parser reads the hash-verified file. `Resolution.Instances.check`
 resolves and level-checks the complete module and retains all 40 source
 units. `Collections.lowerState` selects the original nullary state
 definitions by their IDs at units 7 (`Init`) and 4 (`TypeInv`), counting
-from zero. `Collections.lowerAction` selects `progN` at unit 24 from the
-same registry. All three selections use empty external signatures. The
-expanded terms are quoted as Lean data and their well-formedness proofs
-are checked by the kernel.
+from zero. `Collections.lowerAction` selects `progN` at unit 24.
+`Temporal.lowerFormula` in the collection fragment selects `Spec` at
+unit 26 and `TypeInv` at unit 4. Every selection uses the same registry
+and empty external signatures. The expanded terms and formulas are
+quoted as Lean data, and the kernel checks the well-formedness proofs
+on their data expressions.
 [Resolution](tla-acp-sb-resolution.md) · [Collection lowering](tla-data-elab.md#state-level-collection-expressions)
 
 ## Exact graph schemas
@@ -88,10 +91,26 @@ In particular, `getVote` uses the participant's typed vote, and
 
 `progN_preserves_typeInv` applies the checked step equation at adjacent
 instants of an arbitrary behavior. This gate covers every disjunct of
-the raw action. Temporal selection of ACP_SB's `Spec`, including its
-always-square action and the `fairness` clause's participant-indexed
-`WF`, is outside the gate. Source correctness statements and proofs
-remain outside its scope. [Temporal lowering](tla-data-temporal.md)
+the raw action.
+
+## Type invariance of the source Spec
+
+`spec_denotation` checks that the lowered `Spec` contains the original
+`Init`, the always-square step, and both clauses of `fairness`. All
+three action observations use the source order
+`<<coordinator, participant>>`. The first fairness clause quantifies
+over `participants` and holds the witness fixed in `WF(parProg(i))`.
+The second is `WF(coordProgB)`. `next_denotation` equates the temporal
+step predicate with the separately lowered raw `progN` relation.
+
+`spec_entails_always_typeInv` proves entailment over arbitrary tagged
+behaviors. It uses the checked initial-state implication and then the
+raw preservation theorem on `progN` steps. For an observation-preserving
+step it transports the two graph schemas across equality of the two
+observed coordinates. Other coordinates may change. Fairness stays in
+the antecedent, and the induction uses the initial and square-step
+conjuncts. ACP_SB's other correctness properties and source proof replay
+remain outside the gate. [Temporal lowering](tla-data-temporal.md)
 
 ## Reproduce
 

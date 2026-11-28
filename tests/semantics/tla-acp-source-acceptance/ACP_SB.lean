@@ -6,7 +6,9 @@ import all Silmaril.Logic.Temporal.TLA.DataElab.Defs
 import all Silmaril.Logic.Temporal.TLA.DataElab.Collections.Defs
 import Silmaril.Logic.Temporal.TLA.Data.Tagged.Collections.RecordSet.Thms
 import Silmaril.Logic.Temporal.TLA.Data.Tagged.Except.Thms
+import Silmaril.Logic.Temporal.TLA.DataElab.Temporal.Thms
 meta import Silmaril.Logic.Temporal.TLA.DataElab.Collections.Defs
+meta import Silmaril.Logic.Temporal.TLA.DataElab.Temporal.Defs
 meta import Silmaril.Logic.Temporal.TLA.Resolution.Instances.Defs
 meta import Silmaril.Logic.Temporal.TLA.Surface.Parser.Defs
 public import Lean
@@ -23,6 +25,19 @@ private meta abbrev declaration (unit : Nat) : BindingId := .declared ⟨root, [
 private meta abbrev member (unit index : Nat) : BindingId :=
   .declared ⟨root, [.unit unit, .member index]⟩
 private meta def noPrimitives : ExternalSignature := fun _ => none
+
+private structure TemporalSelections where
+  spec : Temporal.Form noPrimitives .collections
+  typeInv : Temporal.Form noPrimitives .collections
+  next : Temporal.Predicate noPrimitives .collections
+  parProg : Temporal.Predicate noPrimitives .collections
+  coordProgB : Temporal.Predicate noPrimitives .collections
+
+private structure SourceSelections where
+  initial : CheckedExpr noPrimitives .collections
+  typeInv : CheckedExpr noPrimitives .collections
+  next : Collections.CheckedAction noPrimitives
+  temporal : TemporalSelections
 
 meta section
 
@@ -122,6 +137,43 @@ private def quoteChecked (expression : CheckedExpr noPrimitives .collections) :
   return mkApp4 (mkConst ``CheckedExpr.mk) (mkConst ``noPrimitives) (mkConst ``Fragment.collections)
     (← quoteTerm expression.term) (← Meta.mkEqRefl (toExpr true))
 
+private def quoteScoped (e : Temporal.ScopedExpr noPrimitives .collections) : TermElabM Lean.Expr := do
+  Meta.mkAppM ``Temporal.ScopedExpr.mk #[← quoteTerm e.term, toExpr e.slots, ← Meta.mkEqRefl (toExpr true)]
+
+private def quoteList (ctor : Lean.Name) (items : List Lean.Expr) : TermElabM Lean.Expr :=
+  Meta.mkListLit (mkApp2 (mkConst ctor) (mkConst ``noPrimitives) (mkConst ``Fragment.collections)) items
+
+private def quoteObservation (obs : Temporal.Observation noPrimitives .collections) :
+    TermElabM Lean.Expr := do
+  quoteList ``Temporal.ScopedExpr (← obs.mapM quoteScoped)
+
+private partial def quotePredicate (predicate : Temporal.Predicate noPrimitives .collections) :
+    TermElabM Lean.Expr := do
+  match predicate with
+  | .data e => Meta.mkAppM ``Temporal.Predicate.data #[← quoteScoped e]
+  | .neg p => Meta.mkAppM ``Temporal.Predicate.neg #[← quotePredicate p]
+  | .binary op p q => Meta.mkAppM ``Temporal.Predicate.binary #[toExpr op, ← quotePredicate p, ← quotePredicate q]
+  | .junction kind items =>
+    let items ← quoteList ``Temporal.Predicate (← items.mapM quotePredicate)
+    Meta.mkAppM ``Temporal.Predicate.junction #[toExpr kind, items]
+  | .unchanged obs => Meta.mkAppM ``Temporal.Predicate.unchanged #[← quoteObservation obs]
+  | _ => throwError "unexpected ACP_SB temporal predicate"
+
+private partial def quoteForm (form : Temporal.Form noPrimitives .collections) : TermElabM Lean.Expr := do
+  match form with
+  | .state p => Meta.mkAppM ``Temporal.Form.state #[← quotePredicate p]
+  | .binary op p q => Meta.mkAppM ``Temporal.Form.binary #[toExpr op, ← quoteForm p, ← quoteForm q]
+  | .junction kind items =>
+    let items ← quoteList ``Temporal.Form (← items.mapM quoteForm)
+    Meta.mkAppM ``Temporal.Form.junction #[toExpr kind, items]
+  | .alwaysBracket p obs => Meta.mkAppM ``Temporal.Form.alwaysBracket #[← quotePredicate p, ← quoteObservation obs]
+  | .rigidQuant .forall slot (some bound) body =>
+    let bound ← Meta.mkAppM ``Option.some #[← quoteScoped bound]
+    Meta.mkAppM ``Temporal.Form.rigidQuant #[toExpr Surface.Quantifier.forall, toExpr slot, bound, ← quoteForm body]
+  | .fairness .weak p obs =>
+    Meta.mkAppM ``Temporal.Form.fairness #[mkConst ``Surface.Fairness.weak, ← quotePredicate p, ← quoteObservation obs]
+  | _ => throwError "unexpected ACP_SB temporal formula"
+
 /-- Follow the resolved disjunctions and participant quantifiers in the original
 transition definition. Each remaining operator call is a leaf action. -/
 private partial def actionLeaves (mod : CheckedModule) (source : Surface.Module)
@@ -176,26 +228,46 @@ private def emitNext (checked : Instances.CheckedInstances) : TermElabM Lean.Exp
     | .error error => throwError "ACP_SB progN lowering: {reprStr error}"
   Meta.mkAppM ``Collections.CheckedAction.mk #[← quoteChecked action.expression]
 
+private def emitTemporal (checked : Instances.CheckedInstances) : TermElabM Lean.Expr := do
+  let some mod := checked.registry.moduleAt root | throwError "missing ACP_SB module"
+  let lower := fun name unit => do
+    let id := declaration unit
+    unless (mod.bindingAt (.ident name)).map (·.id) = some id do
+      throwError "unexpected declaration identity for {name}"
+    match Temporal.lowerFormula checked.registry [] noPrimitives 48 id .collections with
+    | .ok result => pure result.form
+    | .error error => throwError "ACP_SB {name} temporal lowering: {reprStr error}"
+  let spec ← lower "Spec" 26
+  let inv ← lower "TypeInv" 4
+  let .binary .and (.binary .and (.state _) (.alwaysBracket next _))
+      (.junction .conjunction [.rigidQuant .forall 0 (some _) (.fairness .weak parProg _),
+        .fairness .weak coordProgB _]) := spec
+    | throwError "expected Init, always square progN and both weak fairness clauses in ACP_SB Spec"
+  -- Quote the whole lowered Spec and keep its checked action predicates for the denotation equations.
+  logInfo "Intact ACP_SB: lowered Spec with the square step and both weak fairness clauses, and TypeInv"
+  Meta.mkAppM ``TemporalSelections.mk
+    #[← quoteForm spec, ← quoteForm inv, ← quotePredicate next, ← quotePredicate parProg,
+      ← quotePredicate coordProgB]
+
 private def emitSelections : TermElabM Lean.Expr := do
   let checked ← checkedSource
   let initial ← quoteChecked (← select checked "Init" 7)
   let invariant ← quoteChecked (← select checked "TypeInv" 4)
-  let states ← Meta.mkAppM ``Prod.mk #[initial, invariant]
   let action ← emitNext checked
   logInfo "Intact ACP_SB: all 40 units checked, Init, TypeInv and all 11 progN actions lowered"
-  Meta.mkAppM ``Prod.mk #[states, action]
+  Meta.mkAppM ``SourceSelections.mk #[initial, invariant, action, ← emitTemporal checked]
 
 end
 
-private noncomputable def sourceSelections :
-    (CheckedExpr noPrimitives .collections × CheckedExpr noPrimitives .collections) ×
-      Collections.CheckedAction noPrimitives := by_elab emitSelections
+private noncomputable def sourceSelections : SourceSelections := by_elab emitSelections
 
 private noncomputable def selections :
     CheckedExpr noPrimitives .collections × CheckedExpr noPrimitives .collections :=
-  sourceSelections.1
+  (sourceSelections.initial, sourceSelections.typeInv)
 
-private noncomputable def progN : Collections.CheckedAction noPrimitives := sourceSelections.2
+private noncomputable def progN : Collections.CheckedAction noPrimitives := sourceSelections.next
+
+private noncomputable def temporal : TemporalSelections := sourceSelections.temporal
 
 private abbrev V := Value.{0}
 private abbrev Name := ULift.{1} BindingId
@@ -771,10 +843,101 @@ private theorem progN_preserves_typeInv (policy : Tagged.Policy.{0}) (invalid : 
   exact (typeInv_holds_iff policy invalid ρ σ (i + 1) P domain).mpr
     (stepCases_preserve policy ρ P (σ i) (σ (i + 1)) typed cases)
 
+private noncomputable def interpretation (policy : Tagged.Policy.{0})
+    (invalid : Tagged.CollectionPolicy.{0}) : Temporal.Interpretation V noPrimitives .collections :=
+  ⟨policy.collectionOperations invalid, policy.booleans, noExternal⟩
+
+private def liftValuation (read : BindingId → V) (_ : PUnit) (id : Name) : V :=
+  read id.down
+
+private noncomputable def observe (s : Temporal.State V) : List V := [s coordinatorId, s participantId]
+
+private noncomputable def fairness (I : Temporal.Interpretation V noPrimitives .collections)
+    (ρ : Temporal.RigidEnv V) : Formula (Temporal.State V) :=
+  let w : Temporal.Witnesses V := fun _ => (Operations.base I.data).enum []
+  .conj
+    (.forallRigid fun i =>
+      (Formula.state fun _ => (Operations.base I.data).mem i (ρ participantsId)).imp
+        (.weakFair (temporal.parProg.actionWith I ρ (withWitness w 0 i)) observe))
+    (.conj (.weakFair (temporal.coordProgB.toAction I ρ) observe) (.state fun _ => True))
+
+/-- The lowered source observes both coordinates in the original order for
+the square step and both fairness clauses. The participant binder ranges
+over the source's participants set and fixes its argument throughout WF. -/
+private theorem spec_denotation (policy : Tagged.Policy.{0}) (invalid : Tagged.CollectionPolicy.{0})
+    (ρ : Temporal.RigidEnv V) :
+    temporal.spec.toFormula (interpretation policy invalid) ρ =
+      .conj (.conj (.state fun s => predicate policy invalid selections.1 (liftValuation ρ) (liftValuation s))
+        (.alwaysBracket (temporal.next.toAction (interpretation policy invalid) ρ) observe))
+        (fairness (interpretation policy invalid) ρ) := by
+  rfl
+
+private theorem typeInv_denotation (policy : Tagged.Policy.{0}) (invalid : Tagged.CollectionPolicy.{0})
+    (ρ : Temporal.RigidEnv V) :
+    temporal.typeInv.toFormula (interpretation policy invalid) ρ =
+      .state (fun s => predicate policy invalid selections.2 (liftValuation ρ) (liftValuation s)) := by
+  rfl
+
+private theorem forall_bound_witness {α β : Type*} (inDomain : α → Prop)
+    (bind : α → β) (body : α → β → Prop) :
+    (∀ x env, inDomain x → bind x = env → body x env) ↔
+      ∀ x, inDomain x → body x (bind x) :=
+  ⟨fun h x hx => h x _ hx rfl, fun h x _ hx eq => eq ▸ h x hx⟩
+
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 2000000 in
+/-- The two lowerers can number local witnesses differently. Expanding binding
+and singleton observation equality gives the same step relation. -/
+private theorem next_denotation (policy : Tagged.Policy.{0}) (invalid : Tagged.CollectionPolicy.{0})
+    (ρ : Temporal.RigidEnv V) (s t : Temporal.State V) :
+    temporal.next.toAction (interpretation policy invalid) ρ s t ↔
+      actionHolds policy invalid (liftValuation ρ) (liftValuation s) (liftValuation t) := by
+  classical
+  simp only [Temporal.Predicate.toAction, Temporal.Predicate.actionWith, Temporal.Predicate.actionIn,
+    Temporal.Predicate.evalIn, Temporal.Predicate.evalListIn, Temporal.ScopedExpr.eval,
+    Temporal.Observation.evalIn, Action.unchanged, Action.current, Action.prime,
+    actionHolds, progN, temporal, sourceSelections, interpretation, Collections.CheckedAction.eval,
+    rigidValue, stateValue, liftValuation, id_eq, List.map_cons, List.map_nil,
+    ↓eval_junction, ↓eval_one_binder, ↓eval_neg, junctionValue, negValue,
+    Term.eval, Term.evalList, Term.evalClauses, Term.evalBounds, Bounded.axes, Bounded.quantify,
+    BinderPattern.bind, List.flatMap_cons, List.flatMap_nil, List.append_nil,
+    Option.some.injEq, exists_and_left, exists_eq_left', forall_bound_witness,
+    collection_self, Tagged.Policy.collectionOperations,
+    Tagged.Policy.operations, withWitness, Nat.reduceEqDiff, eq_self, ite_true, ite_false,
+    tuple_singleton_eq, List.cons.injEq, and_true, Bool.false_eq_true]
+  rfl
+
+/-- Safety of the fully lowered Spec on arbitrary tagged behaviors. -/
+private theorem spec_entails_always_typeInv (policy : Tagged.Policy.{0})
+    (invalid : Tagged.CollectionPolicy.{0}) (ρ : Temporal.RigidEnv V) (P : SetData.{0})
+    (domain : (ρ participantsId).asSet = some P) :
+    (temporal.spec.toFormula (interpretation policy invalid) ρ).Entails
+      (.always (temporal.typeInv.toFormula (interpretation policy invalid) ρ)) := by
+  rw [spec_denotation, typeInv_denotation]
+  intro σ h
+  obtain ⟨⟨initial, transitions⟩, _⟩ := h
+  intro i fromStart
+  clear fromStart
+  let τ : Behavior State := fun n => liftValuation (σ n)
+  change (formula policy invalid selections.2).Holds (liftValuation ρ) τ i
+  induction i with
+  | zero => exact init_implies_typeInv policy invalid (liftValuation ρ) τ 0 P domain initial
+  | succ i ih =>
+    rcases transitions i (Nat.zero_le _) with step | same
+    · exact progN_preserves_typeInv policy invalid (liftValuation ρ) τ i P domain ih
+        ((next_denotation policy invalid ρ (σ i) (σ (i + 1))).mp step)
+    · have eq : (σ (i + 1)) coordinatorId = (σ i) coordinatorId ∧
+          (σ (i + 1)) participantId = (σ i) participantId := by
+        simpa only [Action.unchanged, Action.prime, Action.current, observe, List.cons.injEq,
+          and_true] using same
+      rw [typeInv_holds_iff policy invalid (liftValuation ρ) τ _ P domain] at ih ⊢
+      simpa only [matchesState, τ, stateValue, liftValuation, eq.1, eq.2] using ih
+
 open Lean in
 run_cmd do
   let declarations := [``init_holds_iff, ``typeInv_holds_iff, ``init_implies_typeInv,
-    ``progN_holds_iff, ``progN_preserves_typeInv]
+    ``progN_holds_iff, ``progN_preserves_typeInv, ``spec_denotation, ``typeInv_denotation,
+    ``next_denotation, ``spec_entails_always_typeInv]
   let allowed := [``propext, ``Classical.choice, ``Quot.sound]
   for name in declarations do
     let axioms ← collectAxioms name
