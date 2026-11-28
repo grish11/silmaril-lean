@@ -103,11 +103,18 @@ check:
 CHECK_JOBS ?= 2
 CHECK_INTEGRATION_GROUPS := check-integrations-ssa check-integrations-operational \
 	check-integrations-python check-integrations-python-functions check-integrations-tools
-# The slots take these in order, longest on prove first.
+# Three slots on prove can overlap the RVSDG tail. Other runs keep the original group order.
+ifeq ($(CHECK_JOBS),3)
+CHECK_RUNTIME_GROUPS := check-runtime-core check-runtime-rvsdg
+CHECK_GROUPS := check-runtime-core check-integrations-tools check-integrations-operational \
+	check-runtime-rvsdg check-integrations-ssa check-integrations-python-functions check-integrations-python
+else
+CHECK_RUNTIME_GROUPS := check-runtime
 CHECK_GROUPS := check-runtime check-integrations-tools check-integrations-operational \
 	check-integrations-ssa check-integrations-python check-integrations-python-functions
-ifneq ($(sort $(CHECK_GROUPS)),$(sort check-runtime $(CHECK_INTEGRATION_GROUPS)))
-$(error CHECK_GROUPS must list check-runtime and the CHECK_INTEGRATION_GROUPS)
+endif
+ifneq ($(sort $(CHECK_GROUPS)),$(sort $(CHECK_RUNTIME_GROUPS) $(CHECK_INTEGRATION_GROUPS)))
+$(error CHECK_GROUPS must list the runtime and integration groups)
 endif
 
 # Every target the groups' recipe lines build, in one Lake process, so that the groups only read
@@ -119,8 +126,11 @@ check-prebuild:
 	if [ -n "$$targets" ]; then echo $(LAKE) build --wfail $$targets; $(LAKE) build --wfail $$targets; fi
 
 # Runtime observations read the completed build.
-.PHONY: check-prebuild check-runtime check-integrations $(CHECK_INTEGRATION_GROUPS) tla-import-check
-check-runtime:
+.PHONY: check-prebuild check-runtime check-runtime-core check-runtime-rvsdg check-integrations $(CHECK_INTEGRATION_GROUPS) tla-import-check
+check-runtime: check-runtime-core
+	$(MAKE) check-runtime-rvsdg
+
+check-runtime-core:
 	$(MAKE) process-gates
 	$(if $(filter Silmaril +Silmaril.Logic.Abstraction +Silmaril.Logic.Abstraction.% +Silmaril.Proofs.Logic.Abstraction.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Logic.Abstraction && \
 		for suite in Regression Soundness Comparisons; do \
@@ -205,6 +215,9 @@ check-runtime:
 	$(if $(filter Silmaril +Silmaril.Wasm.Sublanguages.Strict.Thms +Silmaril.Wasm.Sublanguages.Strict.Link.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Wasm.Sublanguages.Strict.Link.Thms +Silmaril.Wasm.Verify.Kernel.Defs && $(LAKE) env lean -DwarningAsError=true tests/wasm/profiles/OpenStrict.lean)
 	$(if $(filter Silmaril +Silmaril.Formats.PER.EGraph.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/formats/GuardedEGraph.lean)
 	$(if $(filter Silmaril +Silmaril.Formats.Dasl.EGraph.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/formats/DaslEGraphBridge.lean)
+
+# Theta and interprocedural RVSDG regressions read the prebuilt modules.
+check-runtime-rvsdg:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Theta.% +Silmaril.Proofs.SSA.RVSDG.Theta.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Theta.Thms +Silmaril.SSA.RVSDG.Theta.Petri.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGTheta.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Theta.Categorical.% +Silmaril.Proofs.SSA.RVSDG.Theta.Categorical.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Theta.Categorical.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGThetaCategorical.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.NestedTheta.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.NestedTheta.ExplicitRuntime.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedTheta.lean && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedThetaOrderedState.lean)
