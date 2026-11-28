@@ -13,11 +13,18 @@ open CategoryTheory CategoryTheory.Limits
 open Extension.Singleton (iterateChosen)
 open Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper
 
+universe u
+
 variable {Φ : Type} [Profile Φ]
 
 local notation "X" => unitObj Φ
 local notation "U" => nativeUnit Φ
 local notation "drop" => Paper.TypeCategory.discardArrow (Φ := Φ) (Silmaril.coprod UnitTy UnitTy)
+
+/-- Sequencing a native arrow after a reply dispatch sequences it after each arm. -/
+theorem dispatch_comp {Y Z : Native Φ} (s : ReplyShape) (k : s.Value → (U ⟶ Y)) (f : Y ⟶ Z) :
+    dispatch s k ≫ f = dispatch s (fun x => k x ≫ f) :=
+  FiniteReplyFold.dispatch_comp s k f
 
 /-- The exact typed reply set of each shape is finite. -/
 theorem ReplyShape.finite (s : ReplyShape) : Finite s.Value :=

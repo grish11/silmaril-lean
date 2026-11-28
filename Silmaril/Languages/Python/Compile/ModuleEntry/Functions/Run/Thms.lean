@@ -1,7 +1,11 @@
 module
 
 public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Defs
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.ListDisplay.Thms
 public import Silmaril.Languages.Python.Core.Module.Functions.Thms
+public import Silmaril.Languages.Python.Core.Module.TupleDispatch.Thms
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.TupleIdentity.Thms
+public import Silmaril.Languages.Python.Compile.ModuleEntry.Functions.TextSlice.Thms
 import Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Run.Prefix
 
 public section
@@ -12,6 +16,38 @@ theorem callOperand_numericArgument (scope : Source.Scope) (result : NumericArgu
       | .integer value => .int value
       | .boolean value => .bool value)) := by
   cases result <;> rfl
+
+theorem callOperand_literalBooleanEquality {scope : Source.Scope}
+    (session : Core.Module.Functions.Session) (left right : Bool) :
+    let operand : Operand scope := .binary .equal (.boolean left) (.boolean right)
+    callOperand? operand = some (.literal (.bool (left == right))) ∧
+      evaluate session operand = .ok (.bool (left == right)) := by
+  refine ⟨rfl, ?_⟩
+  simp only [evaluate]
+  cases left <;> cases right <;> rfl
+
+theorem advanceListDisplayCall_missing {scope : Source.Scope}
+    (session : Core.Module.Functions.Session) (destination : Core.Module.Functions.Destination)
+    (display : ListDisplay.Display) (rest : List (Instruction scope)) {name : String}
+    (missing : session.globals name = none) :
+    advanceListDisplayCall session destination name display rest = .finished session (.raised (.nameError name)) := by
+  simp [advanceListDisplayCall, missing]
+
+theorem advanceListDisplayCall_negated {scope : Source.Scope}
+    (session : Core.Module.Functions.Session) (destination : Core.Module.Functions.Destination)
+    (items : List ListDisplay.Item) (rest : List (Instruction scope))
+    {name : String} {callee : Core.Closure.Value} {contents : List Core.Module.Value}
+    (resolved : session.globals name = some callee)
+    (evaluated : items.mapM (ListDisplay.Item.eval (readListItem session)) = .ok contents) :
+    advanceListDisplayCall session destination name ⟨items, true⟩ rest =
+      .calling ({ session with lists := (session.lists.allocate contents).2 }.prepareCall
+        destination (.literal callee) [.literal (.bool contents.isEmpty)]) rest := by
+  simp [advanceListDisplayCall, resolved, ListDisplay.Display.prepare, evaluated, Core.Module.ListHeap.allocate]
+
+theorem retainTupleOrigins_unobserved {scope : Source.Scope} (instructions : List (Instruction scope))
+    (unobserved : instructions.any Instruction.observesTupleIdentity = false) :
+    retainTupleOrigins instructions = instructions := by
+  simp [retainTupleOrigins, unobserved]
 
 theorem seed_lookup (globals : Core.Module.Globals) (heap : Core.Closure.Heap) (name : String) :
     (seed globals heap).globals name = (globals.lookup name).map embed := rfl
@@ -35,28 +71,91 @@ theorem advance_scalarResultAssign {scope : Source.Scope} (table : Core.Closure.
     (value : Core.Module.Value) (rest : List (Instruction scope)) :
     advance table (.ready session (.scalar (.assign name reference (.scalarResult value)) :: rest)) =
       ([], .ready (session.bindGlobal name (embed value)) rest) := by
-  simp only [advance, evaluate_scalarResult]
+  simp only [advance, scalarStep, evaluate_scalarResult, Except.map]
 
 theorem assertOperand_scalarResult {scope : Source.Scope} (session : Core.Module.Functions.Session)
     (value : Core.Module.Value) (expected : Bool) (rest : List (Instruction scope)) :
     assertOperand session (.scalarResult value) expected rest =
       (if value.truth = expected then .ready session rest else .finished session .assertionError) := by
-  simp only [assertOperand, evaluate_scalarResult]
-  cases value <;> rfl
+  have truth : Core.Module.Functions.truth (embed value) session.heap = value.truth := by cases value <;> rfl
+  by_cases holds : value.truth = expected <;>
+    simp [assertOperand, checkAssertion, evaluate_scalarResult, Except.bind, truth, holds]
+
+theorem advance_textSliceGuard {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
+    (session : Core.Module.Functions.Session) (test : TextSlice.Guard) (rest : List (Instruction scope)) :
+    advance table (.ready session (.textSliceGuard test :: rest)) =
+      ([], match checkTextSliceGuard session test with
+        | .ok () => .ready session rest
+        | .error error => .finished session error) := rfl
+
+theorem advance_bindText {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
+    (session : Core.Module.Functions.Session) (name : Source.Name)
+    (value : Core.Text) (rest : List (Instruction scope)) :
+    advance table (.ready session (.bindText name value :: rest)) =
+      ([], .ready (session.bindGlobal name (.text value)) rest) := rfl
+
+theorem advance_readAssign {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
+    (session : Core.Module.Functions.Session) {name source : Source.Name}
+    (target : GlobalReference scope name) (reference : GlobalReference scope source)
+    (rest : List (Instruction scope)) :
+    advance table (.ready session (.scalar (.assign name target (.read source reference)) :: rest)) =
+      ([], match session.globals source with
+        | some value => .ready (session.bindGlobal name value) rest
+        | none => .finished session (.raised (.nameError source))) := by
+  cases found : session.globals source <;> simp [advance, scalarStep, evaluate, found, Except.map]
+
+theorem advance_bindDictionary {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
+    (session : Core.Module.Functions.Session) (name : String) (display : List Core.Module.Dictionary.Entry)
+    (rest : List (Instruction scope)) :
+    let (object, heap) := session.heap.materializeDictionary display
+    advance table (.ready session (.bindDictionary name display :: rest)) =
+      ([], .ready { session.bindGlobal name (.dictionary object) with heap } rest) := rfl
+
+theorem prepareNestedCall_missing {session : Core.Module.Functions.Session}
+    (table : Core.Closure.Executor.CodeTable) (destination : Core.Module.Functions.Destination)
+    (name : String) (arguments : List Argument) (missing : session.globals name = none) :
+    let invocation := prepareNestedCall session destination name arguments
+    Core.Closure.Executor.advanceIn table invocation.globals invocation.state =
+      some (none, .delivering session.heap [] (.error (.nameError name))) := by
+  simp [prepareNestedCall, Core.Closure.Executor.advanceIn, Core.Closure.Executor.Operand.evalIn,
+    Core.Closure.Executor.NameRead.evalIn, Core.Closure.Executor.fail, missing]
+
+theorem advance_clearDictionary_ok {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
+    {session : Core.Module.Functions.Session} {target : Option String} {call : Core.Module.Dictionary.Clear}
+    {heap : Core.Closure.Heap} (rest : List (Instruction scope))
+    (cleared : Core.Closure.clearDictionary session.heap
+      (fun name => (session.globals name).map Core.Closure.Value.dictionaryRead) call = .ok heap) :
+    let reached := { session with heap }
+    advance table (.ready session (.clearDictionary target call :: rest)) =
+      ([.complete (.ok .none)], .ready (target.elim reached fun name => reached.bindGlobal name .none) rest) := by
+  simp [advance, cleared]
+
+theorem advance_clearDictionary_error {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
+    {session : Core.Module.Functions.Session} {target : Option String} {call : Core.Module.Dictionary.Clear}
+    {error : Core.Module.Dictionary.Failure} (rest : List (Instruction scope))
+    (failed : Core.Closure.clearDictionary session.heap
+      (fun name => (session.globals name).map Core.Closure.Value.dictionaryRead) call = .error error) :
+    let events : List Core.Closure.Executor.Event := match error with
+      | .clearArity actual => [.complete (.error (.positionalArity 0 actual))]
+      | _ => []
+    advance table (.ready session (.clearDictionary target call :: rest)) =
+      (events, .finished session (operandFailure (Core.Closure.dictionaryFailure error))) := by
+  cases error <;> simp [advance, failed]
 
 theorem advance_bindTuple_ok {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
-    {session : Core.Module.Functions.Session} {name : String} {items : List Core.Closure.GlobalTupleItem}
-    {values : List Core.Module.Value} {rest : List (Instruction scope)}
-    (evaluated : evaluateTuple session items = .ok (.tuple values)) :
-    advance table (.ready session (.bindTuple name items :: rest)) =
-      ([], .ready (session.bindGlobal name (.tuple values)) rest) := by
+    {session : Core.Module.Functions.Session} {name : String} {items : List Core.Closure.GlobalTupleItem} {trackClosed : Bool}
+    {values : List Core.Module.TupleDispatch.Element} {rest : List (Instruction scope)}
+    (evaluated : evaluateTuple session items = .ok values) :
+    let (value, heap) := session.heap.materializeModuleTuple items values trackClosed
+    advance table (.ready session (.bindTuple name items trackClosed :: rest)) =
+      ([], .ready ({ session with heap := heap }.bindGlobal name value) rest) := by
   simp [advance, bindTuple, evaluated]
 
 theorem advance_bindTuple_failure {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
-    {session : Core.Module.Functions.Session} {name : String} {items : List Core.Closure.GlobalTupleItem}
+    {session : Core.Module.Functions.Session} {name : String} {items : List Core.Closure.GlobalTupleItem} {trackClosed : Bool}
     {error : Completion} {rest : List (Instruction scope)}
-    (failed : bindTuple session name items = .error error) :
-    advance table (.ready session (.bindTuple name items :: rest)) = ([], .finished session error) := by
+    (failed : bindTuple session name items trackClosed = .error error) :
+    advance table (.ready session (.bindTuple name items trackClosed :: rest)) = ([], .finished session error) := by
   simp [advance, failed]
 
 theorem advance_conditionalAssign {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
@@ -64,13 +163,13 @@ theorem advance_conditionalAssign {scope : Source.Scope} (table : Core.Closure.E
     (reference : GlobalReference scope name) (selected : Operand scope) (rest : List (Instruction scope)) :
     advance table (.ready session (.scalar (.assign name reference selected.conditionalResult) :: rest)) =
       advance table (.ready session (.scalar (.assign name reference selected) :: rest)) := by
-  simp only [advance, evaluate_conditionalResult]
+  simp only [advance, scalarStep, evaluate_conditionalResult]
 
 theorem advance_conditionalAssert {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
     (session : Core.Module.Functions.Session) (selected : Operand scope) (rest : List (Instruction scope)) :
     advance table (.ready session (.scalar (.assertion selected.conditionalResult) :: rest)) =
       advance table (.ready session (.scalar (.assertion selected) :: rest)) := by
-  simp only [advance, assertOperand, evaluate_conditionalResult]
+  simp only [advance, scalarStep, checkAssertion, evaluate_conditionalResult]
 
 /-- Scalar actions emit a prefix of scalar instructions and consume no code
 keys. Both runners receive the same instructions and linked rows. -/
@@ -87,11 +186,39 @@ theorem invoke_current_globals {scope : Source.Scope} (session : Core.Module.Fun
     advance table (.ready session (.call target name arguments :: remaining)) =
       ([], .calling (session.prepareCall target (.readGlobal name) arguments) remaining) := rfl
 
+theorem prepareTupleIdentityCall_missing (session : Core.Module.Functions.Session)
+    (destination : Core.Module.Functions.Destination) {name : String} (test : TupleIdentity.Test)
+    (missing : session.globals name = none) :
+    prepareTupleIdentityCall session destination name test = .error (.raised (.nameError name)) := by
+  simp only [prepareTupleIdentityCall, missing, Option.elim]
+  rfl
+
+theorem advance_callTupleIdentity_failure {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
+    (session : Core.Module.Functions.Session) (destination : Core.Module.Functions.Destination)
+    (name : String) (test : TupleIdentity.Test) (rest : List (Instruction scope)) {error : Completion}
+    (failed : prepareTupleIdentityCall session destination name test = .error error) :
+    advance table (.ready session (.callTupleIdentity destination name test :: rest)) =
+      ([], .finished session error) := by
+  simp [advance, failed]
+
+theorem tupleFromListDisplay_outer_missing (session : Core.Module.Functions.Session) {name : String}
+    (contents : List Core.Module.Value) (remaining : List Argument) (missing : session.globals name = none) :
+    tupleFromListDisplayCompletion session contents (some (name, remaining)) =
+      (.raised (.nameError name), session.lists) := by
+  simp [tupleFromListDisplayCompletion, missing]
+
+theorem tupleFromListDisplay_direct_mask (session : Core.Module.Functions.Session) (contents : List Core.Module.Value)
+    (masked : session.globals "tuple" = some .none) :
+    tupleFromListDisplayCompletion session contents none =
+      (.raised .notCallable, (session.lists.allocate contents).2) := by
+  simp [tupleFromListDisplayCompletion, tupleFromListDisplayCompletion.reachedDisplay,
+    tupleBinding, masked, (Core.Module.TupleDispatch.constructFromListDisplay_mask session.lists contents).1, TupleChain.runtimeError?]
+
 theorem advance_literalArmBoolean {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
     (session : Core.Module.Functions.Session) (value : Bool) (rest : List (Instruction scope)) :
     advance table (.ready session (.scalar (ModuleEntry.Action.assertion (.boolean value)).inLiteralArm :: rest)) =
       ([], if value then .ready session rest else .finished session .assertionError) := by
-  cases value <;> simp [Action.inLiteralArm, advance, assertOperand, evaluate, Core.Module.Functions.truth] <;> rfl
+  cases value <;> simp [Action.inLiteralArm, advance, scalarStep, checkAssertion, evaluate, Core.Module.Functions.truth, Except.map] <;> rfl
 
 theorem advance_adjacentKeywordDiscard {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
     (session : Core.Module.Functions.Session) (name : String) (value : Int)
@@ -119,7 +246,7 @@ theorem advance_assertIntegerBuiltin {scope : Source.Scope} (table : Core.Closur
     advance table (.ready session (.assertIntegerBuiltin test :: rest)) =
       ([], .finished session (match session.globals test.argument.name with
         | none => .raised (.nameError test.argument.name)
-        | some (.function _) => .scalarProfile
+        | some (.exceptionClass _) | some (.function _) => .scalarProfile
         | some _ => .raised .notCallable)) := rfl
 
 theorem advance_assertSequenceLength {scope : Source.Scope} (table : Core.Closure.Executor.CodeTable)
@@ -127,7 +254,7 @@ theorem advance_assertSequenceLength {scope : Source.Scope} (table : Core.Closur
     advance table (.ready session (.assertSequenceLength test :: rest)) =
       ([], .finished session (match session.globals "len" with
         | none => .raised (.nameError "len")
-        | some (.function _) => .scalarProfile
+        | some (.exceptionClass _) | some (.function _) => .scalarProfile
         | some _ => .raised .notCallable)) := rfl
 
 theorem lowerInstructions_assertBoolIdentity {scope : Source.Scope} (tree : Source.ScopeTree) (key : Nat)
@@ -156,7 +283,7 @@ theorem advance_assertListConstruction {scope : Source.Scope} (table : Core.Clos
     advance table (.ready session (.assertListConstruction test :: rest)) =
       ([], .finished session (match session.globals "list" with
         | none => .raised (.nameError "list")
-        | some (.function _) => .scalarProfile
+        | some (.exceptionClass _) | some (.function _) => .scalarProfile
         | some _ => .raised .notCallable)) := rfl
 
 theorem lowerInstructions_assertTupleChain {scope : Source.Scope} (tree : Source.ScopeTree) (key : Nat)

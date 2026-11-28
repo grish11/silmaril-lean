@@ -63,13 +63,12 @@ theorem slice_eq_flatten (l : List UInt8) :
     simp only [lastCut, pieces, List.flatten_cons]
     rw [← slice_eq_flatten l b bs hs, slice_append l hab (sorted_le_last hs)]
 
-theorem slice_slice (l : List UInt8) {A B a b : Nat} (hA : A ≤ a) (hab : a ≤ b) (hB : b ≤ B) :
+/-- A nested slice agrees with the corresponding file slice, including empty ranges. -/
+theorem slice_slice (l : List UInt8) {A B a b : Nat} (hA : A ≤ a) (hB : b ≤ B) :
     slice (slice l A B) (a - A) (b - A) = slice l a b := by
   unfold slice
   rw [List.drop_take, List.drop_drop, List.take_take]
-  congr 2
-  · omega
-  · omega
+  congr 2 <;> omega
 
 theorem bytesChunks_zero (c : Nat) : ∀ cs : List Nat, bytesChunks c 0 cs = []
   | [] => rfl
@@ -123,10 +122,15 @@ theorem length_bytesChunks (c : Nat) :
 theorem le_length {l : List UInt8} {n e : Nat} (hl : l.length = n) (h : e ≤ n) : e ≤ l.length :=
   hl ▸ h
 
-theorem length_slice (l : List UInt8) {a b : Nat} (_hab : a ≤ b) (hb : b ≤ l.length) :
-    (slice l a b).length = b - a := by
-  simp [slice]
+/-- The length of a slice, with its end clipped to the length of the input. -/
+theorem length_slice_clipped (l : List UInt8) (a b : Nat) :
+    (slice l a b).length = min b l.length - a := by
+  simp only [slice, List.length_take, List.length_drop]
   omega
+
+theorem length_slice (l : List UInt8) {a b : Nat} (hb : b ≤ l.length) :
+    (slice l a b).length = b - a := by
+  rw [length_slice_clipped, Nat.min_eq_left hb]
 
 /-! ## Readers on a slice -/
 
@@ -525,7 +529,7 @@ theorem customSec_of (l : List UInt8) {s x y e len : Nat} {nm : String}
     Custom.mk _ (runAll_sound readName_sound hname)
   rw [slice_append l h₂ h₃] at hc
   have hs := Section.mk (N := 0) (runAll_sound (readU_sound 32) hsz)
-    (by rw [hlen, length_slice l (by omega) h₄]) hc
+    (by rw [hlen, length_slice l h₄]) hc
   rw [← hid, slice_append l (by omega) h₁, slice_append l (by omega) (by omega)] at hs
   exact ⟨[()], hs⟩
 
@@ -579,7 +583,7 @@ theorem section_of_parts {α : Type} {N : UInt8} {G : Bytes → List α → Prop
     (h₁ : s + 1 ≤ x) (h₂ : x ≤ e) (h₃ : e ≤ l.length) (hc : G (slice l x e) xs) :
     Section N G (slice l s e) xs := by
   have hs := Section.mk (N := N) (runAll_sound (readU_sound 32) hsz)
-    (by rw [hlen, length_slice l h₂ h₃]) hc
+    (by rw [hlen, length_slice l h₃]) hc
   rwa [← hid, slice_append l (by omega) h₁, slice_append l (by omega) h₂] at hs
 
 /-- **A vector from its parts**: the count, then the elements. -/
@@ -630,7 +634,7 @@ theorem frameEnc_of (l : List UInt8) {id : UInt8} {s x e : Nat}
     (hsz : Silmaril.Parse.ByteParse.Enc.u32 (e - x) = some (slice l (s + 1) x))
     (h₁ : s + 1 ≤ x) (h₂ : x ≤ e) (h₃ : e ≤ l.length) :
     frameEnc (id, slice l x e) = some (slice l s e) := by
-  have hl : (slice l x e).length = e - x := length_slice l h₂ h₃
+  have hl : (slice l x e).length = e - x := length_slice l h₃
   have e₁ : slice l s e = [id] ++ (slice l (s + 1) x ++ slice l x e) := by
     rw [← hid, slice_append l h₁ h₂, slice_append l (by omega) (by omega)]
   rw [e₁]

@@ -26,10 +26,15 @@ theorem setClock (i : Index 1) (k : Nat) : i.set 0 k = clock k := by
   subst j
   rfl
 
-def read (values : g.Valuation m) (idx : Index 1) (r : Ref g.sort t) : Option (m.Value t) :=
+section Schedules
+
+variable {l : Nat} {g : Graph P carried [result] n l}
+variable {env : Tuple m.Value carried} {values : g.Valuation m}
+
+def read (values : g.Valuation m) (idx : Index l) (r : Ref g.sort t) : Option (m.Value t) :=
   r.read m.carrier (values (r.id, idx))
 
-theorem row (solves : g.Solves m env values) (i : Index 1) (r : Ref g.sort t) :
+theorem row (solves : g.Solves m env values) (i : Index l) (r : Ref g.sort t) :
     let node := nodeAt g r
     read values i r = node.label.interpret m env i fun slot j _ => read values j (node.arg slot) := by
   cases r with
@@ -37,12 +42,12 @@ theorem row (solves : g.Solves m env values) (i : Index 1) (r : Ref g.sort t) :
     cases typed
     exact solves (id, i)
 
-def Realizes (values : g.Valuation m) (i : Index 1) (scope : Tuple (Ref g.sort) vars)
+def Realizes (values : g.Valuation m) (i : Index l) (scope : Tuple (Ref g.sort) vars)
     (store : Tuple m.Value vars) : Prop :=
   ∀ t (p : Port vars t), read values i (scope.get p) = some (store.get p)
 
-private theorem operands {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref g.sort) ins}
-    (reads : Reads scope refs) {idx : Index 1} {store : Tuple m.Value vars}
+theorem operands {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref g.sort) ins}
+    (reads : Reads scope refs) {idx : Index l} {store : Tuple m.Value vars}
     (entry : Realizes values idx scope store) :
     collect ins (fun j => read values idx (refs.get (portAt ins j))) =
       reads.args.eval m store := by
@@ -56,7 +61,7 @@ private theorem operands {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref g.
     cases tail.args.eval m store <;> rfl
 
 private theorem projections {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref g.sort) outs}
-    (reads : Reads scope refs) {idx : Index 1} {store : Tuple m.Value vars}
+    (reads : Reads scope refs) {idx : Index l} {store : Tuple m.Value vars}
     (entry : Realizes values idx scope store) :
     Realizes values idx refs (reads.slots.map fun _ p => store.get p) := by
   induction reads with
@@ -67,8 +72,8 @@ private theorem projections {scope : Tuple (Ref g.sort) vars} {refs : Tuple (Ref
     | head => exact wired ▸ entry _ p
     | tail q => exact ih _ q
 
-theorem schedule {roots : Tuple (Ref g.sort) outs} {scope : Tuple (Ref g.sort) vars}
-    (code : Schedule g roots scope) (solves : g.Solves m env values) {idx : Index 1}
+theorem schedule {allowBranch : Bool} {roots : Tuple (Ref g.sort) outs} {scope : Tuple (Ref g.sort) vars}
+    (code : Schedule g allowBranch roots scope) (solves : g.Solves m env values) {idx : Index l}
     {store : Tuple m.Value vars} {final : Tuple m.Value outs}
     (entry : Realizes values idx scope store) (ran : code.lower.runLoopFree m store = some final) :
     Realizes values idx roots final := by
@@ -79,7 +84,7 @@ theorem schedule {roots : Tuple (Ref g.sort) outs} {scope : Tuple (Ref g.sort) v
     exact projections reads entry
   | bind vertex instr refs _ wired args tail ih =>
     have step := row solves idx (Ref.ofId g.sort vertex)
-    let rhs (node : Node P carried (Fin 1) g.sort (g.sort vertex)) :=
+    let rhs (node : Node P carried (Fin l) g.sort (g.sort vertex)) :=
       node.label.interpret m env idx fun slot j _ => read values j (node.arg slot)
     change read values idx (Ref.ofId g.sort vertex) = rhs (g.node vertex) at step
     rw [wired] at step
@@ -98,26 +103,76 @@ theorem schedule {roots : Tuple (Ref g.sort) outs} {scope : Tuple (Ref g.sort) v
       cases p with
       | head => exact step.trans h
       | tail p => exact entry _ p
+  | branch _ vertex flag yes no _ wired test available trueArm falseArm tail ihYes ihNo ihTail =>
+    have step := row solves idx (Ref.ofId g.sort vertex)
+    let rhs (node : Node P carried (Fin l) g.sort (g.sort vertex)) :=
+      node.label.interpret m env idx fun slot j _ => read values j (node.arg slot)
+    change read values idx (Ref.ofId g.sort vertex) = rhs (g.node vertex) at step
+    rw [wired] at step
+    change read values idx (Ref.ofId g.sort vertex) = (read values idx flag).elim none
+      (fun b => if b.down then read values idx yes else read values idx no) at step
+    have flagValue : read values idx flag = some (store.get test) := available ▸ entry _ test
+    rw [flagValue] at step
+    simp only [Schedule.lower, Stmt.runLoopFree, Expr.eval, Expr.evalLift, Option.bind_some] at ran
+    split at ran
+    · rename_i chosen
+      rw [Option.elim, ite_eq_left chosen] at step
+      cases h : trueArm.lower.runLoopFree m store with
+      | none => simp [h] at ran
+      | some mid =>
+        simp only [h, Option.bind_some] at ran
+        have arm := ihYes entry h
+        apply ihTail (store := mid) _ ran
+        intro t p
+        cases p with
+        | head => exact step.trans (arm _ .head)
+        | tail p => exact arm _ (.tail p)
+    · rename_i chosen
+      rw [Option.elim, ite_eq_right chosen] at step
+      cases h : falseArm.lower.runLoopFree m store with
+      | none => simp [h] at ran
+      | some mid =>
+        simp only [h, Option.bind_some] at ran
+        have arm := ihNo entry h
+        apply ihTail (store := mid) _ ran
+        intro t p
+        cases p with
+        | head => exact step.trans (arm _ .head)
+        | tail p => exact arm _ (.tail p)
 
-variable (cert : Certificate g)
+end Schedules
+
+variable {allowInvariant allowBranch : Bool}
+variable (cert : Certificate g allowInvariant allowBranch)
+
+private theorem parameter (solves : g.Solves m env values) (i : Index 1) (p : Port carried t) :
+    read values i (cert.descriptor.initial.get p) = some (env.get p) := by
+  rw [row solves i, cert.boundary.initialRow]
+  rfl
 
 theorem initial (solves : g.Solves m env values) :
     Realizes values (clock 0) cert.descriptor.theta env := by
   intro t p
-  rw [row solves (clock 0), cert.boundary.thetaRow]
-  change read values (clock 0) (cert.descriptor.initial.get p) = _
-  rw [row solves (clock 0), cert.boundary.initialRow]
-  rfl
+  rcases cert.boundary.slotCases p with feedback | ⟨current, _⟩
+  · rw [row solves (clock 0), feedback]
+    exact parameter cert solves (clock 0) p
+  · rw [current]
+    exact parameter cert solves (clock 0) p
 
 theorem update (solves : g.Solves m env values)
     {k : Nat} {next : Tuple m.Value carried}
     (roots : Realizes values (clock k) cert.descriptor.next next) :
     Realizes values (clock (k + 1)) cert.descriptor.theta next := by
   intro t p
-  rw [row solves (clock (k + 1)), cert.boundary.thetaRow]
-  change read values ((clock (k + 1)).set 0 k) (cert.descriptor.next.get p) = _
-  rw [setClock]
-  exact roots t p
+  rcases cert.boundary.slotCases p with feedback | ⟨current, nextRef⟩
+  · rw [row solves (clock (k + 1)), feedback]
+    change read values ((clock (k + 1)).set 0 k) (cert.descriptor.next.get p) = _
+    rw [setClock]
+    exact roots t p
+  · rw [current, parameter cert solves]
+    have previous := roots t p
+    rw [nextRef, parameter cert solves] at previous
+    exact previous
 
 theorem exitFlag (solves : g.Solves m env values)
     (neg : ∀ b : Bool, m.run cert.descriptor.negate (.cons ⟨b⟩ .nil) = some ⟨!b⟩)
@@ -131,7 +186,7 @@ theorem exitFlag (solves : g.Solves m env values)
   simp only [collect, portAt, Fin.cases_zero, Tuple.get, guard]
   exact neg b
 
-def flags (cert : Certificate g) (values : g.Valuation m) (k : Nat) : Option Bool :=
+def flags (cert : Certificate g allowInvariant allowBranch) (values : g.Valuation m) (k : Nat) : Option Bool :=
   (read values (clock k) cert.descriptor.negated).map ULift.down
 
 theorem pass (solves : g.Solves m env values) (i : Index 1) :
@@ -142,7 +197,7 @@ theorem pass (solves : g.Solves m env values) (i : Index 1) :
   simp only [setClock]
   rfl
 
-def samples (cert : Certificate g) (values : g.Valuation m) (k : Nat) : Option (m.Value result) :=
+def samples (cert : Certificate g allowInvariant allowBranch) (values : g.Valuation m) (k : Nat) : Option (m.Value result) :=
   read values (clock k) (cert.descriptor.theta.get cert.descriptor.returnSlot)
 
 theorem observation (solves : g.Solves m env values) (i : Index 1) :

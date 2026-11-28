@@ -52,7 +52,7 @@ private theorem static {globals : List String} {entries : Entries} {commands : L
     | nestedBody spec =>
       obtain ⟨plan⟩ := admitted.plan
       exact ⟨.cons (.define _ _ _) ih.1,
-        .emitPair ⟨plan.body.declaration spec.wrapper.codes, (fun id => (plan.frame id).declaration),
+        .emitPair ⟨plan.childDeclaration, (fun id => (plan.frame id).declaration),
           Defaults.Escape.Scoped.emission spec globals admitted.names plan⟩ ih.2.1,
         cons_legal visible.2 ih.2.2⟩
   | setup visible _ _ ih | copy _ visible _ _ ih | invoke _ visible _ _ _ ih =>

@@ -79,15 +79,20 @@ theorem activate_frame (block : LexicalBlock) (declaration : Declaration)
     exact ⟨capture.address, value, frozen, below, own,
       (Wrapper.activation_preserves caller declaration captures assigned _ below).trans stored⟩
 
+theorem signature_slots (parameters : Defaults.Parameters) (locals : List String) (codes : List Lowering.Expr)
+    (length : codes.length = parameters.optional.length) :
+    (parameters.signature codes).slots ++ locals.map fileSlot = (parameters.names ++ locals).map fileSlot := by
+  have named := List.map_fst_zip (l₁ := parameters.optional.map (fileSlot ∘ Prod.fst))
+    (l₂ := codes) (by simp [length])
+  simp [Defaults.Parameters.signature, Defaults.Parameters.names,
+    Signature.slots, Signature.named, requiredSignature, List.map_map, Function.comp_def] at named ⊢
+  rw [named]
+
 theorem declaration_slots {globals enclosing : List String} {definition : Definition}
     (plan : Plan globals definition enclosing) (codes : List Lowering.Expr)
     (length : codes.length = definition.parameters.optional.length) :
-    (plan.declaration codes).signature.slots ++ (plan.declaration codes).locals = plan.block.owned.map fileSlot := by
-  have named := List.map_fst_zip (l₁ := definition.parameters.optional.map (fileSlot ∘ Prod.fst))
-    (l₂ := codes) (by simp [length])
-  simp [Plan.declaration, Plan.block, Defaults.Parameters.signature, Defaults.Parameters.names,
-    Signature.slots, Signature.named, requiredSignature, List.map_map, Function.comp_def] at named ⊢
-  rw [named]
+    (plan.declaration codes).signature.slots ++ (plan.declaration codes).locals = plan.block.owned.map fileSlot :=
+  signature_slots definition.parameters plan.locals codes length
 
 theorem selected_frame (block : LexicalBlock) (declaration : Declaration)
     (slots : declaration.signature.slots ++ declaration.locals = block.owned.map fileSlot)
@@ -168,5 +173,19 @@ theorem capture_cells_written (state : State) (target : Binding) (value : Value)
     simp only [State.write, same, cell]
     exact Array.getElem?_setIfInBounds_self_of_lt valid
   · exact ⟨before, frozen, (RootCall.write_other_cell _ _ _ _ same).trans cell⟩
+
+theorem returned_keeps (caller : State) (declaration : Declaration) (captures : List Capture)
+    (assigned : List (Binding × Value)) (out : Silmaril.Languages.Starlark.Lists.Outcome
+      Silmaril.Languages.Starlark.Lists.Iteration.Flow)
+    (kept : Keeps caller.heap.size (activate caller declaration captures assigned)
+      (Silmaril.Languages.Starlark.Lists.Iteration.finishState out)) :
+    Keeps caller.heap.size caller
+      (Silmaril.Languages.Starlark.Lists.Iteration.finishState (Leaf.returnTo caller out)) := by
+  have preserved (address : Nat) (cell : Silmaril.Languages.Starlark.Lists.Cell) (low : address < caller.heap.size)
+      (stored : caller.heap[address]? = some cell) :
+      (Silmaril.Languages.Starlark.Lists.Iteration.finishState out).heap[address]? = some cell := by
+    have active := (Wrapper.activation_preserves caller declaration captures assigned address low).trans stored
+    exact kept.2 address cell low active
+  cases out <;> exact ⟨rfl, preserved⟩
 
 end Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Body

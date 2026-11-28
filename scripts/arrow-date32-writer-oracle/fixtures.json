@@ -1,0 +1,104 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "cases": {
+    "nullable": {
+      "field": "日付",
+      "nullable": true,
+      "signed_slots": [
+        [
+          -2147483648,
+          -1,
+          null,
+          0,
+          1,
+          11016,
+          2147483647,
+          null,
+          -719528,
+          -25508
+        ],
+        [],
+        [
+          null,
+          -2,
+          0
+        ]
+      ],
+      "pyarrow_reference": {
+        "bytes": 616,
+        "sha256": "e42af6367033314a061d3be1474a5416925a2bc64695e30e271a3d35f4ecb156"
+      },
+      "expected_bodies": [
+        {
+          "bytes": 48,
+          "sha256": "d23fe9d13aededef66cd7704305eefcbc84ca8ef3c0aa6e79d9351945483dbd0"
+        },
+        {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 24,
+          "sha256": "ceeedc8d9023352202002790a89ae41b6b33b1f7ccdeec8ad302a667f9db71bf"
+        }
+      ]
+    },
+    "required": {
+      "field": "époque",
+      "nullable": false,
+      "signed_slots": [
+        [
+          -719528,
+          -1
+        ],
+        [
+          0,
+          11016
+        ]
+      ],
+      "pyarrow_reference": {
+        "bytes": 440,
+        "sha256": "6b037f7f9697156341d1ab4dc7bb7093da1bb4764425a5272ec563495086107b"
+      },
+      "expected_bodies": [
+        {
+          "bytes": 16,
+          "sha256": "e32a3f294fd4feb0886f5a92a2a7df77fb0456455290b439793b02d53e81dfe3"
+        },
+        {
+          "bytes": 16,
+          "sha256": "4e7f01ea938c0dfba3c8aa821794ec510a843bc03c7954e9a06fdb6917423c56"
+        }
+      ]
+    },
+    "schema_only": {
+      "field": "日付",
+      "nullable": false,
+      "signed_slots": [],
+      "pyarrow_reference": {
+        "bytes": 136,
+        "sha256": "fa4f4131c10310a023b07f517656c2fe4c26795db9570243804aeedd58f6e141"
+      },
+      "expected_bodies": []
+    },
+    "empty_batch": {
+      "field": "field",
+      "nullable": false,
+      "signed_slots": [
+        []
+      ],
+      "pyarrow_reference": {
+        "bytes": 256,
+        "sha256": "1849250ec67315ee42163d907812821d3f5952896e64a05174b880c4c34ae42a"
+      },
+      "expected_bodies": [
+        {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    }
+  }
+}

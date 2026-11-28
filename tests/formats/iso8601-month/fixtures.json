@@ -1,0 +1,131 @@
+{
+  "cpython": "3.13.5",
+  "cpython_commit": "6cb20a219a860eaf687b2d968b41c480c7461909",
+  "calendar_source_sha256": "519c59b7a52e45f9c8056ed8cc8cede5be4bfa16d2179c1db1b01688ac1935b3",
+  "fixtures": {
+    "datetime": [
+      {
+        "year": 1,
+        "month": 1,
+        "text": "0001-01",
+        "start": -719162,
+        "stop": -719131,
+        "days": 31
+      },
+      {
+        "year": 1900,
+        "month": 2,
+        "text": "1900-02",
+        "start": -25536,
+        "stop": -25508,
+        "days": 28
+      },
+      {
+        "year": 1969,
+        "month": 12,
+        "text": "1969-12",
+        "start": -31,
+        "stop": 0,
+        "days": 31
+      },
+      {
+        "year": 1970,
+        "month": 1,
+        "text": "1970-01",
+        "start": 0,
+        "stop": 31,
+        "days": 31
+      },
+      {
+        "year": 1997,
+        "month": 7,
+        "text": "1997-07",
+        "start": 10043,
+        "stop": 10074,
+        "days": 31
+      },
+      {
+        "year": 2000,
+        "month": 2,
+        "text": "2000-02",
+        "start": 10988,
+        "stop": 11017,
+        "days": 29
+      },
+      {
+        "year": 2024,
+        "month": 2,
+        "text": "2024-02",
+        "start": 19754,
+        "stop": 19783,
+        "days": 29
+      },
+      {
+        "year": 2100,
+        "month": 2,
+        "text": "2100-02",
+        "start": 47513,
+        "stop": 47541,
+        "days": 28
+      },
+      {
+        "year": 9999,
+        "month": 11,
+        "text": "9999-11",
+        "start": 2932836,
+        "stop": 2932866,
+        "days": 30
+      }
+    ],
+    "extended_year": [
+      {
+        "year": -1,
+        "month": 12,
+        "text": null,
+        "start": -719559,
+        "stop": -719528,
+        "days": 31
+      },
+      {
+        "year": 0,
+        "month": 1,
+        "text": "0000-01",
+        "start": -719528,
+        "stop": -719497,
+        "days": 31
+      },
+      {
+        "year": 0,
+        "month": 2,
+        "text": "0000-02",
+        "start": -719497,
+        "stop": -719468,
+        "days": 29
+      },
+      {
+        "year": 0,
+        "month": 3,
+        "text": "0000-03",
+        "start": -719468,
+        "stop": -719437,
+        "days": 31
+      },
+      {
+        "year": 9999,
+        "month": 12,
+        "text": "9999-12",
+        "start": 2932866,
+        "stop": 2932897,
+        "days": 31
+      },
+      {
+        "year": 10000,
+        "month": 1,
+        "text": null,
+        "start": 2932897,
+        "stop": 2932928,
+        "days": 31
+      }
+    ]
+  }
+}

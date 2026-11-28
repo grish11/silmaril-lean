@@ -44,7 +44,7 @@ theorem complete_iff :
       parameters.fixed.slots.length ≤ supplied.length ∧
       ∃ items : List Silmaril.Languages.Python.Core.Module.Value,
         (supplied.drop parameters.fixed.slots.length).mapM Value.scalar? = some items ∧
-        completed = supplied.take parameters.fixed.slots.length ++ [.tuple items] := by
+        completed = supplied.take parameters.fixed.slots.length ++ [.tuple (items.map .scalar)] := by
   simp only [VariadicParameters.complete]
   split
   · rename_i short
@@ -85,15 +85,15 @@ theorem bind_rest {before after : Environment layout} {items : List Silmaril.Lan
     (bound : parameters.bind supplied before = .ok after)
     (packed : (supplied.drop parameters.fixed.slots.length).mapM Value.scalar? = some items)
     (unique : Function.Injective before.2.owned) :
-    after.2.read after.1 parameters.rest.slot = .ok (.tuple items) := by
+    after.2.read after.1 parameters.rest.slot = .ok (.tuple (items.map .scalar)) := by
   obtain ⟨values, completed, writes⟩ := bind_iff.mp bound
   obtain ⟨enough, actual, checked, rfl⟩ := complete_iff.mp completed
   have same : actual = items := Option.some.inj (checked.symm.trans packed)
   subst actual
   have length : parameters.fixed.slots.length = (supplied.take parameters.fixed.slots.length).length := by
     simp [List.length_take, Nat.min_eq_left enough]
-  have member : (parameters.rest, Value.tuple items) ∈ parameters.destinations.slots.zip
-      (supplied.take parameters.fixed.slots.length ++ [.tuple items]) := by
+  have member : (parameters.rest, Value.tuple (items.map .scalar)) ∈ parameters.destinations.slots.zip
+      (supplied.take parameters.fixed.slots.length ++ [.tuple (items.map .scalar)]) := by
     simp [VariadicParameters.destinations, List.zip_append length]
   exact bind_read (Call.bind_iff.mpr ⟨complete_length completed, writes⟩) unique member
 

@@ -86,6 +86,11 @@ namespace Binding
 
 variable (binding : Binding Op table imports past fn)
 
+/-- Keep the same typed body at another physical capture boundary. -/
+def withCaptures {past' : List (Ports (Ty V S))}
+    (captures : Wires imports past' binding.context) : Binding Op table imports past' fn :=
+  ⟨binding.context, captures, binding.sigs, binding.body⟩
+
 def summary : MemberSummary V S :=
   ⟨fn, binding.context, fun wanted => (binding.body.plan wanted).live, binding.body.plan_mono⟩
 

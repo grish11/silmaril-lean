@@ -21,7 +21,7 @@ variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 
 set_option backward.isDefEq.respectTransparency false
 
-private theorem case_ignoring {A B : τ} {Γ L : List (τ)} {r : Region Φ}
+theorem case_ignoring {A B : τ} {Γ L : List (τ)} {r : Region Φ}
     {i : Nat} (hi : At Γ i (Silmaril.coprod A B)) (hr : Region.HasType Γ r L) :
     Paper.Eqv Γ (.case (.var i) (r.renameVars Nat.succ) (r.renameVars Nat.succ)) r L := by
   have e := SubstitutionEquiv.caseValue (.var hi) (hr.renameVars (Ren.wk Γ (Silmaril.coprod A B)))

@@ -17,7 +17,7 @@ variable {member : Option (MemberSummaries V S)}
 
 abbrev TransferLE : {member : Option (MemberSummaries V S)} → TransferFor member → TransferFor member → Prop
   | none, _, _ => True
-  | some _, low, high => ∀ i demand, low.live i demand ⊆ high.live i demand
+  | some _, low, high => low.LE high
 
 theorem plan_compare (code : Code Op entry past sigs results loops member)
     {left right : TransferFor member} (reads : TransferLE left right) {low high : Demand}
@@ -61,7 +61,7 @@ theorem transfer_term (code : Code Op entry past sigs results loops member) (rea
     exact congrArg₂ (NestedTheta.Term.bind node) (funext fun i => ihArm i reads) (ihRest reads)
   | theta _ _ _ ihBody ihRest => simp only [Code.withTransfer, Code.term, ihBody, ihRest]
   | callAt _ _ _ _ _ ih =>
-    simp only [Code.withTransfer, Code.term]
+    simp only [Code.withTransfer, Code.term, MemberSummaries.withReads]
     rw [ih reads]
 
 private theorem origin_arg_lt {Ty : Type u} {inputs : Ports Ty} {locals : List (Ports Ty)} {ty : Ty}

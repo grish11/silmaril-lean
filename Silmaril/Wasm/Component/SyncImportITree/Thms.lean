@@ -12,7 +12,7 @@ namespace Silmaril.Wasm.Component.SyncImportITree
 open Silmaril.Games Silmaril.Games.Abstract Silmaril.Wasm.Game Silmaril.Elgot
 open Silmaril.Wasm.Component.Reference
 open Silmaril.Wasm.Execution.Core (Step Store)
-open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
+open Silmaril.Wasm.SingleThreaded (GrowOracle profile ofFlat resumeResult toFlat?)
 open Silmaril.Wasm.Abstract.BodyTrace
 
 variable {c : SimpleI} {o : GrowOracle} {r : Ready c} {q : Question (exportIface c)}
@@ -22,6 +22,16 @@ variable {c : SimpleI} {o : GrowOracle} {r : Ready c} {q : Question (exportIface
 theorem entry_exists (r : Ready c) (q : Question (exportIface c)) :
     ∃ f, entry r q = some f :=
   Silmaril.Proofs.Wasm.Component.SyncImportITree.entry_exists r q
+
+/-- The typed question and continuation at a Core import cut with liftable arguments. -/
+theorem cutFront_request {e : r.inst.E.Op} {p : Cursor} (m : Question c.imports)
+    (index : e.1.val = m.index.val)
+    (args : liftArgs c.imports[m.index].2.params (e.2.val.filterMap toFlat?) = some m.args.val) :
+    cutFront r q (f := f) (.request e p) =
+      .request m (fun a => (p.1, resumeResult p.1 p.2 (match a with
+        | none => .trap
+        | some vs => .values ((lowerArgs c.imports[m.index].2.results vs.val).map ofFlat)))) :=
+  Silmaril.Proofs.Wasm.Component.SyncImportITree.cutFront_request m index args
 
 /-- At an import cut, the tree exposes the typed request. The answer selects
 a residual tree at the corresponding resumed Core cursor. -/

@@ -16,7 +16,7 @@ open Silmaril.SSA.SeaOfNodes.GCM
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header
-  (afterRemoval swapAt? renameSuffix withHeader pickAndEmit?_spec chooseCut_sound swapAt?_eval
+  (afterRemoval swapAt? withHeader pickAndEmit?_spec chooseCut_sound swapAt?_eval
     withHeader_frames withHeader_run_eq withHeader_denotePart)
 open Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Earlier
 open Loop.MLIR.CF (Program TargetOp evalOp lower model lower_run)
@@ -28,14 +28,17 @@ variable {index : Nat} {cut : Point (SourceLabel carried result)}
 variable {cfg out : Cfg TargetOp (SourceLabel carried result) Input [result]}
 variable {before after : Block TargetOp (SourceLabel carried result) Γ [result]}
 
+variable {Labels : List Width → Type} {Result : List Width}
+
 private theorem renameSuffix_operations (rename : Rename Γ Δ)
-    (code : Block TargetOp (SourceLabel carried result) Γ [result]) :
-    operations (renameSuffix rename code) = operations code := by
+    (code : Block TargetOp Labels Γ Result) :
+    operations (Header.Typed.renameSuffix rename code) = operations code := by
   induction code generalizing Δ with
   | terminator => rfl
-  | letOp _ _ _ ih => simp only [renameSuffix, operations, ih]
+  | letOp _ _ _ ih => simp only [Header.Typed.renameSuffix, operations, ih]
 
-theorem swapAt?_order {target : Nat} (swapped : swapAt? target before = some after) :
+theorem swapAt_typed_order {target : Nat} {before after : Block TargetOp Labels Γ Result}
+    (swapped : Header.Typed.swapAt? target before = some after) :
     ∃ (prefixOps : List Operation) (left right : Operation) (suffixOps : List Operation),
       prefixOps.length = target ∧
       operations before = prefixOps ++ (left :: right :: suffixOps) ∧
@@ -49,9 +52,9 @@ theorem swapAt?_order {target : Nat} (swapped : swapAt? target before = some aft
       | terminator => cases swapped
       | letOp right rightArgs suffix =>
         cases caught : capture? rightArgs with
-        | none => simp [swapAt?, caught] at swapped
+        | none => simp [Header.Typed.swapAt?, caught] at swapped
         | some earlierArgs =>
-          simp [swapAt?, caught] at swapped
+          simp [Header.Typed.swapAt?, caught] at swapped
           subst after
           exact ⟨[], ⟨_, _, left⟩, ⟨_, _, right⟩, operations suffix, rfl, rfl,
             by simp only [operations, List.nil_append, renameSuffix_operations]⟩
@@ -64,6 +67,13 @@ theorem swapAt?_order {target : Nat} (swapped : swapAt? target before = some aft
       exact ⟨⟨_, _, op⟩ :: prefixOps, left, right, suffixOps,
         by simp [length], by simp only [operations, kept, List.cons_append],
         by simp only [operations, moved, List.cons_append]⟩
+
+theorem swapAt?_order {target : Nat} (swapped : swapAt? target before = some after) :
+    ∃ (prefixOps : List Operation) (left right : Operation) (suffixOps : List Operation),
+      prefixOps.length = target ∧
+      operations before = prefixOps ++ (left :: right :: suffixOps) ∧
+      operations after = prefixOps ++ (right :: left :: suffixOps) :=
+  swapAt_typed_order ((Header.Typed.swapAt?_source target before).trans swapped)
 
 theorem moveEarlier?_order {target extraSteps : Nat}
     (moved : moveEarlier? target extraSteps before = some after) :
@@ -148,14 +158,24 @@ theorem pickAndMove?_placement (picked : pickAndMove? g index = some (cut, out))
   obtain ⟨candidate, legal⟩ := chooseCut_sound selected
   exact ⟨atHeader, earlier, translates, candidate, saved, binding, found, selected, legal⟩
 
+theorem moveAt?_order (moved : moveAt? cfg index cut = some out) :
+    ∃ (prefixOps crossed : List Operation) (chosen : Operation) (suffixOps : List Operation),
+      prefixOps.length = afterRemoval index cut.cut ∧ prefixOps.length + crossed.length = index ∧
+      operations (cfg.block .header) = prefixOps ++ crossed ++ (chosen :: suffixOps) ∧
+      operations (out.block .header) = prefixOps ++ (chosen :: (crossed ++ suffixOps)) := by
+  obtain ⟨_, earlier, translated, _, emitted, rfl⟩ := moved_spec moved
+  obtain ⟨pre, crossed, chosen, suffix, length, distance, beforeOrder, afterOrder⟩ := moveEarlier?_order emitted
+  exact ⟨pre, crossed, chosen, suffix, translated.symm ▸ length, by omega, beforeOrder, afterOrder⟩
+
 theorem pickAndMove?_order (picked : pickAndMove? g index = some (cut, out)) :
     ∃ (prefixOps crossed : List Operation) (chosen : Operation) (suffixOps : List Operation),
       prefixOps.length = cut.cut ∧ crossed.length = index - cut.cut ∧
       operations ((lower g).block .header) = prefixOps ++ crossed ++ (chosen :: suffixOps) ∧
       operations (out.block .header) = prefixOps ++ (chosen :: (crossed ++ suffixOps)) := by
-  obtain ⟨_, earlier, _, _, moved, rfl⟩ := moved_spec (pickAndEmit?_spec picked).2
-  obtain ⟨pre, crossed, chosen, suffix, length, distance, beforeOrder, afterOrder⟩ := moveEarlier?_order moved
-  exact ⟨pre, crossed, chosen, suffix, length, by omega, beforeOrder, afterOrder⟩
+  have moved := (pickAndEmit?_spec picked).2
+  obtain ⟨_, _, translated, _⟩ := moved_spec moved
+  obtain ⟨pre, crossed, chosen, suffix, length, distance, beforeOrder, afterOrder⟩ := moveAt?_order moved
+  exact ⟨pre, crossed, chosen, suffix, translated ▸ length, by omega, beforeOrder, afterOrder⟩
 
 theorem pickAndMove?_frames (picked : pickAndMove? g index = some (cut, out)) (input : Env Input) :
     out.entry = (lower g).entry ∧

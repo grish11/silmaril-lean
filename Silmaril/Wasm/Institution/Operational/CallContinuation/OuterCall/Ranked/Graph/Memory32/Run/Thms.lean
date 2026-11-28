@@ -16,6 +16,17 @@ theorem Layout.initial_store {H : Type} {p : Program} {m : MemAddr} {base : Stor
     (layout : Layout p base m initial) : storeWithBytes base m initial initial.data = base :=
   RunProofs.initial_store layout
 
+/-- Rendering the live memory leaves native table and function resolution
+equal to the checked lookup against the active caller's module. -/
+theorem Layout.indirect_resolve {H : Type} {mode : MemoryMode} {calls : CallMode} {p : Program} {m : MemAddr}
+    {base : Store H} {initial : MemInst} (checked : p.checkV1 m mode calls = true)
+    (layout : Layout p base m initial) {fixed : FixedTable} (selected : p.fixedTable = some fixed)
+    {f : Frame} (slot : f.module.tables[0]? = some fixed.address) (bytes : ByteArray)
+    (index : TypeIdx) (selector : BitVec 32) :
+    CallResolution.Indirect.v1Resolve (storeWithBytes base m initial bytes) f index selector =
+      p.resolveIndirect fixed f.module index selector :=
+  RunProofs.indirect_resolution checked layout selected slot bytes index selector
+
 /-- Entry depends on allocation and V1 arity. The caller frame and the live
 store survive unchanged, including when the caller invokes its own address. -/
 theorem Layout.enter_rendered {H : Type} {p : Program} {m : MemAddr} {base : Store H} {initial : MemInst}

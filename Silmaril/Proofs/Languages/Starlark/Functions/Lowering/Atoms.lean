@@ -41,6 +41,14 @@ theorem actionTuple (addr : Address) : FrameAction (tupleElements addr) :=
 theorem actionDict (addr : Address) : FrameAction (dictEntries addr) :=
   ⟨frameDict addr, scopeProject _ _⟩
 
+theorem acquireAction (value : Value) : FrameAction (Iteration.acquireIterator value) := by
+  cases value with
+  | list => exact actionMap _ (actionMap _ (actionList _))
+  | tuple => exact actionMap _ (actionMap _ (actionTuple _))
+  | dict => exact actionMap _ (actionMap _ (actionDict _))
+  | range => exact actionPure _
+  | _ => exact actionMap _ (actionThrow _)
+
 theorem actionAllocate (xs : List Value) : FrameAction (allocate xs) :=
   ⟨fun _ _ => rfl, fun _ => ⟨rfl, rfl⟩⟩
 theorem actionAllocateTuple (xs : List Value) : FrameAction (allocateTuple xs) :=
@@ -107,6 +115,16 @@ theorem sliceAction (operands : List Value) : FrameAction (readSliceOperands ope
     | string | range => exact actionExcept _
     | _ => exact actionThrow _
   next => exact actionThrow _
+
+theorem comparisonAction (op : ComparisonOp) (left right : Value) :
+    FrameAction (Comparison.apply op left right) := by
+  constructor
+  · intro state bindings
+    change Comparison.finish (Comparison.evaluate state.heap op left right) (rebind state bindings) =
+      mapFrame (rebind · bindings) (Comparison.finish (Comparison.evaluate state.heap op left right) state)
+    cases Comparison.evaluate state.heap op left right <;> rfl
+  · intro state
+    exact (actionExcept _).2 state
 
 private theorem editAction (address : Address) (edit : Contents → Except Error Contents) :
     FrameAction (editCell address edit) := by
@@ -191,6 +209,8 @@ theorem atomScope {α : Type} {code : Code α} (safe : AtomSafe code) :
     exact scopeBind a fun receiver =>
       scopeBind b fun index => (indexAction receiver index).2
   | slice _ ih => exact scopeBind ih fun operands => (sliceAction operands).2
+  | compare _ _ left right =>
+    exact scopeBind left fun a => scopeBind right fun b => (comparisonAction _ a b).2
   | append h₁ h₂ a b =>
     apply scopeBind a
     intro receiver
@@ -255,6 +275,15 @@ theorem atomTransport {α : Type} {code : Code α} (safe : AtomSafe code)
     apply transportBind (ih same)
     intro operands u _
     exact (sliceAction operands).1 u t.bindings
+  | compare safeLeft _ left right =>
+    apply transportBind (left same)
+    intro a next ran
+    have kept := atomScope safeLeft s
+    rw [ran] at kept
+    change SameScope next s at kept
+    apply transportBind (right (scopeTransport same kept))
+    intro b final _
+    exact (comparisonAction _ a b).1 final t.bindings
   | append h₁ h₂ a b =>
     apply transportBind (a same)
     intro receiver u he

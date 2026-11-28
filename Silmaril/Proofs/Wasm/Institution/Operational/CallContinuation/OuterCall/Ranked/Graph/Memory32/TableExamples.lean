@@ -31,7 +31,7 @@ private def body : List Op :=
 private def fn : Function :=
   ⟨⟨{ funcs := [child], memories := [slot] }, ⟨0⟩, [.int .i32, .int .i32], [], []⟩, 1, [],
     [.block none [.loop none body, .ranked .unreachable], .ranked .unreachable]⟩
-private def program : Program := ⟨[some writer, some fn]⟩
+private def program : Program := { functions := [some writer, some fn] }
 private def base : Store Unit :=
   { memories := [sentinel, memory], funcs := [writer, fn].map
       (fun f => .wasm f.declaration.type f.declaration.module f.v1Func) }

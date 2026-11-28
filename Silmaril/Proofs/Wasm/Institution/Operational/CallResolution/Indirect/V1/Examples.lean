@@ -34,7 +34,7 @@ private def writer : Function :=
 private def other : Function :=
   ⟨⟨{ memories := [memorySlot] }, ⟨0⟩, wrongOrder.params, [], wrongOrder.results⟩, 0, [],
     [.ranked (.numeric (.get ⟨0⟩))]⟩
-private def program : Program := ⟨[some writer, some other]⟩
+private def program : Program := { functions := [some writer, some other] }
 private def base : Store Unit :=
   { memories := [memory], tables := [site.table], funcs := [writer, other].map
       (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }

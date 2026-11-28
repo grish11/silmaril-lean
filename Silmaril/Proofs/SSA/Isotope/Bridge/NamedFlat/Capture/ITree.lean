@@ -33,7 +33,7 @@ private theorem split_tree (Γ : List τ) (slot : Nat) (original ambient : Env �
     simp only [split, region, term, packet, List.length_cons, packEnv, pure_bind, decoded]
     exact ih 1 (original ∘ Nat.succ) _ rfl
 
-private theorem unpack_tree {n labels : Nat} (a : Flat F labels n)
+theorem unpack_tree {n labels : Nat} (a : Flat F labels n)
     (β : BoundCtx τ n) (original ambient : Env α) :
     region instr (extend ambient (packEnv n original)) (a.erase.packInputsDestructure β.toList) =
       region instr original a.erase := by

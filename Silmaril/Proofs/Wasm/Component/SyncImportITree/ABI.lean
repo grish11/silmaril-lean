@@ -76,6 +76,38 @@ private theorem lowered_result {ft : FuncTy} {t : FnType} (ht : t = fnOf ft.flat
     simp only [Option.map_some, payloadAnswer, typed?, dite_eq_left h]
     rfl
 
+theorem cutFront_request {e : r.inst.E.Op} {p : Cursor} (m : Question c.imports)
+    (index : e.1.val = m.index.val)
+    (args : liftArgs c.imports[m.index].2.params (e.2.val.filterMap toFlat?) = some m.args.val) :
+    cutFront r q (f := f) (.request e p) =
+      .request m (fun a => (p.1, Silmaril.Wasm.SingleThreaded.resumeResult p.1 p.2
+        (match a with
+          | none => .trap
+          | some vs => .values ((lowerArgs c.imports[m.index].2.results vs.val).map ofFlat)))) := by
+  have hi : e.1.val < c.imports.length := by rw [index]; exact m.index.isLt
+  have idx : (⟨e.1.val, hi⟩ : Fin c.imports.length) = m.index := Fin.ext index
+  have lifted : liftValues c.imports[m.index].2.params (e.2.val.filterMap toFlat?) = some m.args :=
+    Option.pmap_some' args
+  have hft : r.inst.imports[e.1.val]? = some (fnOf c.imports[m.index].2.flat) := calc
+    _ = (c.mod.imports.map fun p => fnOf p.2)[e.1.val]? :=
+      congrArg (fun l : List FnType => l[e.1.val]?) r.isInst.2.1
+    _ = _ := by
+      rw [r.good.imports, List.getElem?_map, List.getElem?_map, index,
+        List.getElem?_eq_getElem m.index.isLt]
+      rfl
+  have ht : r.inst.imports.get e.1 = fnOf c.imports[m.index].2.flat :=
+    Option.some.inj ((List.getElem?_eq_getElem e.1.isLt).symm.trans hft)
+  cases m with
+  | mk i vs =>
+    have eq : i = (⟨e.1.val, hi⟩ : Fin c.imports.length) := idx.symm
+    subst i
+    simp only [cutFront, dite_eq_left hi]
+    rw [lifted]
+    apply congrArg (Front.request ⟨⟨e.1.val, hi⟩, vs⟩)
+    funext a
+    rw [lowered_result ht]
+    cases a <;> rfl
+
 theorem request_resumes {m : Question c.imports} {k : m.Answer → Cursor}
     (reached : ReachesFront o r q f x (.request m k)) (a : m.Answer) :
     ∃ (e : r.inst.E.Op) (p : Cursor) (b : r.inst.E.Ar e),

@@ -18,6 +18,8 @@ open Paper.WithPairReturns.StructuralValues.Uniformity.Cyclic.Independent (Route
 open Paper.WithPairReturns.StructuralValues.Uniformity.Cyclic.Independent.FiniteReplies
 open Paper.WithCaseReturns.StructuralValues.HiddenBit (project_unit_row_comp_fold unit_fold_of_native_rows)
 
+universe u v
+
 variable {Φ : Type} [Profile Φ]
 
 local notation "UT" => Paper.WithPairReturns.StructuralValues.Uniformity.Cyclic.Independent.FiniteReplies.UnitTy
@@ -42,7 +44,7 @@ theorem code_finite (s : ReplyShape) : Finite s.Code := by
       exact Finite.of_fintype (l.Code ⊕ r.Code)
 
 set_option backward.isDefEq.respectTransparency false in
-private theorem dispatch_comp {Y Z : Native Φ} (s : ReplyShape)
+theorem dispatch_comp {Y Z : Native Φ} (s : ReplyShape)
     (k : s.Value → (U ⟶ Y)) (f : Y ⟶ Z) :
     dispatch s k ≫ f = dispatch s (fun x => k x ≫ f) := by
   induction s with
@@ -52,7 +54,7 @@ private theorem dispatch_comp {Y Z : Native Φ} (s : ReplyShape)
       simp only [dispatch, Category.assoc, coprod.desc_comp, hl, hr]
 
 set_option backward.isDefEq.respectTransparency false in
-private theorem render_comp {α : Type} {Y Z : Native Φ} (r : Row Φ α)
+private theorem render_comp {α : Type u} {Y Z : Native Φ} (r : Row Φ α)
     (leaf : α → (U ⟶ Y)) (f : Y ⟶ Z) :
     r.render leaf ≫ f = r.render (fun a => leaf a ≫ f) := by
   induction r with
@@ -61,7 +63,7 @@ private theorem render_comp {α : Type} {Y Z : Native Φ} (r : Row Φ α)
       rw [Row.render, Row.render, Category.assoc, dispatch_comp]
       simp only [ih]
 
-private theorem render_map {α β : Type} {Y : Native Φ} (r : Row Φ α)
+private theorem render_map {α : Type u} {β : Type v} {Y : Native Φ} (r : Row Φ α)
     (leaf : β → (U ⟶ Y)) (f : α → β) :
     (r.map f).render leaf = r.render (fun a => leaf (f a)) := by
   induction r with

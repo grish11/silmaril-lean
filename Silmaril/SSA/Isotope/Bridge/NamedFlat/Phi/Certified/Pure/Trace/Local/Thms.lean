@@ -11,10 +11,22 @@ namespace Silmaril.Isotope.Bridge.NamedFlat.Phi.Certified.PureCapture.Local
 open Silmaril.SSA.LambdaRTL
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi (Graph Pending assign execute)
 open Silmaril.Elgot (mapReturn)
-open Silmaril.Elgot.ITree (TraceLE resume)
+open Silmaril.Elgot.ITree (Tree TraceLE resume)
 open LambdaSSA.Semantics.Interaction (Primitive)
 
 universe u v w
+
+/-- Inspect matching local trees with finitely many silent transfers. -/
+theorem resume_le_of_layer {E : Type u → Type u} {A B C : Type (u + 1)}
+    {f : A → Tree E (B ⊕ A)} {g : C → Tree E (B ⊕ C)}
+    {boundary : A → C → Prop} {related : Tree E (B ⊕ A) → Tree E (B ⊕ C) → Prop}
+    (atBoundary : ∀ {a c}, boundary a c → related (f a) (g c))
+    (inspect : ∀ {t s}, related t s → Layer f g boundary related t s)
+    {t : Tree E (B ⊕ A)} {s : Tree E (B ⊕ C)} (linked : related t s) :
+    TraceLE (resume f t) (resume g s) :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.LocalTrace.resume_le
+    (boundary := boundary) (fun h => atBoundary h) (fun h => inspect h) linked
+
 variable {Events : Type u → Type u} {V W K J Base α : Type (u + 1)} {F : Type v} {G : Type w}
   [DecidableEq V] [DecidableEq W] [DecidableEq K] [DecidableEq J]
   {left : Graph V K F} {right : Graph W J G}

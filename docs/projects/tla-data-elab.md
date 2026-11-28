@@ -100,8 +100,8 @@ INSTANCE, and proof interpretation.
   that contract explicitly. The API assigns no standard-module semantics
   by name.
 
-Decimal and string literals, tuple binders, multi-binder images, CASE and
-tuples remain outside the data fragment. The original entry point produces a
+The core fragment excludes decimal and string literals, tuples and tuple
+binders, multi-binder images and CASE. The original entry point produces a
 single-state data denotation. Endpoint selection adds prime in the checked
 fragment. Level checking can classify a proof-free theorem statement without
 treating it as a selectable definition or proof.
@@ -113,13 +113,12 @@ Import `Silmaril.Logic.Temporal.TLA.DataElab.Collections.Tagged` and call
 Use the checked registry of the original module and select the nullary
 definition by its resolved ID. Evaluate the result with
 `checked.eval (policy.collectionOperations invalid) policy.booleans external valuation`.
-The collection fragment requires all four collection operations from its
-adapter. The pure-set, scalar and endpoint entry points use the core fragment.
+The collection fragment takes a `CollectionOperations` adapter. The pure-set,
+scalar and `Endpoints` entry points use the core fragment.
 
-- `[x \in S |-> e]` forms a graph with exactly the domain `S`. The bound is
-  evaluated in the incoming scope and the body receives the graph key in a
-  fresh slot. The expanded term retains the constructor site and the resolved
-  binder ID. This clause admits one group with one plain identifier.
+- `[x \in S |-> e]` forms a graph with exactly the domain `S`. The body
+  receives the graph key in a fresh slot. The unary expansion retains the
+  constructor site and the resolved binder ID. The grouped forms are below.
 - `[a |-> e, b |-> f]` forms a graph with exactly the listed string keys.
   `[S -> T]` contains the graphs with domain `S` and all outputs in `T`.
   `[a : S, b : T]` contains the graphs with exactly the listed keys and
@@ -131,15 +130,108 @@ adapter. The pure-set, scalar and endpoint entry points use the core fragment.
   error identifies the first non-set field in source order. No graph or set
   is assembled from a partial schema.
 
-The pinned `ACP_SB.Init` and `TypeInv` and their four helper definitions use
-function sets, record sets, set enumeration, membership, conjunction, and
-`TRUE`, `FALSE` and `BOOLEAN`. The bounded function and record constructors
-are covered by separate source regressions. Full-module ACP_SB fixture
-integration is tracked separately. Collection lowering does not interpret
-`EXCEPT`, `@`, indexing, field selection, recursion, or operator proofs.
-[Pinned ACP_SB source](https://github.com/tlaplus/tlaplus/blob/bc1b506bdcad80bb518bf3776a9161c34ff0fc4c/tlatools/org.lamport.tlatools/test-model/examples/acp/ACP_SB.tla) ·
+The pinned `ACP_SB.Init` and `TypeInv` source fixture checks these graph
+schemas with the collection state selector.
+[ACP_SB fixture](tla-acp-sb-source-acceptance.md) ·
 [Collection entry point](../../Silmaril/Logic/Temporal/TLA/DataElab/Collections/Defs.lean) ·
 [Tagged adapter](../../Silmaril/Logic/Temporal/TLA/DataElab/Collections/Tagged.lean)
+
+## Grouped and tuple binders
+
+All bounds in one construct are evaluated in the incoming scope. Bound names
+are visible together in the body. In `x, y \in S, z \in T`, `x` and `y`
+vary independently in `S`, and `z` varies in `T`.
+
+- Bounded rigid quantifiers and set images accept multiple groups and mixtures
+  of plain names and tuple patterns. Set filters and bounded or unbounded
+  `CHOOSE` accept a single tuple pattern. Quantifiers, filters and `CHOOSE`
+  match only values that are tuples of exactly the pattern's length.
+  A tuple `CHOOSE` without a witness returns the model's `CHOOSE z : FALSE`,
+  which can be any value.
+- `[x, y \in S, z \in T |-> e]` has flat triple keys. In
+  `[<<x, y>> \in S, z \in T |-> e]` the key is a pair whose first
+  component is the original member of `S`. A single tuple group uses members
+  of its bound directly as keys. For both functions and images, a set bound
+  can contain a nonmatching member. The reference translation keeps that
+  member in the domain and binds the individual names to projections of
+  `CHOOSE z : FALSE`, using the adapter's ordinary graph application policy.
+- The tagged adapter builds flat products from one selection per factor.
+  The product membership and exact tuple decoding laws are checked in Lean.
+  Products used by functions and images with multiple arguments report
+  unrecognized set operands through `.binderBounds`, with the original
+  bounds in written order once per group. A single group with one pattern
+  uses the original function or image policy.
+
+This entry supports anonymous function constructors and data-level selection.
+Explicit source `\X`, named function definitions (including recursive
+definitions), and temporal binder lowering remain outside this entry.
+[Reference §§16.1.1–2](https://lamport.azurewebsites.net/tla/book-21-07-04.pdf#page=311) ·
+[Reference §§16.1.6–9](https://lamport.azurewebsites.net/tla/book-21-07-04.pdf#page=317) ·
+[Tagged binder laws](../../Silmaril/Logic/Temporal/TLA/Data/Tagged/Collections/Binders/Thms.lean)
+
+### WriteThroughCache corpus gate
+
+`python3 -I tests/semantics/tla-collection-binders/check.py` downloads and
+verifies the existing parser corpus pin, parses the full module, and selects
+the original `Coherence` operator. It resolves and lowers that operator in a
+standalone fixture with rigid inputs `Proc`, `Adr`, `NoVal` and flexible
+`cache`. The gate checks the shared `Proc` bound, separate `Adr` bound,
+and the binding of all four `cache` reads. It also instances that projection
+from a parsed host, checking the replacement bounds, the graph supplied by
+WITH at all four reads, and the host bindings. The Lean examples independently
+check the mathematical denotations of in-memory source cases.
+
+The whole-module check without a dependency registry stops at the first
+`EXTENDS` edge, `Naturals`. It requires the imported modules and the
+`InternalMemory` and `Memory` instance dependencies. Lowering `vmem`
+requires recursive LET function support, and checking other collection
+clauses needs sequence primitives and additional set operators.
+[Pinned module](https://github.com/tlaplus/tlaplus/blob/bc1b506bdcad80bb518bf3776a9161c34ff0fc4c/tlatools/org.lamport.tlatools/test-model/examples/SpecifyingSystems/CachingMemory/WriteThroughCache.tla) ·
+[Corpus gate](../../tests/semantics/tla-collection-binders/WriteThroughCache.lean) ·
+[Parser hashes](../../tests/semantics/tla-parser/check.py)
+
+## Graph access and ordered EXCEPT
+
+- `f[k]` applies a function to one key. `f[a, b]` uses the single tuple key
+  `<<a, b>>`. Tuple literals use `Value.tuple`, whose checked graph has integer
+  keys `1..n`, indexed lookup and injectivity. `r.field` applies `r` to
+  `Value.string "field"`, the same encoding used for source string literals
+  and record constructor labels. `DOMAIN f` gives the set of graph keys.
+  [Tagged graph and tuple laws](tla-functions.md)
+- `[f EXCEPT !.field[k] = e, ...]` uses `Value.updateClauses` in written
+  order. Each clause evaluates its bracket keys in the enclosing valuation
+  and lexical scope. Dot components use string keys. At each clause, `@` in
+  the RHS is the leaf reached from the result of the preceding clauses along
+  that clause's path. In a nested update, its base and selectors can use the
+  enclosing `@`. Its RHS binds the new one by resolved clause identity.
+  [Mathematical path and clause laws](tla-except.md)
+- `policy.collectionOperations invalid` uses `policy.numeric` as the fixed
+  tagged `Unspecified` policy for graph operations by default. A caller can
+  pass an explicit `unspecified` policy and fix it across valuations.
+  `DOMAIN` on a non-function calls `.domain` with the operand. Application
+  on a non-function or at a missing key calls `.apply` with the root and
+  key. EXCEPT preserves the root when a path through recognized functions
+  encounters a missing key. At a non-function step it composes `.apply` and
+  `.update` as specified by the tagged path API. These are value policies
+  in the mathematical adapter. [Tagged graph policies](tla-except.md#clause-and-path-semantics)
+
+`Collections.lowerAction` checks levels on the same registry and selects a
+closed action-level definition. Evaluate it with
+`action.eval (policy.collectionOperations invalid) policy.booleans external ⟨rigid, source, target⟩`.
+Prime on a whole operand shifts all flexible reads within it, including graph
+operands, selectors and an EXCEPT whose `@` is bound inside that operand.
+Explicit primes in a selector or RHS shift only their operands. A prime
+whose expanded operand reads `@` from an enclosing EXCEPT reports
+`primeCrossesOldValue` at the prime site, including through a substituted
+actual. Retained nested primes also report a lowering diagnostic.
+[Collection action API](../../Silmaril/Logic/Temporal/TLA/DataElab/Collections/Defs.lean)
+
+For checked first-order module calls, use the collection selectors in
+`DataElab.Instances`. Source limits include explicit Cartesian product syntax,
+`STRING`, decimal literals, recursion, and temporal and proof forms.
+The resolver diagnoses an `@` outside an active RHS. The parser and resolver
+reject malformed empty index and update forms before lowering.
+[Collection INSTANCE replay](tla-instance-denotation.md)
 
 ## Tagged interpretation
 
@@ -218,7 +310,14 @@ unrecognized set bounds and a zero modulus divisor.
 
 The collection regressions stage the terms produced by parsing, resolution,
 level checking and lowering. The kernel checks the scopes and equations for
-the constructed graphs, exact record and function-set recognition, and the
-fixed policy on non-set operands. Guards cover duplicate labels, source
-provenance, and unsupported constructor and operand forms.
+the constructed graphs, exact record and function-set recognition, graph
+access, tuple-key update, nested lexical scope, and repeated updates on found
+and missing paths. The checked action equations distinguish whole-operand
+prime from primes in selectors and RHSs. Equations cover malformed value
+operands through the fixed policies. Guards cover duplicate labels, malformed
+syntax, an unbound `@`, a prime crossing `@` after expansion, and unsupported
+forms with their original operand sites. Binder examples check flat and nested
+tuple keys, empty products, grouped images, tuple arity, CHOOSE with and without
+a witness, and the wrong-shape projection rule for functions and images. Guards
+check cross-group scope, duplicate binder names, and a primed bound's level.
 [Collection regressions](../../Silmaril/Logic/Temporal/TLA/DataElab/Collections/Examples.lean)

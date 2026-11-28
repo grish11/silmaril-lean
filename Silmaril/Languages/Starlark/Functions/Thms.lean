@@ -11,6 +11,23 @@ namespace Silmaril.Languages.Starlark.Functions
 open Lists
 open Lists.Iteration (Flow Suite denoteSuite)
 
+theorem mem_withoutDeclaration {available : List DeclarationId} {id other : DeclarationId} :
+    other ∈ withoutDeclaration available id ↔ other ∈ available ∧ other ≠ id := by
+  simp [withoutDeclaration]
+
+theorem withoutDeclaration_length_lt {available : List DeclarationId} {id : DeclarationId}
+    (permitted : id ∈ available) : (withoutDeclaration available id).length < available.length :=
+  List.length_filter_lt_length_iff_exists.mpr ⟨id, permitted, by simp⟩
+
+/-- Each permitted call enters a strictly smaller declaration set,
+even if the given list contains repeated declaration IDs. -/
+theorem withoutDeclaration_induction (P : List DeclarationId → Prop)
+    (step : ∀ available, (∀ id ∈ available, P (withoutDeclaration available id)) → P available)
+    (available : List DeclarationId) : P available :=
+  step available fun id _ => withoutDeclaration_induction P step (withoutDeclaration available id)
+termination_by available.length
+decreasing_by exact withoutDeclaration_length_lt ‹id ∈ available›
+
 /-- Lifting a collection suite gives precisely its existing total denotation. -/
 theorem denote_total (program : Program) (available : List DeclarationId) (suite : Suite 0)
     (state : State) : denoteBody program available (.total suite) state = denoteSuite suite state := by

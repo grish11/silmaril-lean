@@ -14,7 +14,7 @@ public section
 namespace Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Diamond.Prune.Proofs
 
 open SeaOfNodes.Diamond (Dataflow Model Ty Val ValueSort dataPorts)
-open RVSDG (Locals Tuple Wires extend)
+open RVSDG (Locals Port Tuple Wires extend)
 open RVSDG.NestedTheta (Term iterate)
 open Join (Block model)
 open Join.Finite (lastBank lastBank_read)
@@ -29,13 +29,18 @@ variable {src : Source Op regs out size} {entry : Fin size}
 variable {p : Program src entry} {mask : Mask regs}
 variable (checked : Checked p mask) (m : Model.{u, v, w} Op)
 
+theorem header_projection_agrees {body : Block Op regs} (projected : HeaderProjection body mask)
+    (old : Bank (regs := regs) m) :
+    projected.headerBank m (mask.project old) = body.eval m old := by
+  unfold HeaderProjection.headerBank
+  rw [mask.projected_flow m old (past := []) PUnit.unit _ _ projected.flow_eq]
+  rw [mask.projected_wires m old _ _ _ projected.outgoing_eq]
+  exact (CFG.compileBlock_read (past := []) body m old PUnit.unit (initial regs)).trans
+    (congrArg (Block.eval body m) (read_initial m old))
+
 theorem header_agrees (old : Bank (regs := regs) m) :
-    checked.headerBank m (mask.project old) = (src p.header).body.eval m old := by
-  unfold Checked.headerBank
-  rw [mask.projected_flow m old (past := []) PUnit.unit _ _ checked.flow_eq]
-  rw [mask.projected_wires m old _ _ _ checked.outgoing_eq]
-  exact (CFG.compileBlock_read (past := []) (src p.header).body m old PUnit.unit (initial regs)).trans
-    (congrArg (Block.eval (src p.header).body m) (read_initial m old))
+    checked.headerBank m (mask.project old) = (src p.header).body.eval m old :=
+  header_projection_agrees m checked.toHeaderProjection old
 
 theorem trace_agrees (fuel : Nat) (old : Bank (regs := regs) m) :
     checked.trace m fuel (mask.project old) = p.trace m fuel old := by
@@ -47,7 +52,7 @@ theorem trace_agrees (fuel : Nat) (old : Bank (regs := regs) m) :
     simp only [Checked.trace, Program.trace, traceFrom, header_agrees checked m, Program.selected,
       Program.nextBank, rest]; rfl
 
-private theorem lowerFlow_eval {args results : List (Ty Data)} {past sigs : List (List (Ty Data))}
+theorem lowerFlow_eval {args results : List (Ty Data)} {past sigs : List (List (Ty Data))}
     (flow : Dataflow Op args past sigs) (wires : Wires args (extend past sigs) results)
     (input : Tuple (Val m.value) args) (locals : Locals (Val m.value) past) :
     (lowerFlow flow wires).eval (model m) input locals = wires.read input (flow.eval m input locals) := by
@@ -65,17 +70,20 @@ private theorem projectPacket_read {args : List (Ty Data)} {past : List (List (T
     exact congrArg (Tuple.cons (SeaOfNodes.Diamond.read m tag input locals))
       (mask.project_read m input locals bank)
 
-private theorem route_eval {args : List (Ty Data)} {past : List (List (Ty Data))}
-    (wires : Wires args past (dataPorts regs))
+theorem routeProjectedWith_eval {args : List (Ty Data)} {past : List (List (Ty Data))}
+    (again : Port (dataPorts regs) (.value .predicate)) (wires : Wires args past (dataPorts regs))
     (fuel : Nat) (input : Tuple (Val m.value) args) (locals : Locals (Val m.value) past) :
-    (routeProjected p mask wires).eval (model m) fuel input locals =
-      some (RVSDG.Theta.bodyResult (model m) ((wires.read input locals).get p.again).down
+    (routeProjectedWith again mask wires).eval (model m) fuel input locals =
+      some (RVSDG.Theta.bodyResult (model m) ((wires.read input locals).get again).down
         (mask.project (wires.read input locals))) := by
   let bank := wires.read input locals
   change some (Wires.read (projectPacket mask (lastBank past (bodyPorts regs))) input
-    (locals.snoc ((model m).run (.route (.test p.again (.take 1) (.take 0))) bank))) = _
-  rw [projectPacket_read m, lastBank_read m, p.latch_model m]
-  rfl
+    (locals.snoc ((model m).run (.route (.test again (.take 1) (.take 0))) bank))) = _
+  rw [projectPacket_read m, lastBank_read m]
+  change some (projectPacket mask ((model m).run (.route (.test again (.take 1) (.take 0))) bank)) =
+    some (RVSDG.Theta.bodyResult (model m) (bank.get again).down (mask.project bank))
+  by_cases h : (bank.get again).down = true <;>
+    simp [model, Join.Choice.eval, RVSDG.Theta.bodyResult, projectPacket, h] <;> rfl
 
 theorem activation_agrees (fuel : Nat) (old : Bank (regs := regs) m) :
     checked.thetaBody.run (model m) fuel (mask.project old) =
@@ -91,7 +99,7 @@ theorem activation_agrees (fuel : Nat) (old : Bank (regs := regs) m) :
     rfl
   · intro header locals
     exact p.afterHeader_eval m header (routeProjected p mask) fuel (mask.project old) locals
-      inspect (fun wires locals' => route_eval (p := p) (mask := mask) m wires fuel (mask.project old) locals')
+      inspect (fun wires locals' => routeProjectedWith_eval (mask := mask) m p.again wires fuel (mask.project old) locals')
 
 private theorem iterate_project (bodyFuel fuel : Nat) (old : Bank (regs := regs) m) :
     iterate (checked.thetaBody.run (model m) bodyFuel) (fun tag => tag.down.val == 1)
@@ -106,22 +114,24 @@ private theorem iterate_project (bodyFuel fuel : Nat) (old : Bank (regs := regs)
       exact ih (p.nextBank m old)
     · simp [h]; rfl
 
-private theorem iterate_return_eval {past : List (List (Ty Data))}
+theorem thetaThenReturn_eval {past sigs : List (List (Ty Data))}
+    (body : Term (Join.Opcode Op) (dataPorts mask.kept) [] sigs (bodyPorts mask.kept))
+    (result : Port (dataPorts mask.kept) (.value out))
     (wires : Wires (dataPorts regs) past (dataPorts regs))
     (fuel : Nat) (input : Bank (regs := regs) m) (locals : Locals (Val m.value) past) :
-    (checked.iterateThenReturn wires).eval (model m) fuel input locals =
-      (iterate (checked.thetaBody.run (model m) fuel) (fun tag => tag.down.val == 1)
+    (thetaThenReturn mask body result wires).eval (model m) fuel input locals =
+      (iterate (body.run (model m) fuel) (fun tag => tag.down.val == 1)
         fuel (mask.project (wires.read input locals))).map
-        (fun bank => .cons (bank.get checked.result) .nil) := by
-  change (iterate (checked.thetaBody.run (model m) fuel) _ fuel (Wires.read (mask.project wires) input locals)).bind
-    (fun bank => some (Wires.read (.cons ((lastBank past (dataPorts mask.kept)).get checked.result) .nil)
+        (fun bank => .cons (bank.get result) .nil) := by
+  change (iterate (body.run (model m) fuel) _ fuel (Wires.read (mask.project wires) input locals)).bind
+    (fun bank => some (Wires.read (.cons ((lastBank past (dataPorts mask.kept)).get result) .nil)
       input (locals.snoc bank))) = _
   rw [mask.project_read m]
-  cases iterate (checked.thetaBody.run (model m) fuel) (fun tag => tag.down.val == 1) fuel
+  cases iterate (body.run (model m) fuel) (fun tag => tag.down.val == 1) fuel
       (mask.project (wires.read input locals)) with
   | none => rfl
   | some bank =>
-    change some (Tuple.cons (SeaOfNodes.Diamond.read m ((lastBank past (dataPorts mask.kept)).get checked.result)
+    change some (Tuple.cons (SeaOfNodes.Diamond.read m ((lastBank past (dataPorts mask.kept)).get result)
       input (locals.snoc bank)) .nil) = _
     rw [← read_get, lastBank_read m]
     rfl
@@ -139,7 +149,7 @@ private theorem graph_run (fuel : Nat) (input : Bank (regs := regs) m) :
   · erw [Block.lowerFrom_eval, read_initial]
     rfl
   · intro wires locals
-    exact iterate_return_eval checked m wires fuel input locals
+    exact thetaThenReturn_eval m checked.thetaBody checked.result wires fuel input locals
 
 theorem run_agrees (fuel : Nat) (input : Bank (regs := regs) m) :
     checked.lower.run (model m) fuel input = p.lower.run (model m) fuel input := by

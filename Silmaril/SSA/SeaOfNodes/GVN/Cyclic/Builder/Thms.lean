@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.SeaOfNodes.GVN.Cyclic.Builder.Defs
+import Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.Admission
 import Silmaril.SSA.SeaOfNodes.GVN.Cyclic.Activation.Thms
 import Silmaril.SSA.SeaOfNodes.GVN.Cyclic.FixedPoint.Thms
 import Silmaril.SSA.SeaOfNodes.GVN.Cyclic.Pass.Thms
@@ -24,6 +25,14 @@ variable {m : Model.{u,v,w} Op}
 theorem Built.native_source (built : Built loop) (source : Source inputs (sorts loop) t) :
     sourceWire built.view.site source = sourceOrigin loop source :=
   sourceWire_eq built.view.site built.origins source
+
+/-- A typed loop with direct fixed-argument entry operands admits an actual
+builder result. Typed prefix scopes ensure the instantaneous order check. -/
+theorem build_of_direct_entry [DecidableEq (ValueSort Data)]
+    (direct : ∀ {s} (p : RVSDG.Port (Diamond.dataPorts carried) (.value s)),
+      ∃ entry : RVSDG.Port inputs s, (loop.phiInputs .entry).get p = .arg (Activation.inputSlot entry)) :
+    ∃ built, build? loop = some built :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Builder.build_succeeds direct
 
 variable [DecidableEq (ValueSort Data)] [∀ ins out, DecidableEq (Op ins out)]
 variable {input₁ input₂ : Inputs m inputs} {old₁ old₂ : Inputs m carried}

@@ -50,7 +50,7 @@ private theorem lookup_succ {Γ : VCtx τ} {A B : τ} {i : Nat} (h : At Γ i A) 
     lookup M (Γ := B :: Γ) (i + 1) h = fst (ctxObj M Γ) (M.obj B) ≫ lookup M i h := rfl
 
 omit [DistributiveFreydCategory J] [SymmetricCategory V] [DistributiveTensor V] in
-private theorem renameLookup_lift {Γ Δ : VCtx τ} {ρ : Nat → Nat} (hρ : Ren Γ Δ ρ)
+theorem renameLookup_lift {Γ Δ : VCtx τ} {ρ : Nat → Nat} (hρ : Ren Γ Δ ρ)
     {k : ctxObj M Δ ⟶ ctxObj M Γ}
     (hk : ∀ ⦃i A⦄ (h : At Γ i A), k ≫ lookup M i h = lookup M (ρ i) (hρ h)) (B : τ) :
     ∀ ⦃i A⦄ (h : At (B :: Γ) i A),
@@ -173,6 +173,29 @@ private theorem denotes_subst {Γ : VCtx τ} {a : Tm Φ} {A : τ} {ha : Tm.HasTy
     rw [← case_pre_map, ← Category.assoc (J.map k)]
     exact ⟨_, .case de dl dr⟩
 
+private theorem singleSubstDenotes {Γ : VCtx τ} {a : Tm Φ} {A : τ}
+    {p : ctxObj M Γ ⟶ M.obj A} {ha : Tm.HasType Γ a A}
+    (da : Denotes J M ha (J.map p)) :
+    SubstDenotes J M (Γ := A :: Γ) (Tm.singleSubst a) (liftPair (𝟙 _) p) := by
+  intro i B hi
+  cases i with
+  | zero =>
+    have h : A = B := Option.some.inj hi
+    subst B
+    simp only [lookup_zero, CartesianMonoidalCategory.lift_snd]
+    exact ⟨ha, da⟩
+  | succ i =>
+    simp only [lookup_succ, CartesianMonoidalCategory.lift_fst_assoc, Category.id_comp]
+    exact ⟨.var (i := i) (show At Γ i B from hi), .var (i := i) hi⟩
+
+theorem denotes_substValue {Γ : VCtx τ} {a b : Tm Φ} {A B : τ}
+    {ha : Tm.HasType Γ a A} {hb : Tm.HasType (A :: Γ) b B}
+    {p : ctxObj M Γ ⟶ M.obj A} {f : J.obj (ctxObj M (A :: Γ)) ⟶ J.obj (M.obj B)}
+    (da : Denotes J M ha (J.map p)) (db : Denotes J M hb f) :
+    ∃ hs : Tm.HasType Γ (b.subst (Tm.singleSubst a)) B,
+      Denotes J M hs (J.map (liftPair (𝟙 _) p) ≫ f) :=
+  denotes_subst J M db (singleSubstDenotes J M da)
+
 end Terms
 
 section Regions
@@ -294,16 +317,7 @@ theorem regionDenotes_substValue_proof {Γ : VCtx τ} {L : LCtx τ} {r : Region 
     ∃ ht : Region.HasType Γ (r.substVars (Tm.singleSubst a)) L,
       RegionDenotes J M ht (J.map (liftPair (𝟙 _) p) ≫ f) := by
   apply regionDenotes_subst J M d
-  intro i B hi
-  cases i with
-  | zero =>
-    have h : A = B := Option.some.inj hi
-    subst B
-    simp only [lookup_zero, CartesianMonoidalCategory.lift_snd]
-    exact ⟨ha, da⟩
-  | succ i =>
-    simp only [lookup_succ, CartesianMonoidalCategory.lift_fst_assoc, Category.id_comp]
-    exact ⟨.var (i := i) (show At Γ i B from hi), .var (i := i) hi⟩
+  exact singleSubstDenotes J M da
 
 theorem letValue_common {Γ : VCtx τ} {L : LCtx τ} {r : Region Φ} {a : Tm Φ} {A : τ}
     (ha : Tm.BranchValue Γ a A) (hr : Region.HasType (A :: Γ) r L) :

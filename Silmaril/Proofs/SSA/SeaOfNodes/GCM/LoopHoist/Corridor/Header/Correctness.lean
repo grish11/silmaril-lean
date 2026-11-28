@@ -4,8 +4,7 @@ public import Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Defs
 public import Silmaril.SSA.MLIR.CF.SwitchAssert.Denotation.Defs
 import Silmaril.SSA.MLIR.CF.SwitchAssert.Thms
 import Silmaril.SSA.MLIR.CF.SwitchAssert.Denotation.Thms
-import Silmaril.SSA.SeaOfNodes.GCM.Corridor.Thms
-import Silmaril.SSA.SeaOfNodes.GCM.LoopForest.Thms
+import Silmaril.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Thms
 import Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Thms
 
 public section
@@ -37,28 +36,37 @@ private theorem renameOperands_eval (rename : Rename Γ Δ) (source : Env Γ) (t
   | nil => rfl
   | cons _ _ ih => simp only [renameOperands, Operands.eval, agree, ih]
 
+section Typed
+
+variable {Labels : List Width → Type} {Result : List Width}
+
 private theorem renameEdge_eval (rename : Rename Γ Δ) (source : Env Γ) (target : Env Δ)
     (agree : ∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref)
-    (edge : Edge (SourceLabel carried result) Γ) :
-    (renameEdge rename edge).eval target = edge.eval source := by
-  simp only [renameEdge, Edge.eval, renameOperands_eval rename source target agree]
+    (edge : Edge Labels Γ) :
+    (Typed.renameEdge rename edge).eval target = edge.eval source := by
+  simp only [Typed.renameEdge, Edge.eval, renameOperands_eval rename source target agree]
 
 private theorem renameTerm_eval (rename : Rename Γ Δ) (source : Env Γ) (target : Env Δ)
     (agree : ∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref)
-    (term : Terminator (SourceLabel carried result) [result] Γ) :
-    (renameTerm rename term).eval target = term.eval source := by
-  cases term <;> simp only [renameTerm, Terminator.eval, agree, renameEdge_eval rename source target agree,
+    (term : Terminator Labels Result Γ) :
+    (Typed.renameTerm rename term).eval target = term.eval source := by
+  cases term <;> simp only [Typed.renameTerm, Terminator.eval, agree, renameEdge_eval rename source target agree,
     renameOperands_eval rename source target agree]
 
-private theorem renameSuffix_eval (code : Block TargetOp (SourceLabel carried result) Γ [result])
+private theorem renameSuffix_observe {α : Type}
+    (observe : ∀ {Γ}, Terminator Labels Result Γ → Env Γ → α)
+    (renamed : ∀ {Γ Δ} (rename : Rename Γ Δ) (source : Env Γ) (target : Env Δ),
+      (∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref) →
+      ∀ term, observe (Typed.renameTerm rename term) target = observe term source)
+    (code : Block TargetOp Labels Γ Result)
     (rename : Rename Γ Δ) (source : Env Γ) (target : Env Δ)
     (agree : ∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref) :
-    (renameSuffix rename code).eval evalOp (fun term env => term.eval env) target =
-      code.eval evalOp (fun term env => term.eval env) source := by
+    (Typed.renameSuffix rename code).eval evalOp observe target =
+      code.eval evalOp observe source := by
   induction code generalizing Δ with
-  | terminator term => exact renameTerm_eval rename source target agree term
+  | terminator term => exact renamed rename source target agree term
   | letOp op operands rest ih =>
-    simp only [renameSuffix, Code.eval, renameOperands_eval rename source target agree]
+    simp only [Typed.renameSuffix, Code.eval, renameOperands_eval rename source target agree]
     apply ih
     intro _ ref
     cases ref with
@@ -79,11 +87,15 @@ private theorem capture_eval (operands : Operands (w :: Γ) args) {early : Opera
       obtain ⟨tail, translated, rfl⟩ := Option.map_eq_some_iff.mp caught
       simp only [Operands.eval, Env.get, ih translated]
 
-theorem swapAt?_eval {insertion : Nat}
-    {before after : Block TargetOp (SourceLabel carried result) Γ [result]}
-    (swapped : swapAt? insertion before = some after) (env : Env Γ) :
-    after.eval evalOp (fun term vals => term.eval vals) env =
-      before.eval evalOp (fun term vals => term.eval vals) env := by
+private theorem swapAt_observe {α : Type} {insertion : Nat}
+    (observe : ∀ {Γ}, Terminator Labels Result Γ → Env Γ → α)
+    (renamed : ∀ {Γ Δ} (rename : Rename Γ Δ) (source : Env Γ) (target : Env Δ),
+      (∀ {w} (ref : Var Γ w), target.get (rename ref) = source.get ref) →
+      ∀ term, observe (Typed.renameTerm rename term) target = observe term source)
+    {before after : Block TargetOp Labels Γ Result}
+    (swapped : Typed.swapAt? insertion before = some after) (env : Env Γ) :
+    after.eval evalOp observe env =
+      before.eval evalOp observe env := by
   induction insertion generalizing Γ with
   | zero =>
     cases before with
@@ -93,9 +105,9 @@ theorem swapAt?_eval {insertion : Nat}
       | terminator => cases swapped
       | letOp secondOp secondArgs rest =>
         cases caught : capture? secondArgs with
-        | none => simp [swapAt?, caught] at swapped
+        | none => simp [Typed.swapAt?, caught] at swapped
         | some earlierArgs =>
-          simp [swapAt?, caught] at swapped
+          simp [Typed.swapAt?, caught] at swapped
           subst after
           simp only [Code.eval]
           have firstEval :
@@ -104,7 +116,7 @@ theorem swapAt?_eval {insertion : Nat}
             renameOperands_eval Var.there env _ (fun _ => rfl) firstArgs
           have secondEval := capture_eval secondArgs caught env (evalOp firstOp (firstArgs.eval env))
           rw [firstEval, secondEval]
-          apply renameSuffix_eval
+          apply renameSuffix_observe observe renamed
           intro _ ref
           cases ref with
           | here => rfl
@@ -115,6 +127,76 @@ theorem swapAt?_eval {insertion : Nat}
     | letOp op operands rest =>
       obtain ⟨body, swappedRest, rfl⟩ := Option.map_eq_some_iff.mp swapped
       exact ih swappedRest (.cons (evalOp op (operands.eval env)) env)
+
+theorem swapAt_typed_eval {insertion : Nat}
+    {before after : Block TargetOp Labels Γ Result}
+    (swapped : Typed.swapAt? insertion before = some after) (env : Env Γ) :
+    after.eval evalOp (fun term vals => term.eval vals) env =
+      before.eval evalOp (fun term vals => term.eval vals) env :=
+  swapAt_observe (fun term vals => term.eval vals) renameTerm_eval swapped env
+
+theorem swapAt_edgePackets {insertion : Nat}
+    {before after : Block TargetOp Labels Γ Result}
+    (swapped : Typed.swapAt? insertion before = some after) (env : Env Γ) :
+    after.eval evalOp Typed.edgePackets env = before.eval evalOp Typed.edgePackets env := by
+  apply swapAt_observe Typed.edgePackets _ swapped env
+  intro _ _ rename source target agree term
+  cases term <;> simp only [Typed.renameTerm, Typed.edgePackets, renameEdge_eval rename source target agree]
+
+theorem run_eq_of_frames {source target : Cfg TargetOp Labels Input Result} (input : Env Input)
+    (entry : target.entry = source.entry)
+    (block : ∀ frame : Frame Labels,
+      (target.block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input) =
+        (source.block frame.label).eval evalOp (fun term env => term.eval env) (frame.args.append input))
+    (fuel : Nat) : target.run evalOp fuel input = source.run evalOp fuel input := by
+  have runs (fuel : Nat) (frame : Frame Labels) :
+      target.runFrom evalOp fuel input frame = source.runFrom evalOp fuel input frame := by
+    induction fuel generalizing frame with
+    | zero => rfl
+    | succ fuel ih =>
+      simp only [Cfg.runFrom, Cfg.runBlock, block frame]
+      cases (source.block frame.label).eval evalOp (fun term env => term.eval env)
+          (frame.args.append input) with
+      | inl next => exact ih next
+      | inr _ => rfl
+  cases fuel with
+  | zero => rfl
+  | succ fuel =>
+    simp only [Cfg.run, Cfg.runBlock, entry]
+    cases source.entry.eval evalOp (fun term env => term.eval env) input with
+    | inl next => exact runs fuel next
+    | inr _ => rfl
+
+end Typed
+
+private theorem renameSuffix_source (rename : Rename Γ Δ)
+    (code : Block TargetOp (SourceLabel carried result) Γ [result]) :
+    Typed.renameSuffix rename code = renameSuffix rename code := by
+  induction code generalizing Δ with
+  | terminator term => cases term <;> rfl
+  | letOp _ _ _ ih => simp only [Typed.renameSuffix, renameSuffix, ih]
+
+theorem swapAt_source (insertion : Nat) (code : Block TargetOp (SourceLabel carried result) Γ [result]) :
+    Typed.swapAt? insertion code = swapAt? insertion code := by
+  induction insertion generalizing Γ with
+  | zero =>
+    cases code with
+    | terminator => rfl
+    | letOp _ _ rest =>
+      cases rest with
+      | terminator => rfl
+      | letOp _ _ _ => simp only [Typed.swapAt?, swapAt?, renameSuffix_source]
+  | succ _ ih =>
+    cases code with
+    | terminator => rfl
+    | letOp _ _ _ => simp only [Typed.swapAt?, swapAt?, ih]
+
+theorem swapAt?_eval {insertion : Nat}
+    {before after : Block TargetOp (SourceLabel carried result) Γ [result]}
+    (swapped : swapAt? insertion before = some after) (env : Env Γ) :
+    after.eval evalOp (fun term vals => term.eval vals) env =
+      before.eval evalOp (fun term vals => term.eval vals) env :=
+  swapAt_typed_eval ((swapAt_source insertion before).trans swapped) env
 
 theorem pickAndEmit?_spec
     {emit : Cfg TargetOp (SourceLabel carried result) Input [result] →
@@ -146,12 +228,8 @@ private theorem moved_spec {cfg : Cfg TargetOp (SourceLabel carried result) Inpu
 theorem chooseCut_sound {operands : List (Point (SourceLabel carried result))}
     {uses : List (Use (SourceLabel carried result))}
     (selected : chooseCut? g operands uses = some cut) :
-    cut ∈ candidateCuts (lower g) blocks ∧ Legal (lower g) operands uses cut := by
-  let _ : DecidableEq (Target (SourceLabel carried result)) := sourceTargetDecEq carried result
-  unfold chooseCut? at selected
-  rw [Silmaril.SSA.SeaOfNodes.GCM.Corridor.chooseSynthesized?_eq] at selected
-  obtain ⟨tree, _, ranked⟩ := Option.bind_eq_some_iff.mp selected
-  exact LoopForest.choosePlacement_sound ranked
+    cut ∈ candidateCuts (lower g) blocks ∧ Legal (lower g) operands uses cut :=
+  chooseCfgCut?_sound selected
 
 theorem pickAndMove?_placement (picked : pickAndMove? g index = some (cut, out)) :
     cut.block = headerId ∧ cut.cut + 1 = index ∧ afterRemoval index cut.cut = cut.cut ∧
@@ -199,25 +277,9 @@ theorem withHeader_frames (input : Env Input) :
   | exit => rfl
 
 theorem withHeader_run_eq (input : Env Input) (fuel : Nat) :
-    (withHeader cfg header).run evalOp fuel input = cfg.run evalOp fuel input := by
-  obtain ⟨entry, block⟩ := withHeader_frames agrees input
-  have runs (fuel : Nat) (frame : Frame (SourceLabel carried result)) :
-      (withHeader cfg header).runFrom evalOp fuel input frame = cfg.runFrom evalOp fuel input frame := by
-    induction fuel generalizing frame with
-    | zero => rfl
-    | succ fuel ih =>
-      simp only [Cfg.runFrom, Cfg.runBlock, block frame]
-      cases (cfg.block frame.label).eval evalOp (fun term env => term.eval env)
-          (frame.args.append input) with
-      | inl next => exact ih next
-      | inr _ => rfl
-  cases fuel with
-  | zero => rfl
-  | succ fuel =>
-    simp only [Cfg.run, Cfg.runBlock, entry]
-    cases cfg.entry.eval evalOp (fun term env => term.eval env) input with
-    | inl next => exact runs fuel next
-    | inr _ => rfl
+    (withHeader cfg header).run evalOp fuel input = cfg.run evalOp fuel input :=
+  let ⟨entry, block⟩ := withHeader_frames agrees input
+  run_eq_of_frames input entry block fuel
 
 theorem withHeader_denotePart (input : Env Input) :
     (Silmaril.MLIR.CF.SwitchAssert.Cfg.embed (withHeader cfg header)).denotePart evalOp input =

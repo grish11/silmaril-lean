@@ -1,0 +1,9 @@
+{
+  "plain-byte-array-v1-bad-length.parquet": "474b8c262eb7275e018cc8dd7bd7d0ea0fdb5af2b3a2833e5ec58a4babdb140e",
+  "plain-byte-array-v1.parquet": "1e5bfe8a5e580a0368300b3d7809b2c4396ab814eb57b006775b4f849906fc29",
+  "plain-byte-array-v2-bad-length.parquet": "bf016635dee7a6d6289360f6c31f0fe92ee9682e75deb41f18eba3bc4168bf04",
+  "plain-byte-array-v2.parquet": "f9fe23f0a5b2a839d9a97b717f8e47062e88d6a7d33139a4129cfbbbd213d354",
+  "empty-middle-v2.parquet": "4417fe68ce84210af4979a2f7ef19d05764fc3ce3bf71f83b25b546658e76f48",
+  "nullable-int32-v2.parquet": "3690e0f3e0d1d3a943b0621fdab15aa346d54284a19b8db3b4bee6b839c03066",
+  "mixed-schema-only.parquet": "788836dfeeda7afb7d72d201b92d1b4bb4fa000b162a66fc26500d77ccd373ab"
+}

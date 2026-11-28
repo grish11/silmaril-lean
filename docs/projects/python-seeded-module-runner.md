@@ -170,16 +170,32 @@ Both complete the reached reads before checking that every item fits
 the exact scalar profile. A failure retains the incoming target
 binding and heap. Reading or aliasing a bound tuple uses the existing
 module lookup and assignment rules. Rebinding an item name or a tuple
-name preserves the earlier payload in its aliases.
+name preserves the earlier value in its aliases. A successful nonempty
+display with a live item read reserves one initialized slot on the
+shared closure heap. The binding carries the tuple object's address
+and exact contents. The empty tuple has canonical identity without a
+slot. Nonempty closed displays retain their scalar contents and leave
+constant-sharing identity outside this profile. A failed assembly
+preserves the old binding and allocation frontier.
+
+The one-positional stock `tuple` rule uses the existing seeded callee
+lookup and operand order. An exact tuple argument returns unchanged
+through settlement, including its address when it has one. An alias
+or later rebinding leaves earlier references intact. Generic tuple
+identity assertions remain a separate source boundary.
 
 ### Checked calls as equality-helper arguments
 
 The published-closure operand adapter accepts up to three exact integer
 arguments after confirming the closure's same-run publication. The
 current module selector uses it for admitted zero-argument published
-calls. Ordinary entry checks arity and runs the body with the reached heap. Settled inner receipts precede outer helper settlement. Flat tuple
-results retain their exact tags in the inner receipt. The helper's
-comparison still requires two integers. A defined inner stop retains
+calls. Ordinary entry checks arity and runs the body with the reached heap. Settled inner receipts precede outer helper settlement.
+Flat tuple results retain their exact tags in the inner receipt. When the
+live callee is the equality helper and both operands are exact flat tuples,
+the helper compares lengths and corresponding items using scalar equality.
+Booleans compare numerically with integers, and None matches None.
+A mismatch raises AssertionError with both original tuples in order.
+A defined inner stop retains
 earlier receipts and skips later arguments and the outer invocation.
 Faults and exhausted prefixes retain the reached heap without a settled
 receipt for the interrupted inner call.
@@ -199,6 +215,13 @@ The final binding is the second declaration's lambda and both heaps are
 empty. The 536-input comparison attributes the compiler admission to
 the linked source. The local selector changes only this input's two
 supplied-seed outcomes. Main still reaches the signature guard.
+
+A linked zero-argument call through the resolved stock `tuple` descriptor
+returns the canonical empty tuple. Its settled receipt carries the empty
+tuple payload, and both heaps retain their incoming state. The live
+module-first lookup lets a saved stock alias survive rebinding of `tuple`.
+In the first statement of `tuple-constructors.py`, the inner empty
+tuple receipt precedes the equality helper's successful None receipt.
 
 ### Checked positional preparation and variadic binding
 

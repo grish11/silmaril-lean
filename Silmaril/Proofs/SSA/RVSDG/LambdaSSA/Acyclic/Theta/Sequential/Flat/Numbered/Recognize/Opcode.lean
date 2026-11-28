@@ -69,6 +69,8 @@ private theorem instruction_packed {i o i' o' : Ports (OrderedRuntime.Structured
     | obtain ⟨rfl, rfl, rfl, rfl⟩ := h; rfl
     | obtain ⟨rfl, rfl, op⟩ := h
       rw [op_eq _ _ op]
+    | obtain ⟨rfl, op⟩ := h
+      rw [op_eq _ _ op]
 
 private def PackedInstruction.toOpcode (p : PackedInstruction (τ := τ) Φ) :
     Σ i o : Ports (OrderedRuntime.Structured.Ty τ), Wires.Op Φ i o :=

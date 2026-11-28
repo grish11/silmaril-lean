@@ -1,0 +1,184 @@
+{
+  "description": "Signed date payloads on the proleptic Gregorian epoch-day scale",
+  "fixture_license": "MIT",
+  "oracle": {
+    "cpython": {
+      "version": "3.13.5",
+      "commit": "6cb20a219a860eaf687b2d968b41c480c7461909"
+    },
+    "pyarrow": {
+      "version": "26.0.1",
+      "commit": "9e5d6978e9acf372cc989aaaf94e863fe8582c90",
+      "wheel": "pyarrow-26.0.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+      "wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c"
+    }
+  },
+  "dates": [
+    {
+      "name": "epoch",
+      "epoch_day": 0,
+      "civil": [
+        1970,
+        1,
+        1
+      ],
+      "date32": 0,
+      "date64": 0
+    },
+    {
+      "name": "negative_epoch",
+      "epoch_day": -1,
+      "civil": [
+        1969,
+        12,
+        31
+      ],
+      "date32": -1,
+      "date64": -86400000
+    },
+    {
+      "name": "leap_day",
+      "epoch_day": 11016,
+      "civil": [
+        2000,
+        2,
+        29
+      ],
+      "date32": 11016,
+      "date64": 951782400000
+    },
+    {
+      "name": "astronomical_year_zero_leap_day",
+      "epoch_day": -719469,
+      "civil": [
+        0,
+        2,
+        29
+      ],
+      "date32": -719469,
+      "date64": -62162121600000
+    },
+    {
+      "name": "int32_min",
+      "epoch_day": -2147483648,
+      "civil": [
+        -5877641,
+        6,
+        23
+      ],
+      "date32": -2147483648,
+      "date64": -185542587187200000
+    },
+    {
+      "name": "int32_max",
+      "epoch_day": 2147483647,
+      "civil": [
+        5881580,
+        7,
+        11
+      ],
+      "date32": 2147483647,
+      "date64": 185542587100800000
+    },
+    {
+      "name": "below_int32",
+      "epoch_day": -2147483649,
+      "civil": [
+        -5877641,
+        6,
+        22
+      ],
+      "date32": null,
+      "date64": -185542587273600000
+    },
+    {
+      "name": "above_int32",
+      "epoch_day": 2147483648,
+      "civil": [
+        5881580,
+        7,
+        12
+      ],
+      "date32": null,
+      "date64": 185542587187200000
+    },
+    {
+      "name": "date64_min_day",
+      "epoch_day": -106751991167,
+      "civil": [
+        -292275055,
+        5,
+        17
+      ],
+      "date32": null,
+      "date64": -9223372036828800000
+    },
+    {
+      "name": "date64_max_day",
+      "epoch_day": 106751991167,
+      "civil": [
+        292278994,
+        8,
+        17
+      ],
+      "date32": null,
+      "date64": 9223372036828800000
+    },
+    {
+      "name": "below_date64",
+      "epoch_day": -106751991168,
+      "civil": [
+        -292275055,
+        5,
+        16
+      ],
+      "date32": null,
+      "date64": null
+    },
+    {
+      "name": "above_date64",
+      "epoch_day": 106751991168,
+      "civil": [
+        292278994,
+        8,
+        18
+      ],
+      "date32": null,
+      "date64": null
+    }
+  ],
+  "invalid_date64": [
+    -9223372036854775808,
+    -86400001,
+    -1,
+    1,
+    86400001,
+    9223372036854775807
+  ],
+  "invalid_civil": [
+    [
+      1900,
+      2,
+      29
+    ],
+    [
+      2024,
+      4,
+      31
+    ]
+  ],
+  "artifacts": {
+    "arrow_date32_ipc": {
+      "bytes": 304,
+      "sha256": "3df3b344b6384b9a51b57b595fa35105d04e0ddfb93e11a774921e5ba73a1913"
+    },
+    "arrow_date64_ipc": {
+      "bytes": 352,
+      "sha256": "c6a586468996c99991eefabb5177970785630700d00a65a4ee570db7068a79aa"
+    },
+    "parquet_date": {
+      "bytes": 387,
+      "sha256": "4f663445c9d13ebbc30826452d7bce933b8e1346b96229ba19105f21b558cfec"
+    }
+  }
+}

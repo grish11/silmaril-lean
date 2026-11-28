@@ -29,13 +29,13 @@ private theorem blockTree_render (b : Block Φ β types L A)
   cases b <;> simp only [blockTree, Tree.render, Block.compile, targetTree_render]
   all_goals rfl
 
-private theorem tableTree_render {n : Nat} (p : Table Φ β L n) (ok : p.check = true)
+theorem tableTree_render_proof {n : Nat} (p : Table Φ β L n) (ok : p.check = true)
     (i : Fin (n + 1)) {m : Nat} {γ : BoundCtx τ m} (s : Scope β γ) :
     (tableTree p ok i).render s = p.compileAt ok i s := by
   rw [tableTree.eq_def, Table.compileAt.eq_def, blockTree_render]
   congr 1
   funext j edge m' γ' scope
-  exact tableTree_render p ok j scope
+  exact tableTree_render_proof p ok j scope
 termination_by p.rank i
 decreasing_by exact p.decreases ok edge
 
@@ -43,6 +43,6 @@ theorem tableProgram_render_proof {n : Nat} (p : Table Φ β L n) (ok : p.check 
     (i : Fin (n + 1)) (a : Operand Φ β (p.types i)) :
     (tableProgram p ok i a).toFiniteExit = p.toFiniteExit ok i a := by
   unfold tableProgram Program.toFiniteExit Table.toFiniteExit
-  exact congrArg (FiniteExit.join (.br a)) (tableTree_render p ok i .base)
+  exact congrArg (FiniteExit.join (.br a)) (tableTree_render_proof p ok i .base)
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Reverse

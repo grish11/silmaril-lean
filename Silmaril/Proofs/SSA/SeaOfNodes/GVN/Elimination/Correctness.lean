@@ -46,7 +46,7 @@ private theorem read_splitOutput {T : Type u} {F : T → Type w} {head : List T}
         exact same
 
 variable {Data : Type u} {Op : Signature.{u,v} Data}
-variable {args : List (Ty Data)} {past sigs target : List (List (Ty Data))}
+variable {args targetArgs : List (Ty Data)} {past sigs target : List (List (Ty Data))}
 variable {out : ValueSort Data}
 variable (m : Model.{u,v,w} Op) (entry : Tuple (Val m.value) args)
 
@@ -70,11 +70,12 @@ theorem read_splitOrigin {head : List (Ty Data)} {t : Ty Data}
       rw [split] at same
       exact same
 
-private theorem wires_read {route : Routing args past target}
+theorem wires_read {route : Routing args past target targetArgs}
+    {entry' : Tuple (Val m.value) targetArgs}
     {old : Locals (Val m.value) past} {new : Locals (Val m.value) target}
-    (agree : route.Agrees m entry old new) {ports : List (Ty Data)}
+    (agree : route.AgreesBetween m entry entry' old new) {ports : List (Ty Data)}
     (wires : Wires args past ports) :
-    wires.read entry old = (route.wires wires).read entry new := by
+    wires.read entry old = (route.wires wires).read entry' new := by
   induction wires with
   | nil => rfl
   | cons wire rest ih =>
@@ -82,11 +83,12 @@ private theorem wires_read {route : Routing args past target}
     congr 1
     exact agree _ wire
 
-theorem push_agrees {route : Routing args past target}
+theorem push_agrees {route : Routing args past target targetArgs}
+    {entry' : Tuple (Val m.value) targetArgs}
     {old : Locals (Val m.value) past} {new : Locals (Val m.value) target}
-    (agree : route.Agrees m entry old new) {head : List (Ty Data)}
+    (agree : route.AgreesBetween m entry entry' old new) {head : List (Ty Data)}
     (next : Tuple (Val m.value) head) :
-    Routing.Agrees (route.push head) m entry (old.snoc next) (new.snoc next) := by
+    Routing.AgreesBetween (route.push head) m entry entry' (old.snoc next) (new.snoc next) := by
   intro t wire
   have splitRead := read_splitOrigin m entry wire old next
   cases split : splitOrigin head wire with
@@ -101,20 +103,42 @@ theorem push_agrees {route : Routing args past target}
     simp only [Routing.push, split, read_newest]
 
 theorem routeSuffix_agrees (flow : Dataflow Op args past sigs)
-    (route : Routing args past target) (old : Locals (Val m.value) past)
-    (new : Locals (Val m.value) target) (agree : route.Agrees m entry old new) :
+    (route : Routing args past target targetArgs) {entry' : Tuple (Val m.value) targetArgs}
+    (old : Locals (Val m.value) past) (new : Locals (Val m.value) target)
+    (agree : route.AgreesBetween m entry entry' old new) :
     let result := routeSuffix flow route
-    Routing.Agrees result.2 m entry (flow.eval m entry old) (result.1.eval m entry new) := by
+    Routing.AgreesBetween result.2 m entry entry' (flow.eval m entry old) (result.1.eval m entry' new) := by
   induction flow generalizing target with
   | nil => exact agree
   | @cons past sigs ins out op operands rest ih =>
     let next : Tuple (Val m.value) [.value out] := .cons (m.run op (operands.read entry old)) .nil
     have equalInputs := wires_read m entry agree operands
-    have sameNext : Tuple.cons (F := Val m.value) (t := .value out) (m.run op ((route.wires operands).read entry new)) .nil = next :=
+    have sameNext : Tuple.cons (F := Val m.value) (t := .value out) (m.run op ((route.wires operands).read entry' new)) .nil = next :=
       congrArg (fun values => Tuple.cons (F := Val m.value) (t := .value out) (m.run op values) .nil) equalInputs.symm
     dsimp only [routeSuffix, Dataflow.eval]
     erw [sameNext]
     exact ih (route.push [.value out]) (old.snoc next) (new.snoc next) (push_agrees m entry agree next)
+
+private theorem input_read {ports : List (Ty Data)} {t : Ty Data}
+    (inputs : Wires args past ports) (port : Port ports t) (locals : Locals (Val m.value) past) :
+    (inputs.read entry locals).get port = Diamond.read m (inputs.get port) entry locals := by
+  induction port with
+  | head => cases inputs; rfl
+  | tail port ih => cases inputs with | cons _ rest => exact ih rest
+
+theorem plug_read {ports : List (Ty Data)} (flow : Dataflow Op targetArgs [] sigs)
+    (outputs : Wires targetArgs (extend [] sigs) ports) (inputs : Wires args past targetArgs)
+    (locals : Locals (Val m.value) past) :
+    let bound := plug flow outputs inputs
+    bound.2.read entry (bound.1.eval m entry locals) =
+      outputs.read (inputs.read entry locals) (flow.eval m (inputs.read entry locals) PUnit.unit) := by
+  let bank := inputs.read entry locals
+  have agrees : Routing.AgreesBetween (Routing.ofWires inputs) m bank entry PUnit.unit locals := by
+    intro t origin
+    cases origin with
+    | arg port => exact input_read m entry inputs port locals
+    | output i _ => exact i.elim0
+  exact (wires_read m bank (routeSuffix_agrees m bank flow _ PUnit.unit locals agrees) outputs).symm
 
 theorem drop_agrees (replacement : Origin args past (.value out))
     (locals : Locals (Val m.value) past) (next : Tuple (Val m.value) [.value out])

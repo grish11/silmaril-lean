@@ -155,6 +155,37 @@ private theorem checked_slots {commands : List Command} {linked : Program} {reso
     | some duplicate => simp [h] at validated; contradiction
   exact List.Pairwise.of_map (f := Binding.name) (fun _ _ different same => different (congrArg Binding.name same)) unique
 
+theorem checked_prepare_positional {commands : List Command} {linked : Program} {resolved : ResolvedModule}
+    (checked : resolve commands linked = .ok resolved) (id : Nat) (available : List DeclarationId)
+    (permitted : id ∈ available) (parameters : Parameters)
+    (declaration : Declaration) (codes : List Lowering.Expr)
+    (found : resolved.program[id]? = some declaration)
+    (signature : declaration.signature = parameters.signature codes)
+    (codeLength : codes.length = parameters.optional.length)
+    (state : Silmaril.Languages.Starlark.Lists.State) (address : Nat) (frozen : Bool)
+    (captures : List Silmaril.Languages.Starlark.Lists.Capture)
+    (defaults actuals : List Silmaril.Languages.Starlark.Lists.Value)
+    (valueLength : defaults.length = parameters.optional.length)
+    (cell : state.heap[address]? = some ⟨.function ⟨id, captures,
+      (parameters.optional.map (fileSlot ∘ Prod.fst)).zip defaults⟩, frozen⟩)
+    {result : Except Silmaril.Languages.Starlark.Lists.Error (List (Binding × Silmaril.Languages.Starlark.Lists.Value))}
+    (binding : Binds (parameters.slots defaults) actuals result) :
+    prepareExpanded resolved.program available ⟨actuals, []⟩ (.function address) state =
+      match result with
+      | .error error => .error error state
+      | .ok assigned => .ok (.closure ⟨id, permitted, declaration.body⟩)
+        (activate state declaration captures assigned) := by
+  have slots := same_slots parameters codes defaults codeLength valueLength
+  rw [← signature] at slots
+  have keywords : declaration.signature.keywordOnly = [] := by rw [signature]; rfl
+  have varargs : declaration.signature.varargs = none := by rw [signature]; rfl
+  have kwargs : declaration.signature.kwargs = none := by rw [signature]; rfl
+  have unique := checked_slots checked id declaration found keywords varargs kwargs
+  rw [slots] at unique
+  have ready := prepare_saved resolved.program available _ id permitted state address captures frozen _ actuals
+    (by rw [exact_saved]; exact cell) found slots unique keywords varargs kwargs binding
+  cases result <;> exact ready
+
 theorem checked_prepare_signature {commands : List Command} {linked : Program} {resolved : ResolvedModule}
     (checked : resolve commands linked = .ok resolved) (id : Nat) (parameters : Parameters)
     (declaration : Declaration) (codes : List Lowering.Expr)
@@ -176,19 +207,11 @@ theorem checked_prepare_signature {commands : List Command} {linked : Program} {
         | .error error => .error error state
         | .ok assigned => .ok (.closure ⟨id, permitted, declaration.body⟩)
           (activate state declaration captures assigned) := by
-  let available := List.range resolved.program.size
-  have permitted : id ∈ available := List.mem_range.mpr (Array.getElem?_eq_some_iff.mp found).choose
-  have slots := same_slots parameters codes defaults codeLength valueLength
-  rw [← signature] at slots
-  have keywords : declaration.signature.keywordOnly = [] := by rw [signature]; rfl
-  have varargs : declaration.signature.varargs = none := by rw [signature]; rfl
-  have kwargs : declaration.signature.kwargs = none := by rw [signature]; rfl
-  have unique := checked_slots checked id declaration found keywords varargs kwargs
-  rw [slots] at unique
-  refine ⟨permitted, ?_⟩
-  have ready := prepare_saved resolved.program available _ id permitted state address captures frozen _ actuals
-    (by rw [exact_saved]; exact cell) found slots unique keywords varargs kwargs binding
-  cases result <;> exact ready
+  have permitted : id ∈ List.range resolved.program.size :=
+    List.mem_range.mpr (Array.getElem?_eq_some_iff.mp found).choose
+  have prepared := checked_prepare_positional checked id _ permitted parameters declaration codes
+    found signature codeLength state address frozen captures defaults actuals valueLength cell binding
+  exact ⟨permitted, by cases result <;> exact prepared⟩
 
 /-- At a later call, the current heap supplies the closure and the values
 saved when it was defined. Preparing an omitted argument reads that value. -/

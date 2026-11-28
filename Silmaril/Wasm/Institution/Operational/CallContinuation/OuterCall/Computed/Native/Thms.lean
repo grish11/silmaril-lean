@@ -219,6 +219,30 @@ theorem lime_tee_read {H : Type} {s : Store H} {f : Frame} {stack : List Value} 
       dst = ⟨s, f, values (saved ++ [v, v]) ++ .source (.localSet index) :: rest⟩ :=
   Proofs.Lime1.tee_read move
 
+open Wasm.Lime1.Execution in
+theorem lime_local_get_iff {H : Type} {s : Store H} {f : Frame} {stack : List Value} {i : LocalIdx}
+    {v : Value} {rest : List Admin} {dst : Config H} (found : f.locals[i.toNat]? = some v) :
+    Step CallFrame.limeNoHost ⟨s, f, values stack ++ .source (.localGet i) :: rest⟩ dst ↔
+      dst = ⟨s, f, values stack ++ value v :: rest⟩ :=
+  Proofs.Lime1.local_get_iff found
+
+open Wasm.Lime1.Execution in
+theorem lime_drop_iff {H : Type} {s : Store H} {f : Frame} {stack : List Value} {v : Value}
+    {rest : List Admin} {dst : Config H} :
+    Step CallFrame.limeNoHost ⟨s, f, values (stack ++ [v]) ++ .source .drop :: rest⟩ dst ↔
+      dst = ⟨s, f, values stack ++ rest⟩ :=
+  Proofs.Lime1.drop_iff
+
+open Wasm.Lime1.Execution in
+/-- Trap propagation erases a suffix of the operands and a prefix of the code
+after the trap. A native context can leave either side partially intact. -/
+theorem lime_trap_front_iff {H : Type} {s : Store H} {f : Frame} {stack : List Value}
+    {tail : List Admin} {dst : Config H} :
+    Step CallFrame.limeNoHost ⟨s, f, values stack ++ .trap :: tail⟩ dst ↔
+      ∃ kept removed cut rest, stack = kept ++ removed ∧ tail = cut ++ rest ∧
+        (removed ≠ [] ∨ cut ≠ []) ∧ dst = ⟨s, f, values kept ++ .trap :: rest⟩ :=
+  Proofs.Lime1.trap_front_iff
+
 theorem guard_to_lime {H : Type} {s : Wasm.V1.Execution.Store H} {caller : Frame} {site : Site}
     (g : V1Guard s caller site) : LimeGuard (s.mapCode Wasm.V1.Func.toLime) caller site :=
   Proofs.guard_to_lime g

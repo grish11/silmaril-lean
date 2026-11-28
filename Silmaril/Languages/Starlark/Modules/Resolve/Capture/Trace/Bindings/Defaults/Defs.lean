@@ -131,7 +131,7 @@ structure ScopedRoot (globals : List String) (program : Program) (state : State)
   address : Lists.Address
   names : Defaults.Escape.Scoped.Names spec
   plan : Defaults.Escape.Scoped.Plan globals spec
-  childCode : program[childId]? = some (plan.body.declaration spec.wrapper.codes)
+  childCode : program[childId]? = some (plan.childDeclaration)
   parentCode : program[childId + 1]? = some (plan.frame childId).declaration
   captures : List Lists.Capture
   installed : Installs state plan.moduleFree captures

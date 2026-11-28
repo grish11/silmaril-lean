@@ -28,8 +28,8 @@ theorem define_scoped {before after : List Command} {spec : Spec} {globals : Lis
   obtain ⟨plan⟩ := admitted.plan
   obtain ⟨childId, site, childCode, parentCode⟩ := Defaults.Escape.Scoped.checked_site
     admitted.names plan declared checked suffix
-  obtain ⟨captures, installed⟩ := Defaults.Body.instantiate_selected plan.leadingSelects state layout
-  have cells := Defaults.Body.selected_cells plan.leadingSelects state layout captures installed
+  obtain ⟨captures, installed⟩ := Defaults.Body.instantiate_selected plan.selects state layout
+  have cells := Defaults.Body.selected_cells plan.selects state layout captures installed
   let cell : Cell := ⟨.function ⟨childId + 1, captures, []⟩, false⟩
   let grown : State := { state with heap := state.heap.push cell }
   let keep := Bindings.Preserves.push state cell
@@ -81,7 +81,7 @@ theorem call_scoped {before rest : List Command} {globals : List String} {callee
       exact ⟨.error (.runtime error) state, .scopedCall root site calleeCode related ran (.rejected bound),
         fun _ impossible => nomatch impossible⟩
     | ok assigned =>
-      let codes := spec.wrapper.codes
+      let codes := root.plan.defaultCodes
       obtain ⟨out, _, returned, _, _, progress⟩ := Defaults.Escape.Scoped.returns_total root.names root.plan
         resolved.program (withoutDeclaration (List.range resolved.program.size) (root.childId + 1))
         root.childId root.childCode state root.captures root.installed root.cells assigned
@@ -96,7 +96,7 @@ theorem call_scoped {before rest : List Command} {globals : List String} {callee
         have stored := Defaults.Body.capture_cells_written middle (globalSlot destination) (.function address) retained
         have live := commit_cell target.1 (kept.layout layout) address root.childId captures _ cell
         exact ⟨.commit middle _ kept, ⟨target.1, ⟨⟨root.childId, spec.enclosing, root.plan.body, codes,
-          address, values, captures, Defaults.Escape.code_length spec.wrapper, length, root.childCode,
+          address, values, captures, Defaults.Lexical.code_length root.plan.defaults, length, root.childCode,
           reached, installed, stored, live⟩⟩⟩⟩
   · have calleeRead : RootCall.Evaluates state (.scalar (.read callee)) (.ok (.function root.address) state) := by
       simpa [State.read, root.live.binding] using RootCall.Evaluates.name (state := state) callee

@@ -1,0 +1,17 @@
+nullable-int32-v1.parquet PyArrow 26.0.1 SHA-256 6feba7ce99b321ec7a0a14b6331a6041fce6cef1ea47edc487d2afd04ab0d1f6
+footer [92, 618), LIST schema ordinal 1, element ordinal 3, column ordinal 0
+group 0: rows 5, slots 8, codec 0, frame [4, 48), body @23
+  repetition @27: [0, 0, 0, 0, 1, 1, 0, 1], definition @33: [0, 1, 2, 3, 2, 3, 3, 2], PLAIN @36: [-7, 0, 9]
+  observed [None, [], [None], [-7, None, 0], [9, None]]
+group 1: rows 5, slots 8, codec 0, frame [48, 92), body @67
+  repetition @71: [0, 1, 0, 0, 0, 1, 0, 1], definition @77: [3, 2, 0, 1, 2, 3, 3, 2], PLAIN @80: [10, -2147483648, 2147483647]
+  observed [[10, None], None, [], [None, -2147483648], [2147483647, None]]
+  late continuation @72: byte 0xa3, SHA-256 6c91f4be62f757dd3a322c34ef514318f0d16a9c7fe7769498392ee27ce85a7b
+  late slot count @56: 9 vs 8, SHA-256 afa5cb24838286756734fc7d47b0545e5c089f830e750720eea918ea06582348
+wrong logical arm @125: byte 0x4c, SHA-256 ccdbabab7505f10f6e2ce36ba52133b87d352dc1795f048a968ca828b37ea2c4
+wrong converted code @123: 4 vs 3, SHA-256 3a872150572ec8fd74223b3cf1989459d661065748879887119b7e6371266615
+wrong chunk path @173: simples/list/element, SHA-256 36036839615c25370393c1535f33fb4ef899ffd456abfb3f1caafc37b688d3e2
+nullable-int32-v1-snappy.parquet PyArrow 26.0.1 SHA-256 f99512405efb4f88d8d63b49f8b5106c0d9e5e8c6f7fca59c526e4f567fe3438
+footer [94, 620), LIST schema ordinal 1, element ordinal 3, column ordinal 0
+group 0: rows 5, slots 8, codec 1, frame [4, 49), body @23
+group 1: rows 5, slots 8, codec 1, frame [49, 94), body @68

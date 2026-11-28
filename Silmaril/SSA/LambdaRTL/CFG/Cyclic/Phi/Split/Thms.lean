@@ -41,6 +41,36 @@ theorem Plan.lookup_forward {F : Type v} [DecidableEq J] (plan : Plan V W K J)
     (plan.rewrite source).blocks.lookup plan.forward = some plan.forwardBlock :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Phi.Split.lookup_forward plan source edge
 
+section Evaluation
+
+open Silmaril.SSA.LambdaRTL (Model)
+open Silmaril.SSA.LambdaRTL.CFG (Body)
+variable {F : Type v} {M : Type w → Type w} {α : Type w} [Monad M]
+  [DecidableEq V] [DecidableEq W]
+
+omit [DecidableEq K] in
+/-- Renaming a body and its starting store changes only the labels and store
+presented to its branch continuation. -/
+theorem Plan.exec_rename (plan : Plan V W K J) (model : Model F M α)
+    {β : Type w} (route : Option K → Option J)
+    (next : Option J → α → (W → α) → M β)
+    (body : Body V (Option K) F) (store : V → α) :
+    (plan.renameBody route body).exec model next (plan.renameStore store) =
+      body.exec model (fun k a s => next (route k) a (plan.renameStore s)) store :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Phi.Split.exec_rename plan model route next body store
+
+omit [Monad M] in
+/-- Rekeying a φ column preserves every operand read from the renamed
+snapshot and commutes with installing the renamed destinations. -/
+theorem Plan.assign_rename [DecidableEq J] (plan : Plan V W K J) (model : Model F M α)
+    (target : K) (pred : Option K) (rows : List (Row V K)) (snapshot store : V → α) :
+    assign model (plan.rekey target pred) (plan.renameStore snapshot)
+        (rows.map (plan.renameRow target)) (plan.renameStore store) =
+      plan.renameStore (assign model pred snapshot rows store) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Phi.Split.assign_rename plan model target pred rows snapshot store
+
+end Evaluation
+
 variable {F : Type v} [DecidableEq V] [DecidableEq W] [DecidableEq J] [DecidableEq F]
 
 theorem Plan.check_sound (plan : Plan V W K J) {source : Graph V K F} {target : Graph W J F}

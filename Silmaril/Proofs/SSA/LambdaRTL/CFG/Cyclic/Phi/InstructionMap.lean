@@ -65,16 +65,18 @@ private theorem liftOp_map (o : Op V F) : liftOp (o.mapOp f) = (liftOp o).mapOp 
 
 private theorem lowerTerm_map (graph : Graph V K F) (src : Option K) (term : Term V (Option K) F) :
     lowerTerm (graph.mapOp f) src (term.mapOp f) = (lowerTerm graph src term).mapOp f := by
+  unfold lowerTerm
   induction term with
-  | br key value => cases key <;> simp [Term.mapOp, lowerTerm, edgePacket_map]
-  | case o x lhs y rhs hl hr => simp [Term.mapOp, lowerTerm, liftOp_map, hl, hr]
+  | br key value => cases key <;> simp [Term.mapOp, liftTerm, edgePacket_map]
+  | case o x lhs y rhs hl hr => simp [Term.mapOp, liftTerm, liftOp_map, hl, hr]
 
 private theorem lowerBody_map (graph : Graph V K F) (src : Option K) (body : Body V (Option K) F) :
     lowerBody (graph.mapOp f) src (body.mapOp f) = (lowerBody graph src body).mapOp f := by
+  unfold lowerBody
   induction body with
   | term term => exact congrArg Body.term (lowerTerm_map f graph src term)
-  | let1 x op b ih => simp [Body.mapOp, lowerBody, liftOp_map, ih]
-  | let2 x y op b ih => simp [Body.mapOp, lowerBody, liftOp_map, ih]
+  | let1 x op b ih => simp [Body.mapOp, liftBody, liftOp_map, ih]
+  | let2 x y op b ih => simp [Body.mapOp, liftBody, liftOp_map, ih]
 
 omit [DecidableEq K] in
 private theorem decode_map (rows : List (Row V K)) (body : Body (Option V) (Option K) F) :

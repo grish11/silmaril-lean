@@ -42,6 +42,37 @@ theorem denote_link (p : Fragment Φ A M M) (q : Fragment Φ M E D)
         Region.denote (ε := ε) (m := m) q.typing (PUnit.unit, merge y) :=
   Proofs.flat_link_denote p q coherent env
 
+theorem Fragment.splitReturn_denote (p : Fragment Φ A E D)
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m))
+    (env : Env [Silmaril.coprod A E]) :
+    Region.denote (ε := ε) (m := m) p.splitReturn.typing env =
+      match TypeModel.coprodEquiv A E env.2 with
+      | .inl x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x)
+      | .inr e => pure (.inl e) :=
+  Proofs.flat_splitReturn_denote p coherent env
+
+theorem Fragment.gateCarrier_denote (p : Fragment Φ M E D)
+    (gate : TwoBlock.Instruction Φ A (TwoBlock.TwoExit.Carrier M E D))
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m) (p.gateCarrier gate).typing env =
+      TwoBlock.TwoExit.callCase (ε := ε) gate env.2 >>= fun
+        | .inl e => pure (TwoBlock.TwoExit.exitLabel (TypeModel.coprodEquiv E D e))
+        | .inr x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x) :=
+  Proofs.flat_gateCarrier_denote p gate coherent env
+
+/-- The classifier reads the entry value and routes the independent
+binding. Only the first external exit is reachable. -/
+theorem Fragment.bindChooseLoop_denote {V W : τ} (value : TwoBlock.Instruction Φ A A)
+    (test : TwoBlock.Instruction Φ A (Silmaril.coprod V W))
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m)
+        (Fragment.bindChooseLoop (D := D) value test).typing env =
+      iter (fun x => TwoBlock.call (ε := ε) value x >>= fun y =>
+        TwoBlock.TwoExit.callCase (ε := ε) test x >>= fun tag =>
+          pure (tag.elim (fun _ => Sum.inl y) (fun _ => Sum.inr y))) env.2 >>= fun y =>
+        pure (.inl y) :=
+  Proofs.flat_bindChooseLoop_denote value test coherent env
+
 omit [LawfulMonad m] [LawfulElgotMonad m] in
 private theorem denote_congr {r s : Region Φ} {Γ L : List τ} (h : r = s)
     (dr : Region.HasType Γ r L) (ds : Region.HasType Γ s L) :

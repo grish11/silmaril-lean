@@ -51,23 +51,31 @@ theorem checkColumn_registers {scope arity : Nat} {indices : List Nat}
           rw [argumentPort_index, ih tailEq]
       · cases ok
 
-theorem readColumn_eq {args : List PortTy} {past : List (List PortTy)} {arity : Nat}
-    (wires : Wires args past (wordPorts arity)) (input : Tuple (Val model.value) args)
+theorem readColumnWith_eq {args : List PortTy} {past : List (List PortTy)} {arity : Nat}
+    (resolve : Silmaril.SSA.RVSDG.Address → Reg) (wires : Wires args past (wordPorts arity)) (input : Tuple (Val model.value) args)
     (locals : Locals (Val model.value) past) (fr : Frame Reg)
     (agree : ∀ wire : Origin args past wordPort,
-      fr.get (register wire.address) = some (read model wire input locals)) :
-    fr.readAll (emitColumn wires) = some (words (wires.read input locals)) := by
+      fr.get (resolve wire.address) = some (read model wire input locals)) :
+    fr.readAll (wires.addresses.map resolve) = some (words (wires.read input locals)) := by
   induction arity with
   | zero => cases wires; rfl
   | succ arity ih =>
     cases wires with
     | cons wire rest =>
-      simp only [emitColumn, Wires.addresses, List.map_cons, Frame.readAll, List.mapM_cons,
+      simp only [Wires.addresses, List.map_cons, Frame.readAll, List.mapM_cons,
         agree]
       have tail := ih rest
-      unfold Frame.readAll emitColumn at tail
+      unfold Frame.readAll at tail
       rw [tail]
       rfl
+
+theorem readColumn_eq {args : List PortTy} {past : List (List PortTy)} {arity : Nat}
+    (wires : Wires args past (wordPorts arity)) (input : Tuple (Val model.value) args)
+    (locals : Locals (Val model.value) past) (fr : Frame Reg)
+    (agree : ∀ wire : Origin args past wordPort,
+      fr.get (register wire.address) = some (read model wire input locals)) :
+    fr.readAll (emitColumn wires) = some (words (wires.read input locals)) :=
+  readColumnWith_eq register wires input locals fr agree
 
 private theorem words_length {arity : Nat} (values : WordTuple arity) : (words values).length = arity := by
   induction arity with

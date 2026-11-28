@@ -76,8 +76,8 @@ theorem Same.cfg {Γ L : List (Ty Empty)} {n : Nat} {e e' : Region Empty}
     (fun i _ hv => evalRegion_typed (hbs i) (henv.extend hv))
     (fun i _ hv => hb i _ (henv.extend hv))
 
-theorem cfgRun_shiftOut (n : Nat) (bs : Fin n → Val → Result) (r : Result) :
-    cfgRun n bs (shiftOut n r) = r :=
+theorem cfgRun_shiftOut {mark : Bool} (n : Nat) (bs : Fin n → Val → Result) (r : Result) :
+    cfgRun n bs (shiftOut n r) mark = r :=
   finish_of_terminal bs _ (k := 0) (enter_shiftOut n r)
 
 theorem cfgEquiv_same {Γ L : List (Ty Empty)} {r s : Region Empty}

@@ -2,43 +2,22 @@ module
 
 public import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Institution.Rewrite.Repair.Sequence.Model.Defs
 
+import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Institution.Rewrite.Repair.Kleisli.Thms
+
 public section
 
 namespace Silmaril.Isotope.Institution.Acyclic.Captured.Rewrite.Sequence
 
 open CategoryTheory
 open Isotope.Semantics (BoundEnv)
-open Isotope.LetCase.LocallyNameless (AbortEquiv Derivation Tm)
+open Isotope.LetCase.LocallyNameless (Derivation)
 open LambdaSSA.Region (packedExitType)
-open LetIter.Semantics.Categorical (boundEnv boundObj denoteOfType denoteOfType_eq denoteOfType_eq_of_abortEquiv)
-open Morphism.CaseIter (derivation denote_derivation)
+open LetIter.Semantics.Categorical (boundEnv boundObj)
 open Silmaril.Elgot
 
 set_option backward.isDefEq.respectTransparency false
 
 local notation "Γ₀" => (Ctx.nil : Ctx Empty Sorts)
-
-private theorem embed_denote {n : Nat} {β : BoundCtx Sorts n}
-    {t : Tm Empty signature.Instr n} {A : Sorts} (h : Derivation signature.Instr Γ₀ β t A) :
-    letI := traceInstructions
-    Isotope.LetCase.Semantics.Categorical.denote traceJ traceTypes h =
-      denoteOfType value model (derivation h) := by
-  let _ := traceInstructions
-  induction h with
-  | fv hi => cases hi
-  | bv | unit => rfl
-  | op _ ih | inl _ ih | inr _ ih | abort _ ih =>
-    simp only [derivation, Isotope.LetCase.Semantics.Categorical.denote,
-      denoteOfType, LetIter.Semantics.Categorical.denote] at ih ⊢
-    rw [ih]
-  | let₁ _ _ ih₁ ih₂ | let₂ _ _ ih₁ ih₂ | pair _ _ ih₁ ih₂ =>
-    simp only [derivation, Isotope.LetCase.Semantics.Categorical.denote,
-      denoteOfType, LetIter.Semantics.Categorical.denote] at ih₁ ih₂ ⊢
-    rw [ih₁, ih₂]
-  | case _ _ _ ih₁ ih₂ ih₃ =>
-    simp only [derivation, Isotope.LetCase.Semantics.Categorical.denote,
-      denoteOfType, LetIter.Semantics.Categorical.denote] at ih₁ ih₂ ih₃ ⊢
-    rw [ih₁, ih₂, ih₃]
 
 private theorem run_stop {A : Type} (bit : Bool) (k : PEmpty → Trace A) :
     ((model.eval (Op.stop bit) PUnit.unit >>= k).run.run) = Part.some (.error bit, 1) := by
@@ -121,21 +100,8 @@ theorem traceSat_run_proof (e : GrammarEquation signature)
     (ρ : boundObj traceTypes e.1.bound) :
     run (grammarCase e).2.1.2 (boundEnv value ρ) =
       run (grammarCase e).2.2.2 (boundEnv value ρ) := by
-  let d := (grammarCase e).2.1.2
-  let d' := (grammarCase e).2.2.2
-  have eq := (LetCase.sat_iff Γ₀ signature traceAlgebra d d').mp sat
-  let _ := traceInstructions
-  change Isotope.LetCase.LocallyNameless.Models.denote
-      (freydCaseAlgebra traceJ traceTypes traceInstructions) d =
-    Isotope.LetCase.LocallyNameless.Models.denote (freydCaseAlgebra traceJ traceTypes traceInstructions) d' at eq
-  rw [freydCaseAlgebra_denote, freydCaseAlgebra_denote, embed_denote, embed_denote] at eq
-  have obs := congrArg (fun f =>
-    (show Trace (value (packedExitType e.1.exits)) from f.of (PUnit.unit, ρ)).run.run) eq
-  have free : LetIter.Semantics.Categorical.freeEnv value (Γ := Γ₀) PUnit.unit = noFree := by
-    funext x
-    exact x.elim
-  simp only [denoteOfType_eq, denote_derivation, free] at obs
-  exact obs
+  exact congrArg (fun f : Trace (value (packedExitType e.1.exits)) => f.run.run)
+    (Kleisli.run_eq_of_sat model e sat ρ)
 
 theorem traceSat_normal_proof (tail : List Sorts) (p q : Body)
     (sat : ((LetCase.inst Γ₀).obj signature).Sat traceAlgebra (grammarCase (equation tail p q))) :
@@ -146,15 +112,7 @@ theorem traceSat_normal_proof (tail : List Sorts) (p q : Body)
 
 theorem traceSat_of_repaired_proof (s : GrammarEquation signature) (h : Repaired false s) :
     ((LetCase.inst Γ₀).obj signature).Sat traceAlgebra (grammarCase s) := by
-  let d := (grammarCase s).2.1.2
-  let e := (grammarCase s).2.2.2
-  apply (LetCase.sat_iff Γ₀ signature traceAlgebra d e).mpr
-  let _ := traceInstructions
-  change Isotope.LetCase.LocallyNameless.Models.denote
-      (freydCaseAlgebra traceJ traceTypes traceInstructions) d =
-    Isotope.LetCase.LocallyNameless.Models.denote (freydCaseAlgebra traceJ traceTypes traceInstructions) e
-  rw [freydCaseAlgebra_denote, freydCaseAlgebra_denote, embed_denote, embed_denote]
-  apply denoteOfType_eq_of_abortEquiv (Empty.elim : Empty → Type) model _ (AbortEquiv.toLetIter h)
+  apply Kleisli.sat_of_repaired model _ s h
   intro f hf
   cases f <;> cases hf
 

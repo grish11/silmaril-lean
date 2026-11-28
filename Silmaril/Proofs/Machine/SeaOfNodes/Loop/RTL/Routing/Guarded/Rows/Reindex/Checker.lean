@@ -14,18 +14,9 @@ open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
 
 variable {arity : Nat}
 
-private theorem slot_argumentPort {n : Nat} (i : Fin n) :
-    InputPermutation.slot (argumentPort n i) = i := by
-  induction n with
-  | zero => exact i.elim0
-  | succ n ih =>
-    cases i using Fin.cases with
-    | zero => rfl
-    | succ i => exact congrArg Fin.succ (ih i)
-
 private theorem argument_reindex (perm : InputPermutation arity) (i : Fin arity) :
     perm.port (argumentPort arity i) = argumentPort arity (perm i) := by
-  simp only [InputPermutation.port, slot_argumentPort]
+  simp only [InputPermutation.port, InputMap.port, InputPermutation.slot_argumentPort]
 
 private theorem checkColumn_reindex (perm : InputPermutation arity) (width : Nat) (indices : List Nat) :
     checkColumn arity width (indices.map perm.index) = (checkColumn arity width indices).map perm.column := by
@@ -40,7 +31,7 @@ private theorem checkColumn_reindex (perm : InputPermutation arity) (width : Nat
         simp only [List.map_cons, InputPermutation.index, renameVertex, dite_eq_left h,
           checkColumn, dite_eq_left valid, ih]
         cases checkColumn arity width rest <;>
-          simp [InputPermutation.column, Tuple.map, argument_reindex, Option.map]
+          simp [InputPermutation.column, InputMap.column, mapColumn, mapOrigin, Tuple.map, argument_reindex, Option.map]
       · simp [InputPermutation.index, renameVertex, h, checkColumn]
 
 theorem checkPlan_reindex (perm : InputPermutation arity) (spec : Spec) :
@@ -56,18 +47,16 @@ theorem checkPlan_reindex (perm : InputPermutation arity) (spec : Spec) :
       cases checkFeedbackRow arity spec.updates with
       | none => rfl
       | some updates =>
-        cases spec.guardOrigin with
-        | arg => rfl
-        | output producer port =>
-          cases port with
-          | succ _ => rfl
-          | zero =>
-            by_cases inside : producer < updates.length
-            · by_cases destination : updates[producer].destination.val = spec.guardDestination
-              · by_cases exit : spec.exitSlot < arity <;>
-                  simp [Option.bind, inside, destination, exit, Plan.reindexInputs]
-              · simp [Option.bind, inside, destination]
-            · simp [Option.bind, inside]
+        cases guardCheck : checkProducer updates spec.guardOrigin spec.guardDestination with
+        | none => simp [guardCheck]
+        | some guard =>
+          cases rhsCheck : checkGuardOperand updates guard spec.guardRhs with
+          | none => simp [guardCheck, rhsCheck]
+          | some rhs =>
+            by_cases exit : spec.exitSlot < arity
+            · cases exitCheck : spec.exitOrigin.mapM (fun origin => checkProducer updates origin spec.exitSlot) <;>
+                simp [guardCheck, rhsCheck, exit, exitCheck, Plan.reindexInputs]
+            · simp [exit]
 
 private theorem column_info {scope width : Nat} {raw : List Nat} {wires : ArgumentColumn scope width}
     (checked : checkColumn scope width raw = some wires) :
@@ -98,15 +87,12 @@ private theorem checkPlan_entry {spec : Spec} {p : Plan arity}
   rcases Option.bind_eq_some_iff.mp ok with ⟨entry, checked, rest⟩
   rcases Option.bind_eq_some_iff.mp rest with ⟨copies, _, rest⟩
   rcases Option.bind_eq_some_iff.mp rest with ⟨updates, _, rest⟩
+  rcases Option.bind_eq_some_iff.mp rest with ⟨guard, _, rest⟩
+  rcases Option.bind_eq_some_iff.mp rest with ⟨rhs, _, rest⟩
   split at rest
-  · split at rest
-    · split at rest
-      · split at rest
-        · cases Option.some.inj rest
-          exact checked
-        · cases rest
-      · cases rest
-    · cases rest
+  · rcases Option.bind_eq_some_iff.mp rest with ⟨exitProducer, _, rest⟩
+    cases Option.some.inj rest
+    exact checked
   · cases rest
 
 -- Only the preheader jump operands change. The control graph and all

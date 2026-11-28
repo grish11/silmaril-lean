@@ -28,7 +28,7 @@ theorem layout_with_bytes {H : Type} {program : Program} {base : Store H} {a : M
     (layout : Layout program base a initial) (bytes : ByteArray) :
     Layout program (storeWithBytes base a initial bytes) a { initial with data := bytes } := by
   have bound := (List.getElem?_eq_some_iff.mp layout.memory).1
-  refine ⟨?_, layout.functions⟩
+  refine ⟨?_, layout.functions, layout.table⟩
   simp [storeWithBytes, setMemory, bound]
 
 theorem bounded_extent_grow {minimum : Nat} {maximum : Option Nat} {bytes grown : ByteArray} {delta : BitVec 32}

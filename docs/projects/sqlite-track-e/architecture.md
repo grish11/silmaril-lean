@@ -3,8 +3,12 @@
 The [Lean inventory](../../../Silmaril/Machine/SQLite/Architecture/Defs.lean)
 records the architecture figure's four enclosing groups, eleven components and
 nine arrows. [Theorems](../../../Silmaril/Machine/SQLite/Architecture/Thms.lean)
-check coverage, uniqueness, containment and edge consistency. The contract
-map below is the implementation plan for subsequent changes.
+check coverage, uniqueness, containment and edge consistency. Import
+`Silmaril.Machine.SQLite.Architecture.All` for the diagram and the four group
+interfaces. The [coverage inventory](coverage-v1.md) records what the
+implemented contracts check and where they stop. The [replay guide](replay-v1.md)
+records the landed pins and verification commands. The contract map below
+captures the implementation plan at the diagram pin.
 
 ## Upstream pin
 
@@ -53,7 +57,7 @@ below. `labelLines` retains the literal SVG text, including nonbreaking spaces
 and the two-line captions for SQL Command Processor and Code Generator.
 `label` gives the same captions on one line with normal spaces.
 
-| Frame caption | Fill | Contained boxes | Future group re-export |
+| Frame caption | Fill | Contained boxes | Group re-export |
 | --- | --- | --- | --- |
 | Core | `#d8ecd0` | Interface, SQL Command Processor, Virtual Machine | `Silmaril.Machine.SQLite.Core.All` |
 | Backend | `#d0ece8` | B-Tree, Pager, OS Interface | `Silmaril.Machine.SQLite.Backend.All` |

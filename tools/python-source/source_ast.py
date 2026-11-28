@@ -4,7 +4,6 @@
 import argparse
 import ast
 import json
-import struct
 import sys
 import tokenize
 from pathlib import Path
@@ -66,7 +65,7 @@ def literal(node):
     if isinstance(value, int):
         return constructor("integer", hex(value))
     if isinstance(value, float):
-        return constructor("floatBits", str(int.from_bytes(struct.pack(">d", value), "big")))
+        return node.silmaril_decimal
     if isinstance(value, str):
         return constructor("text", lean_list(str(ord(character)) for character in value))
     if isinstance(value, bytes):
@@ -223,7 +222,34 @@ def statement(node):
     raise UnsupportedSyntax(node)
 
 
-def emit(module):
+def decimal_integer(digits):
+    value = 0
+    for start in range(0, len(digits), 9):
+        chunk = digits[start:start + 9]
+        value = value * 10**len(chunk) + int(chunk)
+    return value
+
+
+def decimal_literal(token):
+    # CPython has already checked the token grammar. Read only its spelling
+    # so the rounded value in ast.Constant never determines either field.
+    mantissa, _, exponent = token.replace("_", "").lower().partition("e")
+    integer, _, fraction = mantissa.partition(".")
+    power = decimal_integer(exponent.lstrip("+-"))
+    if exponent.startswith("-"):
+        power = -power
+    return constructor("floatDecimal", hex(decimal_integer(integer + fraction)),
+                       f"({hex(power - len(fraction))})")
+
+
+def emit(module, source):
+    """Render the AST with decimal tokens taken from its original source."""
+    for node in ast.walk(module):
+        if isinstance(node, ast.Constant) and type(node.value) is float:
+            token = ast.get_source_segment(source, node)
+            if token is None:
+                raise UnsupportedSyntax(node)
+            node.silmaril_decimal = decimal_literal(token)
     body = ",\n    ".join(map(statement, module.body))
     return ("module\n\n"
             "public import Silmaril.Languages.Python.Source.Syntax.Defs\n\n"
@@ -240,8 +266,9 @@ def main():
     args = parser.parse_args()
     try:
         with tokenize.open(args.source) as source:
-            module = ast.parse(source.read(), filename=str(args.source), feature_version=(3, 7))
-        rendered = emit(module)
+            text = source.read()
+        module = ast.parse(text, filename=str(args.source), feature_version=(3, 7))
+        rendered = emit(module, text)
         if args.output is None:
             sys.stdout.write(rendered)
         else:

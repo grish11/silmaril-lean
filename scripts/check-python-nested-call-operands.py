@@ -115,9 +115,9 @@ def main():
          '[("inner", .error (.raised (.runtime .notCallable)))]'),
         (BODY, NameError, "body_missing", [3], '(.error (.raised (.runtime (.nameError "body_missing")))) [3] '
          '[("alias", .error (.raised (.runtime (.nameError "body_missing"))))]'),
-        (TUPLE, None, None, [3, 3], '(.error .unsupported) [3, 3] '
+        (TUPLE, None, None, [3, 3], '(.ok ()) [3, 3] '
          '[("alias", .ok (.returnedTuple [.int 3, .none, .bool true])), '
-         '("alias", .ok (.returnedTuple [.int 3, .none, .bool true])), ("___assertEqual", .error .unsupported)]'),
+         '("alias", .ok (.returnedTuple [.int 3, .none, .bool true])), ("___assertEqual", .ok .none)]'),
     ]
     with tempfile.TemporaryDirectory() as directory:
         raw, lean = Path(directory) / "Nested.py", Path(directory) / "Nested.lean"

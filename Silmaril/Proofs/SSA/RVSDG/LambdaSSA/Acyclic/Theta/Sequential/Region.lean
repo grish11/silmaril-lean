@@ -33,14 +33,19 @@ private def siteValue (target : Site L X) : TyDen X → LabelDen L :=
   LabelValue.inject target.index target.typing
 
 omit [Iterate m] [LawfulElgotMonad m] in
-private theorem call_denotes (op : TwoBlock.Instruction Φ X Y) :
-    Denotes (m := m) ε (op.typing Γ) (fun env => TwoBlock.call (ε := ε) op env.2) := by
+private theorem instruction_denotes_at (op : TwoBlock.Instruction Φ X Y) {i : Nat}
+    (h : Γ[i]? = some X) :
+    Denotes (m := m) ε (op.typingAt h) (fun env => TwoBlock.call (ε := ε) op (Env.get env i h)) := by
   obtain ⟨op, source, target⟩ := op
   subst X
   subst Y
-  have d := Denotes.op (m := m) (ε := ε)
-    (Denotes.var (Φ := Φ) (Γ := instrSrc op :: Γ) (i := 0) rfl)
-  simpa [TwoBlock.call, Env.get, bind_pure] using d
+  have d := Denotes.op (m := m) (ε := ε) (Denotes.var (Φ := Φ) h)
+  simpa [TwoBlock.call, bind_pure] using d
+
+omit [Iterate m] [LawfulElgotMonad m] in
+private theorem call_denotes (op : TwoBlock.Instruction Φ X Y) :
+    Denotes (m := m) ε (op.typing Γ) (fun env => TwoBlock.call (ε := ε) op env.2) := by
+  exact instruction_denotes_at (ε := ε) (Γ := X :: Γ) (i := 0) op rfl
 
 omit [LawfulElgotMonad m] in
 private theorem branch_denotes (target : Site L X) :
@@ -392,6 +397,8 @@ private def runBlock {L : List τ} {O : Type u} (dest : ∀ {Z}, Site L Z → Ty
   | _, .call op site, x => TwoBlock.call (ε := ε) op x >>= fun y => pure (dest site y)
   | _, .split l r, x => Sum.elim (runBlock dest l) (runBlock dest r) (TypeModel.coprodEquiv _ _ x)
   | _, .choose op l r, x => callCase (ε := ε) op x >>= Sum.elim (runBlock dest l) (runBlock dest r)
+  | _, .bindChoose value test l r, x => TwoBlock.call (ε := ε) value x >>= fun y =>
+    callCase (ε := ε) test x >>= fun tag => pure (dest (tag.elim (fun _ => l) (fun _ => r)) y)
 
 omit [Isotope.Subtyping τ] [TypeModel τ] in
 private theorem flat_rename_id {Z : τ} (b : Flat.Block Φ L Z) : b.rename (fun s => s) = b := by
@@ -419,6 +426,13 @@ private theorem runBlock_map {L R : List τ} {I O : Type u} {Z : τ}
     cases result with
     | inl y => exact hl y
     | inr y => exact hr y
+  | bindChoose value test l r =>
+    simp only [Flat.Block.rename, runBlock, bind_assoc, pure_bind]
+    congr 1
+    funext payload
+    congr 1
+    funext tag
+    cases tag <;> simp only [Sum.elim_inl, Sum.elim_inr, commute]
 
 omit [LawfulElgotMonad m] in
 private theorem flatBlock_denotes {L : List τ} {Z : τ} (b : Flat.Block Φ L Z) (Δ : List τ) :
@@ -445,6 +459,22 @@ private theorem flatBlock_denotes {L : List τ} {Z : τ} (b : Flat.Block Φ L Z)
     congr 1
     funext output
     cases TypeModel.coprodEquiv _ _ output <;> rfl
+  | @bindChoose U V B C value test l r =>
+    have valueDen := call_denotes (m := m) (ε := ε) (Γ := Δ) value
+    have testDen := instruction_denotes_at (m := m) (ε := ε) test (i := 1) (Γ := V :: U :: Δ) rfl
+    have leftDen := RegionDenotes.br (m := m) (ε := ε) (h := l.typing)
+      (Denotes.var (m := m) (ε := ε) (Φ := Φ) (Γ := B :: V :: U :: Δ) (i := 1) rfl)
+    have rightDen := RegionDenotes.br (m := m) (ε := ε) (h := r.typing)
+      (Denotes.var (m := m) (ε := ε) (Φ := Φ) (Γ := C :: V :: U :: Δ) (i := 1) rfl)
+    have den := RegionDenotes.let₁ valueDen (RegionDenotes.case testDen leftDen rightDen)
+    convert den using 1 <;> try rfl
+    funext env
+    simp only [runBlock, callCase, bind_assoc, pure_bind, Env.get, labelInject_eq_recursive, siteValue]
+    congr 1
+    funext y
+    congr 1
+    funext tag
+    cases TypeModel.coprodEquiv _ _ tag <;> rfl
 
 private noncomputable def fragStep (p : Fragment Φ A E D) (i : FiniteLabelDen p.localTypes) :
     m (LabelDen [E,D] ⊕ FiniteLabelDen p.localTypes) :=
@@ -488,6 +518,83 @@ private theorem fragment_run (p : Fragment Φ A E D) {I : Type u}
   | inr i =>
     simpa only [Bind.kleisliRight, liftPure, Function.comp_apply, pure_bind, raw, loc, Sum.elim_inr, Sum.map_inr] using
       congrFun loop i
+
+theorem flat_splitReturn_denote (p : Fragment Φ A E D)
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m))
+    (env : Env [Silmaril.coprod A E]) :
+    Region.denote (ε := ε) (m := m) p.splitReturn.typing env =
+      match TypeModel.coprodEquiv A E env.2 with
+      | .inl x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x)
+      | .inr e => pure (.inl e) := by
+  rw [fragment_run p.splitReturn id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent]
+  change (Sum.elim _ _ (TypeModel.coprodEquiv A E env.2) >>= _) = _
+  cases TypeModel.coprodEquiv A E env.2 with
+  | inl x => exact (fragment_run p id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent (PUnit.unit,x)).symm
+  | inr e =>
+    simp only [Sum.elim_inr, runBlock, pure_bind]
+    change Sum.elim pure (iter (fragStep (ε := ε) p))
+      (route p.localTypes [E,D] id (externalSite p.localTypes [E,D] 0) e) = _
+    rw [route_external]
+    rfl
+
+theorem flat_gateCarrier_denote (p : Fragment Φ M E D)
+    (gate : TwoBlock.Instruction Φ A (TwoBlock.TwoExit.Carrier M E D))
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m) (p.gateCarrier gate).typing env =
+      callCase (ε := ε) gate env.2 >>= fun
+        | .inl e => pure (TwoBlock.TwoExit.exitLabel (TypeModel.coprodEquiv E D e))
+        | .inr x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x) := by
+  rw [fragment_run (p.gateCarrier gate) id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent]
+  simp only [Fragment.gateCarrier, runBlock, bind_assoc]
+  congr 1
+  funext result
+  cases result with
+  | inl e =>
+    simp only [Sum.elim_inl]
+    cases TypeModel.coprodEquiv E D e <;>
+      simp only [Sum.elim_inl, Sum.elim_inr, route_external, pure_bind] <;> rfl
+  | inr x => exact (fragment_run p id (fragStep (ε := ε) p) (fun _ _ => rfl) coherent (PUnit.unit,x)).symm
+
+theorem flat_bindChooseLoop_denote {V W : τ} (value : TwoBlock.Instruction Φ A A)
+    (test : TwoBlock.Instruction Φ A (Silmaril.coprod V W))
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m)
+        (Fragment.bindChooseLoop (D := D) value test).typing env =
+      iter (fun x => TwoBlock.call (ε := ε) value x >>= fun y =>
+        callCase (ε := ε) test x >>= fun tag =>
+          pure (tag.elim (fun _ => Sum.inl y) (fun _ => Sum.inr y))) env.2 >>= fun y =>
+        pure (.inl y) := by
+  let loop := Fragment.bindChooseLoop (D := D) value test
+  let encode : FiniteLabelDen loop.localTypes → TyDen A := fun p => p.2
+  let step (x : TyDen A) : m (TyDen A ⊕ TyDen A) :=
+    TwoBlock.call (ε := ε) value x >>= fun y =>
+      callCase (ε := ε) test x >>= fun tag =>
+        pure (tag.elim (fun _ => Sum.inl y) (fun _ => Sum.inr y))
+  let ret : TyDen A → m (LabelDen [A,D]) := fun y => pure (.inl y)
+  have dispatch i x :
+      runBlock (ε := ε) (m := m) (route loop.localTypes [A,D] encode) (loop.blocks i) x =
+        mapReturn step ret (encode ⟨i,x⟩) := by
+    change runBlock (ε := ε) (m := m) _ (.bindChoose value test _ _) x = _
+    simp only [runBlock, mapReturn, step, bind_assoc, pure_bind]
+    congr 1
+    funext y
+    congr 1
+    funext tag
+    cases tag with
+    | inl =>
+      simp only [Sum.elim_inl]
+      change pure (route loop.localTypes [A,D] encode (externalSite loop.localTypes [A,D] 0) y) = _
+      rw [route_external]
+      simp [ret, LabelValue.inject]
+    | inr =>
+      simp only [Sum.elim_inr]
+      change pure (route loop.localTypes [A,D] encode (localSite loop.localTypes [A,D] 0) y) = _
+      rw [route_local]
+      rfl
+  rw [fragment_run loop encode _ dispatch coherent]
+  change (pure (route loop.localTypes [A,D] encode (localSite _ _ 0) env.2) >>= _) = _
+  rw [route_local, pure_bind, Sum.elim_inr]
+  exact (congrFun (LawfulElgotMonad.naturality step ret) env.2).symm
 
 variable {P Q : τ}
 variable (p : Fragment Φ A P Q) (q : Fragment Φ M E D) (routing : ExitRouting P Q M E D)
@@ -761,16 +868,17 @@ private noncomputable def forkStep : ForkState p q → m (LabelDen [E,D] ⊕ For
 variable (gate : TwoBlock.Instruction Φ A (Carrier Y M M))
 
 omit [Iterate m] [LawfulElgotMonad m] in
-private theorem forkDispatch (i : Fin ((fork p q gate).count)) (x : TyDen ((fork p q gate).localTypes i)) :
-    runBlock (ε := ε) (m := m) (route (forkTypes p q) [E,D] (forkEncode p q)) ((fork p q gate).blocks i) x =
+private theorem forkDispatch (entry : Flat.Block Φ (ForkLabels p q) A)
+    (i : Fin ((forkWith p q entry).count)) (x : TyDen ((forkWith p q entry).localTypes i)) :
+    runBlock (ε := ε) (m := m) (route (forkTypes p q) [E,D] (forkEncode p q)) ((forkWith p q entry).blocks i) x =
       forkStep (ε := ε) p q (forkEncode p q ⟨i,x⟩) := by
   revert x
   refine Fin.addCases (m := p.count) (n := q.count) ?_ ?_ i
   · intro j x
-    simp only [fork, forkEncode, forkAt, Fin.addCases_left, flat_action_cast, forkStep, fragStep]
+    simp only [forkWith, forkEncode, forkAt, Fin.addCases_left, flat_action_cast, forkStep, fragStep]
     exact runBlock_map (ε := ε) (p.blocks j) _ (forkLeft p q) _ _ _ (fork_left_route p q)
   · intro j x
-    simp only [fork, forkEncode, forkAt, Fin.addCases_right, flat_action_cast, forkStep, fragStep]
+    simp only [forkWith, forkEncode, forkAt, Fin.addCases_right, flat_action_cast, forkStep, fragStep]
     exact runBlock_map (ε := ε) (q.blocks j) _ (forkRight p q) _ _ _ (fork_right_route p q)
 
 private theorem forkArm {Z : τ} (arm : Fragment Φ Z E D)
@@ -809,8 +917,8 @@ theorem flat_fork_denote
             (PUnit.unit, Sum.elim id id (TypeModel.coprodEquiv M M x))
         | .inr y => Region.denote (ε := ε) (m := m) q.typing (PUnit.unit, y) := by
   rw [fragment_run (fork p q gate) (forkEncode p q) (forkStep (ε := ε) p q)
-    (forkDispatch p q gate) coherent]
-  simp only [fork, runBlock, bind_assoc]
+    (forkDispatch p q _) coherent]
+  simp only [fork, forkWith, runBlock, bind_assoc]
   congr 1
   funext selected
   cases selected with
@@ -818,6 +926,21 @@ theorem flat_fork_denote
     simp only [Sum.elim_inl]
     cases TypeModel.coprodEquiv M M x <;>
       exact forkArm p q p (forkLeft p q) Sum.inl (fork_left_route p q) (fun _ => rfl) coherent _
+  | inr y => exact forkArm p q q (forkRight p q) Sum.inr (fork_right_route p q) (fun _ => rfl) coherent y
+
+theorem flat_forkCase_denote (gate : TwoBlock.Instruction Φ A (Silmaril.coprod M Y))
+    (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := m)) (env : Env [A]) :
+    Region.denote (ε := ε) (m := m) (forkCase p q gate).typing env =
+      callCase (ε := ε) gate env.2 >>= fun
+        | .inl x => Region.denote (ε := ε) (m := m) p.typing (PUnit.unit,x)
+        | .inr y => Region.denote (ε := ε) (m := m) q.typing (PUnit.unit,y) := by
+  rw [fragment_run (forkCase p q gate) (forkEncode p q) (forkStep (ε := ε) p q)
+    (forkDispatch p q _) coherent]
+  simp only [forkCase, forkWith, runBlock, bind_assoc]
+  congr 1
+  funext selected
+  cases selected with
+  | inl x => exact forkArm p q p (forkLeft p q) Sum.inl (fork_left_route p q) (fun _ => rfl) coherent x
   | inr y => exact forkArm p q q (forkRight p q) Sum.inr (fork_right_route p q) (fun _ => rfl) coherent y
 
 end FlatFork

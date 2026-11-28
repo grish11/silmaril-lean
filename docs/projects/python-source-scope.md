@@ -139,8 +139,10 @@ python3 -I tools/python-source/source_ast.py example.py --output /tmp/Example.le
 lake env lean -DwarningAsError=true /tmp/Example.lean
 ```
 
-The emitter preserves source text as code points and floating literals as
-the host AST's binary64 bits. Constructors for known unsupported forms
+The emitter preserves source text as code points. It reads each floating
+literal's spelling from the source and emits an exact decimal coefficient
+and exponent. The checker's numeric profile determines binary64 rounding.
+Constructors for known unsupported forms
 remain visible to Lean's scope diagnostics. Other unsupported nodes
 produce an error before an output file is written. The intake regression
 feeds actual Python through the emitter and runs scope checks on the

@@ -78,9 +78,9 @@ def lowerBody (registers : Registers V) (target : Fin labels → K)
       pure (.let2 x y value tail)
   | tail => (lowerTerm registers target internal names next tail).map .term
 
-/-- Named blocks may read only the incoming packet and their local writes.
-The shared open context remains available in the entry. -/
-def lower (registers : Registers V) (inputs : Fin n → V)
+/-- Select local names separately for each block, keeping a shared packet
+parameter. Each block sees only that parameter and its local writes. -/
+def lowerWith (registers : Registers V) (locals : Fin blocks → Nat → V) (inputs : Fin n → V)
     (internal : Fin blocks → K) (external : Fin exits → K)
     (code : FiniteCFG F blocks exits n) : Option (CFG V K F) := do
   let target := SSA.FiniteSum.append internal external
@@ -88,9 +88,15 @@ def lower (registers : Registers V) (inputs : Fin n → V)
     (fun _ : Fin exits => false)
   let entry ← lowerBody registers target isInternal (some ∘ inputs) 0 code.entry
   let bodies ← tabulate blocks fun i =>
-    lowerBody registers target isInternal (Fin.cases (some registers.parameter) (fun _ => none))
-      0 (code.block i)
+    lowerBody { registers with localAt := locals i } target isInternal
+      (Fin.cases (some registers.parameter) (fun _ => none)) 0 (code.block i)
   pure ⟨entry, List.ofFn fun i => (internal i, ⟨registers.parameter, bodies i⟩)⟩
+
+/-- The default shares the local names at each depth across all bodies. -/
+def lower (registers : Registers V) (inputs : Fin n → V)
+    (internal : Fin blocks → K) (external : Fin exits → K)
+    (code : FiniteCFG F blocks exits n) : Option (CFG V K F) :=
+  lowerWith registers (fun _ => registers.localAt) inputs internal external code
 
 /-- Compare exactly the written entry and all written block bodies. -/
 local instance [DecidableEq F] : DecidableEq (FiniteCFG F blocks exits n) := fun a b =>
@@ -119,10 +125,10 @@ structure Lowered (code : FiniteCFG P.Instr blocks I.exits.length I.slots) where
 /-- Run the reverse lowerer and certify its actual output. The exact
 readback rejects any used name collision or exit projection that changes
 the scoped table. -/
-def lowerChecked [DecidableEq P.Instr] (registers : Registers V)
+def lowerCheckedWith [DecidableEq P.Instr] (registers : Registers V) (locals : Fin blocks → Nat → V)
     (internal : Fin blocks → K) (code : FiniteCFG P.Instr blocks I.exits.length I.slots) :
     Option (Lowered I fields code) := do
-  let source ← lower registers I.names internal (fun i => I.exits[i]) code
+  let source ← lowerWith registers locals I.names internal (fun i => I.exits[i]) code
   let attached := withLiveOut (P := P) fields source
   if count : attached.blocks.length = blocks then
     if closed : ∀ i : Fin attached.blocks.length,
@@ -136,5 +142,11 @@ def lowerChecked [DecidableEq P.Instr] (registers : Registers V)
       else none
     else none
   else none
+
+/-- Reverse lower and check using the default graph-wide allocation. -/
+def lowerChecked [DecidableEq P.Instr] (registers : Registers V)
+    (internal : Fin blocks → K) (code : FiniteCFG P.Instr blocks I.exits.length I.slots) :
+    Option (Lowered I fields code) :=
+  lowerCheckedWith I fields registers (fun _ => registers.localAt) internal code
 
 end Silmaril.Isotope.Bridge.NamedFlat.Entry.Reverse

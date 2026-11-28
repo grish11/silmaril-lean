@@ -24,15 +24,19 @@ theorem holds_suffix (p : Formula S) (σ : Behavior S) (n i : Nat) :
       simpa only [he] using h (j - n) (by omega)
     · intro h j hj
       exact h (n + j) (by omega)
-  | neg _ ih => exact not_congr (ih i)
-  | conj _ _ ihp ihq => exact and_congr (ihp i) (ihq i)
+  | neg _ ih => exact not_congr (ih σ i)
+  | conj _ _ ihp ihq => exact and_congr (ihp σ i) (ihq σ i)
   | always p ih =>
     constructor
     · intro h j hj
       have he : n + (j - n) = j := by omega
-      simpa only [he] using (ih (j - n)).mp (h (j - n) (by omega))
+      simpa only [he] using (ih σ (j - n)).mp (h (j - n) (by omega))
     · intro h j hj
-      exact (ih j).mpr (h (n + j) (by omega))
+      exact (ih σ j).mpr (h (n + j) (by omega))
+  | existsRigid _ ih => exact exists_congr (fun v => ih v σ i)
+  | existsFlex =>
+    simp only [Formula.Holds, show (σ.suffix n).suffix i = σ.suffix (n + i) from
+      funext fun j => congrArg σ (Nat.add_assoc n i j).symm]
 
 theorem holds_disj (p q : Formula S) (σ : Behavior S) (n : Nat) :
     (p.disj q).Holds σ n ↔ p.Holds σ n ∨ q.Holds σ n := by

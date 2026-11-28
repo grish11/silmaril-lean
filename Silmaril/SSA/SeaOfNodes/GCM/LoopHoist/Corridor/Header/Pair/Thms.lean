@@ -23,6 +23,13 @@ theorem move?_checked (moved : move? cfg request = some out) :
     Later.checkBindingCut cfg request.binding request.point = true :=
   Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Pair.move?_checked moved
 
+/-- A checked step replaces the header with one having the same evaluated frame. -/
+theorem move?_header (moved : move? cfg request = some out) :
+    ∃ header, out = withHeader cfg header ∧
+      ∀ env, header.eval evalOp (fun term vals => term.eval vals) env =
+        (cfg.block .header).eval evalOp (fun term vals => term.eval vals) env :=
+  Proofs.SSA.SeaOfNodes.GCM.LoopHoist.Corridor.Header.Pair.move?_header moved
+
 /-- The second step runs on the emitted CFG and nominates a different binding. -/
 theorem schedule?_steps (accepted : schedule? g first second = some out) :
     ∃ middle, move? (lower g) first = some middle ∧ second.binding ≠ first.insertion ∧

@@ -262,6 +262,16 @@ def exitBlock : Block Reg := ⟨[.phi], [], .ret [.phi]⟩
 def lowerBankFunc {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) : Func Reg :=
   ⟨⟨arity, 1⟩, 0, [bankPreheader g, bankHeader g, exitBlock]⟩
 
+/-- Replace the entry block while retaining the word-bank header and exit. -/
+def lowerBankFuncFrom {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
+    (entry : Block Reg) : Func Reg :=
+  let fn := lowerBankFunc g
+  { fn with blocks := fn.blocks.set 0 entry }
+
+def lowerBankFrom {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs)
+    (entry : Block Reg) : Prog Reg :=
+  ⟨[lowerBankFuncFrom g entry]⟩
+
 def lowerBank {arity : Nat} {sigs : List (List PortTy)} (g : BankGraph arity sigs) : Prog Reg :=
   ⟨[lowerBankFunc g]⟩
 

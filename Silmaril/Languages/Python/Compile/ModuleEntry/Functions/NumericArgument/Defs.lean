@@ -45,8 +45,19 @@ def bitwise (operation : Bool → Bool → Bool) (left right : Int) : Int :=
     (bitPayload left) (bitPayload right)
   if sign then .negSucc bits else .ofNat bits
 
+/-- Bound compile-time growth using a conservative bit length for the base.
+Negative exponents require the floating-point power profile. -/
+def power? (base exponent : Int) : Option Int :=
+  if 0 ≤ exponent ∧ (base.natAbs.log2 + 1) * exponent.toNat ≤ 4096 then
+    some (base ^ exponent.toNat)
+  else none
+
 def binary? (operator : BinaryOperator) (left right : Int) : Option Int :=
   match operator with
+  | .add => some (left + right)
+  | .sub => some (left - right)
+  | .mul => some (left * right)
+  | .pow => power? left right
   | .bitAnd => some (bitwise (· && ·) left right)
   | .bitOr => some (bitwise (· || ·) left right)
   | .bitXor => some (bitwise (· ^^ ·) left right)

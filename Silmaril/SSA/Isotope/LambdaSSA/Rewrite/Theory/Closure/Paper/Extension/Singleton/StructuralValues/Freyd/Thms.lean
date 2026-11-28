@@ -81,6 +81,12 @@ noncomputable local instance : DistributivePremonoidalCategory Comp := computati
   toFreydCategory := freyd Seed
   preservesFiniteCoproducts := inferInstance
 
+/-- The distributive structure retains the chosen Freyd structure. -/
+theorem distributiveFreyd_toFreydCategory :
+    (distributiveFreyd Seed).toFreydCategory = freyd Seed := by
+  unfold distributiveFreyd
+  rfl
+
 theorem centralUnit :
     letI := freyd Seed
     FreydCategory.CentralUnit (ι) :=

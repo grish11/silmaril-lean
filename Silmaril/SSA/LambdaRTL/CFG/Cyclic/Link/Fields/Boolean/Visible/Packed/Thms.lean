@@ -17,6 +17,9 @@ open Silmaril.Isotope.Bridge.NamedFlat
 open Silmaril (HasTy TypeFormers)
 open Silmaril.Isotope (BoundCtx)
 
+theorem packedTreeOutput_injective {α : Type*} : Function.Injective (FiniteCFG.packedTreeOutput (α := α)) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.packedTreeOutput_injective
+
 variable {F : Type} {a b : Nat} (program : Program F a b)
 
 /-- An admitted, typed elaboration of this named entry runs on the same
@@ -42,7 +45,7 @@ theorem refinementAt?_iff_packedOutput [DecidableEq F] (right : Program F a b) (
       TraceLE (program.observe input flag >>= fun result => pure (FiniteCFG.packedTreeOutput result))
         (right.observe input flag >>= fun result => pure (FiniteCFG.packedTreeOutput result)) :=
   (program.refinementAt?_iff right input flag).trans (TraceLE.bind_pure_iff
-    Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.packedTreeOutput_injective).symm
+    packedTreeOutput_injective).symm
 
 theorem silentAfter?_iff_packedOutput [DecidableEq F] (input : Fin a) (flag : Bool)
     (path : ExchangePath (Event (F × Bool))) :
@@ -55,6 +58,6 @@ theorem refinementAtWithSilence?_iff_packedOutput [DecidableEq F] (right : Progr
       TraceLEWithSilence (program.observe input flag >>= fun result => pure (FiniteCFG.packedTreeOutput result))
         (right.observe input flag >>= fun result => pure (FiniteCFG.packedTreeOutput result)) :=
   (program.refinementAtWithSilence?_iff right input flag).trans (TraceLEWithSilence.bind_pure_iff
-    Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.packedTreeOutput_injective).symm
+    packedTreeOutput_injective).symm
 
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Program

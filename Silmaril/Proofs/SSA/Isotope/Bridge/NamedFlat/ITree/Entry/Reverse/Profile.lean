@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Reverse.Profile.Defs
+public import Silmaril.SSA.LambdaRTL.Version.Thms
 
 @[expose] public section
 
@@ -14,20 +15,6 @@ open LambdaSSA (FiniteCFG)
 open LambdaSSA.Semantics.Interaction.Typed.Ordered
 
 universe u v w
-
-private theorem val_mem_fv {V : Type w} [DecidableEq V] (a : Val V) (x : V) :
-    x ∈ a.fvList ↔ x ∈ a.fv := by
-  induction a <;> simp [Val.fvList, Val.fv, *]
-
-private theorem op_mem_fv {V : Type w} {F : Type v} [DecidableEq V] (a : Op V F) (x : V) :
-    x ∈ a.fvList ↔ x ∈ a.fv := by
-  cases a <;> simp [Op.fvList, Op.fv, val_mem_fv]
-
-private theorem region_mem_fv {V K : Type w} {F : Type v} [DecidableEq V]
-    (r : Silmaril.SSA.LambdaRTL.Region V K F) (x : V) : x ∈ r.fvList ↔ x ∈ r.fv := by
-  induction r <;>
-    simp [Silmaril.SSA.LambdaRTL.Region.fvList, Silmaril.SSA.LambdaRTL.Region.fv, val_mem_fv,
-      op_mem_fv, *, and_assoc, and_comm]
 
 section Readback
 
@@ -110,6 +97,45 @@ private theorem body_reads {n : Nat} {names : Names V n} {src : CFG.Body V K F} 
 
 end Readback
 
+section PacketClosure
+
+variable {V K : Type w} {F : Type v} [DecidableEq V] [DecidableEq K] {n blocks : Nat}
+
+omit [DecidableEq K] in
+theorem block_packetClosed {index : K → Option (Fin blocks)} (block : CFG.Block V K F)
+    {flat : LambdaSSA.Flat F blocks (n + 1)} (read : body index (blockNames block.param) block.body = some flat) :
+    block.body.toRegion.fv ⊆ {block.param} := by
+  intro reg free
+  have bound := body_reads read reg ((Version.mem_fvList_iff _ _).mpr free)
+  by_cases same : reg = block.param
+  · exact Finset.mem_singleton.mpr same
+  · simp [blockNames, bindName, same] at bound
+
+theorem elaborateAt_packetClosed (graph : CFG V K F) (exits : List K) (names : Fin n → V)
+    (count : graph.blocks.length = blocks) {code : FiniteCFG F blocks exits.length n}
+    (readback : elaborateAt graph exits names blocks count = some code) :
+    RoundTrip.PacketClosed graph := by
+  let index := fun label => (labelIndex graph.blocks exits label).map
+    (Fin.cast (congrArg (· + exits.length) count))
+  let readBlock := fun i : Fin blocks =>
+    let block := graph.blocks[Fin.cast count.symm i].2
+    body index (blockNames (n := n) block.param) block.body
+  change (body index (first names) graph.entry).bind
+    (fun entry => (tabulate blocks readBlock).map fun rows => ⟨entry, rows⟩) = some code at readback
+  obtain ⟨_, _, table⟩ := Option.bind_eq_some_iff.mp readback
+  obtain ⟨rows, tabulated, _⟩ := Option.map_eq_some_iff.mp table
+  intro item member
+  obtain ⟨i, hi, eq⟩ := List.getElem_of_mem member
+  let slot : Fin blocks := Fin.cast count ⟨i, hi⟩
+  have read := Silmaril.Isotope.Bridge.NamedFlat.tabulate_at tabulated slot
+  have block : graph.blocks[Fin.cast count.symm slot] = item := by simpa [slot] using eq
+  change body index (blockNames (n := n) graph.blocks[Fin.cast count.symm slot].2.param)
+    graph.blocks[Fin.cast count.symm slot].2.body = some (rows slot) at read
+  rw [block] at read
+  exact block_packetClosed item.2 read
+
+end PacketClosure
+
 variable {κ K : Type (u + 1)} [DecidableEq K]
   {n blocks : Nat} {P : FlatInstitution.Signature.{u, v} κ}
   {context : BoundCtx (Ty κ) n} {exits : List K} {external : Fin exits.length → Ty κ}
@@ -153,7 +179,7 @@ theorem saves_captures
   rcases support with used | ⟨item, inTable, used⟩
   · exact entry reg used
   · have eq : reg = item.2.param :=
-      Finset.mem_singleton.mp (a.closed item inTable ((region_mem_fv _ _).mp used))
+      Finset.mem_singleton.mp (a.closed item inTable ((Version.mem_fvList_iff _ _).mp used))
     simp [eq, params item inTable, param] at notParam
 
 theorem saves_captures_of_lowerFresh [DecidableEq P.Instr] (internal : Fin blocks → K)

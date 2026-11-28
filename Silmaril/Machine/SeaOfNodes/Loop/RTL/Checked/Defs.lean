@@ -31,6 +31,7 @@ def decodeLimit {ins : List (ValueSort Unit)} : WordOp ins word → Option Word
 def decodeGuard {ins : List (ValueSort Unit)} : WordOp ins .predicate → Guard
   | .eq => .eq
   | .ne => .ne
+  | .slt => .slt
 
 /-- Recover the candidate operation schedule. Admission also checks every
 operand provenance against the candidate's canonical graph. -/

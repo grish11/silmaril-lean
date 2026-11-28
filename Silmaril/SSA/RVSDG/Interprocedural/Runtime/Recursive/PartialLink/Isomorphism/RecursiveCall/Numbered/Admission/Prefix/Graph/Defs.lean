@@ -9,6 +9,7 @@ import Silmaril.SSA.RVSDG.Interprocedural.Terms.Thms
 
 namespace Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.RecursiveCall.Numbered.Prefix
 
+open Continuation.Partial (Config Primitives)
 open Continuation.Partial.Executable (Actions)
 open NestedTheta.Equality (OpcodeCode)
 
@@ -41,5 +42,17 @@ def admitGraph [DecidableEq (Ty V S)] (keys : OpcodeCode (Instruction Op)) [Deci
   (admit keys actions ids ordinary unitL unitR inputsL inputsR left.toTerm right.toTerm
     plan port storeL storeR captureCode exactValue exactGroup).map fun checked =>
       ⟨by simpa only [Omega.toGraph_toTerm] using checked.down⟩
+
+/-- Failed links carry corresponding diagnostics. At successful starts, an
+accepted admission check supplies the closed family for the actual configurations. -/
+def StartsRelated (primitives : Primitives m σ) (ids : GlobalRel) (rename : Nat → Nat)
+    (exports : Ports (Ty V S)) (accepted : Prop) {results : Ports (Ty V S)} :
+    Except (Failure m σ) (Config m σ results) → Except (Failure m σ) (Config m σ results) → Prop
+  | .error left, .error right =>
+    OutcomesRelated m ids σ rename exports (.undefined left) (.undefined right)
+  | .ok left, .ok right =>
+    accepted → ∃ familyL familyR, ClosedFamily primitives ids familyL familyR ∧
+      Admitted m ids familyL familyR left right
+  | _, _ => False
 
 end Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.RecursiveCall.Numbered.Prefix

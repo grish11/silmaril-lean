@@ -13,8 +13,8 @@ namespace Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Wires
 
 open Isotope.LetIter.ProofRelevant.Semantics
 open Isotope.LambdaSSA.Semantics.Monadic (LabelDen)
-open OrderedTheta (pack point)
-open TwoBlock.TwoExit (enter ExitCode)
+open OrderedTheta (pack packChoice point)
+open TwoBlock.TwoExit (enter ExitCode callCase)
 
 universe u
 variable {τ Φ ε σ : Type u} [TypeFormers τ] [HasTy Φ τ] [HasEff Φ ε] [Bot ε]
@@ -35,6 +35,9 @@ def model : OrderedRuntime.Structured.Model (TwoBlock.TwoExit.Pure τ) (Effect �
       match TypeModel.coprodEquiv M A value with
       | .inl result => pure (pack (TwoBlock.TwoExit.finish (A := A) (C := M) (D := M) (.inl result)))
       | .inr _ => StateT.mk fun _ => Part.none
+    | .classifyPayload op, .cons value .nil => callCase (ε := ε) op value >>= fun result =>
+      pure (packChoice result)
+    | .enterCarrier, .cons value .nil => pure (pack (enter value))
     | @Effect.link _ _ _ _ A M E D, .cons payload .nil =>
       match TypeModel.coprodEquiv (ExitCode M M) A payload with
       | .inl e => pure (pack (enter (A := M) (C := E) (D := D)

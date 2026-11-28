@@ -17,7 +17,7 @@ open Silmaril.MLIR.CF (Cfg Frame)
 open RVSDG (Tuple)
 open Blocks (Bank)
 open Blocks.Prune (Mask)
-open Diamond.Prune (Checked)
+open Diamond.Prune (Checked HeaderProjection)
 
 inductive Label {size : Nat} (header : Fin size) (regs kept : List (ValueSort Width))
     (out : ValueSort Width) : List Width → Type where
@@ -52,18 +52,32 @@ def exitFrame (header : Fin size) (mask : Mask regs)
     Frame (Label header regs mask.kept out) :=
   returnFrame .exit value
 
+/-- Emit a projected block using its checked flow and latest outgoing versions. -/
+def lowerProjectedBlockWith {Labels : List Width → Type} (jumpTo : JumpTo regs size Labels)
+    (exit : Labels [valueWidth out]) (block : SourceBlock Op regs out size)
+    (projected : HeaderProjection block.body mask) (captures : List Width) :
+    Silmaril.MLIR.CF.Block TargetOp Labels (Widths mask.kept ++ captures) [valueWidth out] :=
+  lowerCode opcode projected.flow ⟨blockNames captures mask.kept, PUnit.unit⟩
+    fun scope => lowerTerminatorWith jumpTo exit scope projected.outgoing block.terminator
+
+/-- Emit the original source blocks with a certified projection at one
+header. Every edge still uses the source terminator and its final versions. -/
+def lowerSourceWith (src : Source Op regs out size) (entry header : Fin size)
+    (projected : HeaderProjection (src header).body mask) {Γ : List Width}
+    (names : Tuple (Names Γ) (dataPorts regs)) :
+    Cfg TargetOp (Label header regs mask.kept out) Γ [valueWidth out] where
+  entry := lowerBlockWith (jump header mask) .exit (src entry) ⟨names, PUnit.unit⟩
+  block
+    | .header => lowerProjectedBlockWith (jump header mask) .exit (src header) projected Γ
+    | .site id _ => lowerBlockWith (jump header mask) .exit (src id) ⟨blockNames Γ regs, PUnit.unit⟩
+    | .exit => .terminator (.ret (.cons .here .nil))
+
 /-- Compile the preheader with the supplied external argument names.
 Successor blocks still bind their original local and carried banks. -/
 def lowerWith (checked : Checked p mask) {Γ : List Width}
     (names : Tuple (Names Γ) (dataPorts regs)) :
-    Cfg TargetOp (Label p.header regs mask.kept out) Γ [valueWidth out] where
-  entry := lowerBlockWith (jump p.header mask) .exit (src entry) ⟨names, PUnit.unit⟩
-  block
-    | .header =>
-      lowerCode opcode checked.flow ⟨blockNames Γ mask.kept, PUnit.unit⟩
-        fun scope => lowerTerminatorWith (jump p.header mask) .exit scope checked.outgoing (src p.header).terminator
-    | .site id _ => lowerBlockWith (jump p.header mask) .exit (src id) ⟨blockNames Γ regs, PUnit.unit⟩
-    | .exit => .terminator (.ret (.cons .here .nil))
+    Cfg TargetOp (Label p.header regs mask.kept out) Γ [valueWidth out] :=
+  lowerSourceWith src entry p.header checked.toHeaderProjection names
 
 /-- Bind the external inputs in register order. -/
 def lower (checked : Checked p mask) : Target p.header mask out :=

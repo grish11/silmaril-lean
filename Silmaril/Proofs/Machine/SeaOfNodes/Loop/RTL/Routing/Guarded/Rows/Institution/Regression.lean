@@ -1,6 +1,6 @@
 module
 
-import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Institution.Thms
+import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Reindex.Thms
 import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Fuel.Thms
 import Mathlib.Logic.Equiv.Basic
 
@@ -14,7 +14,7 @@ open Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA
 open Silmaril.Isotope.LambdaSSA.Semantics.Region (Eval)
 
 private def exitSpec : Spec :=
-  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0⟩
+  ⟨[0, 1], [0, 1], [⟨.add, 0, 0, 1⟩], .output 0 0, 0, .ne, 3, 0, none, none⟩
 
 private def spinSpec : Spec :=
   { exitSpec with entry := [0, 0], updates := [⟨.add, 0, 0, 1⟩, ⟨.sub, 1, 1, 1⟩] }
@@ -32,7 +32,9 @@ private def spinPlan : Plan 2 :=
   { exitPlan with
     entry := .cons (.arg .head) (.cons (.arg .head) .nil)
     updates := [⟨.add, 0, 0, 1⟩, ⟨.sub, 1, 1, 1⟩]
-    guardIndex := 0 }
+    guardIndex := 0
+    exitProducer := none
+    guardOperand := .limit }
 
 private def exitTargets : Checked.Phi.Targets :=
   (lowerBank exitPlan.graph, Generic.lower exitPlan.graph)
@@ -82,16 +84,19 @@ example : exitTargets.1.runMain 14 0 (words input) initial = .returned [2] initi
 example : Generic.Fuel.run model (inputEnv model input) 3 exitTargets.2 =
     some (0, Generic.packResult model (out := word) (2 : Word)) := by cbv
 
-private theorem distinguishes :
-    rtlObservation exitTargets.1 input initial ≠ lambdaObservation spinTargets.2 input initial := by
+private theorem nativeDistinguishes :
+    exitPlan.program.graph.denote model input ≠ spinPlan.program.graph.denote model input := by
   intro same
-  have native := (equation_at_iff exitChecked spinChecked exitLowered spinLowered input initial).mp same
   have present := (exitPlan.graph.returns_iff_mem_denote model input (2 : Word)).mp ⟨2, exits⟩
   change (2 : Word) ∈ exitPlan.program.graph.denote model input at present
-  rw [native, spinUndefined] at present
+  rw [same, spinUndefined] at present
   exact Part.notMem_none _ present
 
-example : ¬ (exitPlan.equation spinPlan).Holds model := fun holds =>
+private theorem distinguishes :
+    rtlObservation exitTargets.1 input initial ≠ lambdaObservation spinTargets.2 input initial :=
+  fun same => nativeDistinguishes ((equation_at_iff exitChecked spinChecked exitLowered spinLowered input initial).mp same)
+
+private theorem equationFails : ¬ (exitPlan.equation spinPlan).Holds model := fun holds =>
   distinguishes ((equation_holds_iff exitChecked spinChecked exitLowered spinLowered initial).mp holds input)
 
 example : (exitPlan.equation exitPlan).Holds model := fun _ => rfl
@@ -105,6 +110,47 @@ example : ∀ returned final, ¬ spinTargets.1.oracle 0 (words input) initial re
 example : ∀ label payload final, ¬ Eval (instruction model) (inputEnv model input)
     spinTargets.2 initial label payload final :=
   (no_finite_return_iff spinChecked spinLowered input initial).2.mpr spinUndefined
+
+private def swap : InputPermutation 2 := Equiv.swap 0 1
+private def newInput := bank 1 0
+private theorem pulled : swap.pull newInput = input := by cbv
+
+private def exitReindexed : Checked.Phi.Targets :=
+  (lowerBank (exitPlan.reindexInputs swap).graph, Generic.lower (exitPlan.reindexInputs swap).graph)
+
+private def spinReindexed : Checked.Phi.Targets :=
+  (lowerBank (spinPlan.reindexInputs swap).graph, Generic.lower (spinPlan.reindexInputs swap).graph)
+
+private theorem exitReemitted : lowerChecked 2 (exitSpec.reindexInputs swap) = some exitReindexed := by cbv
+private theorem spinReemitted : lowerChecked 2 (spinSpec.reindexInputs swap) = some spinReindexed := by cbv
+
+example :
+    ((exitReindexed.1.runMain 10 0 (words newInput) initial).returnedValues?,
+      Generic.Fuel.run model (inputEnv model newInput) 2 exitReindexed.2) = (none, none) := by cbv
+
+example :
+    ((spinReindexed.1.runMain 12 0 (words newInput) initial).returnedValues?,
+      Generic.Fuel.run model (inputEnv model newInput) 2 spinReindexed.2) = (none, none) := by cbv
+
+example : exitReindexed.1.runMain 14 0 (words newInput) initial = .returned [2] initial := by cbv
+
+example : ∀ label payload final, ¬ Eval (instruction model) (inputEnv model newInput)
+    spinReindexed.2 initial label payload final :=
+  (reindex_no_finite_return_iff swap spinChecked spinReemitted newInput initial).2.mpr
+    (pulled.symm ▸ spinUndefined)
+
+example : rtlObservation exitReindexed.1 newInput initial ≠
+    lambdaObservation spinReindexed.2 newInput initial := by
+  intro same
+  have agreement := (reindex_equation_at_iff swap exitChecked spinChecked
+    exitReemitted spinReemitted newInput initial).mp same
+  rw [pulled] at agreement
+  exact nativeDistinguishes agreement
+
+example : ¬ ∀ valuation : WordTuple 2,
+    rtlObservation exitReindexed.1 valuation initial = lambdaObservation spinReindexed.2 valuation initial :=
+  mt (reindex_equation_holds_iff swap exitChecked spinChecked exitReemitted spinReemitted initial).mpr
+    equationFails
 
 private def arrivals : Fin 2 ≃ Incoming where
   toFun := Fin.cases .entry (fun _ => .backedge)

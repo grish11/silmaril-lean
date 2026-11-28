@@ -38,7 +38,7 @@ private theorem join_same {Γ L : List (Ty Empty)} {r s : Region Empty}
   Observer.extension_same
     (fun step => step.elim
       projectionUnitSeed_same
-      (fun returned => returned.elim Observer.unary_fusion_same (caseReturnSeed_same rfl))) h
+      (fun returned => returned.elim (Observer.unary_fusion_same rfl) (caseReturnSeed_same rfl))) h
 
 theorem case_unary_pair_sequence_fails :
     ¬ Paper.Extension.Eqv Join [source]

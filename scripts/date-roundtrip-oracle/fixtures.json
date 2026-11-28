@@ -1,0 +1,121 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "optional_edges": {
+      "field": "日付",
+      "nullable": true,
+      "batches": [
+        [],
+        [
+          -2147483648,
+          null
+        ],
+        [],
+        [
+          2147483647
+        ],
+        []
+      ],
+      "source_ipc": {
+        "bytes": 808,
+        "sha256": "42b1e94b4cc1f5ae467181e13c7d08499da0512e470229495a8ed5a9530fc589"
+      },
+      "returned_ipc": {
+        "bytes": 984,
+        "sha256": "43d918a8aefd8fdfe424bf538697d987c51dd1a20a134a874419dd6566bec070"
+      },
+      "middle_parquet": {
+        "bytes": 357,
+        "sha256": "e8d27e54f451084d9c72d854791b1349665bba13b1b583d0d553fc8dfaf22f09"
+      },
+      "returned_parquet": {
+        "bytes": 357,
+        "sha256": "e8d27e54f451084d9c72d854791b1349665bba13b1b583d0d553fc8dfaf22f09"
+      }
+    },
+    "required_edges": {
+      "field": "日付",
+      "nullable": false,
+      "batches": [
+        [],
+        [
+          -1,
+          0
+        ],
+        []
+      ],
+      "source_ipc": {
+        "bytes": 528,
+        "sha256": "8cbbd90a18b58f6d1a4bae7729e66dc4dece7cae42269db929040fa86c26a7ab"
+      },
+      "returned_ipc": {
+        "bytes": 648,
+        "sha256": "63f6809c2dab27cfe55f3c3e510f5858d9df8ba43a4eee76e88968a9827dcdfa"
+      },
+      "middle_parquet": {
+        "bytes": 221,
+        "sha256": "352257426feec07be1665a58c4ea7816e62d18afc4bb733d63bba8322fd050f5"
+      },
+      "returned_parquet": {
+        "bytes": 221,
+        "sha256": "352257426feec07be1665a58c4ea7816e62d18afc4bb733d63bba8322fd050f5"
+      }
+    },
+    "all_empty": {
+      "field": "日付",
+      "nullable": true,
+      "batches": [
+        [],
+        [],
+        []
+      ],
+      "source_ipc": {
+        "bytes": 496,
+        "sha256": "cbae30f87c3b9cdad63618fbb9b96451f433cc99afc6425e1373df964f5215c7"
+      },
+      "returned_ipc": {
+        "bytes": 632,
+        "sha256": "d202327d34d04414d31224c1657b59e611400fcbd404efdeebbb36fd583b4201"
+      },
+      "middle_parquet": {
+        "bytes": 225,
+        "sha256": "cfb53b163f9df6019dd56d28ce93a200efcd2d1a71f886fef2e3c42e73b361cb"
+      },
+      "returned_parquet": {
+        "bytes": 225,
+        "sha256": "cfb53b163f9df6019dd56d28ce93a200efcd2d1a71f886fef2e3c42e73b361cb"
+      }
+    }
+  },
+  "converted_only": {
+    "source": {
+      "bytes": 191,
+      "sha256": "e72eb39995c68e692f5a9cd92b4d6c63fbc2145cc2e1352ee83fa32bd7492010"
+    },
+    "provenance": "Thrift footer edit",
+    "returned_ipc": {
+      "bytes": 352,
+      "sha256": "b59f05a10a8ca4b6cceb9794832e826b7d8bcd298fb970f4fbcfe7c1acfd2fc4"
+    },
+    "returned_parquet": {
+      "bytes": 143,
+      "sha256": "8f72600303439871564c5556093e2c8bd9adcbfb1cf6d382476aa7691cd9d945"
+    }
+  },
+  "schema_only": {
+    "source": {
+      "bytes": 90,
+      "sha256": "5192230571675ebf62b214e47e52a53b0f70960634944ef2e66f6ac08af169b6"
+    },
+    "returned_ipc": {
+      "bytes": 152,
+      "sha256": "66c920d00cf5acae1161cfec456af3d713064fed9a9eb5c829d4d2a351fd4509"
+    },
+    "reverse_error": ".source (.batchCount 0)"
+  }
+}

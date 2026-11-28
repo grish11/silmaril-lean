@@ -293,11 +293,11 @@ theorem step_typed {n : Nat} (R : Fin n → Ty α) (L : LCtx (Ty α))
     obtain ⟨i, v⟩ := s
     exact enter_typed R (hbs i v hs)
 
-theorem cfgRun_typed {n : Nat} (R : Fin n → Ty α) (L : LCtx (Ty α))
+theorem cfgRun_typed {n : Nat} {mark : Bool} (R : Fin n → Ty α) (L : LCtx (Ty α))
     {bs : Fin n → Val → Result} {r : Result}
     (he : ResultTy (List.ofFn R ++ L) r)
     (hb : ∀ i v, ValTy v (R i) → ResultTy (List.ofFn R ++ L) (bs i v)) :
-    ResultTy L (cfgRun n bs r) := by
+    ResultTy L (cfgRun n bs r mark) := by
   classical
   have good (i : Nat) : FrameTy R L (path bs (enter n r) i) := by
     induction i with
@@ -307,12 +307,12 @@ theorem cfgRun_typed {n : Nat} (R : Fin n → Ty α) (L : LCtx (Ty α))
   · obtain ⟨r', i, hi⟩ := hex
     have h := good i
     rw [hi] at h
-    change ResultTy L (finish bs (enter n r))
+    change ResultTy L (finish bs (enter n r) mark)
     rw [finish_of_terminal bs _ hi]
     exact h
-  · change ResultTy L (finish bs (enter n r))
+  · change ResultTy L (finish bs (enter n r) mark)
     rw [finish, dite_eq_right hex]
-    trivial
+    cases mark <;> trivial
 
 theorem evalRegion_typed {Γ : VCtx (Ty Empty)} {r : Region Empty} {L : LCtx (Ty Empty)}
     (hr : HasType Γ r L) {env : Env} (h : EnvTy Γ env) : ResultTy L (evalRegion r env) := by
@@ -351,12 +351,12 @@ theorem evalRegion_typed {Γ : VCtx (Ty Empty)} {r : Region Empty} {L : LCtx (Ty
 omit [UnitPayloadPolicy] in
 theorem mapTerminal_id {n : Nat} (s : Frame n) : mapTerminal id s = s := by cases s <;> rfl
 
-theorem cfgRun_congr {n : Nat} (R : Fin n → Ty α) (L : LCtx (Ty α))
+theorem cfgRun_congr {n : Nat} {mark : Bool} (R : Fin n → Ty α) (L : LCtx (Ty α))
     {bs bs' : Fin n → Val → Result} {r : Result}
     (he : ResultTy (List.ofFn R ++ L) r)
     (typed : ∀ i v, ValTy v (R i) → ResultTy (List.ofFn R ++ L) (bs i v))
     (hb : ∀ i v, ValTy v (R i) → bs i v = bs' i v) :
-    cfgRun n bs r = cfgRun n bs' r := by
+    cfgRun n bs r mark = cfgRun n bs' r mark := by
   have comm (s : Frame n) (hs : FrameTy R L s) : step bs' s = step bs s := by
     cases s with
     | inl _ => rfl
@@ -364,7 +364,7 @@ theorem cfgRun_congr {n : Nat} (R : Fin n → Ty α) (L : LCtx (Ty α))
       obtain ⟨i, v⟩ := s
       change enter n (bs' i v) = enter n (bs i v)
       rw [hb i v hs]
-  have hh := finish_mapTerminalOn bs bs' id rfl (FrameTy R L)
+  have hh := finish_mapTerminalOn (mark := mark) bs bs' id rfl (FrameTy R L)
     (step_typed R L typed) (fun s hs => by simp only [mapTerminal_id]; exact comm s hs)
     (enter n r) (enter_typed R he)
   simpa only [mapTerminal_id, id_eq, cfgRun] using hh.symm

@@ -72,6 +72,16 @@ theorem phi_at (solves : g.Solves m env values) {r yes no : Ref g.sort out}
       (fun flag => if flag.down then readRef values yes i else readRef values no i) :=
   Proofs.phi_at solves node i
 
+theorem interpret_theta (model : Interpretation.{u,v,x} P) (input : Tuple model.Value params)
+    (i : Index l) (loop : Fin l)
+    (read : ∀ slot : Fin ([out, out] : List (Ty Data)).length,
+      Index l → Option (model.Value ([out, out] : List (Ty Data))[slot])) :
+    (Label.theta loop).interpret model input i (fun slot j _ => read slot j) =
+      match i loop with
+      | 0 => read 0 i
+      | k + 1 => read 1 (i.set loop k) :=
+  Proofs.interpret_theta model input i loop read
+
 theorem theta_zero (solves : g.Solves m env values) {r initial feedback : Ref g.sort out}
     {loop : Fin l} (node : HasNode r (.theta loop) (.cons initial (.cons feedback .nil)))
     {i : Index l} (atZero : i loop = 0) : readRef values r i = readRef values initial i :=

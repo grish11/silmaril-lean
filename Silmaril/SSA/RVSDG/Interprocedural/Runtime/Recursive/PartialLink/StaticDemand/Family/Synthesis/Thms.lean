@@ -15,7 +15,8 @@ open Continuation.Partial.Executable (Actions)
 universe u v w
 variable {V S : Type u} {Op : Dialect.{u, v} (ValueSort V S) S}
 variable {shape : MemberSummaries V S} {imports : Ports (Ty V S)}
-variable (template : Template Op shape imports)
+variable {calls : CallTransfer shape} {past : List (Ports (Ty V S))}
+variable (template : Template Op shape imports calls past)
 
 /-- Increasing candidate summaries can only increase the next round. -/
 theorem Template.round_monotone : Monotone template.round := Proofs.round_mono template
@@ -46,26 +47,30 @@ theorem Template.synthesize_read (i : Fin shape.members.length) (demand : Demand
 /-- The projected result covers every actual body read at each demand. -/
 theorem Template.synthesize_closed (safe : template.ReferenceSafe) (i : Fin shape.members.length)
     (demand : Demand) :
-    let live := (((template.body i).withTransfer (rowTransfer shape template.synthesize)).plan demand).live
+    let live := (((template.body i).withTransfer template.callReads).plan demand).live
     (∀ p, p < (memberPorts shape.members).length → .arg p ∉ live) ∧
     ∀ p, .arg ((memberPorts shape.members).length + p) ∈ live → .arg p ∈ template.summaries.live i demand :=
   Proofs.synthesized_closed template safe i demand
 
 /-- Certify closure for all demands. Checking the full output demand suffices
 to exclude reads of the reference prefix. Actual target and capture witnesses
-are still checked by the linked family's ordinary `Ready` condition. -/
-@[expose] def Template.admit (safe : template.ReferenceSafe) : StaticDemand.Family Op template.summaries imports where
+are still checked by the linked family's `Ready` or `ReadyWith` condition. -/
+@[expose] def Template.admit (safe : template.ReferenceSafe) :
+    StaticDemand.Family Op template.summaries imports
+      (calls.signatures.withReads template.callReads) past where
   context := template.context
   captures := template.captures
   memberWires := template.memberWires
   sigs := template.sigs
-  body i := (template.body i).withTransfer (rowTransfer shape template.synthesize)
+  body i := (template.body i).withTransfer template.callReads
   closed := template.synthesize_closed safe
 
 /-- The inferred summary changes only the demand interpretation of a member. -/
 theorem Template.admit_term (safe : template.ReferenceSafe) (i : Fin shape.members.length) :
     ((template.admit safe).body i).term = (template.body i).term :=
-  Proofs.transfer_term (template.body i) (rowTransfer shape template.synthesize)
+  Proofs.transfer_term (template.body i) template.callReads
+
+variable (template : Template Op shape imports)
 
 variable {m : Machine.{u, v, w} Op} {σ : Type (max u v w)}
 

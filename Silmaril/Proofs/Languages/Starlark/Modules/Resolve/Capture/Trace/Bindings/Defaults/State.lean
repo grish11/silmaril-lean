@@ -3,6 +3,8 @@ module
 public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Defaults.Call
 public import Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.Module
 
+import Silmaril.Languages.Starlark.Modules.Resolve.Capture.Thms
+
 public section
 
 namespace Silmaril.Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Bindings.WithDefaults
@@ -52,7 +54,7 @@ theorem commit_captures {state middle : State} {free : List FreeName}
     (installed : Installs state free captures) (cells : Defaults.Body.CaptureCells state captures) :
     Installs (middle.write (globalSlot destination) value) free captures ∧
       Defaults.Body.CaptureCells (middle.write (globalSlot destination) value) captures :=
-  ⟨Defaults.Escape.installs_in_same_slots ((slots_write _ _ _).trans kept.slots) installed,
+  ⟨Silmaril.Languages.Starlark.Modules.Resolve.Capture.installs_in_same_slots ((slots_write _ _ _).trans kept.slots) installed,
     Defaults.Body.capture_cells_written _ _ _ (Defaults.Body.capture_cells_preserved kept cells)⟩
 
 theorem keep_live {globals : List String} {program : Program} {state middle : State}

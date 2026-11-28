@@ -13,7 +13,7 @@ open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA (inputEnv instruction)
 open Silmaril.Isotope.LambdaSSA.Semantics.Region (Eval)
 
 private def spec : Spec :=
-  ⟨[0, 1, 2], [0, 1, 0], [⟨.sub, 1, 0, 1⟩, ⟨.add, 0, 0, 1⟩], .output 1 0, 0, .ne, 14, 2⟩
+  ⟨[0, 1, 2], [0, 1, 0], [⟨.sub, 1, 0, 1⟩, ⟨.add, 0, 0, 1⟩], .output 1 0, 0, .ne, 14, 2, none, none⟩
 
 private def plan : Plan 3 where
   entry := .cons (.arg .head) (.cons (.arg (.tail .head)) (.cons (.arg (.tail (.tail .head))) .nil))

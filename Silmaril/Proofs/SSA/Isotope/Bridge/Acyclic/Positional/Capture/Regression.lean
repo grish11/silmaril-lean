@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Categorical.Thms
+import Silmaril.SSA.Isotope.Bridge.Acyclic.Positional.Capture.Native.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Tests
 
@@ -24,13 +25,16 @@ local instance : HasTy Op (Ty Unit) where
     | .enter | .test | .join => Tagged
     | .left | .right => N
 
+local instance : HasEff Op Bool := ⟨fun _ => true⟩
+
 private abbrev ambient : BoundCtx (Ty Unit) 2 := .snoc (.snoc .nil N) Tagged
 private abbrev types : Fin 4 → Ty Unit := ![N, N, N, Tagged]
 
 private def entry : Operand Op ambient Tagged := ⟨.op .enter (.bv 0), .op .bv⟩
 private def classifier : Operand Op (ambient.snoc Tagged) Tagged := ⟨.op .test (.bv 0), .op .bv⟩
 private def left : Operand Op (ambient.snoc N) N :=
-  ⟨.op .left (.pair (.bv 2) (.bv 0)), .op (.pair .bv .bv)⟩
+  ⟨.op .left (.let₂ (.pair (.bv 2) (.bv 0)) (.pair (.bv 1) (.bv 0))),
+    .op (.let₂ (.pair .bv .bv) (.pair .bv .bv))⟩
 private def right : Operand Op (ambient.snoc N) N :=
   ⟨.op .right (.pair (.bv 2) (.bv 0)), .op (.pair .bv .bv)⟩
 private def join : Operand Op (ambient.snoc N) Tagged :=
@@ -143,7 +147,7 @@ example : LambdaSSA.Semantics.Region.Eval step
     .case_inl (.op .var ⟨rfl, rfl⟩) (.br .var)
   have arm : LambdaSSA.Semantics.Region.Eval step (extend env (.atom 3))
       (diamond.block 1).toSSA [.enter, .test] 0 (.atom 10) [.enter, .test, .left] :=
-    .br (.op (.pair .var .var) ⟨rfl, rfl⟩)
+    .br (.op (.let₂ (.pair .var .var) (.pair .var .var)) ⟨rfl, rfl⟩)
   have joined : LambdaSSA.Semantics.Region.Eval step (extend env (.atom 10))
       (diamond.block 0).toSSA [.enter, .test, .left] 4 (.atom 80) [.enter, .test, .left, .join] :=
     .case_inl (.op (.pair .var .var) ⟨rfl, rfl⟩) (.br .var)
@@ -168,5 +172,23 @@ example : LambdaSSA.Semantics.Region.Eval step
     .case_inr (.op (.pair .var .var) ⟨rfl, rfl⟩) (.br .var)
   exact .cfg entered (.step (by decide) selected
     (.step (by decide) arm (.step (by decide) joined (.exit (by decide)))))
+
+-- The backward-numbered arms share row zero. The emitted LetCase term
+-- retains the product destructure in the left request argument.
+example :
+    Region.Paper.WithBoundEntryEta.Eqv ambient.toList (diamond.toSSA 3 entry)
+      (Reverse.tableGrammar diamond checked 3 entry).toTable.toSSA [N, N] ∧
+    (Reverse.tableGrammar diamond checked 3 entry).toTable.toLetCase = diamond.toLetCase checked 3 entry :=
+  diamond.native_roundTrip checked 3 entry
+
+example :
+    ReplayEqv false ambient.toList (diamond.toSSA 3 entry).bindBranchArguments.packExits
+      ((Code.ofLetCase (diamond.toLetCase checked 3 entry).2).guardedSSA 0)
+      [Region.packedExitType [N, N]] ∧
+    ReplayEqv false ambient.toList ((Code.ofLetCase (diamond.toLetCase checked 3 entry).2).guardedSSA 0)
+      (Reverse.tableGrammar diamond checked 3 entry).toTable.toSSA.bindBranchArguments.packExits
+      [Region.packedExitType [N, N]] ∧
+    (Reverse.tableGrammar diamond checked 3 entry).toTable.toLetCase = diamond.toLetCase checked 3 entry :=
+  diamond.native_recompile checked 3 entry
 
 end Silmaril.Isotope.LambdaSSA.Acyclic.Positional.Capture.Tests

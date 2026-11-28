@@ -8,9 +8,27 @@ import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.R
 
 namespace Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32
 
-open Execution.Runtime (Frame FuncAddr MemAddr MemInst Value)
+open Execution.Runtime (Frame FuncAddr MemAddr MemInst ModuleInst Value)
 open Wasm.V1.Execution
 open Computed
+
+/-- A checked i32 test exposes the ordered operands used by its continuation. -/
+theorem split_i32 {stack : List Value} {resume : List NumType → Bool}
+    (checked : Graph.checkCondition (Prefix.stackTypes stack) resume = true) :
+    ∃ (saved : List Value) (bits : BitVec 32),
+      stack = saved ++ [Value.int .i32 bits] ∧ resume (Prefix.stackTypes saved) = true :=
+  Proofs.split_i32 checked
+
+/-- The selector is above the ordered argument suffix. The continuation
+receives the declared results above the saved operand types. -/
+theorem Function.indirect_typed {fn : Function} {stack : List Value} {index : TypeIdx} {signature : Wasm.V1.FuncType}
+    {rest : List Op} {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.callIndirect index signature :: rest) labels = true) :
+    ∃ (operands : List Value) (selector : BitVec 32), stack = operands ++ [Value.int .i32 selector] ∧
+      Graph.SuffixTyped signature.params operands ∧
+      fn.checkRegion (signature.results.reverse ++ (Prefix.stackTypes operands).drop signature.params.length)
+        fallthrough rest labels = true :=
+  Proofs.indirect_typed checked
 
 /-- An admitted load has an i32 address and preserves the continuation's stack types. -/
 theorem Function.load_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} {rest : List Op}
@@ -39,6 +57,35 @@ theorem Function.store_typed {fn : Function} {stack : List Value} {offset : Fin 
     (checked : fn.WellTyped stack (.store offset :: rest)) :
     ∃ (saved : List Value) (address word : BitVec 32),
       stack = saved ++ [Value.int .i32 address, Value.int .i32 word] ∧ fn.WellTyped saved rest :=
+  Proofs.store_typed checked
+
+theorem Function.region_load_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} {rest : List Op}
+    {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.load offset :: rest) labels = true) :
+    ∃ (saved : List Value) (address : BitVec 32),
+      stack = saved ++ [Value.int .i32 address] ∧
+      ∀ bits : BitVec 32, fn.checkRegion (Prefix.stackTypes (saved ++ [Value.int .i32 bits])) fallthrough rest labels = true :=
+  Proofs.load_typed checked
+
+theorem Function.region_grow_typed {fn : Function} {stack : List Value} {rest : List Op}
+    {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.grow :: rest) labels = true) :
+    ∃ (saved : List Value) (delta : BitVec 32),
+      stack = saved ++ [Value.int .i32 delta] ∧
+      ∀ result : BitVec 32, fn.checkRegion (Prefix.stackTypes (saved ++ [Value.int .i32 result])) fallthrough rest labels = true :=
+  Proofs.grow_typed checked
+
+theorem Function.region_size_typed {fn : Function} {stack : List Value} {rest : List Op}
+    {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.size :: rest) labels = true) (pages : BitVec 32) :
+    fn.checkRegion (Prefix.stackTypes (stack ++ [Value.int .i32 pages])) fallthrough rest labels = true :=
+  Proofs.size_typed checked pages
+
+theorem Function.region_store_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} {rest : List Op}
+    {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.store offset :: rest) labels = true) :
+    ∃ (saved : List Value) (address word : BitVec 32),
+      stack = saved ++ [Value.int .i32 address, Value.int .i32 word] ∧ fn.checkRegion (Prefix.stackTypes saved) fallthrough rest labels = true :=
   Proofs.store_typed checked
 
 /-- A parameterless block checks its body in isolation and delivers its optional result above the saved operands. -/
@@ -109,7 +156,8 @@ theorem Program.lookup_table (program : Program) (address : FuncAddr) :
 theorem Program.function_checked {program : Program} {memory : MemAddr} {mode : MemoryMode} {calls : CallMode}
     (checked : program.checkV1 memory mode calls = true)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn) :
-    fn.declaration.results.length ≤ 1 ∧ fn.code.all (fun op => fn.supports op mode) = true ∧
+    fn.declaration.results.length ≤ 1 ∧
+      fn.code.all (fun op => fn.supports op mode (program.checkIndirect calls fn.rank fn.declaration.module)) = true ∧
       fn.WellTyped fn.initial fn.code ∧ fn.declaration.module.memories[0]? = some memory :=
   Proofs.function_checked checked found
 
@@ -123,6 +171,32 @@ theorem Program.linked_target {program : Program} {memory : MemAddr} {mode : Mem
       fn.declaration.module.funcs[target.index.toNat]? = some target.address ∧
       callee.declaration = target.declaration ∧ calls.permits fn.rank callee.rank :=
   Proofs.linked_target checked found used
+
+/-- Every initialized entry in the fixed table names a graph declaration. -/
+theorem Program.table_target {program : Program} {memory : MemAddr} {mode : MemoryMode} {calls : CallMode}
+    (checked : program.checkV1 memory mode calls = true) {fixed : FixedTable}
+    (selected : program.fixedTable = some fixed) {address : FuncAddr} (member : some address ∈ fixed.table.refs) :
+    ∃ fn, program.lookup address = some fn :=
+  Proofs.table_target checked selected member
+
+/-- A checked site binds the active caller's table and type index. Rank
+descent applies to entries that can pass the exact signature test. -/
+theorem Program.indirect_link {program : Program} {calls : CallMode} {rank : Nat} {module : ModuleInst}
+    {index : TypeIdx} {signature : Wasm.V1.FuncType}
+    (checked : program.checkIndirect calls rank module index signature = true) :
+    ∃ fixed, program.fixedTable = some fixed ∧ module.tables[0]? = some fixed.address ∧
+      module.types[index.toNat]? = some signature ∧ signature.results.length ≤ 1 ∧
+      ∀ address fn, some address ∈ fixed.table.refs → program.lookup address = some fn →
+        fn.declaration.type = signature → calls.permits rank fn.rank :=
+  Proofs.indirect_link checked
+
+theorem Program.indirect_target {program : Program} {calls : CallMode} {rank : Nat} {module : ModuleInst}
+    {index : TypeIdx} {signature : Wasm.V1.FuncType}
+    (checked : program.checkIndirect calls rank module index signature = true)
+    {fixed : FixedTable} (selected : program.fixedTable = some fixed) {selector : BitVec 32} {address : FuncAddr}
+    (resolved : program.resolveIndirect fixed module index selector = some (.resolved address)) :
+    ∃ fn, program.lookup address = some fn ∧ fn.declaration.type = signature ∧ calls.permits rank fn.rank :=
+  Proofs.indirect_target checked selected resolved
 
 /-- The base store starts at the original extent and allocation. -/
 theorem Layout.initial_shared {H : Type} {program : Program} {base : Store H} {a : MemAddr} {initial : MemInst}

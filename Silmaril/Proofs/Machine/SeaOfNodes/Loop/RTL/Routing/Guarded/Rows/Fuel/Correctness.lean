@@ -3,6 +3,7 @@ module
 public import Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Thms
 public import Silmaril.SSA.SeaOfNodes.Loop.LambdaSSA.Generic.Fuel.Thms
 import Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA.Thms
+import Silmaril.Proofs.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows.Execution
 
 public section
 
@@ -26,21 +27,21 @@ private theorem next_matches (input old : WordTuple arity) (fr : Frame Reg)
       (appendTuple (p.nextBank input old) input) :=
   bank_matches_at (input_matches_at (testFrame_args p input old fr agree)) (p.nextBank input old)
 
-private theorem exit_run (old : WordTuple arity) (fr : Frame Reg) (mem : Memory) (extra : Nat) :
-    run (lowerBank p.graph) (extra + 1)
+private theorem exit_run (entry : Block Reg) (old : WordTuple arity) (fr : Frame Reg) (mem : Memory) (extra : Nat) :
+    run (lowerBankFrom p.graph entry) (extra + 1)
       ⟨⟨0, 2, 0⟩, (p.testFrame fr old).set .phi (p.exitValue old), [], mem⟩ =
       .returned [p.exitValue old] mem := rfl
 
-private theorem header_fuel_sound (input : WordTuple arity) (initial final : Memory)
+private theorem header_fuel_sound (entry : Block Reg) (input : WordTuple arity) (initial final : Memory)
     (returned : List Word) (fuel : Nat) (old : WordTuple arity) (fr : Frame Reg)
     (agree : ArgsMatch fr (appendTuple old input))
-    (observed : run (lowerBank p.graph) fuel ⟨⟨0, 1, 0⟩, fr, [], initial⟩ = .returned returned final) :
+    (observed : run (lowerBankFrom p.graph entry) fuel ⟨⟨0, 1, 0⟩, fr, [], initial⟩ = .returned returned final) :
     ∃ count value, p.graph.ReturnsAfter model input count old value ∧
       p.activationSteps * (count + 1) + 1 ≤ fuel ∧ returned = [value] ∧ final = initial := by
   induction fuel using Nat.strongRecOn generalizing fr old with
   | ind fuel ih =>
     obtain ⟨remaining, spent, rest⟩ :=
-      run_after_prefix (header_activation_steps p input old fr initial agree) observed
+      run_after_prefix (header_activation_steps_from p entry input old fr initial agree) observed
     have branch := native_step p input old fr agree
     by_cases halt : p.guardWord old = 0
     · rw [Plan.successor, ite_eq_left halt] at rest
@@ -61,16 +62,16 @@ private theorem header_fuel_sound (input : WordTuple arity) (initial final : Mem
       rw [Nat.mul_succ]
       omega
 
-private theorem header_fuel_complete (input : WordTuple arity) (initial : Memory)
+private theorem header_fuel_complete (entry : Block Reg) (input : WordTuple arity) (initial : Memory)
     {count : Nat} {old : WordTuple arity} {value : Word}
     (source : p.graph.ReturnsAfter model input count old value) :
     ∀ (fr : Frame Reg), ArgsMatch fr (appendTuple old input) →
       ∀ fuel, p.activationSteps * (count + 1) + 1 ≤ fuel →
-      run (lowerBank p.graph) fuel ⟨⟨0, 1, 0⟩, fr, [], initial⟩ = .returned [value] initial := by
+      run (lowerBankFrom p.graph entry) fuel ⟨⟨0, 1, 0⟩, fr, [], initial⟩ = .returned [value] initial := by
   refine Graph.ReturnsAfter.rec (g := p.graph) (m := model) (input := input)
     (motive := fun count old value _ => ∀ (fr : Frame Reg), ArgsMatch fr (appendTuple old input) →
       ∀ fuel, p.activationSteps * (count + 1) + 1 ≤ fuel →
-      run (lowerBank p.graph) fuel ⟨⟨0, 1, 0⟩, fr, [], initial⟩ = .returned [value] initial) ?_ ?_ source
+      run (lowerBankFrom p.graph entry) fuel ⟨⟨0, 1, 0⟩, fr, [], initial⟩ = .returned [value] initial) ?_ ?_ source
   · intro old value selected fr agree fuel enough
     have branch := (native_step p input old fr agree).symm.trans selected
     have halt : p.guardWord old = 0 := by
@@ -79,7 +80,7 @@ private theorem header_fuel_complete (input : WordTuple arity) (initial : Memory
       cases branch
     rw [ite_eq_left halt] at branch
     obtain rfl := Sum.inl.inj branch
-    have activation := header_activation_steps p input old fr initial agree
+    have activation := header_activation_steps_from p entry input old fr initial agree
     rw [Plan.successor, ite_eq_left halt] at activation
     simp only [Nat.zero_add, Nat.mul_one] at enough
     let extra := fuel - (p.activationSteps + 1)
@@ -93,7 +94,7 @@ private theorem header_fuel_complete (input : WordTuple arity) (initial : Memory
       cases branch
     rw [ite_eq_right taken] at branch
     obtain rfl := Sum.inr.inj branch
-    have activation := header_activation_steps p input old fr initial agree
+    have activation := header_activation_steps_from p entry input old fr initial agree
     rw [Plan.successor, ite_eq_right taken] at activation
     rw [Nat.mul_succ] at enough
     let remaining := fuel - p.activationSteps
@@ -101,6 +102,16 @@ private theorem header_fuel_complete (input : WordTuple arity) (initial : Memory
     have bound : p.activationSteps * (count + 1) + 1 ≤ remaining := by dsimp [remaining]; omega
     rw [spent, run_through_prefix activation]
     exact ih _ (next_matches p input old fr agree) remaining bound
+
+theorem header_run_fuel_iff (entry : Block Reg) (input old : WordTuple arity) (fr : Frame Reg)
+    (agree : ArgsMatch fr (appendTuple old input)) (initial final : Memory) (returned : List Word) (fuel : Nat) :
+    run (lowerBankFrom p.graph entry) fuel ⟨⟨0, 1, 0⟩, fr, [], initial⟩ = .returned returned final ↔
+      ∃ count value, p.graph.ReturnsAfter model input count old value ∧
+        p.activationSteps * (count + 1) + 1 ≤ fuel ∧ returned = [value] ∧ final = initial := by
+  refine ⟨header_fuel_sound p entry input initial final returned fuel old fr agree, ?_⟩
+  rintro ⟨count, value, source, enough, rfl, memory⟩
+  subst final
+  exact header_fuel_complete p entry input initial source fr agree fuel enough
 
 theorem runMain_fuel_iff (input : WordTuple arity) (initial final : Memory)
     (returned : List Word) (fuel : Nat) :
@@ -128,11 +139,12 @@ theorem runMain_fuel_iff (input : WordTuple arity) (initial final : Memory)
     constructor
     · intro observed
       obtain ⟨count, value, source, enough, same, mem⟩ :=
-        header_fuel_sound p input initial final returned fuel old _ agree observed
+        header_fuel_sound p (bankPreheader p.graph) input initial final returned fuel old _ agree observed
       exact ⟨count, value, source, by unfold Plan.rtlFuel; omega, same, mem⟩
     · rintro ⟨count, value, source, enough, rfl, memory⟩
       subst final
-      exact header_fuel_complete p input initial source _ agree fuel (by unfold Plan.rtlFuel at enough; omega)
+      exact header_fuel_complete p (bankPreheader p.graph) input initial source _ agree fuel
+        (by unfold Plan.rtlFuel at enough; omega)
 
 theorem rtl_returns_iff (input : WordTuple arity) (initial final : Memory) (returned : List Word) :
     (lowerBank p.graph).oracle 0 (words input) initial returned final ↔

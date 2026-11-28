@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Defs
 import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Feedback.Thms
 import Silmaril.Proofs.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Preservation
+import Silmaril.Proofs.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Category.Behaviour
 
 public section
 
@@ -82,5 +83,27 @@ theorem returns_typed {Γ L : List (Ty κ)} (r : LambdaSSA.UB.Overlay.Region Φ 
     exact bind_returns_typed (ih M s) (fun i _ t ha => branches i (M.extend ha) t)
   | feedback entry blocks ih heads =>
     exact close_returns_typed (ih M) (fun i _ t ha => heads i (M.extend ha) t)
+
+theorem lsubst_mono_typed {Γ : List (Ty κ)} (r : LambdaSSA.UB.Overlay.Region Φ Γ L)
+    (k h : (i : Fin L.length) → LambdaSSA.UB.Overlay.Region Φ (L.get i :: Γ) K)
+    (M : Shape.Model.{u,v,w,x} Φ Γ) (s : M.raw.σ)
+    (next : ∀ i {a} (ha : ValueTyped M.atomType a (L.get i)) t,
+      Shape.denote (k i) (M.extend ha) t ≤ Shape.denote (h i) (M.extend ha) t) :
+    Shape.denote (.lsubst r k) M s ≤ Shape.denote (.lsubst r h) M s := by
+  classical
+  let p := Shape.denote r M s
+  let left (i : Fin L.length) a t := denote (k i) (extendModel M.raw a) t
+  let right (i : Fin L.length) a t := denote (h i) (extendModel M.raw a) t
+  let reachable (i : Fin L.length) a t := if p.Ordinary (.ret i a t) then left i a t else right i a t
+  change p.bind left ≤ p.bind right
+  have same : p.bind left = p.bind reachable :=
+    Category.bind_congr (fun i a t hit => (ite_eq_left hit).symm)
+  rw [same]
+  refine Behaviour.bind_mono le_rfl fun i a t => ?_
+  by_cases hit : p.Ordinary (.ret i a t)
+  · have ha := returns_typed r M s hit
+    rw [show reachable i a t = left i a t from ite_eq_left hit]
+    exact next i ha t
+  · simp only [reachable, ite_eq_right hit, le_rfl]
 
 end Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay.Shape

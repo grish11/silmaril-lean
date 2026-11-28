@@ -42,7 +42,6 @@ structure Names (spec : Spec) : Prop where
   wrapper : Escape.WrapperNames spec.wrapper
   childFresh : spec.wrapper.childName ∉ spec.additional
   localUpdates : ∀ name ∈ spec.updates.map Prod.fst, name ∉ spec.parameters ∧ name ≠ spec.wrapper.childName
-  defaultReads : spec.wrapper.DefaultReads spec.enclosing
 
 /-- The independent body relation determines the entire capture order.
 The wrapper profile permits parameter and wrapper-local captures. -/
@@ -53,8 +52,16 @@ structure Plan (globals : List String) (spec : Spec) where
   leadingCode : List (String × Lowering.Expr)
   leadingReads : List Binding
   leading : Defaults.Body.ElaboratesPrefix (spec.block globals) spec.leading leadingCode leadingReads
+  defaultItems : List PlainPositionalDefault
+  defaults : Lexical.Elaborates (spec.block globals) spec.child.parameters.optional defaultItems
   moduleFree : List FreeName
-  leadingSelects : Selects (spec.block globals) leadingReads moduleFree
+  selects : Selects (spec.block globals) (leadingReads ++ defaultItems.flatMap PlainPositionalDefault.reads) moduleFree
+
+@[expose] def Plan.defaultCodes {globals : List String} {spec : Spec} (plan : Plan globals spec) : List Lowering.Expr :=
+  plan.defaultItems.map PlainPositionalDefault.value
+
+@[expose] def Plan.childDeclaration {globals : List String} {spec : Spec} (plan : Plan globals spec) : Declaration :=
+  plan.body.declaration plan.defaultCodes
 
 @[expose] def Plan.frame {globals : List String} {spec : Spec} (plan : Plan globals spec) (id : Nat) :
     Forwarding.Frame :=
@@ -73,7 +80,7 @@ inductive Returns {globals : List String} {spec : Spec} (plan : Plan globals spe
   | entered {reached : State} {out : Outcome Lists.Value} :
       Defaults.Body.RunsPrefix (spec.block globals) (activate caller (plan.frame childId).declaration captures assigned)
         spec.leading plan.leadingCode (.ok () reached) →
-      Escape.ReturnsWith spec.wrapper childId plan.body.free spec.updates caller reached out →
+      Escape.ReturnsWith spec.wrapper (spec.block globals) plan.defaultItems childId plan.body.free spec.updates caller reached out →
       Returns plan childId caller captures assigned out
 
 structure Admitted (globals : List String) (spec : Spec) : Prop where

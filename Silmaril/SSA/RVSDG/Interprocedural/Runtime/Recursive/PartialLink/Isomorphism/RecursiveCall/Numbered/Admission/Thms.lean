@@ -30,6 +30,12 @@ when using the resulting family to compare runs. -/
     (left right : m.Val (.value (.function args outs))) : Option (PLift (ExportAdmission primitives ids left right)) :=
   if accepted : checkExport keys left right = true then some ⟨checkExport_sound ordinary accepted⟩ else none
 
+/-- Ordinary values form a closed family with empty dispatch tables. -/
+theorem LinkedFamily.empty (ordinary : OrdinaryOutputs Op) (code : OpcodeCode (Instruction Op))
+    (captureCode : CaptureCode m) :
+    LinkedFamily primitives ids code captureCode (OrdinaryIn m) (OrdinaryIn m) .empty :=
+  AdmissionProofs.linked_empty ordinary code captureCode
+
 theorem LinkedFamily.ofGroups_sound [DecidableEq (Ty V S)] {keys : OpcodeCode (Instruction Op)}
     [DecidableEq keys.Key] (captureCode : CaptureCode m) (ordinary : OrdinaryOutputs Op) {membersL membersR : List (Function V S)}
     (left : Group m membersL) (right : Group m membersR) (accepted : checkGroupPair keys left right = true) :
@@ -167,6 +173,31 @@ theorem LinkedFamily.addLambda_accepts [DecidableEq (Ty V S)]
   obtain ⟨_, capR⟩ := Option.isSome_iff_exists.mp capturesR
   obtain ⟨_, inferred⟩ := Option.isSome_iff_exists.mp body
   simp [addLambda, fresh, capL, capR, inferred]
+
+/-- Compose checked dispatch families when neither can dispatch a
+corresponding callable from the other's opposite-side table. -/
+theorem LinkedFamily.union (ordinary : OrdinaryOutputs Op)
+    {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m}
+    {aL aR bL bR : Family m} {a b : DispatchKeys V S code.Key captureCode.Key}
+    (first : LinkedFamily primitives ids code captureCode aL aR a)
+    (second : LinkedFamily primitives ids code captureCode bL bR b)
+    (ab : a.Separated b) (ba : b.Separated a) :
+    LinkedFamily primitives ids code captureCode (UnionIn aL bL) (UnionIn aR bR) (a.append b) :=
+  AdmissionProofs.linked_union ordinary first second ab ba
+
+@[expose] def LinkedFamily.join [DecidableEq (Ty V S)]
+    {code : OpcodeCode (Instruction Op)} [DecidableEq code.Key] {captureCode : CaptureCode m}
+    (ordinary : OrdinaryOutputs Op)
+    {aL aR bL bR : Family m} {a b : DispatchKeys V S code.Key captureCode.Key}
+    (first : LinkedFamily primitives ids code captureCode aL aR a)
+    (second : LinkedFamily primitives ids code captureCode bL bR b) :
+    Option (PLift (LinkedFamily primitives ids code captureCode (UnionIn aL bL) (UnionIn aR bR) (a.append b))) :=
+  letI := captureCode.decideKey
+  letI := a.decideSeparated b
+  letI := b.decideSeparated a
+  if ab : a.Separated b then
+    if ba : b.Separated a then some ⟨first.union ordinary second ab ba⟩ else none
+  else none
 
 theorem LinkedFamily.forExports {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m} {familyL familyR : Family m} {prior : DispatchKeys V S code.Key captureCode.Key}
     (family : LinkedFamily primitives ids code captureCode familyL familyR prior)

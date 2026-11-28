@@ -97,6 +97,8 @@ commit's revision map names its outputs.
 Lake validates restored artifacts; `make check` still runs every native test.
 `CHECK_TARGETS="$(make -s scope BASE=origin/main)" make check` checks only
 what your branch can change, as pull request CI does.
+After the build, `make check` runs its regression groups `CHECK_JOBS` at a
+time (default 2).
 
 `LAKE_CACHE_RECORD=build/lake-cache make check` records a successful build of every
 `make check` target from a clean checkout. After all checks pass, main CI calls

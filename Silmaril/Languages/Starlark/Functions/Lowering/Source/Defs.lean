@@ -49,6 +49,8 @@ inductive AtomSafe : {α : Type} → Lists.Code α → Prop where
   | index {receiver index : Lists.Expr} :
       AtomSafe receiver → AtomSafe index → AtomSafe (.index receiver index)
   | slice {operands : Lists.Code (List Lists.Value)} : AtomSafe operands → AtomSafe (.slice operands)
+  | compare {op : Lists.ComparisonOp} {left right : Lists.Expr} :
+      AtomSafe left → AtomSafe right → AtomSafe (.compare op left right)
   | append {receiver value : Lists.Expr} :
       AtomSafe receiver → AtomSafe value → AtomSafe (.append receiver value)
 

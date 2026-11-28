@@ -32,7 +32,7 @@ example : Python.Core.Step leftError.python.start none (.raising .zeroDivisionEr
 
 example : StarlarkObserves leftError.starlark .zeroDivision :=
   .executes (int_resolves leftError)
-    (.retError (.binaryLeftError (.binary .int .int)))
+    (.retError (.binaryLeftError (.binary .int .int (by rfl))))
 
 private def rightError : IntBody := ⟨.binary .add (.literal 9) dividesByZero⟩
 
@@ -65,7 +65,7 @@ private theorem truePlusOneEval :
     Starlark.Eval {} (truePlusOne.body.value.starlark NumericLiteral.starlarkResolved)
       (.error (.binaryType .add)) :=
   Starlark.Eval.binary (op := .add) (a := .bool true) (b := .int 1)
-    (Starlark.Eval.read (ref := .predeclared (.bool true))) (.int (n := 1))
+    (Starlark.Eval.read (ref := .predeclared (.bool true))) (.int (n := 1)) (by rfl)
 
 theorem bool_add_separates :
     PythonObserves .arithmetic truePlusOne.python (.returned 2) ∧
@@ -86,7 +86,7 @@ private def twoErrors (first : Bool) : NumericBody :=
   if first then ⟨.add, zero, typeError⟩ else ⟨.add, typeError, zero⟩
 
 example : StarlarkObserves (twoErrors true).starlark .zeroDivision :=
-  .executes (numeric_resolves (twoErrors true)) (.retError (.binaryLeftError (.binary .int .int)))
+  .executes (numeric_resolves (twoErrors true)) (.retError (.binaryLeftError (.binary .int .int (by rfl))))
 
 example : StarlarkObserves (twoErrors false).starlark (.starlarkError (.binaryType .add)) :=
   .executes (numeric_resolves (twoErrors false)) (.retError (.binaryLeftError truePlusOneEval))

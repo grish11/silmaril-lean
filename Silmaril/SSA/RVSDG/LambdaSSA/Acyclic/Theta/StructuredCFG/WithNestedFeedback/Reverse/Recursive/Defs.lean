@@ -70,6 +70,7 @@ inductive Entry (τ Φ : Type u) [TypeFormers τ] [HasTy Φ τ] where
   | enter (input join : τ)
   | feedback (keys : Key τ Φ × Key τ Φ × Key τ Φ)
   | leave (input join : τ)
+  | route (carry bypass handoff result : τ)
   | classifier {A X Y : τ} (op : TwoBlock.Instruction Φ A (Silmaril.coprod X Y))
   | fork (left right : List (Entry τ Φ))
 
@@ -86,6 +87,7 @@ def readEntry : {ins outs : Ports (OrderedRuntime.Structured.Ty τ)} →
     match readOpcode (.base (.simple opcode)) with
     | some (.enterNested a m) => some (.enter a m)
     | some (.exitNested a m) => some (.leave a m)
+    | some (.routeExit h e m d) => some (.route h e m d)
     | _ =>
       match Wires.Reverse.readKind (.base (.simple opcode)) (fun _ => none) with
       | some (.classifier op) => some (.classifier op)

@@ -25,14 +25,16 @@ def Source.fragment (source : Source Φ A X Z L E D sigs) : Flat.Fragment Φ A E
   match source with
   | .mixed s => s.source
   | .routed s => s.source
+  | .routedMixed s _ => s.source
 
-/-- Numbering retains the single-live-token admission in either layout. -/
+/-- Numbering retains the single-live-token admission in each layout. -/
 def Source.compileChecked (source : Source Φ A X Z L E D sigs) :
     NestedTheta.ExplicitRuntime.EntryChecked
       (a := Flat.Serial.payloadData A X Z) (b := Flat.Serial.payloadData L E D) (compile source).toTerm :=
   match source with
   | .mixed s => WithNestedFeedback.Normalization.compileChecked s
   | .routed s => (Flat.Serial.Routed.Related.generated s).checked
+  | .routedMixed s _ => s.checked
 
 variable {ε σ : Type u} [HasEff Φ ε] [Bot ε] [Isotope.Subtyping τ] [TypeModel.{u,u} τ]
   [InstructionModel Φ τ ε (StateT σ Part.{u})]

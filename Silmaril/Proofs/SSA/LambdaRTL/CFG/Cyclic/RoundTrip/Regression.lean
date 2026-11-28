@@ -133,7 +133,8 @@ example : ¬ ∃ source : CFG Nat Nat Unit, Versioning.compile source = lexicalL
     graph.blocks.head?.map (fun item => item.2.param.2)) equal
   cases source with
   | mk entry blocks =>
-    cases blocks <;> simp [Versioning.compile, Versioning.compileBlock, lexicalLoop, lexicalHeader] at firstParam
+    cases blocks <;> simp [Versioning.compile, Versioning.compileBlock, Versioning.compileBlockWith,
+      lexicalLoop, lexicalHeader] at firstParam
 
 private theorem lexicalReturns :
     Cyclic.runSSA model lexicalLoop lexicalInput = Part.some (99, Nat.pair 7 3) := by

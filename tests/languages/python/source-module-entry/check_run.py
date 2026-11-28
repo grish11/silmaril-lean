@@ -38,6 +38,10 @@ assert True == 1
     ("literal_sequence_indexing", """result = [-7, 4, 9][-3]
 assert (8, -7)[0] == 8
 """, {}, {"result": -7}, "normal", ".normal", 2),
+    ("literal_dictionary_get", """result = {1: 2, True: 7}.get(1, 9)
+assert {}.get(False) is None
+assert result == 7
+""", {}, {"result": 7}, "normal", ".normal", 2),
     ("indexed_assertion_failure", """before = 1
 assert (2, 4)[-1] == 2
 after = 2
@@ -302,7 +306,7 @@ REACHED_DIVISION = (
 )
 
 
-def check_boolean_rejections(shared, python_file, lean_file, imports):
+def boolean_rejection_fixtures():
     for expression, error, expected in REACHED_DIVISION:
         source = f"before = 7\nresult = {expression}\nafter = 9\n"
         namespace = {"__builtins__": {}}
@@ -312,11 +316,8 @@ def check_boolean_rejections(shared, python_file, lean_file, imports):
             assert type(raised) is error and namespace == {"__builtins__": {}, "before": 7}
         else:
             assert error is None and type(namespace["result"]) is float and namespace["result"] == expected
-        shared["emit"](python_file, lean_file, source)
-        shared["check_lean"](lean_file, LEAN + "#guard rejection pythonSource == some .expressionProfile\n",
-                             extra_imports=imports)
+        yield source, "#guard rejection pythonSource == some .expressionProfile"
 
-    shared["emit"](python_file, lean_file, "result = True or 5 / 0\n")
     guards = ""
     for arity in (0, 1):
         tree = ast.parse("result = True or False")
@@ -334,7 +335,7 @@ def check_boolean_rejections(shared, python_file, lean_file, imports):
             f' .booleanOp .and_ {operands}])]⟩ == some .expressionProfile\n'
             f'#guard rejection ⟨[.assign "result" (.booleanOp .and_ {operands})]⟩ == some .expressionProfile\n'
         )
-    shared["check_lean"](lean_file, LEAN + guards, extra_imports=imports)
+    yield "result = True or 5 / 0\n", guards
 
 
 SEQUENCE_ERRORS = (
@@ -346,7 +347,7 @@ SEQUENCE_ERRORS = (
 )
 
 
-def check_sequence_rejections(shared, python_file, lean_file, imports):
+def sequence_rejection_fixtures():
     for expression, error, name in SEQUENCE_ERRORS:
         source = f"result = 7\nresult = {expression}\nafter = 9\n"
         namespace = {"__builtins__": {}}
@@ -357,9 +358,7 @@ def check_sequence_rejections(shared, python_file, lean_file, imports):
             assert namespace == {"__builtins__": {}, "result": 7}
         else:
             raise AssertionError(f"CPython completed {expression!r}")
-        shared["emit"](python_file, lean_file, source)
-        shared["check_lean"](lean_file, LEAN + "#guard rejection pythonSource == some .expressionProfile\n",
-                             extra_imports=imports)
+        yield source, "#guard rejection pythonSource == some .expressionProfile"
 
 
 if __name__ == "__main__":
@@ -371,11 +370,11 @@ if __name__ == "__main__":
         "meta import Silmaril.Languages.Python.Core.Module.Defs",
     )
     observations = {}
+    fixtures = []
     with tempfile.TemporaryDirectory() as tmp:
         for name, source, seeds, namespace, completion, observed, events in FIXTURES:
             python_file = Path(tmp) / f"{name}.py"
-            lean_file = Path(tmp) / "Fixture.lean"
-            shared["emit"](python_file, lean_file, source)
+            python_file.write_text(source, encoding="utf-8")
             names = list(namespace)
             reference = subprocess.run(
                 [sys.executable, "-I", "-c", CPYTHON, str(python_file), json.dumps(names), json.dumps(seeds)],
@@ -391,15 +390,13 @@ if __name__ == "__main__":
             test = f"\n#guard observation pythonSource [{bindings}] {json.dumps(names)} == {result}\n"
             if name == "seed_and_overwrite":
                 test += "#print axioms Compiled.finishes_iff\n#print axioms Compiled.run_finishes\n"
-            shared["check_lean"](lean_file, LEAN + test, extra_imports=imports)
+            fixtures.append((source, test))
             observations[name] = {"completion": completion, "globals": namespace, "visible_core_labels": events}
-        for source in UNSUPPORTED_INDEXING:
-            shared["emit"](python_file, lean_file, source)
-            shared["check_lean"](lean_file, LEAN + "#guard unsupportedIndex pythonSource\n", extra_imports=imports)
-        for source, error in REJECTED_BRANCHES:
-            shared["emit"](python_file, lean_file, source)
-            shared["check_lean"](lean_file, LEAN + f"#guard rejection pythonSource == some ({error})\n",
-                                 extra_imports=imports)
-        check_boolean_rejections(shared, python_file, lean_file, imports)
-        check_sequence_rejections(shared, python_file, lean_file, imports)
+        fixtures.extend((source, "#guard unsupportedIndex pythonSource") for source in UNSUPPORTED_INDEXING)
+        fixtures.extend((source, f"#guard rejection pythonSource == some ({error})")
+                        for source, error in REJECTED_BRANCHES)
+        fixtures.extend(boolean_rejection_fixtures())
+        fixtures.extend(sequence_rejection_fixtures())
+        shared["check_lean_batch"](Path(tmp) / "Example.py", Path(tmp) / "Fixtures.lean",
+                                   fixtures, LEAN, extra_imports=imports)
     print(json.dumps({"cpython": sys.version.split()[0], "observations": observations}))

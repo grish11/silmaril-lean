@@ -12,6 +12,7 @@ open Silmaril.SSA.LambdaRTL
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi (Graph)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Phi.Split (Plan Checked)
 open LambdaSSA.Semantics.Interaction (Primitive)
+open Silmaril.Elgot.ITree (Tree resume)
 
 universe u v
 variable {V W K J Base α : Type (u + 1)} {F : Type v} {E : Type u → Type u} {n : Nat}
@@ -27,6 +28,17 @@ aligned, typed capture slots. -/
   ⟨alignment.interface, store, plan.renameStore store, fun i => by
     simp only [Certified.captureEnv, i.isLt, dite_true, alignment.captures i]
     cases leftNames i <;> simp [Plan.renameStore]⟩
+
+/-- Reuse the single-forwarding-hop simulation with any common return
+observation. A routed transfer is already aligned or takes one pure step
+to align, with matching requests and replies on the paired bodies. -/
+theorem resume_eq_of_hop {A B C : Type (u + 1)}
+    {f : A → Tree E (B ⊕ A)} {g : C → Tree E (B ⊕ C)} (routed aligned : A → C)
+    (hop : ∀ p, routed p = aligned p ∨ g (routed p) = pure (.inr (aligned p)))
+    (step : ∀ p, g (aligned p) = Sum.map id routed <$> f p)
+    {l : Tree E (B ⊕ A)} {r : Tree E (B ⊕ C)} (entry : r = Sum.map id routed <$> l) :
+    resume f l = resume g r :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Split.resume_eq_of_hop routed aligned hop step entry
 
 variable [DecidableEq V] [DecidableEq W] [DecidableEq K] [DecidableEq J]
   {source : Graph V K F} {target : Graph W J F}

@@ -148,39 +148,6 @@ theorem stutter_map (f : S → V) {σ τ : Behavior S} (h : StutterEquiv σ τ) 
   let ⟨r, t, h⟩ := h
   ⟨r, t, congrArg (Behavior.map f) h⟩
 
-theorem holds_retime (p : Formula S) (σ : Behavior S) (r : Retiming) (i : Nat) :
-    p.Holds (σ.retime r) i ↔ p.Holds σ (r.index i) := by
-  induction p generalizing i with
-  | state => rfl
-  | alwaysBracket A f =>
-    constructor
-    · intro h j hj
-      obtain ⟨k, hik, hk, hk'⟩ := retiming_crosses r hj
-      simpa only [Behavior.retime, hk, hk'] using h k hik
-    · intro h j hj
-      change A.bracket f (σ (r.index j)) (σ (r.index (j + 1)))
-      rcases r.step j with same | next
-      · exact Or.inr (congrArg (f ∘ σ) same)
-      · rw [next]
-        exact h (r.index j) (index_mono r hj)
-  | neg _ ih => exact not_congr (ih i)
-  | conj _ _ ihp ihq => exact and_congr (ihp i) (ihq i)
-  | always p ih =>
-    constructor
-    · intro h j hj
-      obtain ⟨k, hik, hk, _⟩ := retiming_crosses r hj
-      simpa only [hk] using (ih k).mp (h k hik)
-    · intro h j hj
-      exact (ih j).mpr (h (r.index j) (index_mono r hj))
-
-private theorem sat_retime (p : Formula S) (σ : Behavior S) (r : Retiming) :
-    p.Sat (σ.retime r) ↔ p.Sat σ := by
-  simpa only [Formula.Sat, r.zero] using holds_retime p σ r 0
-
-theorem sat_stutterInvariant (p : Formula S) : StutterInvariant p.Sat := by
-  intro σ τ ⟨r, t, h⟩
-  exact (sat_retime p σ r).symm.trans (h ▸ sat_retime p τ t)
-
 /-- A suffix of an expansion expands the corresponding original suffix. -/
 theorem stutter_suffix_retime (σ : Behavior S) (r : Retiming) (i : Nat) :
     StutterEquiv ((σ.retime r).suffix i) (σ.suffix (r.index i)) := by
@@ -214,6 +181,41 @@ theorem hide_stutterInvariant (p : Behavior (S × V) → Prop) : StutterInvarian
     exact ⟨ρ, stutter_trans (stutter_symm h) he, hp⟩
   · rintro ⟨ρ, he, hp⟩
     exact ⟨ρ, stutter_trans h he, hp⟩
+
+theorem holds_retime (p : Formula S) (σ : Behavior S) (r : Retiming) (i : Nat) :
+    p.Holds (σ.retime r) i ↔ p.Holds σ (r.index i) := by
+  induction p generalizing i with
+  | state => rfl
+  | alwaysBracket A f =>
+    constructor
+    · intro h j hj
+      obtain ⟨k, hik, hk, hk'⟩ := retiming_crosses r hj
+      simpa only [Behavior.retime, hk, hk'] using h k hik
+    · intro h j hj
+      change A.bracket f (σ (r.index j)) (σ (r.index (j + 1)))
+      rcases r.step j with same | next
+      · exact Or.inr (congrArg (f ∘ σ) same)
+      · rw [next]
+        exact h (r.index j) (index_mono r hj)
+  | neg _ ih => exact not_congr (ih σ i)
+  | conj _ _ ihp ihq => exact and_congr (ihp σ i) (ihq σ i)
+  | always p ih =>
+    constructor
+    · intro h j hj
+      obtain ⟨k, hik, hk, _⟩ := retiming_crosses r hj
+      simpa only [hk] using (ih σ k).mp (h k hik)
+    · intro h j hj
+      exact (ih σ j).mpr (h (r.index j) (index_mono r hj))
+  | existsRigid _ ih => exact exists_congr (fun v => ih v σ i)
+  | existsFlex => exact hide_stutterInvariant _ (stutter_suffix_retime σ r i)
+
+private theorem sat_retime (p : Formula S) (σ : Behavior S) (r : Retiming) :
+    p.Sat (σ.retime r) ↔ p.Sat σ := by
+  simpa only [Formula.Sat, r.zero] using holds_retime p σ r 0
+
+theorem sat_stutterInvariant (p : Formula S) : StutterInvariant p.Sat := by
+  intro σ τ ⟨r, t, h⟩
+  exact (sat_retime p σ r).symm.trans (h ▸ sat_retime p τ t)
 
 theorem hide_map_iff {T : Type w} (f : T → S) {p : Behavior (S × V) → Prop}
     (hp : StutterInvariant p) (σ : Behavior T) :

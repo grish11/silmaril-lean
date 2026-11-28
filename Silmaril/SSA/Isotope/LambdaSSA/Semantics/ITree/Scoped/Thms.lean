@@ -16,6 +16,13 @@ namespace Silmaril.Isotope.LambdaSSA.Semantics.Interaction
 variable {E : Type w → Type w} {Φ : Type v} {α : Type u} {n labels : Nat}
 variable (instr : Primitive E Φ α) {env env' : Env α}
 
+/-- An erased scoped term depends only on its finite context prefix. -/
+theorem term_tree_of_agree (t : LetCase.LocallyNameless.Tm Empty Φ n)
+    (agree : ∀ i : Fin n, env' i.val = env i.val) :
+    term instr env' (Morphism.CaseSSA.erase t) = term instr env (Morphism.CaseSSA.erase t) := by
+  simpa only [Tm.rename_id] using Proofs.SSA.Isotope.LambdaSSA.Interaction.erase_term_rename
+    instr t (ρ := id) agree
+
 /-- A value renaming preserves the whole tree of a flat region when its
 environments agree on the images of the in-scope indices. Agreement lifts
 through each local binder. -/

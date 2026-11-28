@@ -215,6 +215,28 @@ theorem trace_map_iff (f : A → B) (t : Tree E A) (p : Trace E B) :
       ∃ q, HasTrace t q ∧ q.map f = p :=
   ⟨trace_map_backward f t p, fun ⟨q, hq, hmap⟩ => hmap ▸ trace_map_forward f t q hq⟩
 
+private theorem trace_map_injective {f : A → B} (injective : Function.Injective f) :
+    Function.Injective (Trace.map (E := E) f) := by
+  intro left right same
+  induction left generalizing right with
+  | «prefix» => cases right <;> simp_all [Trace.map]
+  | request event => cases right <;> simp_all [Trace.map]
+  | result value => cases right <;> simp_all [Trace.map, injective.eq_iff]
+  | exchange event reply tail ih =>
+    cases right with
+    | «prefix» | request _ | result _ => simp [Trace.map] at same
+    | exchange other response suffix =>
+      simp only [Trace.map, Trace.exchange.injEq] at same
+      obtain ⟨rfl, eventEq, replyEq, tailEq⟩ := same
+      rw [eq_of_heq eventEq, eq_of_heq replyEq, ih tailEq]
+
+theorem trace_bind_pure_map_iff {f : A → B} (injective : Function.Injective f) (tree : Tree E A)
+    (trace : Trace E A) :
+    HasTrace (tree >>= fun x => pure (f x)) (trace.map f) ↔ HasTrace tree trace := by
+  rw [trace_map_iff]
+  exact ⟨fun ⟨pre, observed, same⟩ => trace_map_injective injective same ▸ observed,
+    fun observed => ⟨trace, observed, rfl⟩⟩
+
 theorem trace_bind_pure_reflect {f : A → B} (hf : Function.Injective f)
     {t s : Tree E A} (h : TraceLE (t >>= fun a => pure (f a)) (s >>= fun a => pure (f a))) :
     TraceLE t s := by

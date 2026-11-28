@@ -16,18 +16,20 @@ variable {table : MemberSummaries V S} {imports outs : Ports (Ty V S)}
 variable {past sigs : List (Ports (Ty V S))} {fn : Function V S}
 variable {actions : Actions m σ}
 
-theorem added_guards {localsL localsR : Locals m.Val past}
+theorem added_guards_with_imports {localsL localsR : Locals m.Val past}
     (earlier : CheckedPrefix actions table localsL localsR) (binding : Binding Op table imports past fn)
     (inputsL inputsR : Tuple m.Val imports)
+    (importedL : Isomorphism.RecursiveCall.Numbered.Prefix.Row (Known earlier.dispatch.left) inputsL)
+    (importedR : Isomorphism.RecursiveCall.Numbered.Prefix.Row (Known earlier.dispatch.right) inputsR)
     (left : binding.resolved earlier.dispatch.left inputsL localsL)
     (right : binding.resolved earlier.dispatch.right inputsR localsR)
     {next : CheckedPrefix actions (prepend binding.summary table)
       (localsL.snoc (.cons (binding.value inputsL localsL) .nil))
       (localsR.snoc (.cons (binding.value inputsR localsR) .nil))}
-    (added : earlier.addLambda binding inputsL inputsR left right = some next) :
+    (added : earlier.addLambdaWithImports binding inputsL inputsR importedL importedR left right = some next) :
     next.dispatch.left = binding.extendGuard earlier.dispatch.left inputsL localsL ∧
       next.dispatch.right = binding.extendGuard earlier.dispatch.right inputsR localsR := by
-  unfold CheckedPrefix.addLambda at added
+  unfold CheckedPrefix.addLambdaWithImports at added
   split at added
   · cases added
     exact ⟨rfl, rfl⟩

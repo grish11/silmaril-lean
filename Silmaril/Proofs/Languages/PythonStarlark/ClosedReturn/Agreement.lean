@@ -131,7 +131,7 @@ private theorem eval_related (expr : Expr Int) (frame : Starlark.Frame) :
       | ok b =>
         rw [rhs] at rightIH
         simpa [Expr.python, Expr.starlark, Python.Core.Expr.eval, Except.bind, lhs, rhs, ← bin_related] using
-          Starlark.Eval.binary (op := op.starlark) leftIH rightIH
+          Starlark.Eval.binary (op := op.starlark) leftIH rightIH (by cases op <;> rfl)
 
 theorem agree (body : IntBody) : Agree body := by
   intro observation

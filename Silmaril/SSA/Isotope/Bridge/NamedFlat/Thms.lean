@@ -15,6 +15,12 @@ open LambdaSSA.Semantics (Env extend)
 universe u v
 variable {V K : Type u} {F : Type v} {n : Nat} [DecidableEq V] [DecidableEq K]
 
+/-- A successful table elaboration returns a result at every position. -/
+theorem tabulate_at {A : Type u} {count : Nat} {f : Fin count → Option A}
+    {rows : Fin count → A} (elaborated : tabulate count f = some rows) (i : Fin count) :
+    f i = some (rows i) :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.tabulate_at elaborated i
+
 /-- The body checker certifies exact typing in the supplied positional context. -/
 theorem checkBody_sound {Base : Type u} [DecidableEq Base] [HasTy F (Ty Base)]
     {labels : Nat} (types : Fin labels → Ty Base) (ctx : BoundCtx (Ty Base) n)

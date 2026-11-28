@@ -1,0 +1,81 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "nullable": {
+      "name": "日付",
+      "nullable": true,
+      "signed_slots": [
+        -719528,
+        -719469,
+        -25509,
+        -1,
+        null,
+        0,
+        11016,
+        2932896
+      ],
+      "cpython_csv": {
+        "bytes": 102,
+        "sha256": "5fa276536e0eed490e1f144fe8efbcb4bd4654a257aeffab8f2b55a6f6f020f7"
+      },
+      "lean_ipc": {
+        "bytes": 352,
+        "sha256": "e72866cddc6d2919a61a06a7c47da1d2889e8bd3c3abff7a4503fb89ff73594e"
+      }
+    },
+    "required": {
+      "name": "date, jour",
+      "nullable": false,
+      "signed_slots": [
+        -1,
+        11016
+      ],
+      "cpython_csv": {
+        "bytes": 44,
+        "sha256": "aa5a3cb966429f33b5ae4cee4b084739fac41e7c973685c342a89ed8d72571b1"
+      },
+      "lean_ipc": {
+        "bytes": 328,
+        "sha256": "d18604f3f68d76fdc455bb50f71171805944b2344a79f8d6c8d706b5f211c754"
+      }
+    },
+    "header_only": {
+      "name": "日付",
+      "nullable": false,
+      "signed_slots": [],
+      "cpython_csv": {
+        "bytes": 8,
+        "sha256": "9c387860d5562de10ed4fb3838e46b1e911c5040b552b6ba093509483e6207c3"
+      },
+      "lean_ipc": {
+        "bytes": 312,
+        "sha256": "25f65ecd5d276c5b2efd3a080d7dabcd7d92adbc0190d6c0b84ae8d805f3133c"
+      }
+    }
+  },
+  "refused_csv": {
+    "required_null": {
+      "bytes": 11,
+      "sha256": "0f53260fa87243759d16167a7f4ac173765887d88f5d600959d23f17549a9241"
+    },
+    "non_leap_century": {
+      "bytes": 21,
+      "sha256": "b97c148de3cf4365c6c9a8207e2a81d5af36f55ffcba9dc7a962ce7f46130ad5"
+    },
+    "below_profile": {
+      "bytes": 22,
+      "sha256": "b76d785d3100c3674b1f192e8ce1ab2b52ffd4fcb93432c65df386929d50db61"
+    },
+    "above_profile": {
+      "bytes": 22,
+      "sha256": "292447687a873fe0dceb8cfeb54eaf5ee783b97befd8e8669555807290bb342e"
+    },
+    "unterminated_quote": {
+      "bytes": 22,
+      "sha256": "a90bfee5f12339a60232779f58b2f7355a4c16ed577769e0bb06c0559b32b50b"
+    }
+  }
+}

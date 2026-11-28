@@ -52,6 +52,7 @@ public import Silmaril.Raw.SSA.Isotope.Theory.Models.ProofRelevantCase
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.ProofRelevantSeq
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.RawRefinement
 public import Silmaril.Raw.SSA.Isotope.Theory.Models.Refinement
+public import Silmaril.SSA.Isotope.Institution.Relational.Thms
 
 /-!
 # Let-family institutions and syntactic initiality

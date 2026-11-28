@@ -103,6 +103,13 @@ theorem relocVal_mono {R R' : Resolver} (h : ∀ r p x, R' r p = some x → R r 
       simp only [e, Option.bind_eq_bind, obind_some] at hw ⊢
       exact bindVal_mono h hw
   · exact hw
+  · cases e : frun f (abs64Ref i r.sym) with
+    | none => simp [e] at hw
+    | some ref =>
+      simp only [e, Option.bind_eq_bind, obind_some] at hw ⊢
+      cases bound : bindVal R' ref false with
+      | none => simp [bound] at hw
+      | some v => rw [bindVal_mono h bound]; simpa only [bound] using hw
 
 theorem bind_mono {α β : Type} {x : Option α} {f f' : α → Option β}
     (hf : ∀ a b, f' a = some b → f a = some b) {b : β} (h : x.bind f' = some b) :

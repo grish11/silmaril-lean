@@ -93,6 +93,17 @@ theorem iterate_rows {A D B : Q} (d : A ⨿ D ⟶ (B ⨿ A) ⨿ D) :
     rw [← Category.assoc r, rightEq, leftEq, leftBody, coprod.inr_desc]
     rw [Category.assoc]
 
+theorem iterate_bypass {S R B : Q} (first : S ⟶ (B ⨿ S) ⨿ R) (second : R ⟶ B ⨿ S) :
+    iterateChosen Seed (first ≫ coprod.desc (𝟙 (B ⨿ S)) second) =
+      coprod.inl ≫ iterateChosen Seed
+        (coprod.desc first (second ≫ coprod.inl) ≫ (coprod.associator B S R).hom) := by
+  rw [iterate_rows]
+  simp only [coprod.inl_desc, coprod.inr_desc]
+  have exit : iterateChosen Seed (second ≫ (coprod.inl : B ⨿ S ⟶ (B ⨿ S) ⨿ R)) = second := by
+    conv_lhs => rw [iterateChosen_fixpoint Seed]
+    simp
+  rw [exit]
+
 theorem block_square_iff {A D E B : Q} (h : D ⟶ E)
     (d : A ⨿ D ⟶ (B ⨿ A) ⨿ D) (e : A ⨿ E ⟶ (B ⨿ A) ⨿ E) :
     (d ≫ (coprod.associator B A D).hom) ≫ coprod.map (𝟙 B) (coprod.map (𝟙 A) h) =

@@ -1,19 +1,21 @@
 # A checked quad loop with an internal diamond
 
 `Quads.Loop.Tail.Diamond.check` reads the original typed quad source
-table. It follows two nonempty linear arms from the header test to
-the common merge. The merge jumps to the latch, whose true occurrence
+table. It follows two disjoint linear arms from the header test to the
+common merge. One occurrence may jump directly from the header to
+the merge. The merge jumps to the latch, whose true occurrence
 returns to the header and whose false occurrence returns a typed
 register. The finite-chain checker finds the two routes. Their
 segments end immediately before the merge, which is the last jump
 block before the latch. The checker requires all source block IDs to
 be distinct across entry, header, arms, merge, and latch and to cover
-the table. The merge columns stay in true/false order. Each names the
-last original block on its arm, while the header targets the first.
+the table. The merge columns stay in true/false order. A nonempty arm
+uses its last block as predecessor. A direct edge uses the header.
 [Checker and lowering](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Diamond/Defs.lean)
 
 The source follows Cliff Click's *From Quads to Graphs*, §2 and
-Figure 1 for ordered CFG blocks, §3.1 and Figure 6 for current
+Figure 1 for ordered CFG blocks, §3 and Figure 4 for a conditional
+assignment with a bypass into the merge, §3.1 and Figure 6 for current
 definitions and pending loop-head inputs, §4.1 and Figure 9 for
 associating data with the chosen predecessor, and §6 and Figure 15
 for the Region and If graph representation. The pinned manuscript

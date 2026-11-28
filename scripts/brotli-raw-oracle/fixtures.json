@@ -1,0 +1,191 @@
+{
+  "brotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "pyarrow": "26.0.1",
+  "thrift": "0.25.0",
+  "accepted": {
+    "empty": {
+      "wire_bytes": 1,
+      "wire_sha256": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+      "decoded_bytes": 0,
+      "decoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "wbits": 18,
+      "steps": 1
+    },
+    "one-byte": {
+      "wire_bytes": 5,
+      "wire_sha256": "ed2f5eaa5d1a07bee32ffd98882f76b329da8fb0b424848dc1c687f0a4e4c5b5",
+      "decoded_bytes": 1,
+      "decoded_sha256": "2ea970ff63aec5d7a014ca6447ec743d3ba37450b85ebdcbb582b089b0194fa2",
+      "wbits": 18,
+      "steps": 2
+    },
+    "multiblock": {
+      "wire_bytes": 131079,
+      "wire_sha256": "78ab6d4dbda24dc0ab7fa4454e8bde59146b40cf2b2f30c6339659161e881d72",
+      "decoded_bytes": 131072,
+      "decoded_sha256": "6c77b49e9c4e38b61765ae1d6083b4a7367d611dc8cda072a8c844419fbfa793",
+      "wbits": 18,
+      "steps": 3
+    },
+    "pyarrow-parquet-v1": {
+      "wire_bytes": 4100,
+      "wire_sha256": "7d0a42ae97c53dd08f9ef057d7f8ddcc025ec635dbe2deb5cf9b4ac38dcf67e8",
+      "decoded_bytes": 4096,
+      "decoded_sha256": "dc171d3f5761a8d3d80f49d5133cb37b37d3ef86e20f72c02929f59b2e3ad947",
+      "wbits": 22,
+      "steps": 2,
+      "parquet_file": {
+        "sha256": "1161da9558f354ef9cab9d7e1db7a2221594d075e4a9c6eb0100c111d2cc281b",
+        "bytes": 4447,
+        "codec": 4,
+        "body_offset": 26
+      }
+    },
+    "length-65536": {
+      "wire_bytes": 65540,
+      "wire_sha256": "b8d090b170941facf64a0640dab53fe10ce574ad2415aa27dcee296956a95886",
+      "decoded_bytes": 65536,
+      "decoded_sha256": "4b640d85ab3ba30fd02c9fc9db4a8928f416322ad27022ea58a65aaee68a4df2",
+      "wbits": 24,
+      "steps": 2
+    },
+    "length-65537": {
+      "wire_bytes": 65542,
+      "wire_sha256": "665ae38f7e213aaa7d895b78059f68ea65b26ef70da31b4b05cf98134da8463a",
+      "decoded_bytes": 65537,
+      "decoded_sha256": "237356e18b503616912abb8ffaed3a72591e397d4ac294c4637917d48a3f529d",
+      "wbits": 24,
+      "steps": 2
+    },
+    "length-1048576": {
+      "wire_bytes": 1048581,
+      "wire_sha256": "d61f8ea5c6f1f83eceb8ff375798bed77d7005951302e8f4b404bd61fcdb3d8f",
+      "decoded_bytes": 1048576,
+      "decoded_sha256": "631b84027d6b9e52b539c4e8373622d23032dfadc64d60af87339c9037e4f769",
+      "wbits": 24,
+      "steps": 2
+    },
+    "length-1048577": {
+      "wire_bytes": 1048582,
+      "wire_sha256": "38a92bd7edeb6f7faf6a80612cba9728058541504f24eb68b6bc882399d9176e",
+      "decoded_bytes": 1048577,
+      "decoded_sha256": "5769f52bc3eef28afa39c6fc68cadb7d0bd69812ae3a3d71452f519ec3c7aa56",
+      "wbits": 24,
+      "steps": 2
+    },
+    "long-window-code": {
+      "wire_bytes": 9,
+      "wire_sha256": "9cf1d4ac7558f8ad825c6c5e76b23f0f669299aa752cdd1c63190701d4ff3299",
+      "decoded_bytes": 4,
+      "decoded_sha256": "88d4266fd4e6338d13b845fcf289579d209c897823b9217da3e161936f031589",
+      "wbits": 10,
+      "steps": 2
+    }
+  },
+  "rejections": {
+    "empty-input": {
+      "wire_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "error": "truncated",
+      "native": "rejects",
+      "limits": {}
+    },
+    "truncated-header": {
+      "wire_sha256": "9b4fb24edd6d1d8830e272398263cdbf026b97392cc35387b991dc0248a628f9",
+      "error": "truncated",
+      "native": "rejects",
+      "limits": {}
+    },
+    "truncated-body": {
+      "wire_sha256": "134d0ee4feafa54a5e5b00ddc72e89aa924ec974afebf3098e416df9ec298d08",
+      "error": "truncated",
+      "native": "rejects",
+      "limits": {}
+    },
+    "missing-terminal": {
+      "wire_sha256": "bb024af3747a2474f9096fb41ce75b58f8803da86ce8ba813798954b7561cbb5",
+      "error": "truncated",
+      "native": "rejects",
+      "limits": {}
+    },
+    "reserved-wbits": {
+      "wire_sha256": "4a64a107f0cb32536e5bce6c98c393db21cca7f4ea187ba8c4dca8b51d4ea80a",
+      "error": "reservedWindow",
+      "native": "rejects",
+      "limits": {}
+    },
+    "reserved-metadata": {
+      "wire_sha256": "b0dc5c381a7c21a3fa9fdc2b347c85efa16a50ff2a441ca58d291091764216e3",
+      "error": "reservedMetadata",
+      "native": "rejects",
+      "limits": {}
+    },
+    "leading-zero-length-nibble": {
+      "wire_sha256": "2a2cae99817fc598093d46ab55d190c47e69b20e64041a876123eb20b272322d",
+      "error": "noncanonicalLength",
+      "native": "rejects",
+      "limits": {}
+    },
+    "nonzero-terminal-padding": {
+      "wire_sha256": "cf05a857e50d13295360ae7a28b36cc9083974ad93322467d7247595ae84dcb2",
+      "error": "nonzeroPadding",
+      "native": "rejects",
+      "limits": {}
+    },
+    "nonzero-raw-padding": {
+      "wire_sha256": "91d9bc9bcadfde0fd88ac248d47dcc45dd9c22746fe3a0847d21f38487824fb4",
+      "error": "nonzeroPadding",
+      "native": "rejects",
+      "limits": {}
+    },
+    "trailing-byte": {
+      "wire_sha256": "90414b186e21aebc131a4692584846e1271c80e475c37d46d9f4545f9bca2c48",
+      "error": "trailingInput",
+      "native": "rejects",
+      "limits": {}
+    },
+    "metadata": {
+      "wire_sha256": "3ff9292ba5f21031dff50cc27295e71f7a647fe704b2f8afe678b77174b85e47",
+      "error": "unsupportedMetadata",
+      "native": "accepts",
+      "limits": {}
+    },
+    "compressed": {
+      "wire_sha256": "23f5c05e65a89dc91fdc8ce76b12057799d972e2a895b3aab9b2715f415eacb7",
+      "error": "unsupportedCompressed",
+      "native": "accepts",
+      "limits": {}
+    },
+    "one-less-input": {
+      "wire_sha256": "78ab6d4dbda24dc0ab7fa4454e8bde59146b40cf2b2f30c6339659161e881d72",
+      "error": "inputLimit",
+      "native": "not compared for caller cap",
+      "limits": {
+        "input_cap": 131078
+      }
+    },
+    "one-less-output": {
+      "wire_sha256": "78ab6d4dbda24dc0ab7fa4454e8bde59146b40cf2b2f30c6339659161e881d72",
+      "error": "outputLimit",
+      "native": "not compared for caller cap",
+      "limits": {
+        "output_cap": 131071
+      }
+    },
+    "one-less-window": {
+      "wire_sha256": "78ab6d4dbda24dc0ab7fa4454e8bde59146b40cf2b2f30c6339659161e881d72",
+      "error": "windowLimit",
+      "native": "not compared for caller cap",
+      "limits": {
+        "window_cap": 262127
+      }
+    },
+    "one-less-step": {
+      "wire_sha256": "78ab6d4dbda24dc0ab7fa4454e8bde59146b40cf2b2f30c6339659161e881d72",
+      "error": "stepLimit",
+      "native": "not compared for caller cap",
+      "limits": {
+        "steps": 2
+      }
+    }
+  }
+}

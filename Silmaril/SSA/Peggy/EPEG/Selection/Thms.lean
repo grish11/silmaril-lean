@@ -35,4 +35,15 @@ theorem observe_sound_of_rows (wf : WellFounded source.Demand)
       target.observe m (target.denote m env (sel.demandWellFounded boundary)) i :=
   sel.observe_sound wf valid boundary (rows_solve rows check (source.denote_solves m env wf) valid) i
 
+/-- Every selected reference has the stream of its actual source
+representative. This also applies to checked internal references such
+as the shared pass of a bundle. -/
+theorem read_sound_of_rows {t : PEG.Ty Data} (ref : PEG.Ref target.sort t) (idx : PEG.Index l)
+    (sourceWF : WellFounded source.Demand) (targetWF : WellFounded target.Demand)
+    (valid : classes.Valid (source.denote m env sourceWF))
+    (rows : ∀ v, Row sel v) (checked : checkRows rows classes = true) :
+    ref.read m.carrier (target.denote m env targetWF (ref.id, idx)) =
+      (sel.sourceRef ref).read m.carrier (source.denote m env sourceWF ((sel.sourceRef ref).id, idx)) :=
+  Silmaril.Proofs.SSA.Peggy.EPEG.read_sound ref idx sourceWF targetWF valid rows checked
+
 end Silmaril.SSA.Peggy.EPEG.Selection

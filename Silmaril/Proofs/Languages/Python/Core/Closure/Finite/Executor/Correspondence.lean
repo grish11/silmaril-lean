@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Languages.Python.Core.Closure.Finite.Executor.Defs
 import Silmaril.Languages.Python.Core.Closure.Executor.Thms
+import Silmaril.Languages.Python.Core.Closure.Thms
 import Silmaril.Languages.Python.Core.Closure.Finite.Dispatch.Thms
 import Silmaril.Languages.Python.Core.Closure.Finite.Thms
 import Silmaril.Semantics.Operational.Projection.Thms
@@ -10,6 +11,7 @@ public section
 
 namespace Silmaril.Proofs.Languages.Python.Core.Closure.Finite.Executor
 
+open Silmaril.Languages.Python
 open Silmaril.Languages.Python.Core.Closure
 open Silmaril.Languages.Python.Core.Closure.Finite
 open Silmaril.Languages.Python.Core.Closure.Finite.Executor
@@ -53,6 +55,18 @@ private theorem resumeStore_project {layout : Layout} (source : Snapshot layout)
   | error failure => exact fail_project source.heap stack failure
   | ok updated => rfl
 
+private theorem dictionary_heap_project (table : HeapTable) (display : List Core.Module.Dictionary.Entry) :
+    let data := Value.dictionaryData (Core.Module.Dictionary.build display)
+    ((table.reserve 1).bind ⟨table.next⟩ data (Nat.lt_succ_self table.next)).project =
+      (table.project.materializeDictionary display).2 := by
+  let data := Value.dictionaryData (Core.Module.Dictionary.build display)
+  have projected := HeapTable.write_project (table.reserve 1) ⟨table.next⟩ data
+  rw [HeapTable.reserve_project] at projected
+  have same : (table.project.reserve 1).write ⟨table.next⟩ data =
+      some (table.project.materializeDictionary display).2 := Heap.allocate_write table.project data
+  rw [same] at projected
+  simpa [HeapTable.write, HeapTable.reserve, Nat.lt_succ_self] using projected
+
 private theorem enter_project (active : Silmaril.Languages.Python.Core.Closure.Finite.Dispatch.Active CoreBody Continuation) :
     (enter active).project = coreEnter active.project := rfl
 
@@ -71,10 +85,14 @@ theorem advanceIn_project (rows : CodeRows) (globals : GlobalLookup) (source : S
       cases operand.evalIn globals environment.heap.project environment.frame with
       | ok value => exact congrArg some (resumeStore_project environment destination value next stack)
       | error failure => exact congrArg some (fail_project environment.heap stack failure)
+    | storeDictionary destination entries next =>
+      simp only [advanceIn, coreAdvance, State.project, Option.map_some]
+      rw [resumeStore_project, dictionary_heap_project]
+      rfl
     | assert test next =>
       simp only [advanceIn, coreAdvance, State.project, Option.map_some]
       cases test.evalIn globals environment.heap.project environment.frame with
-      | ok value => cases truth : value.truth <;> simp [truth, Transition.project, State.project]
+      | ok value => cases truth : value.truth environment.heap.project <;> simp [truth, Transition.project, State.project]
       | error failure => exact congrArg some (fail_project environment.heap stack failure)
     | assertFreevars test next =>
       simp only [advanceIn, coreAdvance, State.project, Option.map_some]

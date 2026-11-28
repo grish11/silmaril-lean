@@ -140,7 +140,7 @@ private theorem tags_ne : tag ≠ tagRight := by
     cases i with
     | zero => cases Option.some.inj h; exact .unit
     | succ i => simp [At] at h
-  have obs := pair_join_same (observation := plain) rfl rfl ((ofRegion_eq_iff Seed _ _).1 eq) _ henv
+  have obs := pair_join_same (observation := plain) rfl rfl rfl ((ofRegion_eq_iff Seed _ _).1 eq) _ henv
   change Result.jump 0 (.inl .unit) = .jump 0 (.inr .unit) at obs
   cases obs
 
@@ -163,12 +163,12 @@ theorem state_not_mono : ¬ Mono stateMap := by
 
 private theorem inl_ne_right (t : Tm Empty) (env : Env) :
     evalRegionWith plain (.br 0 (.inl t)) env ≠ .jump 0 (.inr .unit) := by
-  simp only [evalRegionWith, evalTermWith]
+  simp only [evalRegionWith, evalTermWith, Bool.and_false, Bool.false_eq_true, ite_false]
   cases evalTermWith plain t env <;> simp
 
 private theorem inr_ne_left (t : Tm Empty) (env : Env) :
     evalRegionWith plain (.br 0 (.inr t)) env ≠ .jump 0 (.inl .unit) := by
-  simp only [evalRegionWith, evalTermWith]
+  simp only [evalRegionWith, evalTermWith, Bool.and_false, Bool.false_eq_true, ite_false]
   cases evalTermWith plain t env <;> simp
 
 set_option backward.isDefEq.respectTransparency false in
@@ -176,7 +176,7 @@ theorem no_constructor_state :
     ¬ ∃ (a : Tm Empty) (ha : Tm.BranchValue [Three] a Bit), stateMap = Lit (.br (ℓ := 0) rfl ha) := by
   rintro ⟨a, ha, eq⟩
   rw [state_repr] at eq
-  have obs := pair_join_same (observation := plain) rfl rfl ((ofRegion_eq_iff Seed _ _).1 eq)
+  have obs := pair_join_same (observation := plain) rfl rfl rfl ((ofRegion_eq_iff Seed _ _).1 eq)
   have ol := obs envLeft typedLeft
   have or := obs envRight typedRight
   change Result.jump 0 (.inl .unit) = evalRegionWith plain (.br 0 a) envLeft at ol

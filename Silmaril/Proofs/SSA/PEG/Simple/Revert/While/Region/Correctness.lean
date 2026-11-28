@@ -9,7 +9,7 @@ namespace Silmaril.SSA.PEG.Simple.Revert.While.Region.Proofs
 
 set_option backward.isDefEq.respectTransparency false
 
-open RVSDG (Tuple)
+open RVSDG (Port Tuple)
 
 universe u v w
 
@@ -17,12 +17,13 @@ variable {Data : Type u} {P : InstructionSet.{u,v} Data}
 variable {carried : List (Ty Data)} {result : Ty Data} {n : Nat}
 variable {g : Graph P carried [result] n 1} {m : Interpretation.{u,v,w} P}
 variable {env : Tuple m.Value carried} {values : g.Valuation m}
-variable (cert : Certificate g)
+variable {allowInvariant allowBranch : Bool}
+variable (cert : Certificate g allowInvariant allowBranch)
 
 abbrev Tagged (m : Interpretation.{u,v,w} P) (carried : List (Ty Data)) :=
   Tuple m.Value (.bool :: carried)
 
-abbrev Trace (cert : Certificate g) (m : Interpretation.{u,v,w} P) :=
+abbrev Trace (cert : Certificate g allowInvariant allowBranch) (m : Interpretation.{u,v,w} P) :=
   WhileTrace m (.var .head) cert.body.enableWhile
 
 private abbrev At (k : Nat) (tagged : Tagged m carried) :=
@@ -91,7 +92,8 @@ private structure Prefix (i k : Nat) (final : Tagged m carried) : Prop where
   last : At cert (values := values) (i + k) final
   stop : flags cert values (i + k) = some true
   earlier : ∀ j < k, flags cert values (i + j) = some false
-  defined : ∀ j < k, (samples cert values (i + j)).isSome
+  defined : ∀ j < k, ∀ t (p : Port carried t),
+    (read values (clock (i + j)) (cert.descriptor.theta.get p)).isSome
 
 private theorem tracePrefix {k : Nat} {tagged final : Tagged m carried}
     (trace : Trace cert m k tagged final) (i : Nat) (entry : At cert (values := values) i tagged) :
@@ -108,16 +110,15 @@ private theorem tracePrefix {k : Nat} {tagged final : Tagged m carried}
       cases j with
       | zero => exact flagAt cert solves neg entry test
       | succ j => rw [offset]; exact after.earlier j (by omega)
-    · intro j lt
+    · intro j lt t p
       cases j with
       | zero =>
-        change (samples cert values i).isSome
-        unfold samples
-        have sample := entry result (.tail cert.descriptor.returnSlot)
+        change (read values (clock i) (cert.descriptor.theta.get p)).isSome
+        have sample := entry t (.tail p)
         rw [Descriptor.guardRoots, Tuple.get] at sample
         rw [sample]
         rfl
-      | succ j => rw [offset]; exact after.defined j (by omega)
+      | succ j => rw [offset]; exact after.defined j (by omega) t p
 
 private theorem traceOfFlags (total : cert.Total m)
     (i k : Nat) {tagged : Tagged m carried} (entry : At cert (values := values) i tagged)
@@ -149,22 +150,42 @@ private theorem unpack {value : m.Value result} (success : cert.revert.Returns m
     exact ⟨k, _, final, Exec.deterministic (cert.guard.lower.runLoopFree_enableWhile env) first,
       trace, returned⟩
 
-theorem observe_of_returns (i : Index 1) {value : m.Value result}
-    (success : cert.revert.Returns m env value) :
-    g.observe m values i = .cons (some value) .nil := by
-  obtain ⟨k, tagged, final, guard, trace, returned⟩ := unpack cert success
+theorem traceObservation (i : Index 1) {k : Nat} {tagged final : Tagged m carried}
+    (guard : cert.guard.lower.runLoopFree m env = some tagged) (trace : Trace cert m k tagged final) :
+    cert.TraceObservation m values i k final := by
   have ran := tracePrefix cert solves neg trace 0 (start cert solves guard)
   have first : firstTrue (flags cert values) = some k :=
     (firstTrue_eq_some_iff_samples _ _).mpr
       ⟨by simpa only [Nat.zero_add] using ran.stop,
         fun j hj => by simpa only [Nat.zero_add] using ran.earlier j hj⟩
-  rw [observation cert solves, pass cert solves, first]
+  refine ⟨?_, ?_, ?_⟩
+  · change read values i cert.descriptor.pass = some ⟨k⟩
+    rw [pass cert solves, first]
+    rfl
+  · intro t p
+    change read values (clock k) (cert.descriptor.theta.get p) = _
+    have last : read values (clock (0 + k)) (cert.descriptor.theta.get p) = some (final.get (.tail p)) :=
+      ran.last t (.tail p)
+    rw [Nat.zero_add] at last
+    exact last
+  · intro j hj t p
+    change (read values (clock j) (cert.descriptor.theta.get p)).isSome
+    have defined := ran.defined j hj t p
+    rw [Nat.zero_add] at defined
+    exact defined
+
+theorem observe_of_returns (i : Index 1) {value : m.Value result}
+    (success : cert.revert.Returns m env value) :
+    g.observe m values i = .cons (some value) .nil := by
+  obtain ⟨k, tagged, final, guard, trace, returned⟩ := unpack cert success
+  have ran := traceObservation cert solves neg i guard trace
+  have picked : read values i cert.descriptor.pass = some ⟨k⟩ := ran.pass
+  rw [observation cert solves, picked]
   change Tuple.cons (F := fun t => Option (m.Value t)) (monotonize (samples cert values) k) .nil = _
   congr 1
   apply (monotonize_eq_some_iff _ _ _).mpr
-  have sample := (ran.last result (.tail cert.descriptor.returnSlot)).trans (congrArg some returned)
-  exact ⟨by simpa only [samples, Nat.zero_add, Descriptor.guardRoots, Tuple.get] using sample,
-    fun j hj => by simpa only [Nat.zero_add] using ran.defined j hj⟩
+  exact ⟨(ran.sample result cert.descriptor.returnSlot).trans (congrArg some returned),
+    fun j hj => ran.definedBefore j hj result cert.descriptor.returnSlot⟩
 
 theorem exitWitness_of_defined (total : cert.Total m) (i : Index 1)
     {value : m.Value result} (defined : g.observe m values i = .cons (some value) .nil) :
@@ -205,9 +226,9 @@ theorem returns_of_exit {k : Nat} {tagged final : Tagged m carried} {i : Index 1
   ⟨final, .seq (guard ▸ cert.guard.lower.runLoopFree_enableWhile env) witness.trace.exec,
     witness.returned⟩
 
-private theorem runFrom_trace {k : Nat} {tagged final : Tagged m carried}
+private theorem runStore_trace {k : Nat} {tagged final : Tagged m carried}
     (trace : Trace cert m k tagged final) :
-    cert.runFrom m k tagged = some (final.get (.tail cert.descriptor.returnSlot)) := by
+    cert.runStore m k tagged = some final := by
   induction trace with
   | @stop tagged test =>
     cases tagged with
@@ -221,7 +242,7 @@ private theorem runFrom_trace {k : Nat} {tagged final : Tagged m carried}
       have h : flag = ⟨true⟩ := Option.some.inj test
       subst flag
       have computed := Exec.deterministic (cert.body.runLoopFree_enableWhile _) step
-      simpa [Certificate.runFrom, computed] using ih
+      simpa [Certificate.runStore, computed] using ih
 
 theorem runFuel_of_exit {k : Nat} {tagged final : Tagged m carried} {i : Index 1}
     {value : m.Value result} (guard : cert.guard.lower.runLoopFree m env = some tagged)
@@ -229,36 +250,37 @@ theorem runFuel_of_exit {k : Nat} {tagged final : Tagged m carried} {i : Index 1
     cert.runFuel m k env = some value := by
   unfold Certificate.runFuel
   rw [guard]
-  exact (runFrom_trace cert witness.trace).trans (congrArg some witness.returned)
+  simp [Certificate.runFrom, runStore_trace cert witness.trace, witness.returned]
 
-private theorem runFrom_success (fuel : Nat) (tagged : Tagged m carried) {value : m.Value result}
-    (ran : cert.runFrom m fuel tagged = some value) :
-    ∃ final, Exec m (.while rfl (.var .head) cert.body.enableWhile) tagged (some final) ∧
-      final.get (.tail cert.descriptor.returnSlot) = value := by
+theorem runStore_exec (fuel : Nat) (tagged : Tagged m carried) {final : Tagged m carried}
+    (ran : cert.runStore m fuel tagged = some final) :
+    Exec m (.while rfl (.var .head) cert.body.enableWhile) tagged (some final) := by
   induction fuel generalizing tagged with
   | zero =>
     cases tagged with
     | cons flag store =>
       obtain ⟨flag⟩ := flag
       cases flag
-      · exact ⟨_, .whileStop rfl, Option.some.inj ran⟩
+      · cases ran
+        exact .whileStop rfl
       · cases ran
   | succ k ih =>
     cases tagged with
     | cons flag store =>
       obtain ⟨flag⟩ := flag
       cases flag
-      · exact ⟨_, .whileStop rfl, Option.some.inj ran⟩
-      · change (cert.body.runLoopFree m (.cons ⟨true⟩ store)).bind (cert.runFrom m k) =
-          some value at ran
+      · cases ran
+        exact .whileStop rfl
+      · change (cert.body.runLoopFree m (.cons ⟨true⟩ store)).bind (cert.runStore m k) =
+          some final at ran
         obtain ⟨next, computed, rest⟩ := Option.bind_eq_some_iff.mp ran
-        obtain ⟨final, loop, returned⟩ := ih next rest
-        exact ⟨final, .whileStep rfl (computed ▸ cert.body.runLoopFree_enableWhile _) loop, returned⟩
+        exact .whileStep rfl (computed ▸ cert.body.runLoopFree_enableWhile _) (ih next rest)
 
 theorem runFuel_returns (fuel : Nat) {value : m.Value result}
     (ran : cert.runFuel m fuel env = some value) : cert.revert.Returns m env value := by
   obtain ⟨tagged, guard, rest⟩ := Option.bind_eq_some_iff.mp ran
-  obtain ⟨final, loop, returned⟩ := runFrom_success cert fuel tagged rest
-  exact ⟨final, .seq (guard ▸ cert.guard.lower.runLoopFree_enableWhile env) loop, returned⟩
+  obtain ⟨final, computed, returned⟩ := Option.map_eq_some_iff.mp rest
+  exact ⟨final, .seq (guard ▸ cert.guard.lower.runLoopFree_enableWhile env)
+    (runStore_exec cert fuel tagged computed), returned⟩
 
 end Silmaril.SSA.PEG.Simple.Revert.While.Region.Proofs

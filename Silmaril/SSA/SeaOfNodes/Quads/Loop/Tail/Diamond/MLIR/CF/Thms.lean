@@ -60,6 +60,29 @@ theorem block_eval_with {Γ : List Width} (routes : JumpAgrees jump frame)
 
 /-- Reuse the source fuel proof for any emission with exact successor frames
 and the same one-block CF return. -/
+theorem runBlock_eq_of_frames_on {captures : List Width}
+    (cfg : Cfg TargetOp Labels captures [valueWidth out]) (input : Env captures)
+    (frame : Fin size → Bank (regs := regs) model → Frame Labels) (exit : Labels [valueWidth out])
+    (site : Fin size → Prop)
+    (closed : ∀ id (bank : Bank (regs := regs) model) next,
+      (src id).terminator.select model bank = .jump next → site next)
+    (siteEval : ∀ id, site id → ∀ old,
+      let current := frame id old
+      let next := (src id).body.eval model old
+      (cfg.block current.label).eval evalOp (fun term env => term.eval env)
+          (current.args.append input) =
+        .inl (destinationFrameWith frame (returnFrame exit) next ((src id).terminator.select model next)))
+    (exitBlock : cfg.block exit = .terminator (.ret (.cons .here .nil)))
+    (fuel : Nat) (id : Fin size) (old : Bank (regs := regs) model)
+    {Γ : List Width} (block : Block TargetOp Labels Γ [valueWidth out]) (env : Env Γ)
+    (step :
+      let next := (src id).body.eval model old
+      block.eval evalOp (fun term env => term.eval env) env =
+        .inl (destinationFrameWith frame (returnFrame exit) next ((src id).terminator.select model next))) :
+    cfg.runBlock evalOp input (fuel + 1) block env =
+      (src.runFrom model fuel id old).map (fun value => Env.cons (valueBits value) .nil) :=
+  Proofs.runBlock_eq_of_frames_on cfg input frame exit site closed siteEval exitBlock fuel id old block env step
+
 theorem runBlock_eq_of_frames_with {captures : List Width}
     (cfg : Cfg TargetOp Labels captures [valueWidth out]) (input : Env captures)
     (frame : Fin size → Bank (regs := regs) model → Frame Labels) (exit : Labels [valueWidth out])
@@ -102,6 +125,20 @@ theorem runBlock_eq_of_frames (cfg : Cfg TargetOp Labels (Widths regs) [valueWid
 
 end Emission
 
+/-- The labeled CF block uses precisely the source block's final bank and edge. -/
+theorem source_site_eval (input bank : Bank (regs := regs) model) (id : Fin size) :
+    ((lowerSource src entry).block (.site id)).eval evalOp (fun term env => term.eval env)
+        ((encodeValues bank).append (encodeValues input)) =
+      .inl (destinationFrame ((src id).body.eval model bank)
+        ((src id).terminator.select model ((src id).body.eval model bank))) :=
+  Proofs.source_site_eval input bank id
+
+/-- The source table emitter preserves each block visit and adds a return visit. -/
+theorem lowerSource_run (fuel : Nat) (input : Bank (regs := regs) model) :
+    (lowerSource src entry).run evalOp (fuel + 1) (encodeValues input) =
+      (src.runFrom model fuel entry input).map (fun value => Env.cons (valueBits value) .nil) :=
+  Proofs.lowerSource_run fuel input
+
 variable (p : Program src entry)
 
 /-- The emitted split takes the source occurrence, testing the post-header bank. -/
@@ -111,13 +148,14 @@ theorem split_frame (input old : Bank (regs := regs) model) :
       .inl (siteFrame (p.armStart (p.selected model old)) ((src p.header).body.eval model old)) :=
   Proofs.split_frame p input old
 
-/-- The last original block of each occurrence sends its own final bank to
-the common join. The target frame contains these exact typed arguments. -/
-theorem predecessor_frame (input old : Bank (regs := regs) model) (occurrence : Fin 2) :
+/-- The original predecessor passes its final bank to the common join.
+A direct edge requires the header test to select that occurrence. -/
+theorem predecessor_frame (input old : Bank (regs := regs) model) (occurrence : Fin 2)
+    (selectDirect : (p.armPath occurrence).blocks = [] → p.selected model old = occurrence) :
     ((lower p).block (.site (p.predecessor occurrence))).eval evalOp (fun term env => term.eval env)
         ((encodeValues old).append (encodeValues input)) =
       .inl (siteFrame p.join ((src (p.predecessor occurrence)).body.eval model old)) :=
-  Proofs.predecessor_frame p input old occurrence
+  Proofs.predecessor_frame p input old occurrence selectDirect
 
 /-- Running the chosen emitted arm spends one CF visit per original arm
 block and continues at the common join with the selected arm's final bank. -/

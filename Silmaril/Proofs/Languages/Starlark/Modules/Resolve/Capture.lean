@@ -170,6 +170,34 @@ private theorem required_order (parameters : List String) :
   | nil => exact .nil
   | cons first rest ih => exact .cons rfl ih
 
+theorem selected_member {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
+    (selected : Selects block reads free) (binding : Binding) :
+    (⟨binding, binding⟩ : FreeName) ∈ free ↔ binding ∈ reads ∧ (binding.scope = .global ∨ binding.name ∉ block.owned) := by
+  rw [← capture_names selected, captureNames, List.mem_map]
+  constructor
+  · rintro ⟨seen, present, equal⟩
+    have same : seen = binding := congrArg FreeName.source equal
+    subst seen
+    simpa using List.mem_filter.mp present
+  · intro member
+    exact ⟨binding, List.mem_filter.mpr (by simpa using member), rfl⟩
+
+theorem selected_origin {block : LexicalBlock} {reads : List Binding} {free : List FreeName}
+    (selected : Selects block reads free) (entry : FreeName) (present : entry ∈ free) :
+    ∃ binding, entry = (⟨binding, binding⟩ : FreeName) ∧
+      (ReadOrigin block binding .enclosing ∨ ReadOrigin block binding .module) := by
+  induction selected with
+  | nil => cases present
+  | owned _ _ ih => exact ih present
+  | enclosing origin _ ih =>
+    rcases List.mem_cons.mp present with rfl | present
+    · exact ⟨_, rfl, .inl origin⟩
+    · exact ih present
+  | module origin _ ih =>
+    rcases List.mem_cons.mp present with rfl | present
+    · exact ⟨_, rfl, .inr origin⟩
+    · exact ih present
+
 theorem required_binders (parameters : List String) :
     ParameterBinders (.required parameters) parameters := by
   simpa [SourceSignature.required] using (ParameterBinders.signature none none (required_order parameters) .nil)
@@ -255,6 +283,18 @@ theorem mixed_definition (parent : BlockContext) (name : String) (parameters loc
   obtain ⟨free, _, related, selected, compiled⟩ := mixed_definition_linked parent name parameters locals body localDecls
     targetProfile rhsProfile returnProfile program next assignment returned returnReads assigned resolvedReturn
   exact ⟨free, related, selected, compiled⟩
+
+theorem installs_in_same_slots {active final : State} {free : List FreeName}
+    {captures : List Silmaril.Languages.Starlark.Lists.Capture} (slots : final.slots = active.slots)
+    (installed : Installs active free captures) : Installs final free captures := by
+  induction installed with
+  | nil => exact .nil
+  | cons received _ ih =>
+    cases received with
+    | enclosing proof => exact .cons (.enclosing (slots ▸ proof)) ih
+    | forwardedLocal proof => exact .cons (.forwardedLocal (slots ▸ proof)) ih
+    | ownedGlobal proof => exact .cons (.ownedGlobal (slots ▸ proof)) ih
+    | capturedGlobal proof => exact .cons (.capturedGlobal (slots ▸ proof)) ih
 
 private theorem write_keeps_slots (state : State) (binding : Binding)
     (value : Silmaril.Languages.Starlark.Lists.Value) : (state.write binding value).slots = state.slots := by

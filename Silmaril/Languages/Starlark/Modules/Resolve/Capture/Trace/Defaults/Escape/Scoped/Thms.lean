@@ -20,7 +20,7 @@ theorem checked_site {before after : List Command} {globals : List String} {spec
     (checked : resolve (before ++ spec.command :: after) linked = .ok resolved)
     (suffix : RootCall.Segment globals after) :
     ∃ id, resolved.source.commands[before.length]? = some (.exec (.define spec.wrapper.name (id + 1))) ∧
-      resolved.program[id]? = some (plan.body.declaration spec.wrapper.codes) ∧
+      resolved.program[id]? = some (plan.childDeclaration) ∧
       resolved.program[id + 1]? = some (plan.frame id).declaration :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped.checked_site
     names plan declared checked suffix
@@ -65,7 +65,7 @@ theorem failed_local_unbound {globals : List String} {spec : Spec} (names : Name
     (childId : Nat) (caller : State) (moduleCaptures : List Capture) {values : List Lists.Value} {assigned : List (Binding × Lists.Value)}
     (bound : Entry.Binds spec.parameters values (.ok assigned)) (name : String) (localName : name ∈ spec.updates.map Prod.fst)
     {error : Lists.Error} {next : State}
-    (failed : Escape.ReturnsWith spec.wrapper childId plan.body.free spec.updates caller
+    (failed : Escape.ReturnsWith spec.wrapper (spec.block globals) plan.defaultItems childId plan.body.free spec.updates caller
       (activate caller (spec.frame childId).declaration moduleCaptures assigned) (.error error next)) :
     let active := activate caller (spec.frame childId).declaration moduleCaptures assigned
     ∃ address, active.slots (fileSlot name) = some (.owned address) ∧
@@ -76,7 +76,7 @@ theorem failed_local_unbound {globals : List String} {spec : Spec} (names : Name
 /-- Repeated source reads share one installed binding in the closure. -/
 theorem capture_order {globals : List String} {spec : Spec} (plan : Plan globals spec)
     {active : State} {captures : List Capture} (installed : Installs active plan.body.free captures) :
-    captures.map Capture.binding = (plan.body.declaration spec.wrapper.codes).free.map FreeName.target ∧
+    captures.map Capture.binding = (plan.childDeclaration).free.map FreeName.target ∧
       (captures.map Capture.binding).Nodup :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped.capture_order plan installed
 
@@ -85,15 +85,14 @@ values, and captured cells. Subsequent writes and caller restoration leave
 the escaped child with the compositional frame for a later call. -/
 theorem returned_frame {globals : List String} {spec : Spec} (names : Names spec)
     (plan : Plan globals spec) (program : Program) (available : List DeclarationId) (childId : Nat)
-    (found : program[childId]? = some (plan.body.declaration spec.wrapper.codes))
+    (found : program[childId]? = some (plan.childDeclaration))
     (caller : State) (moduleCaptures : List Capture) (moduleInstalled : Installs caller plan.moduleFree moduleCaptures)
     (moduleCells : Defaults.Body.CaptureCells caller moduleCaptures) (assigned : List (Binding × Lists.Value)) {address : Nat} {next : State}
     (source : Returns plan childId caller moduleCaptures assigned (.ok (.function address) next)) :
     let active := activate caller (plan.frame childId).declaration moduleCaptures assigned
     ∃ reached values captures, values.length = spec.child.parameters.optional.length ∧
       Defaults.Body.RunsPrefix (spec.block globals) active spec.leading plan.leadingCode (.ok () reached) ∧
-      (∃ defaultsState, Escape.DefaultsIn spec.wrapper.parameter reached
-        (spec.wrapper.defaults.map Prod.snd) (.ok values defaultsState)) ∧
+      (∃ defaultsState, Lexical.Evaluates (spec.block globals) reached plan.defaultItems (.ok values defaultsState)) ∧
       Installs reached plan.body.free captures ∧
       next.heap[address]? = some ⟨.function ⟨childId, captures, spec.wrapper.saved values⟩, false⟩ ∧
       next.slots = caller.slots ∧ next.bindings = caller.bindings ∧
@@ -103,7 +102,7 @@ theorem returned_frame {globals : List String} {spec : Spec} (names : Names spec
         next.heap[parameter]? = some ⟨.binding (some (.scalar (.int spec.wrapper.rebound))), frozen⟩) ∧
       ∀ arguments : List (Binding × Lists.Value),
         Defaults.Body.Frame plan.body.block plan.body.free next.heap.size
-          (activate next (plan.body.declaration spec.wrapper.codes) captures arguments) :=
+          (activate next (plan.childDeclaration) captures arguments) :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.Escape.Scoped.returned_frame
     names plan program available childId found caller moduleCaptures moduleInstalled moduleCells assigned source
 

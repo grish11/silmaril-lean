@@ -35,3 +35,18 @@ example {Γ : List Arith.Width} {w : Arith.Width} (block : Arith.Block Γ w) (en
     (Institution.Arith.translate block).denote Institution.Arith.model
       (Institution.Arith.assignment env) = block.denote env :=
   Institution.Arith.translate_denote block env
+
+/-- error: silmaril ir_model: Silmaril.MLIR.CF.SwitchAssert.Cfg.run must take a program of type Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Institution.TargetProgram -/
+#guard_msgs in
+silmaril ir_model test.mismatched_cf := Silmaril.MLIR.CF.SwitchAssert.Cfg.run
+  (subset := mlir.cf.basic_scalar_loop) (semantics := operational) (title := "Mismatched CFG")
+
+open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Institution in
+example {B : Profile} (g : TargetProgram B) :
+    (TargetSentence.terminates g).Holds ↔ ∀ input, (observe g input).Dom :=
+  Iff.rfl
+
+open Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Institution in
+example {B : Profile} (S : Signature) (s : SourceSentence B S.left) :
+    (translate S s).Holds ↔ s.val.Holds (sourceModel S) :=
+  satisfaction_induced S s

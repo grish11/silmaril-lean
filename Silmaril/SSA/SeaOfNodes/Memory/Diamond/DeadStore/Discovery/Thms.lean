@@ -21,6 +21,11 @@ theorem rewrite_checked (input : Tuple (Val cells) args) (success : rewrite sour
       DeadStore.rewrite source result.candidate input = some result.graph :=
   Proofs.rewrite_checked input success
 
+/-- Both checked arm replacements preserve the original Region slot order. -/
+theorem rewrite_merge (input : Tuple (Val cells) args) (success : rewrite source input = some result) :
+    result.graph.merge = source.diamond.merge :=
+  Proofs.rewrite_merge input success
+
 theorem rewrite_occurrence (input : Tuple (Val cells) args)
     (success : rewrite source input = some result) (arrival : Slot) :
     rewriteSlot source result.candidate input arrival =

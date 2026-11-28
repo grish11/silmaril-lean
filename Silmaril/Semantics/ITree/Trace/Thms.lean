@@ -57,6 +57,16 @@ theorem hasTrace_vis_request {R : Type u} (e : E R) (k : R → Tree E A) :
     HasTrace (vis e k) (.request e) :=
   ⟨k, out_vis e k⟩
 
+theorem hasTrace_vis_request_iff {R S : Type u} (e : E R) (k : R → Tree E A) (d : E S) :
+    HasTrace (vis e k) (.request d) ↔ ∃ h : S = R, h ▸ d = e :=
+  Silmaril.Proofs.Semantics.Elgot.ITree.trace_request_vis_iff e k d
+
+theorem hasTrace_vis_exchange {R S : Type u} (e : E R) (k : R → Tree E A)
+    (d : E S) (r : S) (p : Trace E A) :
+    HasTrace (vis e k) (.exchange d r p) ↔
+      ∃ h : S = R, h ▸ d = e ∧ HasTrace (k (h ▸ r)) p :=
+  Silmaril.Proofs.Semantics.Elgot.ITree.trace_exchange_vis_iff e k d r p
+
 @[simp] theorem hasTrace_vis_exchange_iff {R : Type u} (e : E R) (k : R → Tree E A)
     (r : R) (p : Trace E A) :
     HasTrace (vis e k) (.exchange e r p) ↔ HasTrace (k r) p :=
@@ -90,6 +100,12 @@ In particular it introduces no request, and it can merge result observations. -/
 theorem hasTrace_bind_pure_iff (f : A → B) (t : Tree E A) (p : Trace E B) :
     HasTrace (t >>= fun a => pure (f a)) p ↔ ∃ q, HasTrace t q ∧ q.map f = p :=
   Silmaril.Proofs.Semantics.Elgot.ITree.trace_map_iff f t p
+
+/-- An injective return tag preserves and reflects the particular mapped trace. -/
+theorem hasTrace_bind_pure_map_iff {f : A → B} (injective : Function.Injective f) (tree : Tree E A)
+    (trace : Trace E A) :
+    HasTrace (tree >>= fun x => pure (f x)) (trace.map f) ↔ HasTrace tree trace :=
+  Silmaril.Proofs.Semantics.Elgot.ITree.trace_bind_pure_map_iff injective tree trace
 
 theorem TraceLE.bind_pure {t s : Tree E A} (h : TraceLE t s) (f : A → B) :
     TraceLE (t >>= fun a => pure (f a)) (s >>= fun a => pure (f a)) :=

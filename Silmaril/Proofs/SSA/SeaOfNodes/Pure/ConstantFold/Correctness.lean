@@ -40,7 +40,7 @@ theorem push_agrees (agree : known.Agrees entry locals)
         actual).trans (sound value found)
     | tail rest => nomatch rest
 
-private theorem literalInputs_sound (agree : known.Agrees entry locals) {ports : List (Ty Unit)}
+theorem literalInputs_sound (agree : known.Agrees entry locals) {ports : List (Ty Unit)}
     (operands : Wires args past ports) {values : Tuple (Val m.value) ports}
     (found : literalInputs? known operands = some values) :
     operands.read entry locals = values := by

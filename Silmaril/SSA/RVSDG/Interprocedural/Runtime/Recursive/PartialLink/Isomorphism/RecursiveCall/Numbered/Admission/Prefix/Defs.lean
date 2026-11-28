@@ -20,10 +20,10 @@ variable {m : Machine.{u, v, w} Op} {σ : Type (max u v w)}
 variable {imports importsL importsR exports : Ports (Ty V S)}
 variable {past pastL pastR sigs sigsL sigsR : List (Ports (Ty V S))}
 
-/-- Align the actual bindings in two modules in link order. The plan
-chooses an initial paired φ seed, later φ and λ extensions, and bindings
-to link without admitting their callable outputs. The types fix the shared
-signatures for each extension. -/
+/-- Align the actual bindings in two modules in link order. Start from
+ordinary values or a paired φ seed, then select φ and λ extensions.
+Skipped bindings still link. The types fix the shared signatures for
+each extension. -/
 inductive Plan (Op : Dialect.{u, v} (ValueSort V S) S) (importsL importsR exports : Ports (Ty V S)) :
     Bool → {pastL sigsL pastR sigsR : List (Ports (Ty V S))} →
     ModuleTerm Op importsL pastL sigsL exports → ModuleTerm Op importsR pastR sigsR exports → Type (max u v + 1) where
@@ -39,6 +39,12 @@ inductive Plan (Op : Dialect.{u, v} (ValueSort V S) S) (importsL importsR export
       {left : ModuleTerm Op importsL pastL sigsL exports} {rest : ModuleTerm Op importsR (pastR ++ [head]) sigsR exports}
       (next : Plan Op importsL importsR exports seeded left rest) :
       Plan Op importsL importsR exports seeded left (.bind node rest)
+  /-- Begin checking with ordinary values and empty callable tables. -/
+  | start {pastL sigsL pastR sigsR : List (Ports (Ty V S))}
+      {left : ModuleTerm Op importsL pastL sigsL exports}
+      {right : ModuleTerm Op importsR pastR sigsR exports}
+      (next : Plan Op importsL importsR exports true left right) :
+      Plan Op importsL importsR exports false left right
   | seed {pastL sigsL pastR sigsR : List (Ports (Ty V S))} {membersL membersR : List (Function V S)}
       {left : PhiTerm Op importsL pastL membersL} {right : PhiTerm Op importsR pastR membersR}
       {restL : ModuleTerm Op importsL (pastL ++ [memberPorts membersL]) sigsL exports}
@@ -125,17 +131,24 @@ def Table.lift {family target : Family m}
   | [], _, _ => PUnit.unit
   | _ :: _, _, table => ⟨fun p => (table.1 p).map (fun cert => ⟨includeValue cert.down⟩), Table.lift includeValue table.2⟩
 
-/-- Ordinary values are admitted at use. A nonordinary import has no
-entry, while a callable output must have been admitted at its binding. -/
+/-- Ordinary values are admitted at use. Other values need evidence at
+their exact import or output port. -/
+def Table.availableWithImports {family : Family m} {entry : Tuple m.Val imports} {locals : Locals m.Val past}
+    (table : Table family locals)
+    (ordinary : ∀ {port : Ty V S} (value : m.Val port), ordinaryPort port = true → family value)
+    (imported : Row family entry) : Available family entry locals :=
+  fun {port} origin =>
+    if plain : ordinaryPort port = true then some ⟨ordinary _ plain⟩
+    else match origin with
+      | .arg p => imported p
+      | .output row p => table.get row p
+
+/-- Access checked locals with ordinary imports. -/
 def Table.available {family : Family m} {entry : Tuple m.Val imports} {locals : Locals m.Val past}
     (table : Table family locals)
     (ordinary : ∀ {port : Ty V S} (value : m.Val port), ordinaryPort port = true → family value) :
     Available family entry locals :=
-  fun {port} origin =>
-    if plain : ordinaryPort port = true then some ⟨ordinary _ plain⟩
-    else match origin with
-      | .arg _ => none
-      | .output row p => table.get row p
+  table.availableWithImports ordinary (fun _ => none)
 
 def memberRow {family : Family m} :
     (members : List (Function V S)) → (values : (i : Fin members.length) → m.Val members[i].port) →
@@ -458,6 +471,39 @@ def AdmittedExport (primitives : Primitives m σ) (ids : GlobalRel) {fn : Functi
   | .linked left _, .linked right _ => ExportAdmission primitives ids (left.get port) (right.get port)
   | _, _ => False
 
+/-- Retain the dispatch certificate and the exact linked exports for reuse.
+The equality fields tie the values and stores to the original outcomes. -/
+structure CheckedExport (primitives : Primitives m σ) (ids : GlobalRel)
+    (code : OpcodeCode (Instruction Op)) (captureCode : CaptureCode m)
+    {fn : Function V S} (port : Port exports fn.port)
+    (outcomeL outcomeR : Outcome m σ exports) where
+  familyL : Family m
+  familyR : Family m
+  keys : DispatchKeys V S code.Key captureCode.Key
+  certified : LinkedFamily primitives ids code captureCode familyL familyR keys
+  valuesL : Tuple m.Val exports
+  valuesR : Tuple m.Val exports
+  storeL : σ
+  storeR : σ
+  linkedL : outcomeL = .linked valuesL storeL
+  linkedR : outcomeR = .linked valuesR storeR
+  knownL : familyL (valuesL.get port)
+  knownR : familyR (valuesR.get port)
+
+def CheckedExport.reindex {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m}
+    {fn : Function V S} {port : Port exports fn.port} {oldL oldR newL newR : Outcome m σ exports}
+    (checked : CheckedExport primitives ids code captureCode port oldL oldR)
+    (left : newL = oldL) (right : newR = oldR) :
+    CheckedExport primitives ids code captureCode port newL newR :=
+  { checked with linkedL := left.trans checked.linkedL, linkedR := right.trans checked.linkedR }
+
+theorem CheckedExport.admitted {code : OpcodeCode (Instruction Op)} {captureCode : CaptureCode m}
+    {fn : Function V S} {port : Port exports fn.port} {left right : Outcome m σ exports}
+    (checked : CheckedExport primitives ids code captureCode port left right) :
+    AdmittedExport primitives ids port left right := by
+  obtain ⟨_, _, _, certified, _, _, _, _, rfl, rfl, knownL, knownR⟩ := checked
+  exact certified.forExports knownL knownR
+
 abbrev linkTerm (actions : Actions m σ) (unitId : Nat)
     (inputs : Tuple m.Val imports) (locals : Locals m.Val past)
     (term : ModuleTerm Op imports past sigs exports) (store : σ) : Outcome m σ exports :=
@@ -483,7 +529,7 @@ variable [DecidableEq (Ty V S)]
 /-- Walk each module in its own link order. Skipped rows still run the
 actual linker, including any partial δ initialization. The selected φ/λ
 rows use the exact values of the linker's non-effectful binding rules. -/
-def walk (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] (captureCode : CaptureCode m)
+def walkExport (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] (captureCode : CaptureCode m)
     (exactValue : ExactValueCheck m) (exactGroup : ExactGroupCheck m)
     (actions : Actions m σ)
     (ids : GlobalRel) (ordinary : OrdinaryOutputs Op) (unitL unitR : Nat)
@@ -494,45 +540,54 @@ def walk (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] (captureCod
     (localsL : Locals m.Val pastL) → (localsR : Locals m.Val pastR) → (storeL storeR : σ) →
     Plan Op importsL importsR exports seeded left right →
     State actions.toPrimitives ids keys captureCode localsL localsR seeded →
-    Option (PLift (AdmittedExport actions.toPrimitives ids port
-      (linkTerm actions unitL inputsL localsL left storeL) (linkTerm actions unitR inputsR localsR right storeR)))
-  | _, _, _, _, _, _, _, _, _, _, _, .done (left := outputsL) (right := outputsR), .seeded checked => do
-    let selectedL ← exportWire (checked.left.available checked.certified.ordinaryL) outputsL port
-    let selectedR ← exportWire (checked.right.available checked.certified.ordinaryR) outputsR port
-    pure ⟨checked.certified.forExports selectedL.down selectedR.down⟩
+    Option (CheckedExport actions.toPrimitives ids keys captureCode port
+      (linkTerm actions unitL inputsL localsL left storeL) (linkTerm actions unitR inputsR localsR right storeR))
+  | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR, .done (left := outputsL) (right := outputsR), .seeded checked => do
+    let some selectedL := exportWire (checked.left.available checked.certified.ordinaryL) outputsL port | none
+    let some selectedR := exportWire (checked.right.available checked.certified.ordinaryR) outputsR port | none
+    pure ⟨checked.familyL, checked.familyR, checked.keys, checked.certified,
+      outputsL.read inputsL localsL, outputsR.read inputsR localsR, storeL, storeR,
+      rfl, rfl, selectedL.down, selectedR.down⟩
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR, .skipL (node := node) next, state =>
     match ran : Executable.linkVertex actions unitL inputsL localsL node.toGraph storeL with
     | .undefined _ => none
     | .linked values middle => do
-      let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+      let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
         (localsL.snoc values) localsR middle storeR next (state.skipL values)
-      pure ⟨by rw [linkTerm_bind, ran]; exact checked.down⟩
+      pure (checked.reindex (by rw [linkTerm_bind, ran]) rfl)
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR, .skipR (node := node) next, state =>
     match ran : Executable.linkVertex actions unitR inputsR localsR node.toGraph storeR with
     | .undefined _ => none
     | .linked values middle => do
-      let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+      let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
         localsL (localsR.snoc values) storeL middle next (state.skipR values)
-      pure ⟨by rw [linkTerm_bind, ran]; exact checked.down⟩
+      pure (checked.reindex rfl (by rw [linkTerm_bind, ran]))
+  | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR, .start next, .unseeded =>
+    let checked := ⟨OrdinaryIn m, OrdinaryIn m, .empty, LinkedFamily.empty ordinary keys captureCode, [], [],
+      Table.empty (OrdinaryIn m) localsL, Table.empty (OrdinaryIn m) localsR⟩
+    walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+      localsL localsR storeL storeR next (.seeded checked)
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR,
       .seed (membersL := membersL) (membersR := membersR) (left := left) (right := right) next, .unseeded => do
     let groupL : Group m membersL := ⟨_, left.captures.read inputsL localsL, left.toGraph.definitions⟩
     let groupR : Group m membersR := ⟨_, right.captures.read inputsR localsR, right.toGraph.definitions⟩
-    let seed ← LinkedFamily.ofGroups keys actions.toPrimitives ids captureCode ordinary groupL groupR
+    let some seed := LinkedFamily.ofGroups keys actions.toPrimitives ids captureCode ordinary groupL groupR | none
     let leftTable := (Table.empty groupL.In localsL).snoc (memberRow membersL groupL.ref (fun slot => .member slot))
     let rightTable := (Table.empty groupR.In localsR).snoc (memberRow membersR groupR.ref (fun slot => .member slot))
     let group : GroupEntry groupL.In groupR.In := ⟨membersL, membersR, groupL, groupR, Group.In.member, Group.In.member⟩
-    let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+    let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
       (localsL.snoc (memberValues membersL groupL.ref)) (localsR.snoc (memberValues membersR groupR.ref))
       storeL storeR next (.seeded ⟨groupL.In, groupR.In, DispatchKeys.seed (groupL.profile keys) (groupR.profile keys), seed.down, [], [group], leftTable, rightTable⟩)
-    pure ⟨by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; exact checked.down⟩
+    pure (checked.reindex
+      (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl)
+      (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl))
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR,
       .phi (members := members) (left := left) (right := right) next, .seeded earlier => do
-    let outerL ← checkWires (earlier.left.available earlier.certified.ordinaryL) left.captures
-    let outerR ← checkWires (earlier.right.available earlier.certified.ordinaryR) right.captures
+    let some outerL := checkWires (earlier.left.available earlier.certified.ordinaryL) left.captures | none
+    let some outerR := checkWires (earlier.right.available earlier.certified.ordinaryR) right.captures | none
     let groupL : Group m members := ⟨_, left.captures.read inputsL localsL, left.toGraph.definitions⟩
     let groupR : Group m members := ⟨_, right.captures.read inputsR localsR, right.toGraph.definitions⟩
-    let certified ← earlier.certified.addGroup keys ordinary groupL groupR outerL.down outerR.down
+    let some certified := earlier.certified.addGroup keys ordinary groupL groupR outerL.down outerR.down | none
     let familyL : Family m := WithGroup earlier.familyL groupL
     let familyR : Family m := WithGroup earlier.familyR groupR
     let tableL := (earlier.left.lift (fun known => WithGroup.inherited known)).snoc
@@ -543,10 +598,12 @@ def walk (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] (captureCod
       ⟨entry.fn, entry.left, entry.right, .inherited entry.knownL, .inherited entry.knownR⟩
     let group : GroupEntry familyL familyR := ⟨members, members, groupL, groupR, WithGroup.member, WithGroup.member⟩
     let groups := group :: earlier.groups.map (GroupEntry.lift WithGroup.inherited WithGroup.inherited)
-    let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+    let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
       (localsL.snoc (memberValues members groupL.ref)) (localsR.snoc (memberValues members groupR.ref))
       storeL storeR next (.seeded ⟨familyL, familyR, _, certified.down, lambdas, groups, tableL, tableR⟩)
-    pure ⟨by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; exact checked.down⟩
+    pure (checked.reindex
+      (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl)
+      (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl))
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR,
       .phiAlias (members := members) (left := left) (right := right) prior next, .seeded earlier =>
     match earlier.groups[prior]? with
@@ -554,30 +611,36 @@ def walk (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] (captureCod
     | some entry => do
       let groupL : Group m members := ⟨_, left.captures.read inputsL localsL, left.toGraph.definitions⟩
       let groupR : Group m members := ⟨_, right.captures.read inputsR localsR, right.toGraph.definitions⟩
-      let known ← entry.checkAlias exactGroup groupL groupR
-      let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+      let some known := entry.checkAlias exactGroup groupL groupR | none
+      let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
         (localsL.snoc (memberValues members groupL.ref)) (localsR.snoc (memberValues members groupR.ref))
         storeL storeR next (.seeded (earlier.aliasGroupRows groupL groupR known.down.1 known.down.2))
-      pure ⟨by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; exact checked.down⟩
+      pure (checked.reindex
+        (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl)
+        (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl))
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR,
       .lambda (left := left) (right := right) next, .seeded earlier =>
     match earlier.freshLambda ordinary inputsL inputsR left.toGraph right.toGraph with
     | none => none
     | some extended => do
-      let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+      let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
         (localsL.snoc (.cons (linkedLambda left.toGraph inputsL localsL) .nil))
         (localsR.snoc (.cons (linkedLambda right.toGraph inputsR localsR) .nil)) storeL storeR next (.seeded extended)
-      pure ⟨by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; exact checked.down⟩
+      pure (checked.reindex
+        (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl)
+        (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl))
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR,
       .lambdaAuto (left := left) (right := right) next, .seeded earlier =>
     match earlier.autoLambda ordinary exactValue inputsL inputsR left.toGraph right.toGraph with
     | none => none
     | some admitted => do
-      let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+      let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
         (localsL.snoc (.cons (linkedLambda left.toGraph inputsL localsL) .nil))
         (localsR.snoc (.cons (linkedLambda right.toGraph inputsR localsR) .nil)) storeL storeR next
         (.seeded admitted.toChecked)
-      pure ⟨by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; exact checked.down⟩
+      pure (checked.reindex
+        (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl)
+        (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl))
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR,
       .alias (fn := fn) (left := left) (right := right) prior next, .seeded earlier =>
     match earlier.lambdas[prior]? with
@@ -585,20 +648,41 @@ def walk (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] (captureCod
     | some entry => do
       let calleeL := linkedLambda left.toGraph inputsL localsL
       let calleeR := linkedLambda right.toGraph inputsR localsR
-      let known ← entry.checkAlias exactValue (fn := fn) calleeL calleeR
-      let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+      let some known := entry.checkAlias exactValue (fn := fn) calleeL calleeR | none
+      let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
         (localsL.snoc (.cons calleeL .nil)) (localsR.snoc (.cons calleeR .nil)) storeL storeR next
         (.seeded (earlier.aliasRows (fn := fn) known.down))
-      pure ⟨by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; exact checked.down⟩
+      pure (checked.reindex
+        (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl)
+        (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl))
   | _, _, _, _, _, _, _, localsL, localsR, storeL, storeR,
       .aliasFirst (fn := fn) (left := left) (right := right) next, .seeded earlier => do
     let calleeL := linkedLambda left.toGraph inputsL localsL
     let calleeR := linkedLambda right.toGraph inputsR localsR
-    let hit ← findAlias earlier.lambdas exactValue (fn := fn) calleeL calleeR
-    let checked ← walk keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+    let some hit := findAlias earlier.lambdas exactValue (fn := fn) calleeL calleeR | none
+    let checked ← walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
       (localsL.snoc (.cons calleeL .nil)) (localsR.snoc (.cons calleeR .nil)) storeL storeR next
       (.seeded (earlier.aliasRows (fn := fn) hit.known))
-    pure ⟨by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; exact checked.down⟩
+    pure (checked.reindex
+      (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl)
+      (by simp only [linkTerm_bind, VertexTerm.toGraph, Executable.linkVertex]; rfl))
+
+/-- Project the ordinary admission result from the retained checked export. -/
+def walk (keys : OpcodeCode (Instruction Op)) [DecidableEq keys.Key] (captureCode : CaptureCode m)
+    (exactValue : ExactValueCheck m) (exactGroup : ExactGroupCheck m)
+    (actions : Actions m σ)
+    (ids : GlobalRel) (ordinary : OrdinaryOutputs Op) (unitL unitR : Nat)
+    (inputsL : Tuple m.Val importsL) (inputsR : Tuple m.Val importsR)
+    {fn : Function V S} (port : Port exports fn.port)
+    {seeded : Bool} {pastL sigsL pastR sigsR : List (Ports (Ty V S))}
+    {left : ModuleTerm Op importsL pastL sigsL exports} {right : ModuleTerm Op importsR pastR sigsR exports}
+    (localsL : Locals m.Val pastL) (localsR : Locals m.Val pastR) (storeL storeR : σ)
+    (plan : Plan Op importsL importsR exports seeded left right)
+    (state : State actions.toPrimitives ids keys captureCode localsL localsR seeded) :
+    Option (PLift (AdmittedExport actions.toPrimitives ids port
+      (linkTerm actions unitL inputsL localsL left storeL) (linkTerm actions unitR inputsR localsR right storeR))) :=
+  (walkExport keys captureCode exactValue exactGroup actions ids ordinary unitL unitR inputsL inputsR port
+    localsL localsR storeL storeR plan state).map fun checked => ⟨checked.admitted⟩
 
 /-- Check an ordered pair of complete link prefixes, then read the
 selected export from the generated membership tables. The plan contains

@@ -7,6 +7,24 @@ namespace Silmaril.Proofs.Languages.Python.Compile.ModuleEntry.Functions.Numeric
 
 open Silmaril.Languages.Python.Compile.ModuleEntry.Functions.NumericArgument
 
+theorem power_magnitude {base exponent result : Int} (checked : power? base exponent = some result) :
+    result.natAbs < 2 ^ 4096 := by
+  unfold power? at checked
+  split at checked
+  next bounds =>
+    have result_eq := Option.some.inj checked
+    subst result
+    rw [Int.natAbs_pow]
+    by_cases zero : exponent.toNat = 0
+    · rw [zero, Nat.pow_zero]
+      exact Nat.one_lt_two_pow (n := 4096) (by decide)
+    · calc
+        _ < (2 ^ (base.natAbs.log2 + 1)) ^ exponent.toNat :=
+          Nat.pow_lt_pow_left Nat.lt_log2_self zero
+        _ = 2 ^ ((base.natAbs.log2 + 1) * exponent.toNat) := (Nat.pow_mul _ _ _).symm
+        _ ≤ _ := Nat.pow_le_pow_right (by decide) bounds.2
+  next => contradiction
+
 theorem testBit_bitwise (operation : Bool → Bool → Bool) (left right : Int) (index : Nat) :
     testBit (bitwise operation left right) index = operation (testBit left index) (testBit right index) := by
   let lhs := signBit left

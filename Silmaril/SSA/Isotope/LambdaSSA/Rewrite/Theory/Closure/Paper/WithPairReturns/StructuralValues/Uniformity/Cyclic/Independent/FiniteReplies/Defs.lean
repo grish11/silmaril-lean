@@ -28,6 +28,7 @@ inductive ReplyShape where
   | empty
   | unit
   | sum (left right : ReplyShape)
+  deriving DecidableEq
 
 def ReplyShape.ty : ReplyShape → Ty Atom
   | .empty => .empty
@@ -52,6 +53,8 @@ def ReplyShape.replyEquiv : (s : ReplyShape) → s.Code ≃ s.Value
 class Profile (Φ : Type) where
   reply : Φ → ReplyShape
 
+universe u v
+
 variable {Φ : Type} [Profile Φ]
 
 instance : HasTy Φ (Ty Atom) where
@@ -70,11 +73,11 @@ abbrev nativeBit (Φ : Type) [Profile Φ] : Native Φ :=
 abbrev unitObj (Φ : Type) [Profile Φ] : Quotient Φ := Extension.Singleton.ofType (Seed Φ) UnitTy
 
 /-- A node keeps the opcode and one continuation for each exactly typed reply. -/
-inductive Row (Φ α : Type) [Profile Φ] where
+inductive Row (Φ : Type) (α : Type u) [Profile Φ] where
   | leaf (outcome : α)
   | call (op : Φ) (next : (Profile.reply op).Value → Row Φ α)
 
-def Row.map {α β : Type} (f : α → β) : Row Φ α → Row Φ β
+def Row.map {α : Type u} {β : Type v} (f : α → β) : Row Φ α → Row Φ β
   | .leaf a => .leaf (f a)
   | .call p k => .call p (fun x => (k x).map f)
 
@@ -88,7 +91,7 @@ noncomputable def dispatch {Y : Native Φ} (s : ReplyShape) :
     coprod.desc (dispatch l (fun x => k (.inl x))) (dispatch r (fun x => k (.inr x)))
 
 /-- Render a row entirely in standard Paper before projecting to the join. -/
-noncomputable def Row.render {α : Type} {Y : Native Φ} (leaf : α → (nativeUnit Φ ⟶ Y)) :
+noncomputable def Row.render {α : Type u} {Y : Native Φ} (leaf : α → (nativeUnit Φ ⟶ Y)) :
     Row Φ α → (nativeUnit Φ ⟶ Y)
   | .leaf a => leaf a
   | .call p k => Paper.TypeCategory.primitiveReturn p ≫

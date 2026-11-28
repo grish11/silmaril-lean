@@ -9,8 +9,36 @@ public section
 namespace Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Selection.Readers.Repeat
 
 open RVSDG (Tuple)
+open Memory.Forwarding.Disjoint (Certificate)
 
 variable {args : List ValueSort} {cells : Nat}
+
+theorem DeletesStores.refl (ops : List (Operation args)) : DeletesStores 0 ops ops :=
+  Proofs.keepsAll ops
+
+/-- Compose ordered Store deletions and add their exact counts. -/
+theorem DeletesStores.trans {removed more : Nat} {source middle target : List (Operation args)}
+    (first : DeletesStores removed source middle) (next : DeletesStores more middle target) :
+    DeletesStores (removed + more) source target :=
+  Proofs.compose first next
+
+theorem DeletesStores.storeCount_eq {graph rewritten : Graph args} {removed : Nat}
+    (deletes : DeletesStores removed (operations graph) (operations rewritten)) :
+    storeCount rewritten + removed = storeCount graph :=
+  Proofs.deletes_storeCount deletes
+
+/-- Renumbering memory edges preserves the complete ordered operation list. -/
+theorem reindex_operations {past : List (List ValueSort)} {version : Nat}
+    (body : Body args past version) (live : Nat) :
+    operations (reindexMemory body live) = operations body :=
+  Proofs.reindex_operations body live
+
+/-- A single checked deletion erases one Store and keeps the order and
+operands of every retained operation. -/
+theorem checked_operations {graph rewritten : Graph args} {candidate : Candidate} {facts : Certificate args}
+    (input : Tuple (Val cells) args) (accepted : Memory.DeadStore.rewrite graph candidate facts input = some rewritten) :
+    DeletesStores 1 (operations graph) (operations rewritten) :=
+  Proofs.checked_operations input accepted
 
 /-- The pass deletes exactly the reported number of Stores. Every retained
 operation keeps its original operands and position relative to the others. -/

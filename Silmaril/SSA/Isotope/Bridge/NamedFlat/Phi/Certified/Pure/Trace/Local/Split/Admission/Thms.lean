@@ -4,6 +4,7 @@ public import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Pure.Trace.Loc
 public import Silmaril.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Pure.Trace.Local.Split.Thms
 import Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Pure.Trace.Local.Split.Admission.Arrival
 import Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Pure.Trace.Local.Split.Admission.Success
+import Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Certified.Pure.Trace.Local.Split.Admission.Profile
 
 public section
 
@@ -43,6 +44,27 @@ theorem originalSlots_agree {α : Type u} (extra : List (Option W × Ty Base)) (
   simp [extendedNames_original, Plan.renameStore, Function.comp_def]
 
 end Captures
+
+section Profile
+
+universe u v
+variable {V W K J Base : Type u} {F : Type v} {n : Nat}
+  [DecidableEq V] [DecidableEq W] [DecidableEq K] [DecidableEq J]
+
+/-- A retained slot added by the moved operand column was absent from the
+original lowering's register support. Its presence is a separate typing
+requirement of the generated forwarding packet. -/
+theorem profileCandidateFor_movedSlot_absent (plan : Plan V W K J) (source : Graph V K F)
+    (lowered : CFG (Option V) (Option K) F) (target : CFG (Option W) (Option J) F)
+    (names : Fin n → Option V) (profile : Fin (Versioning.compile lowered).blocks.length → Ty Base)
+    {candidate : ProfileCandidateFor W Base n (Versioning.compile target).blocks.length}
+    (generated : profileCandidateFor plan source lowered target names profile = some candidate)
+    {i : Fin n} {ty : Ty Base} (listed : (i, ty) ∈ candidate.movedSlots) :
+    names i ∉ Versioning.registers lowered :=
+  Silmaril.Proofs.SSA.Isotope.Bridge.NamedFlat.Phi.Split.movedSlot_absent
+    plan source lowered target names profile generated listed
+
+end Profile
 
 section Success
 

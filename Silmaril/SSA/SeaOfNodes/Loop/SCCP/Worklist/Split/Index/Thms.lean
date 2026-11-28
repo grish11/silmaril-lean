@@ -39,6 +39,12 @@ theorem step_eq (job : Task carried) (state : State m.value carried out) (pendin
     step m input index job state pending = Split.step m g input job state pending :=
   Proofs.step_eq index job state pending
 
+/-- A changed coordinate identifies the popped Φ and a nontrivial typed write. -/
+theorem fieldChangedAfter_iff (job : Task carried) (state new : State m.value carried out)
+    (updated : new = Split.update m g input job state) (field : Phi.Job carried) :
+    new.2.1 field ≠ state.2.1 field ↔ job = .phi field ∧ bankChangedAfter job state new = true :=
+  Proofs.changedAt_iff job state new updated field
+
 /-- Comparing a pop's typed write decides whether its whole bank changed. -/
 theorem bankChangedAfter_iff (job : Task carried) (state : State m.value carried out) :
     let new := Split.update m g input job state

@@ -86,18 +86,15 @@ private theorem lookup_map (bs : List (K × Block V K F)) (k : K) :
 private theorem destinations_map (g : CFG V K F) :
     destinations (g.mapOp f) = destinations g := by
   funext k
-  simp only [destinations, CFG.mapOp, lookup_map, Option.map_map]
+  simp only [destinations, destinationsWith, CFG.mapOp, lookup_map, Option.map_map]
   cases g.blocks.lookup k with
   | none => rfl
   | some b => exact congrArg some (slots_map f g b)
 
 private theorem compileBlock_map (g : CFG V K F) (b : Block V K F) :
     compileBlock (g.mapOp f) (b.mapOp f) = (compileBlock g b).mapOp f := by
-  have versions : blockVersions (g.mapOp f) (b.mapOp f) = blockVersions g b := by
-    rw [blockVersions, blockVersions, slots_map]
-    rfl
-  unfold compileBlock
-  rw [slots_map, destinations_map, registers_map, versions]
+  unfold compileBlock compileBlockWith
+  rw [slots_map, destinations_map, registers_map]
   change Block.mk (b.param, 0) (.let2 _ _ _
     (unpackBody _ _ _ (versionBody (b.body.mapOp f) _ _ _ _))) = _
   rw [versionBody_map, unpackBody_map]

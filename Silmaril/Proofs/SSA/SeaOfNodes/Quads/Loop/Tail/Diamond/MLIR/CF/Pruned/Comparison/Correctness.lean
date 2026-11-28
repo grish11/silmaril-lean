@@ -74,6 +74,20 @@ theorem denotePart_eq :
     exact ⟨_, _, (run_at_source_visits checked input activations).trans
       (congrArg (Option.map (encodeValues (ins := [out]))) graphRun), rfl⟩
 
+theorem source_diverges_iff :
+    (∀ fuel, src.runFrom model fuel entry input = none) ↔
+      (lower checked).Diverges evalOp (encodeValues input) := by
+  change _ ↔ ∀ fuel, (lower checked).run evalOp fuel (encodeValues input) = none
+  constructor
+  · intro exhausted fuel
+    cases fuel with
+    | zero => rfl
+    | succ fuel => rw [Pruned.lower_run, exhausted]; rfl
+  · intro exhausted fuel
+    have run := exhausted (fuel + 1)
+    rw [Pruned.lower_run, Option.map_eq_none_iff] at run
+    exact run
+
 theorem diverges_iff :
     (lower checked).Diverges evalOp (encodeValues input) ↔
       ∀ activations, checked.lower.run (Join.model model) activations input = none := by

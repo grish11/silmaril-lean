@@ -39,6 +39,24 @@ theorem heap_write_spec {heap updated : Heap} {identity : CellId} {value : Value
     simp [Heap.lookup, differentAddress]
   · simp [Heap.write, live] at write
 
+theorem clear_dictionary_spec {heap updated : Heap} {call : Silmaril.Languages.Python.Core.Module.Dictionary.Clear}
+    {globals : String → Option Silmaril.Languages.Python.Core.Module.Dictionary.ReadValue}
+    {object : Silmaril.Languages.Python.Core.Module.Dictionary.Object}
+    (prepared : call.prepare globals heap.dictionaryEntries? = .ok object)
+    (cleared : clearDictionary heap globals call = .ok updated) :
+    updated.next = heap.next ∧ updated.dictionaryEntries? object = some [] ∧
+      ∀ other, other.address ≠ object.address → updated.lookup other = heap.lookup other := by
+  unfold clearDictionary at cleared
+  rw [prepared] at cleared
+  cases written : heap.write ⟨object.address⟩ (.dictionaryData []) with
+  | none => simp [written, bind, Except.bind] at cleared
+  | some reached =>
+    simp [written, bind, Except.bind, pure, Except.pure] at cleared
+    subst updated
+    obtain ⟨frontier, found, unchanged⟩ := heap_write_spec written
+    refine ⟨frontier, by simp [Heap.dictionaryEntries?, found], fun other distinct => unchanged other ?_⟩
+    exact fun equal => distinct (congrArg CellId.address equal)
+
 theorem fresh_owned_unbound (heap : Heap) {layout : Layout}
     (captures : Fin layout.captures → CellId) (index : Fin layout.owned) :
     let (updated, frame) := Frame.fresh heap captures

@@ -13,12 +13,12 @@ open Memory.Forwarding.Disjoint (Certificate)
 
 variable {args : List ValueSort} {cells : Nat}
 
-private theorem keepsAll (ops : List (Operation args)) : DeletesStores 0 ops ops := by
+theorem keepsAll (ops : List (Operation args)) : DeletesStores 0 ops ops := by
   induction ops with
   | nil => exact .nil
   | cons op _ ih => exact .keep op ih
 
-private theorem compose {removed more : Nat} {source middle target : List (Operation args)}
+theorem compose {removed more : Nat} {source middle target : List (Operation args)}
     (first : DeletesStores removed source middle) (next : DeletesStores more middle target) :
     DeletesStores (removed + more) source target := by
   induction first generalizing more target with
@@ -55,7 +55,7 @@ theorem deletes_storeCount {graph rewritten : Graph args} {removed : Nat}
     storeCount rewritten + removed = storeCount graph := by
   simpa only [countStores_operations] using countStores_deletes deletes
 
-private theorem reindex_operations {past : List (List ValueSort)} {version : Nat}
+theorem reindex_operations {past : List (List ValueSort)} {version : Nat}
     (body : Body args past version) (live : Nat) :
     operations (reindexMemory body live) = operations body := by
   induction body generalizing live <;> simp [reindexMemory, operations, *]
@@ -82,11 +82,15 @@ private theorem rewriteAt_deletes {past : List (List ValueSort)} {version : Nat}
       obtain ⟨tail, accepted, rfl⟩ := Option.map_eq_some_iff.mp success
       exact .keep (.store address value) (ih tail accepted)
 
+theorem checked_operations {graph rewritten : Graph args} {candidate : Candidate} {facts : Certificate args}
+    (input : Tuple (Val cells) args) (accepted : Memory.DeadStore.rewrite graph candidate facts input = some rewritten) :
+    DeletesStores 1 (operations graph) (operations rewritten) :=
+  rewriteAt_deletes graph rewritten ((Memory.DeadStore.rewrite_eq_some_iff input).mp accepted).1
+
 private theorem step_deletes {graph : Graph args} {step : Selection.Result args}
     {input : Tuple (Val cells) args} (success : Readers.rewrite graph input = some step) :
     DeletesStores 1 (operations graph) (operations step.graph) :=
-  rewriteAt_deletes graph step.graph
-    ((Memory.DeadStore.rewrite_eq_some_iff input).mp (Readers.rewrite_checked input success).2.2.2).1
+  checked_operations input (Readers.rewrite_checked input success).2.2.2
 
 theorem run_preserves (input : Tuple (Val cells) args) (fuel : Nat) (graph : Graph args) :
     let result := run input fuel graph

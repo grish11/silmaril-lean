@@ -54,6 +54,25 @@ theorem feedback_latch {arity : Nat} (p : Plan arity) (input old : WordTuple ari
     p.graph.latch model .backedge args (p.graph.header.eval model args PUnit.unit) = p.nextBank input old :=
   Proofs.feedback_latch p input old
 
+/-- The emitted comparison reads the computed left operand and the selected right operand. -/
+theorem guard_compare_operand {arity : Nat} (p : Plan arity) :
+    (bankHeader p.graph).ops[p.compareIndex]? =
+      some (.binary (.cmp p.comparison.target) (.node p.compareIndex) (.node p.guardIndex.val)
+        (register p.guardRhsWire.address)) :=
+  Proofs.guard_compare_operand p
+
+/-- A computed RHS reads its own row result register. -/
+theorem guard_compare_computed {arity : Nat} (p : Plan arity) (right : Fin p.updates.length)
+    (selected : p.guardOperand = .computed right) :
+    (bankHeader p.graph).ops[p.compareIndex]? =
+      some (.binary (.cmp p.comparison.target) (.node p.compareIndex) (.node p.guardIndex.val) (.node right.val)) :=
+  Proofs.guard_compare_computed p right selected
+
+/-- The exit successor carries the selected old register or producer register. -/
+theorem exit_operand {arity : Nat} (p : Plan arity) :
+    (bankHeader p.graph).term.args[1]? = some (2, [register p.exitWire.address]) :=
+  Proofs.exit_operand p
+
 theorem native_step {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
     (fr : Frame Reg) (agree : ArgsMatch fr (appendTuple old input)) :
     p.graph.step model input old =
@@ -76,7 +95,7 @@ theorem header_activation {arity : Nat} (p : Plan arity) (input old : WordTuple 
   Proofs.header_activation p input old fr mem agree
 
 /-- The actual RTL branch and typed λSSA header make the same decision.
-Feedback binds the full old-bank row and exit observes the selected old field. -/
+Feedback binds the full old-bank row and exit observes the selected wire. -/
 theorem activation_agrees {arity : Nat} (p : Plan arity) (input old : WordTuple arity)
     (fr : Frame Reg) (mem : Memory) (agree : ArgsMatch fr (appendTuple old input)) :
     let eval := Eval (instruction model) (extend (inputEnv model input) (encodeTuple model old))

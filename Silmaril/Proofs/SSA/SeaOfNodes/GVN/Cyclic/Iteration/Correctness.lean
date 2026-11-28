@@ -12,93 +12,110 @@ open Silmaril.SSA.SeaOfNodes
 open Silmaril.SSA.SeaOfNodes.GVN.Cyclic
 open Silmaril.SSA.SeaOfNodes.GVN.Cyclic.Iteration
 open Activation (Inputs)
-open Diamond (Model Signature Ty ValueSort sortValue)
+open Deletion (DeletedLoop)
+open Diamond (Model Signature Ty ValueSort)
 
 universe u v w
 
 variable {Data : Type u} {Op : Signature.{u,v} Data}
 variable {inputs carried : List (ValueSort Data)} {entrySigs headerSigs : List (List (Ty Data))}
 variable {out : ValueSort Data}
-variable [DecidableEq (ValueSort Data)] [∀ ins out, DecidableEq (Op ins out)]
 
-private theorem run_none {loop : Loop.Graph Op inputs carried entrySigs headerSigs out}
-    (fuel : Nat) (found : Builder.optimize? loop = none) :
-    run (fuel + 1) loop = ⟨⟨headerSigs, loop⟩, 0⟩ := by
-  simp only [run, found]
+section Driver
 
-private theorem run_some {loop : Loop.Graph Op inputs carried entrySigs headerSigs out}
-    (fuel : Nat) {next : Deletion.DeletedLoop Op inputs carried entrySigs out}
-    (found : Builder.optimize? loop = some next) :
-    run (fuel + 1) loop =
-      ⟨(run fuel next.graph).rewrite, (run fuel next.graph).deletions + 1⟩ := by
-  simp only [run, found]
+variable (advance : Step Op inputs carried entrySigs out)
 
-theorem run_progress (fuel : Nat) (loop : Loop.Graph Op inputs carried entrySigs headerSigs out) :
-    let result := run fuel loop
+private theorem runWith_none {loop : Loop.Graph Op inputs carried entrySigs headerSigs out}
+    (fuel : Nat) (found : advance loop = none) :
+    runWith advance (fuel + 1) loop = ⟨⟨headerSigs, loop⟩, 0⟩ := by
+  simp only [runWith, found]
+
+private theorem runWith_some {loop : Loop.Graph Op inputs carried entrySigs headerSigs out}
+    (fuel : Nat) {next : DeletedLoop Op inputs carried entrySigs out}
+    (found : advance loop = some next) :
+    runWith advance (fuel + 1) loop =
+      ⟨(runWith advance fuel next.graph).rewrite, (runWith advance fuel next.graph).deletions + 1⟩ := by
+  simp only [runWith, found]
+
+variable (shrinks : ∀ {headers} {current : Loop.Graph Op inputs carried entrySigs headers out}
+  {next : DeletedLoop Op inputs carried entrySigs out},
+    advance current = some next → next.headerSigs.length + 1 = headers.length)
+include shrinks
+
+theorem runWith_progress (fuel : Nat) (loop : Loop.Graph Op inputs carried entrySigs headerSigs out) :
+    let result := runWith advance fuel loop
     result.rewrite.headerSigs.length + result.deletions = headerSigs.length ∧
       result.deletions ≤ fuel := by
   induction fuel generalizing headerSigs with
   | zero => exact ⟨rfl, Nat.le_refl _⟩
   | succ fuel ih =>
-    cases next : Builder.optimize? loop with
-    | none => simp [run, next]
+    cases next : advance loop with
+    | none => simp [runWith, next]
     | some shortened =>
-      have count := Builder.optimize_count next
+      have count := shrinks next
       have ⟨exactCount, budget⟩ := ih shortened.graph
-      simp only [run, next]
+      simp only [runWith, next]
       exact ⟨by omega, by omega⟩
 
-theorem run_stops (fuel : Nat) (loop : Loop.Graph Op inputs carried entrySigs headerSigs out)
+theorem runWith_stops (fuel : Nat) (loop : Loop.Graph Op inputs carried entrySigs headerSigs out)
     (enough : headerSigs.length ≤ fuel) :
-    Builder.optimize? (run fuel loop).rewrite.graph = none := by
+    advance (runWith advance fuel loop).rewrite.graph = none := by
   induction fuel generalizing headerSigs with
   | zero =>
-    change Builder.optimize? loop = none
-    cases next : Builder.optimize? loop with
+    change advance loop = none
+    cases next : advance loop with
     | none => rfl
     | some shortened =>
-      have count := Builder.optimize_count next
+      have count := shrinks next
       omega
   | succ fuel ih =>
-    cases next : Builder.optimize? loop with
+    cases next : advance loop with
     | none =>
-      rw [run_none fuel next]
+      rw [runWith_none advance fuel next]
       exact next
     | some shortened =>
-      have count := Builder.optimize_count next
-      rw [run_some fuel next]
+      have count := shrinks next
+      rw [runWith_some advance fuel next]
       exact ih shortened.graph (by omega)
 
-theorem run_eval (m : Model.{u,v,w} Op) (input : Inputs m inputs) (budget fuel : Nat)
-    (loop : Loop.Graph Op inputs carried entrySigs headerSigs out) :
-    (run fuel loop).rewrite.graph.evalBackedges m budget input = loop.evalBackedges m budget input := by
-  induction fuel generalizing headerSigs with
-  | zero => rfl
-  | succ fuel ih =>
-    cases next : Builder.optimize? loop with
-    | none => rw [run_none fuel next]
-    | some shortened =>
-      rw [run_some fuel next]
-      exact (ih shortened.graph).trans (Builder.optimize_evalBackedges next input budget)
+omit shrinks
 
-theorem run_returns (m : Model.{u,v,w} Op) (input : Inputs m inputs) (value : sortValue m.value out)
+theorem runWith_eval (m : Model.{u,v,w} Op) (input : Inputs m inputs) (budget : Nat)
+    (preserves : ∀ {headers} {current : Loop.Graph Op inputs carried entrySigs headers out}
+      {next : DeletedLoop Op inputs carried entrySigs out},
+        advance current = some next → next.graph.evalBackedges m budget input = current.evalBackedges m budget input)
     (fuel : Nat) (loop : Loop.Graph Op inputs carried entrySigs headerSigs out) :
-    (run fuel loop).rewrite.graph.Returns m input value ↔ loop.Returns m input value := by
+    (runWith advance fuel loop).rewrite.graph.evalBackedges m budget input = loop.evalBackedges m budget input := by
+  induction fuel generalizing headerSigs with
+  | zero => rfl
+  | succ fuel ih =>
+    cases next : advance loop with
+    | none => rw [runWith_none advance fuel next]
+    | some shortened =>
+      rw [runWith_some advance fuel next]
+      exact (ih shortened.graph).trans (preserves next)
+
+end Driver
+
+variable [DecidableEq (ValueSort Data)] [∀ ins out, DecidableEq (Op ins out)]
+
+theorem run_eq_runWith (fuel : Nat) (loop : Loop.Graph Op inputs carried entrySigs headerSigs out) :
+    run fuel loop = runWith Builder.optimize? fuel loop := by
   induction fuel generalizing headerSigs with
   | zero => rfl
   | succ fuel ih =>
     cases next : Builder.optimize? loop with
-    | none => rw [run_none fuel next]
-    | some shortened =>
-      rw [run_some fuel next]
-      exact (ih shortened.graph).trans (Builder.optimize_returns next input value)
+    | none => simp only [run, runWith, next]
+    | some shortened => simp only [run, runWith, next, ih shortened.graph]
 
 theorem normalize_exhausts (loop : Loop.Graph Op inputs carried entrySigs headerSigs out)
     {built : Builder.Built (normalize loop).rewrite.graph}
     (admitted : Builder.build? (normalize loop).rewrite.graph = some built) :
     ∀ proposal ∈ Pass.proposals built.view,
       Pass.tryProposal? built.view (FixedPoint.normalize built.graph) proposal = none := by
-  have stopped := run_stops headerSigs.length loop (Nat.le_refl _)
+  have stopped := runWith_stops Builder.optimize? (fun found => Builder.optimize_count found)
+    headerSigs.length loop (Nat.le_refl _)
+  rw [← run_eq_runWith] at stopped
   change Builder.optimize? (normalize loop).rewrite.graph = none at stopped
   rw [Builder.optimize?, admitted, Option.bind_some] at stopped
   exact (Pass.step?_eq_none_iff built.view).mp stopped

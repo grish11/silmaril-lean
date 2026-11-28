@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.Defs
 public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.StructuredCFG.WithNestedFeedback.Normalization.Thms
 public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Reverse.Thms
+public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial.Routed.Mixed.Thms
 
 /-! # A shared observation of the input graph and recovered LambdaSSA -/
 
@@ -23,12 +24,14 @@ variable {A X Z L E D : τ}
 variable {sigs : List (Ports (OrderedRuntime.Structured.Ty τ))}
 variable {layout : Layout τ A X Z L E D sigs} {g : Flat.Serial.Graph Φ A X Z L E D sigs}
 
-/-- Both forward compilers emit graphs accepted by their selected layout. -/
+/-- Each forward compiler emits graphs accepted by its selected layout. -/
 theorem recover_compiled [DecidableEq τ] [DecidableEq Φ] (source : Source Φ A X Z L E D sigs) :
     (recover source.layout (compile source)).isSome = true :=
   match source with
   | .mixed s => WithNestedFeedback.Normalization.compile_recover s
   | .routed s => Routed.Reverse.complete_generated s (NestedTheta.Graph.Isomorphic.refl _)
+  | .routedMixed s h => by simp only [Source.layout, compile, recover, Routed.Mixed.recover_generated s h,
+      Option.isSome_some]
 
 variable {ε σ : Type u} [HasEff Φ ε] [Bot ε] [Isotope.Subtyping τ] [TypeModel.{u,u} τ]
   [InstructionModel Φ τ ε (StateT σ Part.{u})]
@@ -44,5 +47,6 @@ theorem Fibre.region_observe (f : Fibre layout g)
   cases layout with
   | mixed => exact WithNestedFeedback.Related.region_observe f.2 coherent env initial
   | routed => exact Routed.Reverse.Related.region_observe f.2 coherent env initial
+  | routedMixed => exact Routed.Mixed.Related.region_observe f.2 coherent env initial
 
 end Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation

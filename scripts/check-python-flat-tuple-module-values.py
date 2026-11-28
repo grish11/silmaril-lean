@@ -27,9 +27,37 @@ ORDINARY = SNAPSHOTS + """def echo(value):
 def deliver(value):
     return value
 answer = deliver(echo((live, None, True)))
+carried = echo(snapshot)
 """
 
-BEFORE = """saved = (9,)
+FRESH = """item = 1
+first = (item, True, None)
+alias = first
+second = (item, True, None)
+empty = ()
+other_empty = ()
+closed = (1,)
+"""
+
+EQUALITY = FRESH + """___assertEqual(first, second)
+___assertEqual(first, (1, 1, None))
+___assertEqual((True, 1, None), second)
+"""
+
+STOCK = FRESH + """copy = tuple(alias)
+copy_empty = tuple(empty)
+saved_builtin = tuple
+tuple = 0
+tuple = saved_builtin
+first = (item, True, None)
+restored = tuple(first)
+"""
+
+MASKED_TUPLE = FRESH + "tuple = 0\ncopy = tuple(alias)\nunreached = 4\n"
+MASKED_TUPLE_READ = FRESH + "tuple = 0\ncopy = tuple(missing_item)\nunreached = 4\n"
+
+BEFORE = """live = 9
+saved = (live,)
 present = (1,)
 """
 
@@ -59,11 +87,12 @@ private def ordinary (source : Source.Module) (status : Completion) (bindings : 
 
 private def seeded (source : Source.Module) (status : Except Seeded.ModuleFailure Unit)
     (bindings : List (String × Value)) (receipts : List (String × Result) := [])
-    (spaces : List Namespace := [.empty, Seeded.legacySeed .builtin, Seeded.legacySeed .preamble]) : Bool := Id.run do
+    (spaces : List Namespace := [.empty, Seeded.legacySeed .builtin, Seeded.legacySeed .preamble])
+    (heap : List Value := [.int 37]) : Bool := Id.run do
   let .ok compiled := compile source | return false
   return spaces.all fun space =>
     let observed := Seeded.run space compiled initialHeap
-    observed.completion == status && cells observed.heap == [some (.int 37)] &&
+    observed.completion == status && cells observed.heap == heap.map some &&
     observed.lists.objects.isEmpty && observed.residual.builtins == space.builtins &&
     (observed.residual.lookupGlobal "unreached").isNone &&
     bindings.all (fun (name, expected) => observed.residual.lookupGlobal name == some expected) &&
@@ -84,17 +113,25 @@ private def resolvedTupleOperands (source : Source.Module) : Bool := Id.run do
 """
 
 
-def execute(source, error_name=None, supply=False):
+def execute(source, error_name=None, supply=False, stock_tuple=False):
     def equal(left, right):
         assert type(left) is tuple and type(right) is tuple
-        assert [(type(x), x) for x in left] == [(int, 7), (bool, True), (type(None), None), (bool, False), (int, -2)]
-        assert [(type(x), x) for x in right] == [(int, 9), (bool, False), (type(None), None)]
+        if source == LINKED:
+            assert [(type(x), x) for x in left] == [
+                (int, 7), (bool, True), (type(None), None), (bool, False), (int, -2)]
+            assert [(type(x), x) for x in right] == [(int, 9), (bool, False), (type(None), None)]
+        assert left == right, (left, right)
 
-    namespace = {"__builtins__": {"___assertEqual": equal} if supply else {}}
+    builtins = {"___assertEqual": equal} if supply else {}
+    if stock_tuple:
+        builtins["tuple"] = tuple
+    namespace = {"__builtins__": builtins}
     try:
         exec(compile(source, "<module tuple>", "exec", dont_inherit=True, optimize=0), namespace)
     except NameError as error:
         assert error.name == error_name
+    except TypeError:
+        assert error_name is TypeError
     else:
         assert error_name is None
     return namespace
@@ -106,32 +143,92 @@ def main():
     assert [(type(x), x) for x in actual["snapshot"]] == [
         (int, 7), (bool, True), (type(None), None), (bool, False), (int, -2)]
     assert actual["alias"] == () and actual["current"] == (9,)
-    assert [(type(x), x) for x in execute(ORDINARY)["answer"]] == [(int, 9), (type(None), None), (bool, True)]
+    ordinary_namespace = execute(ORDINARY)
+    assert [(type(x), x) for x in ordinary_namespace["answer"]] == [(int, 9), (type(None), None), (bool, True)]
+    assert ordinary_namespace["carried"] is ordinary_namespace["snapshot"]
     execute(LINKED, "___assertEqual")
-    execute(LINKED, supply=True)
-    original = '[("saved", .returnedTuple [.int 9]), ("present", .returnedTuple [.int 1])]'
-    snapshot = '.returnedTuple [.int 7, .bool true, .none, .bool false, .int (-2)]'
+    try:
+        execute(LINKED, supply=True)
+    except AssertionError as error:
+        assert error.args == (((7, True, None, False, -2), (9, False, None)),)
+    else:
+        raise AssertionError("tuple mismatch completed")
+    fresh = execute(FRESH)
+    assert fresh["first"] == fresh["second"] and fresh["first"] is not fresh["second"]
+    assert fresh["first"] is fresh["alias"] and fresh["empty"] is fresh["other_empty"]
+    execute(EQUALITY, supply=True)
+    stock = execute(STOCK, stock_tuple=True)
+    assert stock["copy"] is stock["alias"] and stock["copy_empty"] is stock["empty"]
+    assert stock["restored"] is stock["first"] and stock["first"] is not stock["alias"]
+    assert "copy" not in execute(STOCK, "tuple")
+    assert "copy" not in execute(MASKED_TUPLE, TypeError, stock_tuple=True)
+    assert "copy" not in execute(MASKED_TUPLE_READ, "missing_item", stock_tuple=True)
+
+    saved = '.tupleObject ⟨some 1, [.int 9]⟩'
+    original = f'[("saved", {saved}), ("present", .returnedTuple [.int 1])]'
+    prior_heap = '[.int 37, .returnedTuple [.int 9]]'
+    contents = '[.int 7, .bool true, .none, .bool false, .int (-2)]'
+    snapshot = f'.tupleObject ⟨some 1, {contents}⟩'
+    mismatch = f'.raised (.assertionError (.tuplePair {contents} [.int 9, .bool false, .none]))'
+    snapshot_heap = f'[.int 37, .returnedTuple {contents}, .returnedTuple [.int 9]]'
+    snapshot_bindings = f'[("snapshot", {snapshot}), ("current", .tupleObject ⟨some 2, [.int 9]⟩), ("alias", .returnedTuple [])]'
+    first = '.tupleObject ⟨some 1, [.int 1, .bool true, .none]⟩'
+    second = '.tupleObject ⟨some 2, [.int 1, .bool true, .none]⟩'
+    third = '.tupleObject ⟨some 3, [.int 1, .bool true, .none]⟩'
+    fresh_bindings = (f'[("first", {first}), ("second", {second}), ("alias", {first}), '
+                      '("empty", .returnedTuple []), ("other_empty", .returnedTuple []), ("closed", .returnedTuple [.int 1])]')
+    pair = '.returnedTuple [.int 1, .bool true, .none]'
+    fresh_heap = f'[.int 37, {pair}, {pair}]'
+    legacy_seeds = '[.empty, Seeded.legacySeed .builtin, Seeded.legacySeed .preamble]'
+    tuple_seeds = '[Seeded.legacyTupleSeed .builtin, Seeded.legacyTupleSeed .preamble]'
     controls = [
         (SNAPSHOTS, f'''
-#guard ordinary pythonSource .normal
-  [("snapshot", {snapshot}), ("current", .returnedTuple [.int 9]), ("alias", .returnedTuple [])]
-#guard seeded pythonSource (.ok ())
-  [("snapshot", {snapshot}), ("current", .returnedTuple [.int 9]), ("alias", .returnedTuple [])]
+#guard ordinary pythonSource .normal {snapshot_bindings} {snapshot_heap}
+#guard seeded pythonSource (.ok ()) {snapshot_bindings} [] {legacy_seeds} {snapshot_heap}
 '''),
-        (ORDINARY, '''
-#guard ordinary pythonSource .normal [("answer", .returnedTuple [.int 9, .none, .bool true])]
-  [.int 37, .returnedTuple [.int 9, .none, .bool true]]
+        (ORDINARY, f'''
+#guard ordinary pythonSource .normal
+  [("answer", .returnedTuple [.int 9, .none, .bool true]), ("carried", {snapshot})]
+  [.int 37, .returnedTuple {contents}, .returnedTuple [.int 9], .returnedTuple [.int 9, .none, .bool true], {snapshot}]
 '''),
         (LINKED, f'''
-#guard ordinary pythonSource (.raised (.nameError "___assertEqual")) [("snapshot", {snapshot})]
-#guard seeded pythonSource (.error .unsupported) [("snapshot", {snapshot})]
-  [("read", .ok ({snapshot})), ("___assertEqual", .error .unsupported)]
-  [Seeded.legacySeed .builtin, Seeded.legacySeed .preamble]
+#guard ordinary pythonSource (.raised (.nameError "___assertEqual")) [("snapshot", {snapshot})] {snapshot_heap}
+#guard seeded pythonSource (.error ({mismatch})) [("snapshot", {snapshot})]
+  [("read", .ok ({snapshot})), ("___assertEqual", .error ({mismatch}))]
+  [Seeded.legacySeed .builtin, Seeded.legacySeed .preamble] {snapshot_heap}
 #guard resolvedTupleOperands pythonSource
 '''),
+        (FRESH, f'''
+#guard ordinary pythonSource .normal {fresh_bindings} {fresh_heap}
+#guard seeded pythonSource (.ok ()) {fresh_bindings} [] {tuple_seeds} {fresh_heap}
+'''),
+        (EQUALITY, f'''
+#guard seeded pythonSource (.ok ()) {fresh_bindings}
+  (List.replicate 3 ("___assertEqual", .ok .none))
+  [Seeded.legacySeed .builtin, Seeded.legacySeed .preamble] {fresh_heap}
+'''),
+        (STOCK, f'''
+#guard ordinary pythonSource (.raised (.nameError "tuple")) {fresh_bindings} {fresh_heap}
+#guard seeded pythonSource (.error (.raised (.runtime (.nameError "tuple"))))
+  {fresh_bindings} [("tuple", .error (.raised (.runtime (.nameError "tuple"))))]
+  {legacy_seeds} {fresh_heap}
+#guard seeded pythonSource (.ok ())
+  [("first", {third}), ("second", {second}), ("alias", {first}), ("copy", {first}),
+    ("copy_empty", .returnedTuple []), ("restored", {third}), ("tuple", .builtin .tuple)]
+  [("tuple", .ok ({first})), ("tuple", .ok (.returnedTuple [])), ("tuple", .ok ({third}))]
+  {tuple_seeds} [.int 37, {pair}, {pair}, {pair}]
+'''),
+        (MASKED_TUPLE, f'''
+#guard seeded pythonSource (.error (.raised (.runtime .notCallable))) {fresh_bindings}
+  [("tuple", .error (.raised (.runtime .notCallable)))] {tuple_seeds} {fresh_heap}
+'''),
+        (MASKED_TUPLE_READ, f'''
+#guard seeded pythonSource (.error (.raised (.runtime (.nameError "missing_item")))) {fresh_bindings}
+  [("tuple", .error (.raised (.runtime (.nameError "missing_item"))))] {tuple_seeds} {fresh_heap}
+'''),
         (OUTSIDE, f'''
-#guard ordinary pythonSource (.executorFault .unsupportedTupleElement) {original}
-#guard seeded pythonSource (.error .unsupported) {original}
+#guard ordinary pythonSource (.executorFault .unsupportedTupleElement) {original} {prior_heap}
+#guard seeded pythonSource (.error .unsupported) {original} [] {legacy_seeds} {prior_heap}
 '''),
         ("answer = ((1,),)\n", '''
 #guard (match compile pythonSource with | .error (.source (.scalar .expressionProfile)) => true | _ => false)
@@ -142,8 +239,9 @@ def main():
         residual = execute(source, missing)
         assert residual["saved"] == (9,) and "unreached" not in residual
         controls.append((source, f'''
-#guard ordinary pythonSource (.raised (.nameError "{missing}")) {original}
-#guard seeded pythonSource (.error (.raised (.runtime (.nameError "{missing}")))) {original}
+#guard ordinary pythonSource (.raised (.nameError "{missing}")) {original} {prior_heap}
+#guard seeded pythonSource (.error (.raised (.runtime (.nameError "{missing}"))))
+  {original} [] {legacy_seeds} {prior_heap}
 '''))
 
     root = Path(__file__).resolve().parents[1] / "tests/languages/python"
@@ -158,7 +256,7 @@ def main():
             chunks.append(f"namespace Case{i}\npublic def pythonSource{declaration}\n{control}\nend Case{i}")
         lean.write_text(header + COMMON + "\n".join(chunks))
         shared["check_lean"](lean, "", extra_imports=imports)
-    print("CPython 3.13.5 and Lean checked module tuple tags, alias snapshots, linked operands, and failure order.")
+    print("CPython 3.13.5 and Lean checked module tuple identities, exact heaps, alias snapshots, and reached failures.")
 
 
 if __name__ == "__main__":

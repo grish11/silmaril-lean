@@ -3,6 +3,7 @@ module
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.BoundSimulation.Obstruction.PairSequencing.RawBranch.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithProjectionReturnsAndUnitEta.BranchNormalization.Thms
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Family.Thms
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithBoundEntryEta.Generators.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.CfgEta.Uniformity.Thms
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.PairSequencing.Fixture
 
@@ -301,14 +302,11 @@ private theorem paper_mark (h : Paper.Eqv Γ r s L) : Paper.Eqv Γ (mark r) (mar
 
 variable {Seed : VCtx FixtureTy → Region Op → Region Op → LCtx FixtureTy → Prop}
 
-private theorem extension_mark (guarded : ∀ {Γ r s L}, Seed Γ r s L → ValueBranches Γ r L ∧ ValueBranches Γ s L)
+private theorem extension_mark_map (mapSeed : ∀ {Γ r s L}, Seed Γ r s L → Seed Γ (mark r) (mark s) L)
     (h : Paper.Extension.Eqv Seed Γ r s L) : Paper.Extension.Eqv Seed Γ (mark r) (mark s) L := by
   induction h with
   | paper h => exact .paper (paper_mark h)
-  | extra hr hs h =>
-    obtain ⟨hl, hr'⟩ := guarded h
-    rw [mark_guarded hl, mark_guarded hr']
-    exact .extra hr hs h
+  | extra hr hs h => exact .extra (mark_typed hr) (mark_typed hs) (mapSeed h)
   | symm _ ih => exact .symm ih
   | trans _ _ il ir => exact .trans il ir
   | let₁ ha _ ih => exact .let₁ ha ih
@@ -327,6 +325,13 @@ private theorem extension_mark (guarded : ∀ {Γ r s L}, Seed Γ r s L → Valu
   | renameLabels h hρ ih =>
     simp only [mark_renameLabels]
     exact .renameLabels ih hρ
+
+private theorem extension_mark (guarded : ∀ {Γ r s L}, Seed Γ r s L → ValueBranches Γ r L ∧ ValueBranches Γ s L)
+    (h : Paper.Extension.Eqv Seed Γ r s L) : Paper.Extension.Eqv Seed Γ (mark r) (mark s) L :=
+  extension_mark_map (fun h => by
+    obtain ⟨hl, hr⟩ := guarded h
+    rw [mark_guarded hl, mark_guarded hr]
+    exact h) h
 
 section Observer
 
@@ -348,6 +353,98 @@ theorem rawBranch_separation :
   have eq := joined_same (observation := {}) checked env envTy
   change Result.jump 0 .unit = .fault at eq
   cases eq
+
+open Paper.WithBoundEntryEta.Generators (Candidate weakenRows)
+
+private theorem candidate_mark (h : Candidate Γ r s L) :
+    Candidate Γ (mark r) (mark s) L := by
+  rcases h with h | h
+  · cases h with
+    | unary R ha hr hb =>
+      simpa only [mark, weakenRows, mark_renameVars] using
+        (Or.inl (.unary R ha (mark_typed hr) (fun j => mark_typed (hb j))) :
+          Candidate _ _ _ _)
+    | binary R ha hr hb =>
+      simpa only [mark, weakenRows, mark_renameVars] using
+        (Or.inl (.binary R ha (mark_typed hr) (fun j => mark_typed (hb j))) :
+          Candidate _ _ _ _)
+  · obtain ⟨hl, hr⟩ := h.valueBranches
+    rw [mark_guarded hl, mark_guarded hr]
+    exact .inr h
+
+open Silmaril.Isotope.LambdaSSA.Semantics (extend)
+open Silmaril.DeBruijn (lift)
+open Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.Observer
+  (Val cfgRun_fault)
+open Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.BoundSimulation.Obstruction.PairSequencing.Observer
+  (TermObservation SameWith evalTermWith evalRegionWith evalRegion_renameVars extension_same)
+
+local notation "obs" => ({} : TermObservation (α := Empty) Op)
+
+private theorem eval_weaken (r : Region Op) (env : Env) (v w : Val) :
+    evalRegionWith obs (r.renameVars (lift Nat.succ)) (extend (extend env v) w) =
+      evalRegionWith obs r (extend env w) :=
+  evalRegion_renameVars r (fun i => by cases i <;> rfl)
+
+private theorem candidate_same (h : Candidate Γ r s L) : SameWith obs Γ r s := by
+  intro env _
+  rcases h with h | h
+  · cases h with
+    | @unary n Γ L A a body bs R ha hr hb =>
+      simp only [evalRegionWith, Bool.and_false, Bool.false_eq_true, ite_false]
+      cases hv : evalTermWith obs a env with
+      | none => exact cfgRun_fault n _
+      | some v =>
+        congr 1
+        funext j w
+        exact (eval_weaken (bs j) env v w).symm
+    | @binary n Γ L A B a body bs R ha hr hb =>
+      simp only [evalRegionWith]
+      cases hv : evalTermWith obs a env with
+      | none => exact cfgRun_fault n _
+      | some v =>
+        cases v <;> try exact cfgRun_fault n _
+        case pair v w =>
+          congr 1
+          funext j p
+          rw [eval_weaken _ (extend env v) w p, eval_weaken _ env v p]
+  · cases h with
+    | @bind L A B a left right ha hl hr =>
+      simp only [Paper.RetainedCase.boundCase, evalRegionWith, Bool.and_false, Bool.false_eq_true, ite_false]
+      cases hv : evalTermWith obs a env with
+      | none => rfl
+      | some v =>
+        cases v <;> try rfl
+        case inl p => exact (eval_weaken left env (.inl p) p).symm
+        case inr p => exact (eval_weaken right env (.inr p) p).symm
+
+/-- Exact unary and binary entry sequencing and guarded discriminator
+binding still preserve branch-position erasure. -/
+theorem candidate_branch_separation :
+    ¬ Paper.Extension.Eqv Candidate [] rawBranch rawBranch.bindBranchArguments [U] := by
+  intro h
+  let env : Env := fun _ => .unit
+  have envTy : EnvTy ([] : List FixtureTy) env := by intro i A hi; simp [At] at hi
+  have eq := extension_same (Seed := Candidate) (fun e => candidate_same e)
+    (extension_mark_map (Seed := Candidate) (fun e => candidate_mark e) h) env envTy
+  change Result.jump 0 .unit = .fault at eq
+  cases eq
+
+theorem candidate_zero_arity_ne :
+    let bs : Fin 0 → Region Op := Fin.elim0
+    ¬ Paper.Extension.Eqv Candidate [] (.cfg rawBranch 0 bs)
+      (rawBranch.bindBranchArguments.lsubst (cfgEntryContinuations bs)) [U] := by
+  intro bs h
+  have left : Paper.Extension.Eqv Candidate [] (.cfg rawBranch 0 bs) rawBranch [U] :=
+    .paper (.cfgEta (.native (.base (.entry (.cfgZero rawBranch_typed bs)))))
+  have right : Paper.Extension.Eqv Candidate [U]
+      (.cfg (.br 0 (.var 0)) 0 (fun j => (bs j).renameVars (lift Nat.succ))) (.br 0 (.var 0)) [U] :=
+    .paper (.cfgEta (.native (.base (.entry (.cfgZero (.br (ℓ := 0) rfl (.var rfl)) _)))))
+  simp only [rawBranch, lsubst_bindBranchArguments_br] at h
+  change Paper.Extension.Eqv Candidate [] (.cfg rawBranch 0 bs)
+    (.let₁ (.op .call .unit) (.cfg (.br 0 (.var 0)) 0
+      (fun j => (bs j).renameVars (lift Nat.succ)))) [U] at h
+  exact candidate_branch_separation (left.symm.trans (h.trans (.let₁ (.op .unit) right)))
 
 open Paper.WithProjectionReturnsAndUnitEta.BranchNormalization
   (toRaw normalize rawClass toRaw_normalize_mk_iff)

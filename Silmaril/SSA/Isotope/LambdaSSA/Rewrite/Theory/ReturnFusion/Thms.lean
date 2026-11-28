@@ -58,6 +58,28 @@ theorem denote_pair_boundReturn_sequencing {Γ : VCtx τ} {L : LCtx τ} {i : Nat
         (.br hi (.pair (.var (i := 1) rfl) (.var (i := 0) rfl))))) :=
   ReturnFusion.denote_pair_boundReturn_sequencing J M hi ha hb
 
+/-- Evaluate the payload once before injecting it into the left summand at the same exit. -/
+theorem denote_inl_boundReturn_sequencing {Γ : VCtx τ} {L : LCtx τ} {i : Nat}
+    {A B : τ} {a : Tm Φ} (hi : At L i (coprod A B)) (ha : Tm.HasType Γ a A) :
+    denoteRegion J M (.let₁ (.inl ha) (.br hi (.var (i := 0) rfl))) =
+      denoteRegion J M (.let₁ ha (.br hi (.inl (.var (i := 0) rfl)))) :=
+  ReturnFusion.denote_inl_boundReturn_sequencing J M hi ha
+
+/-- Evaluate the payload once before injecting it into the right summand at the same exit. -/
+theorem denote_inr_boundReturn_sequencing {Γ : VCtx τ} {L : LCtx τ} {i : Nat}
+    {A B : τ} {a : Tm Φ} (hi : At L i (coprod A B)) (ha : Tm.HasType Γ a B) :
+    denoteRegion J M (.let₁ (.inr ha) (.br hi (.var (i := 0) rfl))) =
+      denoteRegion J M (.let₁ ha (.br hi (.inr (.var (i := 0) rfl)))) :=
+  ReturnFusion.denote_inr_boundReturn_sequencing J M hi ha
+
+/-- Evaluate the empty-typed operand once before applying the pure empty
+eliminator at the supplied exit interface. -/
+theorem denote_abort_boundReturn_sequencing {Γ : VCtx τ} {L : LCtx τ} {i : Nat}
+    {D : τ} {a : Tm Φ} (hi : At L i D) (ha : Tm.HasType Γ a empty) :
+    denoteRegion J M (.let₁ (.abort ha) (.br hi (.var (i := 0) rfl))) =
+      denoteRegion J M (.let₁ ha (.let₁ (.abort (.var (i := 0) rfl)) (.br hi (.var (i := 0) rfl)))) :=
+  ReturnFusion.denote_abort_boundReturn_sequencing J M hi ha
+
 /-- Return lowering by singleton label substitution agrees with evaluating the expression once. -/
 theorem denote_returnRegion_boundReturn
     (copyCentral : ∀ E : V, PremonoidalCategory.IsCentral (J.map (duplicate E) ≫

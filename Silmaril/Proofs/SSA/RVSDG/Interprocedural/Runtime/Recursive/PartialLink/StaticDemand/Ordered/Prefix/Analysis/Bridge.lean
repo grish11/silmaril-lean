@@ -31,6 +31,8 @@ theorem plan_problem {tail : ModuleTerm Op imports scope.past sigs [summary.fn.p
   | finishDirect binding => exact binding_problem binding demand origin
   | lambda _ _ _ _ ih => exact ih
   | lambdaDirect _ _ ih => exact ih
+  | phi _ _ _ _ ih => exact ih
+  | phiWithEarlier _ _ _ _ ih => exact ih
   | skipLambda _ _ ih => exact ih
 
 theorem port_agreement (analysis : ExportAnalysis actions summary left right) (demand : Demand)

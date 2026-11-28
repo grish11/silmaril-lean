@@ -48,6 +48,13 @@ theorem denotePart_eq :
         (fun values => Outcome.returned (encodeValues (ins := [out]) values)) :=
   Proofs.denotePart_eq checked input
 
+/-- The original source has no finite return exactly when the emitted CF
+has none. Composing with `diverges_iff` gives the same result for RVSDG. -/
+theorem source_diverges_iff :
+    (∀ fuel, src.runFrom model fuel entry input = none) ↔
+      (lower checked).Diverges evalOp (encodeValues input) :=
+  Proofs.source_diverges_iff checked input
+
 /-- Absence of any finite CF return agrees with absence of any finite
 RVSDG return, quantified over each target's own budget. -/
 theorem diverges_iff :

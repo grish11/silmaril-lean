@@ -50,12 +50,17 @@ theorem stop_has_cycle [DecidableEq S] (step : S → Step Q R S) (states : Finse
   obtain ⟨last, path, cause⟩ := stop_reason step noStop states state stopped
   exact ⟨last, path, cause.resolve_left (fun absent => absent (complete last))⟩
 
+private theorem ask_eq_iff (left right : Q) :
+    Event.ask (Reply := fun _ => Bool) left = Event.ask (Reply := fun _ => Bool) right ↔ left = right :=
+  ⟨congrArg (fun (event : Event Q (fun _ => Bool) Bool) => match event with | .ask key => key),
+    congrArg (Event.ask (Reply := fun _ => Bool))⟩
+
 private theorem silent_cons {tree : Tree (Event Q) R} {run : S → Tree (Event Q) R}
     {head : Head Q R S} (observed : out tree = head.render run)
     (key : Q) (reply : Bool) (tail : ExchangePath (Event Q)) :
     SilentAfter tree (.cons (.ask key) reply tail) ↔
       ∃ next, head = .request key next ∧ SilentAfter (run (next reply)) tail := by
-  cases head <;> simp [SilentAfter, observed, Head.render, Visible.vis.injEq, Event.ask.injEq, Function.comp_def]
+  cases head <;> simp [SilentAfter, observed, Head.render, Visible.vis.injEq, ask_eq_iff, Function.comp_def]
 
 theorem silent_after_exact [DecidableEq S] [DecidableEq Q]
     (step : S → Step Q R S) (states : Finset S) (complete : ∀ s, s ∈ states)

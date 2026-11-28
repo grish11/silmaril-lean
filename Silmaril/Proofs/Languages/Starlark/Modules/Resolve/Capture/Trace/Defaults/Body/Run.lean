@@ -20,14 +20,10 @@ open Silmaril.Languages.Starlark.Lists (State Cell Slot Outcome Value)
 open Silmaril.Languages.Starlark.Lists.Iteration (Flow finishState)
 open Silmaril.Languages.Starlark.Functions.Lowering.Resolve (SourceExpr)
 
-private abbrev Direct (program : Program) (available : List DeclarationId)
-    (state : State) (code : Lowering.Expr) (out : Outcome Value) :=
-  Lowering.EvaluatesWith program available (fun _ _ _ => False) (fun _ => True) state code out
-
-private theorem evaluates (program : Program) (available : List DeclarationId)
+theorem evaluates_with (program : Program) (available : List DeclarationId) (calls : Lowering.ClosureRuns available)
     {block : LexicalBlock} {state : State} {source : SourceExpr} {code : Lowering.Expr}
     {out : Outcome Value} (ran : Evaluates block state source code out) :
-    Direct program available state code out := by
+    Lowering.EvaluatesWith program available calls (fun _ => True) state code out := by
   induction ran with
   | read => exact .atom trivial .read
   | int => exact .atom trivial .scalar
@@ -37,6 +33,12 @@ private theorem evaluates (program : Program) (available : List DeclarationId)
     cases out with
     | error => exact .list (.headError ih)
     | ok => exact .list (.cons ih .empty)
+
+theorem evaluates (program : Program) (available : List DeclarationId)
+    {block : LexicalBlock} {state : State} {source : SourceExpr} {code : Lowering.Expr}
+    {out : Outcome Value} (ran : Evaluates block state source code out) :
+    Lowering.EvaluatesWith program available (fun _ _ _ => False) (fun _ => True) state code out :=
+  evaluates_with program available (fun _ _ _ => False) ran
 
 theorem runs_sound (program : Program) (available : List DeclarationId)
     {block : LexicalBlock} {state : State} {source : Suite} {code : Silmaril.Languages.Starlark.Functions.Body}
@@ -87,7 +89,7 @@ theorem prefix_unique {block : LexicalBlock} {state : State} {source : List (Str
 
 /-- The operand profile only extends the heap. In particular, each
 existing slot and cell still denotes the same object after an error. -/
-private def Extends (before after : State) : Prop :=
+@[expose] def Extends (before after : State) : Prop :=
   after.slots = before.slots ∧
   ∀ (address : Nat) (cell : Cell), before.heap[address]? = some cell → after.heap[address]? = some cell
 
@@ -98,13 +100,13 @@ private theorem extend_trans {first middle last : State} (firstStep : Extends fi
     Extends first last :=
   ⟨rest.1.trans firstStep.1, fun key cell found => rest.2 key cell (firstStep.2 key cell found)⟩
 
-private theorem extend_push (state : State) (cell : Cell) : Extends state { state with heap := state.heap.push cell } := by
+theorem extend_push (state : State) (cell : Cell) : Extends state { state with heap := state.heap.push cell } := by
   refine ⟨rfl, ?_⟩
   intro address _ found
   have within := (Array.getElem?_eq_some_iff.mp found).choose
   simp [Array.getElem?_push, Nat.ne_of_lt within, found]
 
-private theorem operands_total {block : LexicalBlock} {source : SourceExpr} {code : Lowering.Expr} {reads : List Binding}
+theorem operands_total {block : LexicalBlock} {source : SourceExpr} {code : Lowering.Expr} {reads : List Binding}
     (scope : Operand block source code reads) (state : State) :
     ∃ out, Evaluates block state source code out ∧ Extends state (finishState out) := by
   induction scope generalizing state with
@@ -131,14 +133,14 @@ private theorem operands_total {block : LexicalBlock} {source : SourceExpr} {cod
     | error => exact ⟨_, .list item, kept⟩
     | ok value middle => exact ⟨_, .list item, extend_trans kept (extend_push _ _)⟩
 
-private theorem extends_keeps {state next : State} (floor : Nat) (kept : Extends state next) : Keeps floor state next :=
+theorem extends_keeps {state next : State} (floor : Nat) (kept : Extends state next) : Keeps floor state next :=
   ⟨kept.1, fun index cell _ found => kept.2 index cell found⟩
 
 theorem keeps_trans {floor : Nat} {first middle last : State}
     (head : Keeps floor first middle) (tail : Keeps floor middle last) : Keeps floor first last :=
   ⟨tail.1.trans head.1, fun index cell low found => tail.2 index cell low (head.2 index cell low found)⟩
 
-private theorem extend_frame {block : LexicalBlock} {free : List FreeName} {floor : Nat} {state next : State}
+theorem extend_frame {block : LexicalBlock} {free : List FreeName} {floor : Nat} {state next : State}
     (frame : Frame block free floor state) (kept : Extends state next) : Frame block free floor next := by
   constructor
   · intro name member

@@ -90,11 +90,13 @@ example : ¬ Finishes (thetaRuntime 3) shift.lowerTheta (Memory.encodeInput (ini
   exact (by decide : atExit untouched ≠ wrongSentinel untouched)
     (congrArg (fun result : Word × Heap 3 => result.2 untouched) same)
 
-private def clearTail : Graph args :=
+private def clearAt (address : RVSDG.Origin args [[.word]] .address) : Graph args :=
   ⟨.load (.latest 0) headWire
-    (.store (.latest 0) tailWire (.arg (.tail (.tail .head)))
+    (.store (.latest 0) address (.arg (.tail (.tail .head)))
       (.ret (.latest 1) (.output (0 : Fin 1) .head))),
     rfl, .tail (.tail .head)⟩
+
+private def clearTail : Graph args := clearAt tailWire
 
 private def cycling : Heap 3 := (initial 1).write tailCell 0
 
@@ -135,12 +137,15 @@ private theorem observeImmediate (graph : Graph args) (final : Heap 3)
 
 -- The emitted programs return the same word at the same initial heap.
 -- The first program writes the old tail word to the head cell.
-example : ¬ MLIR.MemRef.CF.Institution.Holds equation model := by
+private theorem heapMismatch : ¬ MLIR.MemRef.CF.Institution.Holds equation model := by
   intro holds
   have same := (observeImmediate shift shiftHeap (by cbv)).symm.trans
     ((holds (initial 0)).trans (observeImmediate clearTail clearedHeap (by cbv)))
   have cell := congrArg (fun result : Word × Heap 3 => result.2 headCell) (Part.some_inj.mp same)
   exact (by decide : shiftHeap headCell ≠ clearedHeap headCell) cell
+
+example : ¬ petriHolds equation model :=
+  fun holds => heapMismatch ((petri_satisfaction_iff_memref equation model).mp holds)
 
 private theorem noMemRef : MLIR.MemRef.CF.Institution.observe (P := sig) clearTail model cycling = Part.none :=
   (MLIR.MemRef.CF.Institution.observe_eq (P := sig) clearTail model cycling).trans
@@ -156,6 +161,24 @@ example : ∀ output, ¬ Finishes (thetaRuntime 3) clearTail.lowerTheta
 example : MLIR.Institution.observe (P := sig) clearTail model cycling = Part.none :=
   (mlir_observation_eq_map_memref (P := sig) clearTail model cycling).trans (by rw [noMemRef, Part.map_none])
 
+private def clearHead : Graph args := clearAt headWire
+private def budgetEquation : Equation sig := ⟨clearHead, clearTail⟩
+private def clearedHead : Heap 3 := (cycling.write headCell 0).write headCell 0
+
+-- The first activation takes a backedge on both sides. Clearing the
+-- loaded cell lets the left side exit on its next activation.
+#guard (MLIR.MemRef.CF.run clearHead input 0 ⟨cycling⟩).isNone
+#guard (MLIR.MemRef.CF.run clearTail input 0 ⟨cycling⟩).isNone
+#guard (MLIR.MemRef.CF.run clearHead input 1 ⟨cycling⟩).map
+  (fun (word, buffer) => summarize word buffer.cell) == some (0, 0, 0, 99)
+
+example : ¬ petriHolds budgetEquation model := by
+  intro holds
+  have completed := (clearHead.lowerTheta_finishes_iff input cycling 0 clearedHead).mp
+    ⟨1, (clearHead.returnsAfter_iff_evalAfter input cycling 1 0 clearedHead).mpr (by cbv)⟩
+  exact ((petri_no_completion_iff_memref (P := sig) clearTail model cycling).mpr noMemRef) _
+    ((holds cycling 0 clearedHead).mp completed)
+
 private def swap : sig ⟶ sig :=
   ⟨fun
     | .head => .tail .head
@@ -169,5 +192,8 @@ example : MLIR.MemRef.CF.Institution.observe (mapGraph swap shift) model (initia
 example : thetaHolds (equation.map swap) model ↔ MLIR.MemRef.CF.Institution.Holds equation (reduct swap model) :=
   (theta_satisfaction_iff_memref (equation.map swap) model).trans
     (MLIR.MemRef.CF.Institution.satisfaction_reindex swap equation model)
+
+example : petriHolds (equation.map swap) model ↔ MLIR.MemRef.CF.Institution.Holds equation (reduct swap model) :=
+  (petri_satisfaction_reindex swap equation model).trans (petri_satisfaction_iff_memref equation (reduct swap model))
 
 end Silmaril.SSA.SeaOfNodes.Memory.Loop.Institution.Lowering.Backends

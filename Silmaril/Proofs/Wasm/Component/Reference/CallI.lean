@@ -30,6 +30,7 @@ def ResolvesA (prof : ProfileKind) (P : Profile) (g : σ → HostFuncId → List
     (mS : Machine.Config (E3 P) σ) (rs : List Silmaril.Wasm.Component.Reference.Val) : Prop :=
   ∃ tr mE, LRun prof (answerHostS P g).hr (DA P g) mS tr mE ∧ mE.ctl = [] ∧
     mE.store.lockdown = false ∧ mE.result? ⟨0⟩ = some (some rs) ∧
+    mE.store.core = mS.store.core ∧ mE.host = mS.host ∧
     ∀ m₁, Step prof (answerHostS P g).hr (DA P g) mE (.host .tick) m₁ →
       ∃ trT, LRun prof (answerHostS P g).hr (DA P g) m₁ trT mE
 
@@ -186,7 +187,7 @@ theorem call_atA (prof : ProfileKind) (cs : (core3P P).Store (CanonHost (core3P 
       apply RunsQ.chunk2 rfl (runs_lift_someA (g := g) x hres hmaxr hffr hys hws _ _).choose_spec rfl
       repeat mstep
       exact .refl _
-    refine ⟨rfl, rfl, rfl, ?_⟩
+    refine ⟨rfl, rfl, rfl, rfl, rfl, ?_⟩
     · intro m₁ hs
       cases hs
       apply Exists.intro
