@@ -33,9 +33,14 @@ structure Assumption where
   name : Option Surface.Ident
   proposition : Proposition
 
-/-- Only previously declared module facts have citation identities in this profile. -/
+structure LocalHypothesis where
+  label : Option Surface.Ident
+  proposition : Proposition
+
+/-- A hypothesis label is relative to the theorem whose proof cites it. -/
 inductive FactRef where
   | assumption (unit : Nat)
+  | hypothesis (label : Surface.Ident)
   | theoremDecl (unit : Nat)
   deriving DecidableEq, Repr
 
@@ -47,19 +52,32 @@ inductive Unresolved where
   | byFacts (only : Bool) (facts : List FactRef)
   deriving DecidableEq, Repr
 
-structure Obligation where
+structure TheoremStatement where
   private mk ::
   unit : Nat
   name : Option Surface.Ident
-  assumptions : List Assumption
-  hypotheses : List Proposition
+  hypotheses : List LocalHypothesis
   goal : Proposition
   sourceProof : Unresolved
+
+structure Obligation extends TheoremStatement where
+  private mk ::
+  private moduleAssumptions : List Assumption
 
 structure Context where
   private mk ::
   assumptions : List Assumption
-  theorems : List Obligation
+  private statements : List TheoremStatement
+
+private def Context.obligation (context : Context) (statement : TheoremStatement) : Obligation :=
+  ⟨statement, context.assumptions⟩
+
+def Context.theorems (context : Context) : List Obligation :=
+  context.statements.map context.obligation
+
+/-- The module assumptions preceding this theorem in source order. -/
+def Obligation.assumptions (obligation : Obligation) : List Assumption :=
+  obligation.moduleAssumptions.filter (fun fact => fact.unit < obligation.unit)
 
 /-- A theorem judgment under its preceding module assumptions and local hypotheses,
 for every valuation in the chosen data interpretation. -/
@@ -67,7 +85,7 @@ for every valuation in the chosen data interpretation. -/
     (model : Interpretation V) : Prop :=
   ∀ valuation : Valuation V,
     (∀ fact ∈ obligation.assumptions, fact.proposition.holds model valuation) →
-    (∀ hypothesis ∈ obligation.hypotheses, hypothesis.holds model valuation) →
+    (∀ hypothesis ∈ obligation.hypotheses, hypothesis.proposition.holds model valuation) →
     obligation.goal.holds model valuation
 
 /-- Evidence provided by a Lean caller for the denoted judgment. -/
@@ -75,12 +93,18 @@ structure SuppliedEvidence {V : Type u} (obligation : Obligation)
     (model : Interpretation V) : Prop where
   valid : obligation.Valid model
 
-/-- Evidence produced by the exact named-assumption rule. -/
-structure ExactCertificate (obligation : Obligation) where
-  private mk ::
-  premise : Assumption
-  inScope : premise ∈ obligation.assumptions
-  termEq : premise.proposition.term = obligation.goal.term
+/-- Exact reuse of an in-scope premise or an independently certified formula theorem. -/
+inductive ExactCertificate : Obligation → Type where
+  | assumption {obligation : Obligation} (premise : Assumption)
+      (inScope : premise ∈ obligation.assumptions)
+      (termEq : premise.proposition.term = obligation.goal.term) : ExactCertificate obligation
+  | hypothesis {obligation : Obligation} (premise : LocalHypothesis)
+      (inScope : premise ∈ obligation.hypotheses)
+      (termEq : premise.proposition.term = obligation.goal.term) : ExactCertificate obligation
+  | theoremDecl {obligation : Obligation} (earlier : Obligation)
+      (certificate : ExactCertificate earlier) (before : earlier.unit < obligation.unit)
+      (inScope : earlier.assumptions ⊆ obligation.assumptions) (closed : earlier.hypotheses = [])
+      (termEq : earlier.goal.term = obligation.goal.term) : ExactCertificate obligation
 
 inductive Diagnostic where
   | parse (error : Surface.Parser.Diagnostic)
@@ -90,7 +114,9 @@ inductive Diagnostic where
   | unsupportedProof (unit : Nat)
   | unsupportedCitation (unit : Nat)
   | nameConflict (unit : Nat) (name : Surface.Ident)
+  | duplicateHypothesisLabel (unit : Nat) (label : Surface.Ident)
   | factNotInScope (unit : Nat) (name : Surface.Ident)
+  | hypothesisNotInScope (unit : Nat) (owner label : Surface.Ident)
   | resolution (error : Resolution.Diagnostic)
   | levels (error : Levels.Diagnostic)
   | missingLevel (site : Site)
@@ -111,7 +137,7 @@ private structure StatementPlan where
   kind : StatementKind
   name : Option Ident
   goal : Nat
-  hypotheses : List Nat
+  hypotheses : List (Nat × Option Ident)
 
 /-- A generated identifier containing a colon cannot be named by the parser. -/
 private def expressionUnit (index : Nat) (name : Option Ident) (body : Expr) : ModuleUnit :=
@@ -133,7 +159,10 @@ private def project (source : Surface.Module) :
         | .expr goal => pure (.theoremDecl proof, name, [], goal)
         | .assumeProve .plain hypotheses .plain goal =>
           let hypotheses ← hypotheses.mapM fun
-            | .statement (.expr expression) => pure expression
+            | .statement (.expr (.labeled ⟨label, []⟩ expression)) =>
+              if name.isSome then pure (some label, expression) else throw (.unsupportedStatement index)
+            | .statement (.expr (.labeled ..)) => throw (.unsupportedStatement index)
+            | .statement (.expr expression) => pure (none, expression)
             | _ => throw (.unsupportedStatement index)
           pure (.theoremDecl proof, name, hypotheses, goal)
         | _ => throw (.unsupportedStatement index)
@@ -144,17 +173,23 @@ private def project (source : Surface.Module) :
     if let some name := name then
       if names.contains name then throw (.nameConflict index name)
       names := name :: names
-    let start := projected.size
-    for hypothesis in hypotheses do
+    let mut locals := []
+    let mut labels := []
+    for (label, hypothesis) in hypotheses do
+      if let some label := label then
+        if labels.contains label then throw (.duplicateHypothesisLabel index label)
+        labels := label :: labels
+      locals := (projected.size, label) :: locals
       projected := projected.push (expressionUnit projected.size none hypothesis)
     let goalIndex := projected.size
     -- An ASSUME/PROVE name denotes a rule and cannot be used as an expression.
     projected := projected.push (expressionUnit goalIndex
       (if hypotheses.isEmpty then name else none) goal)
-    plans := ⟨index, kind, name, goalIndex, List.range' start hypotheses.length⟩ :: plans
+    plans := ⟨index, kind, name, goalIndex, locals.reverse⟩ :: plans
   return ({ source with units := projected.toList }, plans.reverse)
 
-private def resolveProof (unit : Nat) (known : List (Ident × FactRef)) :
+private def resolveProof (unit : Nat) (name : Option Ident) (hypotheses : List LocalHypothesis)
+    (known : List (Ident × FactRef)) :
     Option Proof → Except Diagnostic Unresolved
   | none => pure .missing
   | some .omitted => pure .omitted
@@ -164,10 +199,14 @@ private def resolveProof (unit : Nat) (known : List (Ident × FactRef)) :
     unless citations.defs.isEmpty && !citations.facts.isEmpty do
       throw (.unsupportedCitation unit)
     let facts ← citations.facts.mapM fun
-      | .expr (.ref (.operator (.ident name)) [] []) =>
-        match known.lookup name with
+      | .expr (.ref (.operator (.ident cited)) [] []) =>
+        match known.lookup cited with
         | some fact => pure fact
-        | none => throw (.factNotInScope unit name)
+        | none => throw (.factNotInScope unit cited)
+      | .expr (.ref (.operator (.ident owner)) [] [.named (.ident label) []]) =>
+        if name == some owner && hypotheses.any (·.label == some label) then
+          pure (.hypothesis label)
+        else throw (.hypothesisNotInScope unit owner label)
       | _ => throw (.unsupportedCitation unit)
     return .byFacts only facts
 
@@ -201,9 +240,10 @@ public def prepare (source : String) (maxDepth : Nat := 64) : Except Diagnostic 
         assumptions := ⟨plan.unit, plan.name, goal⟩ :: assumptions
         pure (.assumption plan.unit)
       | .theoremDecl proof =>
-        let hypotheses ← plan.hypotheses.mapM (lower registry levels maxDepth)
-        let proof ← resolveProof plan.unit known proof
-        theorems := ⟨plan.unit, plan.name, assumptions.reverse, hypotheses, goal, proof⟩ :: theorems
+        let hypotheses ← plan.hypotheses.mapM fun (index, label) => do
+          return ⟨label, ← lower registry levels maxDepth index⟩
+        let proof ← resolveProof plan.unit plan.name hypotheses known proof
+        theorems := ⟨plan.unit, plan.name, hypotheses, goal, proof⟩ :: theorems
         pure (.theoremDecl plan.unit)
     if let some name := plan.name then
       known := (name, fact) :: known
@@ -228,12 +268,49 @@ private def matchTerm (left right : Term noPrimitives) : Option (PLift (left = r
     else none
   | _, _ => none
 
-/-- Check a leaf with exactly one named module assumption. The citation selects
-a candidate premise; a Lean term equality certifies the application of the rule. -/
+/-- Check a leaf with exactly one module or local assumption citation. -/
 public def Obligation.checkExact (obligation : Obligation) : Option (ExactCertificate obligation) := do
-  let .byFacts _ [.assumption unit] := obligation.sourceProof | none
-  let some ⟨premise, inScope⟩ := obligation.assumptions.attach.find? (·.val.unit == unit) | none
-  let ⟨termEq⟩ ← matchTerm premise.proposition.term obligation.goal.term
-  return ⟨premise, inScope, termEq⟩
+  match obligation.sourceProof with
+  | .byFacts _ [.assumption unit] =>
+    let ⟨premise, inScope⟩ ← obligation.assumptions.attach.find? (·.val.unit == unit)
+    let ⟨termEq⟩ ← matchTerm premise.proposition.term obligation.goal.term
+    return .assumption premise inScope termEq
+  | .byFacts _ [.hypothesis label] =>
+    let ⟨premise, inScope⟩ ← obligation.hypotheses.attach.find? (·.val.label == some label)
+    let ⟨termEq⟩ ← matchTerm premise.proposition.term obligation.goal.term
+    return .hypothesis premise inScope termEq
+  | _ => none
+
+private def Context.checkTheorem (context : Context) (statement earlier : TheoremStatement)
+    (certificate : ExactCertificate (context.obligation earlier)) :
+    Option (ExactCertificate (context.obligation statement)) := do
+  if before : earlier.unit < statement.unit then
+    if closed : earlier.hypotheses.isEmpty then
+      let ⟨termEq⟩ ← matchTerm earlier.goal.term statement.goal.term
+      return .theoremDecl (context.obligation earlier) certificate before
+        (fun _ member => by
+          have ⟨inModule, earlierScope⟩ := List.mem_filter.mp member
+          have currentScope := Nat.lt_trans (of_decide_eq_true earlierScope) before
+          exact List.mem_filter.mpr ⟨inModule, decide_eq_true currentScope⟩)
+        (List.isEmpty_iff.mp closed) termEq
+    else none
+  else none
+
+/-- Check each obligation in source order. A theorem citation can only reuse a
+certificate already obtained for the named formula theorem in this context. -/
+public def Context.checkExact (context : Context) :
+    List ((obligation : Obligation) × Option (ExactCertificate obligation)) := Id.run do
+  let mut checked : List ((statement : TheoremStatement) ×
+      Option (ExactCertificate (context.obligation statement))) := []
+  for statement in context.statements do
+    let obligation := context.obligation statement
+    let certificate := match statement.sourceProof with
+      | .byFacts _ [.theoremDecl unit] => do
+        let ⟨earlier, some proof⟩ ← checked.find? (·.1.unit == unit) | none
+        context.checkTheorem statement earlier proof
+      | _ => obligation.checkExact
+    checked := ⟨statement, certificate⟩ :: checked
+  return checked.reverse.map fun ⟨statement, certificate⟩ =>
+    ⟨context.obligation statement, certificate⟩
 
 end Silmaril.Logic.Temporal.TLA.ProofFrontEnd

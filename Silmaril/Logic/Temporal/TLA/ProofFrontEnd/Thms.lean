@@ -7,7 +7,8 @@ namespace Silmaril.Logic.Temporal.TLA.ProofFrontEnd
 
 universe u
 
-/-- The exact checker certifies the denoted judgment in every interpretation. -/
+/-- Exact premise reuse and certified theorem dependencies establish the denoted
+judgment in every interpretation. -/
 public theorem ExactCertificate.sound {V : Type u} {obligation : Obligation}
     (certificate : ExactCertificate obligation) (model : Interpretation V) :
     obligation.Valid model :=

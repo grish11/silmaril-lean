@@ -54,6 +54,54 @@ THEOREM Multiple == TRUE BY A, B
     context.theorems.all (fun obligation => obligation.checkExact.isNone)
   | .error _ => false
 
+private def namedHypotheses := source r#"
+CONSTANT C
+Equal(n) == C = n
+ASSUME H == FALSE
+THEOREM Local == ASSUME H :: Equal(0), K :: Equal(1) PROVE C = 0 BY ONLY Local!H
+THEOREM Mismatch == ASSUME H :: Equal(0), K :: Equal(1) PROVE C = 0 BY Mismatch!K
+THEOREM Repeated == ASSUME H :: Equal(0) PROVE C = 0 BY Repeated!H, Repeated!H
+THEOREM ModuleFact == ASSUME H :: Equal(0) PROVE FALSE BY H
+THEOREM RuleConclusion == C = 0 BY Local
+"#
+
+#guard match prepare namedHypotheses with
+  | .ok context =>
+    decide (context.theorems.map (fun o => o.hypotheses.map (·.label)) =
+      [[some "H", some "K"], [some "H", some "K"], [some "H"], [some "H"], []]) &&
+    decide (context.theorems.map (·.sourceProof) =
+      [.byFacts true [.hypothesis "H"], .byFacts false [.hypothesis "K"],
+       .byFacts false [.hypothesis "H", .hypothesis "H"], .byFacts false [.assumption 2],
+       .byFacts false [.theoremDecl 3]]) &&
+    decide (context.checkExact.map (·.2.isSome) = [true, false, false, true, false])
+  | .error _ => false
+
+private def dependencies := source r#"
+CONSTANT C
+ASSUME Noise == IF TRUE THEN TRUE ELSE FALSE
+ASSUME Zero == C = 0
+THEOREM First == C = 0 BY ONLY Zero
+ASSUME Later == C = 1
+THEOREM Second == C = 0 BY First
+THEOREM Third == C = 0 BY ONLY Second
+THEOREM Mismatch == C = 1 BY First
+THEOREM UsesMismatch == C = 1 BY Mismatch
+THEOREM Obvious == TRUE OBVIOUS
+THEOREM UsesObvious == TRUE BY Obvious
+THEOREM Omitted == TRUE OMITTED
+THEOREM UsesOmitted == TRUE BY Omitted
+THEOREM Missing == TRUE
+THEOREM UsesMissing == TRUE BY Missing
+THEOREM Multiple == C = 0 BY First, Second
+"#
+
+#guard match prepare dependencies with
+  | .ok context =>
+    decide (context.checkExact.map (fun entry => (entry.1.unit, entry.2.isSome)) =
+      [(3, true), (5, true), (6, true), (7, false), (8, false), (9, false),
+       (10, false), (11, false), (12, false), (13, false), (14, false), (15, false)])
+  | .error _ => false
+
 private def rejected (body : String) (test : Diagnostic → Bool) : Bool :=
   match prepare (source body) with
   | .error diagnostic => test diagnostic
@@ -69,6 +117,43 @@ private def outOfScope (body : String) (unit : Nat) (name : String) : Bool :=
 #guard outOfScope "THEOREM T == TRUE BY U\nTHEOREM U == TRUE" 0 "U"
 #guard outOfScope "P == TRUE\nTHEOREM T == TRUE BY P" 1 "P"
 #guard outOfScope "THEOREM T == TRUE BY SMT" 0 "SMT"
+#guard outOfScope "THEOREM T == ASSUME H :: TRUE PROVE TRUE BY H" 0 "H"
+
+#guard rejected "THEOREM T == ASSUME H :: TRUE PROVE H" fun
+  | .resolution _ => true
+  | _ => false
+
+#guard rejected "THEOREM T == ASSUME H :: TRUE, H :: FALSE PROVE TRUE BY T!H" fun
+  | .duplicateHypothesisLabel 0 "H" => true
+  | _ => false
+
+#guard rejected "THEOREM T == ASSUME H :: TRUE PROVE TRUE BY T!Other" fun
+  | .hypothesisNotInScope 0 "T" "Other" => true
+  | _ => false
+
+#guard rejected "THEOREM T == ASSUME TRUE PROVE H :: TRUE BY T!H" fun
+  | .resolution _ => true
+  | _ => false
+
+#guard rejected "THEOREM T == ASSUME H :: TRUE PROVE TRUE BY T!H\nTHEOREM U == TRUE BY T!H" fun
+  | .hypothesisNotInScope 1 "T" "H" => true
+  | _ => false
+
+#guard rejected "THEOREM T == TRUE BY U!H\nTHEOREM U == ASSUME H :: TRUE PROVE TRUE" fun
+  | .hypothesisNotInScope 0 "U" "H" => true
+  | _ => false
+
+#guard rejected "THEOREM T == ASSUME H :: TRUE PROVE TRUE BY T!1" fun
+  | .unsupportedCitation 0 => true
+  | _ => false
+
+#guard rejected "THEOREM T == ASSUME H :: TRUE PROVE TRUE BY T!H(TRUE)" fun
+  | .unsupportedCitation 0 => true
+  | _ => false
+
+#guard rejected "THEOREM T == ASSUME H(C) :: TRUE PROVE TRUE" fun
+  | .unsupportedStatement 0 => true
+  | _ => false
 
 #guard rejected "EXTENDS TLAPS\nTHEOREM T == TRUE BY SMT" fun
   | .imports => true
