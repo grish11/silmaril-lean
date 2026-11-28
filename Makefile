@@ -140,7 +140,8 @@ check-runtime-core:
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Surface.Parser.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-parser/check.py)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.Collections.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-collection-binders/check.py)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.NamedFunctions.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-named-functions/check.py)
-	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.Sequences.% +Silmaril.Logic.Temporal.TLA.Data.Tagged.Sequences.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-sequence-source/check.py)
+	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.Sequences.% +Silmaril.Logic.Temporal.TLA.Data.Tagged.Sequences.% \
+		+Silmaril.Logic.Temporal.TLA.DataElab.Temporal.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-sequence-source/check.py)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.Temporal.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-temporal-source/check.py)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Import.% +Silmaril.Logic.Temporal.TLA.Surface.Parser.% +Silmaril.Logic.Temporal.TLA.Elaborator.% +Silmaril.Logic.Temporal.TLA.Kernel.%,$(CHECK_TARGETS)),$(MAKE) tla-import-check)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Institution.% +Silmaril.Proofs.SSA.RVSDG.Institution.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Institution.Categorical.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGInstitution.lean)
