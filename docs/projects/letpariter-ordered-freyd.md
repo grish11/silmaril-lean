@@ -342,6 +342,9 @@ abstraction, fairness and operational adequacy for a full SC scheduler
 require separate results. [Brookes, journal §§7 and 10][brookes] ·
 [Finite Brookes core guide](sc-brookes.md)
 
+The [source bibliography](letpariter-ordered-freyd.bib) records the edition
+and PDF hash for each downloaded primary text.
+
 Check the two generic Lean consequences and their regression with
 
 ```sh
