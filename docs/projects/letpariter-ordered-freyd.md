@@ -12,22 +12,23 @@ both orders of independent effects. [LetIter interpretation][letiter] ·
 [Shared constructors][constructors] · [Elgot interface][elgot]
 
 The [interchange header][lean] checks two general claims in Lean.
-Bifunctorial composition of the existing premonoidal tensor forces its
-two sequential schedules to be equal. An operation with directed
-composition and the same whiskers admits both schedules. The ordered
-Freyd interface and its consequences below are mathematical. The
-concrete Brookes theorems identified below are checked separately in
-[#3702][brookes-pr].
+Bifunctorial composition for the existing premonoidal tensor identifies
+its two sequential schedules. A compatible lax parallel operation admits
+both schedules. The [ordered Freyd API][ordered] checks the shared-context
+construction. The [mixed categorical evaluator][evaluator] and the
+[finite Brookes interpretation][brookes-model] check different routes to
+LetParIter equation soundness.
 
 ## Ordered Freyd interface
 
 Use left-to-right composition `f ; h` and write `J u` for a value arrow
-mapped into the computation category. Start with the repository's
-strong Elgot Freyd data, including the value products, computation
-whiskers, coproduct comparisons, and chosen iteration. Equip each
-computation hom-set with a preorder, with composition monotone in both
-arguments. Interpret `f ≤ g` as inclusion of observations in the
-examples below.
+mapped into the computation category. Start with the value products and
+computation whiskers of a Freyd model. The LetIter interpreter additionally
+uses its coproduct comparisons and chosen strong Elgot iteration. Equip the
+computation hom-sets with preorders. Monotonicity of ambient composition is
+a separate hypothesis where needed. With that hypothesis the computation
+category is locally preordered. Interpret `f ≤ g` as inclusion of
+observations in the examples below.
 
 Supply a binary operation `P` on computation arrows with the existing
 tensor on objects. For `f : X → Y` and `g : U → V`, its result has type
@@ -56,22 +57,30 @@ f ⊠ g = j_XU⁻¹ ; P(f,g) ; j_YV
 f : J(X) → J(Y)                  g : J(U) → J(V)
 ```
 
+In Lean, `OrderedParallel.tensor` is already this transported `⊠`.
+`tensor_id` and `tensor_maps` derive identity and pure product agreement.
+`lax_comp` states staged-to-independent composition on the transported
+arrows. To move this inequation across tensor isomorphisms, use monotonicity
+of composition with the comparison maps.
+
 Require the following equalities for the interfaces used by LetParIter.
 
 - **Pure products.** `J u ⊠ J v = J(u × v)`, with the existing value
   products. For a compatible `P` this equation also follows from the
   whisker equations, the Freyd comparisons, and exact pure composition.
 - **Exact pure stages.** The composition comparison is an equality
-  when both arrows in the first stage are in the image of `J), or when
+  when both arrows in the first stage are in the image of `J`, or when
   both arrows in the second stage are in that image. For instance,
   `(J u ⊠ J v) ; (f ⊠ g) = (J u ; f) ⊠ (J v ; g)`, and there is the
   corresponding equality for pure postcomposition. These conditions
-  also identify `P(f,J v)` and `P(J u,g)` with the corresponding
-  whiskered sequence. Factor each into two stages with an identity in
-  the other lane to see this. Centrality identifies the two whiskered
-  orders in these cases. Exact pure stages supply equalities for such
-  factorizations. The required exactness is for the chosen pure
-  arrows, including identities.
+  also identify `f ⊠ J v` and `J u ⊠ g` with the respective
+  transported whiskered sequences. Factor into two stages with an identity
+  in the other lane. Exact pure stages justify these factorizations. The
+  two native sequential orders agree whenever either arrow is central.
+  `FreydCategory.image_central` guarantees this for value maps `J u`.
+  `IsCentral` quantifies over every partner in both tensor positions.
+  Pure-stage exactness is a separate field about arrows in the image of
+  `J`. Membership in the center alone supplies no such field for `⊠`.
 - **Coherence.** The chosen value associator, symmetry and unitors,
   mapped by `J`, are natural for `⊠` on arbitrary computation arrows.
   For example,
@@ -90,9 +99,11 @@ Require the following equalities for the interfaces used by LetParIter.
 These are extra hypotheses on a model. For instance, equipping the
 unordered Kleisli model of an Elgot writer with the equality order
 turns lax composition into equality. Independent writes to a
-noncommutative log then obstruct such a `P`. With an ordered
-observation model the two schedules can both be below a larger behavior
-without agreeing. [Premonoidal whiskers and centrality][categories] ·
+noncommutative log then obstruct such a `P`. The mixed evaluator also
+checks `not_all_models_extend` using the native countermodel to let eta,
+which rules out an ordered extension for that particular Freyd model
+under any hom preorder. In ordered observation models the two schedules
+can both be below a larger behavior. [Premonoidal whiskers and centrality][categories] ·
 [Writer example in the SSA semantics, §5][ssa-source]
 
 In detail, apply lax composition to
@@ -102,6 +113,10 @@ The proof needs just those two comparisons and the whisker equations.
 The Lean theorem is `sequentialTensors_le_of_lax`. Applying the same
 factorizations to an ordinary bifunctor gives two equalities with
 `P(f,g)` and forces the independent binds to commute.
+`leftTensor_eq_rightTensor_of_interchange` checks this for the native
+premonoidal tensor. The regression uses the two lemmas to derive
+centrality under bifunctorial composition and schedule equality for
+a compatible lax operation with the equality order.
 
 ## Sharing a value context
 
@@ -117,7 +132,10 @@ The branch domains omit the other branch's result. Both results are
 available only after the pair returns. Branch effects can interact
 through a shared store. For a chosen interpretation
 of the syntactic product, append the same result-type isomorphism
-used by native LetIter. The new clause is monotone. Exact pure
+used by native LetIter. Monotonicity of the clause uses monotonicity of
+precomposition by `J Δ_R` and, after this last transport, of postcomposition
+by the result isomorphism. `OrderedParallel.par` implements `share_R`, and
+`denotePar` appends the result comparison. Exact pure
 precomposition and `Δ_R ∘ u = (u × u) ∘ Δ_S` give
 `J u ; share_R(f,g) = share_S(J u ; f, J u ; g)` for
 `u : S → R`. Pure product agreement makes `share_R(J u,J v)` the
@@ -128,47 +146,52 @@ corresponding coherences and the equality of the maps that duplicate
 the input for each branch. These proofs use only the value diagonal,
 pure-stage exactness and the displayed coherence.
 
-Pure result maps may also depend on the retained input. Write
-`E f := J Δ_R ; (id_(J R) ⊠ f)` for the existing `extend`, and
-let `ψ(r,(a,b)) = ((r,a),(r,b))` be the pure map of value products.
-Then
+The checked shared-context equations are `par_reindex`, `par_maps`,
+`par_postmap`, `par_swap`, `par_assoc` and both `par_unit` laws. The
+`denotePar` lemmas apply to pairs of native derivations. The Par constructor
+of the mixed evaluator applies the same operation to arbitrary mixed
+branches. [Shared-context API][ordered] · [Native branches][native-par] ·
+[Mixed evaluator][evaluator]
+
+### Retained input and guarded case
+
+The mixed evaluator's `Laws` record exposes two additional arrow-level
+diagrams. For `E f := J Δ_R ; (id_(J R) ⊠ f)` and
+`ψ(r,(a,b)) = ((r,a),(r,b))`, the first is `extend_par`.
 
 ```text
 share_R(E f, E g) = E(share_R(f,g)) ; J ψ
 ```
 
-To prove this, expand the left side. Exact pure precomposition combines
-the diagonals into `r ↦ ((r,r),(r,r))), followed by
-`(id ⊠ f) ⊠ (id ⊠ g)`. The pure symmetry and associators group the
-two identity lanes together and the two computation lanes together.
-Use `id ⊠ id = id` and factor the input map through
-`r ↦ (r,(r,r))`, duplicating the retained `r` on the identity lanes.
-Exact pure precomposition puts that last duplication immediately
-before the final pure tuple rearrangement. Their composite is `ψ`.
-The remaining computation is `id ⊠ (f ⊠ g)), which is the
-expansion of `E(share_R(f,g))`. For pure continuations
-`u : R × A → A'` and `v : R × B → B'`, exact pure postcomposition
-then gives
+Here is a mathematical derivation using the displayed pure-stage and
+coherence laws. Expand the left side and use pure precomposition to
+collect the input diagonals as `r ↦ ((r,r),(r,r))`. The pure middle swap
+moves the two identity lanes to the first product and `f,g` to the
+second. Its input action fixes that diagonal. The input now factors as
+`r ↦ (r,(r,r)) ↦ ((r,r),(r,r))`. Use exact pure precomposition and
+postcomposition to slide that last duplication past `id ⊠ (f ⊠ g)`.
+The remaining computation is `E(share_R(f,g))`. Duplicating the retained
+value and undoing the middle swap gives `ψ`. For pure continuations
+`u : R × A → A'` and `v : R × B → B'`, pure postcomposition yields
 
 ```text
 share_R(E f ; J u, E g ; J v)
   = E(share_R(f,g)) ; J (ψ ; (u × v)).
 ```
 
-This proves the shape of the pure tuple-map equation for the shared
-syntax. A pure case scrutinee similarly factors through a pure arrow
-into the sum of the two extended contexts. The pure binary cocone
-`J(X + Y)` has injections `J inl` and `J inr` because `J)
-preserves coproducts. Value distributivity and coproduct preservation
-give the coproduct cocone on products with the other branch's input.
-To move parallel pairing across the resulting copairing, compare the
-two composites after each injection. For example, restricting
-`[f₀,f₁] ⊠ g` along `J inl ⊠ id` gives `f₀ ⊠ g` by
-exact pure precomposition. The universal property gives the equality.
-When the scrutinee extends an ambient context, precompose the unchanged
-partner in each arm with the weakening projection. This is the
-pure-scrutinee guard used by the shared case rules. [Shared par typing
-and equations][letpar-pr] · [Pure coproduct cocone][coproduct]
+The second diagram, `case_left`, moves a case with a pure scrutinee out
+of one branch. In the value category let `s : R → A + B`. The pure map
+`r ↦ (r,s(r))` selects from `R × (A + B)`. By distributivity, its two
+injections have sources `R × A` and `R × B`. If `J` preserves this
+coproduct, pair the copairing of the two arm denotations with the other
+branch precomposed by the projection to `R`. Precomposing the pair with
+each mapped injection reindexes both operands, by `par_reindex`. The
+coproduct universal property identifies the two-arrow copairing, and
+precomposing by `J` of the selection map gives the guarded diagram.
+The right case follows by symmetry. The mixed Lean soundness API takes
+`extend_par` and `case_left` explicitly and checks their use at the
+actual typing witnesses. [Arrow-level laws][mixed-laws] ·
+[Pure coproduct cocone][coproduct]
 
 ### Optional interchange rule for terms
 
@@ -187,38 +210,41 @@ Use the sharing identity to rewrite the left side as
 and monotonicity of precomposition give the required inclusion. The
 left side stages both first phases before either continuation. The
 right side keeps only the local order within each branch. This
-inequation is an optional addition to the syntax. The generic
-equational pairing interface uses pure maps, symmetry, associativity
-and the unit. The effectful comparison comes from the additional
-lax composition law.
+inequation is an optional semantic rule under the displayed hypotheses.
+The checked generated LetParIter equivalence uses the pure tuple-map
+and guarded case equalities. The two generic Lean lemmas in the
+[interchange header][lean] concern the native sequential schedules.
+The staged syntax rule above is a mathematical consequence of `extend_par`,
+`lax_comp` and monotonicity of precomposition by `J Δ_R`.
 
 ### Preservation of LetIter
 
 Use the original interpretations for the inherited constructors,
 including sequential pair and `contextualLoop`. The whisker equations
-give the same `retainLeft` and `extend` if written using `P) with an
-identity. Hence an embedding that preserves the existing typing
-constructors and context interpretations preserves the denotation
-of inherited terms, `⟦embed d⟧_P = ⟦d⟧`, by induction on typing
-derivations. The existing strong Elgot and pure-uniformity laws
-still apply to their original
-whiskering and iteration. This argument also applies to computations
-constructed using the new clause as arguments of the same semantic
-operators.
+give the same `retainLeft` and `extend` if written with an identity
+operand. Induction on typing derivations gives equality of the old and new
+denotations. Lean checks this in `denote_embed`, and
+`denote_embed_nativeTyping` relates the two evaluators at the original
+proof-relevant witnesses. The inherited iteration uses `contextualLoop`
+with its existing strong Elgot laws. [Native clauses and mixed agreement][evaluator]
 
-For exact equations on inherited terms, retain the hypotheses of
-`denote_equiv_of_coherent_shared_tensor`: the central unit, shared
-tensor comparisons, typing coherence and pure interpretations of
-the designated instructions. The same separation applies to the
-abort-extended soundness theorem. Soundness for a new typed congruence
-requires checking its added schemes and its purity and substitution
-lemmas. If inequations are closed under all constructors, the
-computation copairing and iteration must also be monotone in the
-arguments under which rewrites are allowed. These order laws are
-additional to the ordinary coproduct and Elgot equations. A law
-relating separately iterated branches to iteration of a joint
-scheduler body would require a separate comparison for that body.
-[Exact soundness hypotheses][soundness] · [Abort extension][abort]
+For the generated mixed equivalence, `sound_of_native` checks the closure
+with `Laws`, purity of designated primitives, `CentralDiagonal` and
+`FixedNativeSound`. `CentralDiagonal` concerns `J Δ_R` composed with the
+inverse tensor comparison. Centrality of `J Δ_R` itself follows from
+purity. Centrality after transport is a separate hypothesis and is used
+for the recursive uniformity case. `FixedNativeSound` is soundness at
+exactly the embedded proof-relevant endpoints. In the canonical
+`Type` Kleisli interpretation `native_sound_of_type` discharges that
+obligation, and `sound_of_type` checks the full mixed equivalence under
+`OrderedParallel` and `Laws`. The older exact native theorem uses its
+own typing-coherence and shared-tensor hypotheses. [Mixed closure][mixed-closure] ·
+[Canonical Kleisli soundness][kleisli] · [Exact soundness][soundness]
+
+Closing an inequation under all constructors also requires order laws
+for copairing and iteration in the arguments where rewriting is allowed.
+A comparison between separately iterated branches and a joint scheduler
+body requires a separate iteration theorem.
 
 ## Trace model and evidence
 
@@ -235,12 +261,21 @@ unit comparisons. All interchange pastings, including the
 three-by-two, two-by-three and both sets of unit diagrams, have the
 same endpoints and hence commute by thinness. This is a mathematical
 normal duoidal structure with noninvertible interchange. In
-Aguiar–Mahajan's notation `⋄ = ·` and `⋆ = ∥`. In
-Garner–López Franco's notation `* = ·` and `∘ = ∥`. Their
-finitary endofunctor example uses composition and Day convolution
-on functors with natural transformations. These are structures
-on languages or functors. The computation arrows above use the
-directed lax comparison. [Aguiar–Mahajan, §6.1 and Proposition
+Aguiar–Mahajan's notation `⋄ = ·` and `⋆ = ∥`. To match the same diagram
+in Garner–López Franco's notation the language operations are `* = ·`
+and `∘ = ∥`. Their separate finitary endofunctor example takes `∘` to
+be functor composition and `*` to be Day convolution. Its comparison is
+a natural transformation. For a construction on profunctors or relations,
+one must likewise specify the carrier, both products and units, and
+the naturality, associativity and unit diagrams. The ordered Freyd API
+supplies a lax operation relative to categorical composition. A proof
+of duoidality on a proposed carrier would need its two monoidal
+structures and coherent comparisons in addition to the arrow equations.
+Strong 2-monoidality in Aguiar–Mahajan requires invertible constraints,
+which the strict trace inclusion precludes. Concurrent Kleene Algebra uses
+the same orientation for exchange. Its downward-closed pomset model uses
+subsumption of partial orders. The finite word argument above is a separate
+construction. [Aguiar–Mahajan, §6.1 and Proposition
 6.11][am] · [Garner–López Franco, §§2 and 5.2][glf] ·
 [Hoare et al., publisher abstract][cka] · [Kappé et al., explicit
 exchange and pomset model][kappe]
@@ -278,42 +313,40 @@ monotone in the body because bind is monotone in both arguments,
 so induction gives monotonicity at each finite bound and the union
 preserves it.
 
-At the pinned [#3702][brookes-pr] revision, the Lean header
-`Silmaril.Semantics.Brookes.Iteration.Thms` includes
-`Behavior.parallel_natural`, `parallel_symm`, `parallel_assoc`,
-the pure-operand and unit laws, and the `LawfulElgotMonad` instance.
-`iterate_accepts_iff` characterizes membership by a finite
-approximation, and `iterate_strength` handles a pure context.
-`Behavior.interchange_inclusion` checks the directed comparison
-for result-dependent Kleisli continuations.
-`Behavior.shared_store_interchange_strict` witnesses a singleton
-observation from store `0` to `2` with result `(1,())` that admits
-the left write and read before the right write. Staging the writes
-before the read excludes that result. [Iteration laws][brookes-iter] ·
-[Parallel laws and witness][brookes-par]
+In the landed Lean trace model, `Behavior.interchange_inclusion` checks
+the forward comparison with value-dependent continuations.
+`Behavior.shared_store_interchange_strict` checks a singleton observation
+from store `0` to `2` with result `(1,())` that admits the left write and
+read before the right write. Staging both writes before the read excludes
+that outcome. The iteration header checks `LawfulElgotMonad`,
+`iterate_accepts_iff` for finite approximation and `iterate_strength`
+for a pure context. These are checked results on the trace carrier.
+The thin-category duoidal packaging above is a mathematical argument.
+[Parallel laws and witness][brookes-par] · [Iteration laws][brookes-iter]
 
-A temporary Lean probe constructed `ParallelPairing (Behavior Store)`
-against Brookes revision `26c8bc210c58370d5f168f31421bd546c3f192a1`
-and generic pairing revision `3f83340976bd41c746c123ca832b2c8e834a09e1`.
-It used the pure-map and tuple laws, including `parallel_ret_right`,
-`mapResult_comp` and `bind_ret` for the `PUnit` unitor. The probe
-checked the adapter fields and Elgot instance synthesis. The generic
-syntax theorems `LetParIter.sound` and `denote_embed` concern
-monadic denotations. Integrating the probe's model with those
-theorems is a separate development. [Generic pairing contract][generic] ·
-[Typed soundness and native agreement][generic-soundness]
+`Behavior.parallelPairing` supplies the monadic tuple interface, and
+`BrookesLetParIter.sound` and `interpret_sound` specialize the generic
+monadic equations to the finite two-thread, one-cell, one-mutex world.
+They use the existing result-map and tuple laws and `LawfulElgotMonad`.
+The stronger categorical interpretation uses a separate `OrderedParallel`
+and its arrow-level premises. The fiber argument above describes how
+closed shuffle gives that operation. The concrete checked Brookes
+instantiation uses `ParallelPairing`, and a packaged Brookes
+`OrderedParallel` instance is outside these headers. The maintained
+categorical regressions exercise the categorical route.
+[Brookes instantiation][brookes-model] ·
+[Monadic pairing contract][generic] · [Categorical regression][mixed-regression]
 
-The ordered Freyd interface and context-sharing arguments are
-mathematical. The Brookes carrier observes finite possible completions.
-Contextual full abstraction, fairness, and operational adequacy for a
-full SC scheduler require separate results. [Brookes, journal §§7 and 10][brookes] ·
+The Brookes carrier observes finite possible completions. Contextual full
+abstraction, fairness and operational adequacy for a full SC scheduler
+require separate results. [Brookes, journal §§7 and 10][brookes] ·
 [Finite Brookes core guide](sc-brookes.md)
 
-Check the two generic Lean consequences with
+Check the two generic Lean consequences and their regression with
 
 ```sh
 lake build --wfail +Silmaril.Semantics.Categories.Premonoidal.Interchange.Thms
-make check CHECK_TARGETS='+Silmaril.Semantics.Categories.Premonoidal.Interchange.Thms'
+make check CHECK_TARGETS='+Silmaril.Proofs.Semantics.Categories.Premonoidal.Interchange.Regression'
 ```
 
 [lean]: ../../Silmaril/Semantics/Categories/Premonoidal/Interchange/Thms.lean
@@ -323,13 +356,10 @@ make check CHECK_TARGETS='+Silmaril.Semantics.Categories.Premonoidal.Interchange
 [elgot]: ../../Silmaril/Raw/Semantics/Categories/Freyd/Elgot.lean
 [coproduct]: ../../Silmaril/Raw/Semantics/Categories/Freyd/Distributive.lean
 [soundness]: ../../Silmaril/SSA/Isotope/LetIter/Categorical/Soundness/Thms.lean
-[abort]: ../../Silmaril/SSA/Isotope/LetIter/Categorical/AbortSequence/Thms.lean
 [core]: ../../Silmaril/Semantics/Brookes/Thms.lean
-[letpar-pr]: https://github.com/hiloopai/silmaril-lean/pull/3695
-[brookes-pr]: https://github.com/hiloopai/silmaril-lean/pull/3702
-[brookes-iter]: https://github.com/hiloopai/silmaril-lean/blob/26c8bc210c58370d5f168f31421bd546c3f192a1/Silmaril/Semantics/Brookes/Iteration/Thms.lean
-[brookes-par]: https://github.com/hiloopai/silmaril-lean/blob/26c8bc210c58370d5f168f31421bd546c3f192a1/Silmaril/Semantics/Brookes/Parallel/Thms.lean
-[generic]: https://github.com/hiloopai/silmaril-lean/blob/3f83340976bd41c746c123ca832b2c8e834a09e1/Silmaril/Semantics/Elgot/Parallel/Defs.lean
+[brookes-iter]: ../../Silmaril/Semantics/Brookes/Iteration/Thms.lean
+[brookes-par]: ../../Silmaril/Semantics/Brookes/Parallel/Thms.lean
+[generic]: ../../Silmaril/Semantics/Elgot/Parallel/Defs.lean
 [ssa-source]: https://arxiv.org/abs/2411.09347v2
 [am]: https://pi.math.cornell.edu/~maguiar/a.pdf
 [glf]: https://arxiv.org/abs/1507.08710v2
@@ -337,4 +367,11 @@ make check CHECK_TARGETS='+Silmaril.Semantics.Categories.Premonoidal.Interchange
 [kappe]: https://arxiv.org/abs/1710.02787v3
 [brookes]: https://www.cs.cmu.edu/~brookes/papers/FullAbstractionSharedVariable.pdf
 [dvir]: https://arxiv.org/abs/2501.15104v3
-[generic-soundness]: https://github.com/hiloopai/silmaril-lean/blob/0218a4ac2fb85e20d35b991a792336a8f53aec2e/Silmaril/SSA/Isotope/LetParIter/Thms.lean#L37-L52
+[ordered]: ../../Silmaril/Semantics/Categories/Freyd/Parallel/Thms.lean
+[native-par]: ../../Silmaril/SSA/Isotope/LetIter/Categorical/Parallel/Thms.lean
+[evaluator]: ../../Silmaril/SSA/Isotope/LetParIter/Categorical/Thms.lean
+[mixed-laws]: ../../Silmaril/SSA/Isotope/LetParIter/Categorical/Laws/Defs.lean
+[mixed-closure]: ../../Silmaril/SSA/Isotope/LetParIter/Categorical/Soundness/Thms.lean
+[kleisli]: ../../Silmaril/SSA/Isotope/LetParIter/Categorical/Kleisli/Thms.lean
+[mixed-regression]: ../../Silmaril/Proofs/SSA/Isotope/LetParIter/Regression/Terms.lean
+[brookes-model]: brookes-letpariter.md
