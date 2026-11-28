@@ -26,6 +26,28 @@ local notation "H" => RawHom (Φ := Φ) pe
 
 variable {A B D : τ}
 
+section
+
+variable (Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+
+theorem ofRegion_bind_whiskerLeftRep (X : τ) (r : Rep (Φ := Φ) A B) :
+    ofRegion Seed (whiskerLeftRep X r).property.bindBranchArguments =
+      Extension.Singleton.whiskerLeft Seed (ofType Seed X) (ofRegion Seed r.property.bindBranchArguments) :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.OrderedPairOperations.ofRegion_bind_whiskerLeftRep Seed X r
+
+theorem ofRegion_bind_whiskerRightRep (X : τ) (r : Rep (Φ := Φ) A B) :
+    ofRegion Seed (whiskerRightRep X r).property.bindBranchArguments =
+      Extension.Singleton.whiskerRight Seed (ofRegion Seed r.property.bindBranchArguments) (ofType Seed X) :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.OrderedPairOperations.ofRegion_bind_whiskerRightRep Seed X r
+
+theorem ofRegion_bind_copairRep (r : Rep (Φ := Φ) A D) (s : Rep (Φ := Φ) B D) :
+    ofRegion Seed (copairRep r s).property.bindBranchArguments =
+      Extension.Singleton.ValueCoproducts.exactCopair Seed
+        (ofRegion Seed r.property.bindBranchArguments) (ofRegion Seed s.property.bindBranchArguments) :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.OrderedPairOperations.ofRegion_bind_copairRep Seed r s
+
+end
+
 theorem normalize_whiskerLeftRep (X : τ) (r : Rep (Φ := Φ) A B) :
     normalizeHom pe (Quotient.mk _ (whiskerLeftRep X r)) =
       Extension.Singleton.whiskerLeft Join (G X) (normalizeHom pe (Quotient.mk _ r)) :=

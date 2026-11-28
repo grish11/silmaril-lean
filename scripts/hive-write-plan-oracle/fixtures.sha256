@@ -1,0 +1,5 @@
+23d04db401f25217cace0ab5fdd6a723cc7b201f3bcf3f9e4df12a15723a7fe8  data/region=/year=2025/part-0.parquet
+e523cd394fab5bde46c9e16c9044bbb8b982b93281214aa863f4df30f049aebc  data/region=%E6%97%A5%E6%9C%AC/year=2024/part-0.parquet
+55eb4b8eda58179d12d1485d012cb8c4b31ba3500df9a5b2368ce0f81870216b  data/region=__HIVE_DEFAULT_PARTITION__/year=2025/part-0.parquet
+d5a193b335dacdf166e0003cff8945f6987478ee647b03106132aba63266f391  data/region=a%2Fb/year=2025/part-0.parquet
+90f3460ad751c0e3288d745d4d8be3dab7f08c6c1cd7d97ed5f1774f9434040a  data/region=x%3Dy/year=__HIVE_DEFAULT_PARTITION__/part-0.parquet

@@ -9,13 +9,23 @@ public section
 namespace Silmaril.SSA.SeaOfNodes.GVN.Cyclic.Deletion
 
 open Diamond (Dataflow Model Signature Ty Val ValueSort dataPorts sortValue)
-open RVSDG (Locals Tuple)
+open RVSDG (Locals Tuple Wires)
 
 universe u v w
 
 variable {Data : Type u} {Op : Signature.{u,v} Data}
 variable {args : List (Ty Data)} {past sigs : List (List (Ty Data))}
 variable {out removed : ValueSort Data} {flow : Dataflow Op args past sigs}
+
+/-- Routing all occurrences of an ordered packet preserves its values. -/
+theorem Route.wires_read {target : List (List (Ty Data))} {route : Route args past target}
+    (m : Model.{u,v,w} Op) (entry : Tuple (Val m.value) args)
+    {old : Locals (Val m.value) past} {new : Locals (Val m.value) target}
+    (agree : route.Agrees m entry old new) {ports : List (Ty Data)}
+    (wires : Wires args past ports) {mapped : Wires args target ports}
+    (routed : route.wires? wires = some mapped) :
+    wires.read entry old = mapped.read entry new :=
+  Silmaril.Proofs.SSA.SeaOfNodes.GVN.Cyclic.Deletion.wires_read m entry agree wires routed
 
 /-- Successful routing preserves every routed read from the original table. -/
 theorem erase_sound (candidate : Producer flow removed) (m : Model.{u,v,w} Op)

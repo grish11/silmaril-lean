@@ -90,6 +90,42 @@ its own pairing and proves the record's fields for its chosen observations.
 [Soundness](../../Silmaril/SSA/Isotope/LetParIter/Thms.lean) ·
 [Model regression](../../Silmaril/Proofs/SSA/Isotope/LetParIter/Regression/PairingModel.lean)
 
+## Concrete finite-success dialects
+
+Import `Silmaril.SSA.Isotope.LetParIter.Models.Thms` for the typed programs
+and soundness theorems in `LetParIter.Models.ReadOnly` and
+`LetParIter.Models.Choice`. Both dialects use natural numbers as their atomic
+values and instantiate the public `LetParIter.sound` theorem for every
+generated typed equation.
+
+- `ReadOnly` uses `ReaderT Env Part`. Each primitive read projects a distinct
+  slot, with an independent availability condition and its own effect bit.
+  `readPair_mem` characterizes the ordered result coordinate by coordinate.
+  `countAndRead_run` starts with the left slot, counts down through feedback,
+  and reads the right slot in the return case. Either unavailable read
+  produces an undefined result.
+- `Choice` uses `SetM`. `choosePair_mem` gives the cartesian product of two
+  binary choices. `chooseLoop_outcomes` gives exactly `{10, 20}`. The value 20 can return
+  immediately, and 10 requires taking a back edge from a positive seed. Zero
+  also has a self-loop, so the same program admits an infinite execution.
+
+The reader transformer uses the existing pointwise Elgot iteration.
+`ParallelPairing.reader` lifts any pairing pointwise, and environment
+precomposition, evaluation at a fixed environment, and constant reader
+lifting preserve pure, bind, iteration, and pairing. For `Part` and `SetM`,
+the result of parallel pairing agrees with both orders of monadic sequencing
+when the tuple coordinates are kept in branch order.
+
+These are denotational observations of finite successful results. An
+unavailable read and divergence both give no value in `Part`. `SetM` collects
+all may-outcomes of finite successful runs, with no bound on the size of an
+outcome set. It identifies runs by their returned value and records no
+multiplicity, scheduling, fairness, or must-termination information.
+
+[Dialect API](../../Silmaril/SSA/Isotope/LetParIter/Models/Thms.lean) ·
+[Pairing and preservation laws](../../Silmaril/Semantics/ElgotMonads/Parallel/Thms.lean) ·
+[Elgot laws](../../Silmaril/Semantics/ElgotMonads/Thms.lean)
+
 ## Tier inclusions
 
 ```mermaid
@@ -153,3 +189,6 @@ lower-tier regressions and their axiom reports run with the maintained
 ```bash
 make check CHECK_TARGETS='LetIterWeakTreeSoundnessTests +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.Terms +Silmaril.Proofs.SSA.Isotope.LetParIter.Regression.PairingModel'
 ```
+
+To include the concrete dialects, add
+`+Silmaril.SSA.Isotope.LetParIter.Models.Thms` to `CHECK_TARGETS`.

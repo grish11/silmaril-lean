@@ -1,7 +1,8 @@
 module
 
-public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.LabelRenaming.Defs
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.LabelRenaming.Restriction.Defs
 public import Silmaril.SSA.Isotope.LambdaSSA.Typing.Thms
+import Silmaril.SSA.Isotope.LambdaSSA.Categorical.Thms
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Labels
 import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Combinators
 
@@ -46,7 +47,7 @@ theorem labelInject_labelMap_proof {L K : LCtx τ} {ρ : Nat → Nat} (hρ : Ren
   change labelInject M j (labelAt_get L j) ≫ _ = _
   rw [labelInject_get, labelMap, Sigma.ι_comp_desc]
 
-private theorem labelHom_ext {L : LCtx τ} {Y : V} {f g : labelObj M L ⟶ Y}
+theorem labelHom_ext_proof {L : LCtx τ} {Y : V} {f g : labelObj M L ⟶ Y}
     (h : ∀ (i : Nat) (A : τ) (hi : At L i A), labelInject M i hi ≫ f = labelInject M i hi ≫ g) :
     f = g := by
   apply Sigma.hom_ext
@@ -55,7 +56,7 @@ private theorem labelHom_ext {L : LCtx τ} {Y : V} {f g : labelObj M L ⟶ Y}
 
 theorem labelMap_id_proof (L : LCtx τ) :
     labelMap M (SSA.Ren.id L) = 𝟙 (labelObj M L) := by
-  apply labelHom_ext M
+  apply labelHom_ext_proof M
   intro i A hi
   rw [labelInject_labelMap_proof, Category.comp_id]
   rfl
@@ -63,7 +64,7 @@ theorem labelMap_id_proof (L : LCtx τ) :
 theorem labelMap_comp_proof {L K H : LCtx τ} {ρ σ : Nat → Nat}
     (hρ : Ren L K ρ) (hσ : Ren K H σ) :
     labelMap M (SSA.Ren.comp hρ hσ) = labelMap M hρ ≫ labelMap M hσ := by
-  apply labelHom_ext M
+  apply labelHom_ext_proof M
   intro i A hi
   rw [labelInject_labelMap_proof, ← Category.assoc, labelInject_labelMap_proof,
     labelInject_labelMap_proof]
@@ -78,7 +79,7 @@ private theorem labelAppendSplit_labelMap {L K : LCtx τ} {ρ : Nat → Nat}
     (hρ : Ren L K ρ) {n : Nat} (R : Fin n → τ) :
     labelMap M (appendRen hρ R) ≫ labelAppendSplit M (List.ofFn R) K =
       labelAppendSplit M (List.ofFn R) L ≫ coprod.map (labelMap M hρ) (𝟙 _) := by
-  apply labelHom_ext M
+  apply labelHom_ext_proof M
   intro i A hi
   by_cases hlocal : i < n
   · let j : Fin n := ⟨i, hlocal⟩
@@ -193,6 +194,22 @@ private theorem contextualLoop_map {E A B B' : V}
   rw [MonoidalCategory.whiskerLeft_id, J.map_id] at route
   simp only [retainLeft_comp, retainLeft_map, body, Category.assoc, route]
 
+theorem cfgDispatch_postmap_proof {E A B D : V} (out : B ⟶ D)
+    (entry : J.obj E ⟶ J.obj (B ⨿ A)) (body : J.obj (E ⊗ A) ⟶ J.obj (B ⨿ A)) :
+    caseWithContext J (entry ≫ J.map (coprod.map out (𝟙 A)))
+      (J.map (CartesianMonoidalCategory.snd E D))
+      (contextualLoop J (body ≫ J.map (coprod.map out (𝟙 A)))) =
+    caseWithContext J entry (J.map (CartesianMonoidalCategory.snd E B))
+      (contextualLoop J body) ≫ J.map out := by
+  rw [caseWithContext_map, MonoidalCategory.whiskerLeft_id, J.map_id, Category.id_comp,
+    ← contextualLoop_map]
+  have projection : J.map (E ◁ out) ≫ J.map (CartesianMonoidalCategory.snd E D) =
+      J.map (CartesianMonoidalCategory.snd E B) ≫ J.map out := by
+    simp only [← Functor.map_comp]
+    congr 1
+    simp
+  rw [projection, caseWithContext_post]
+
 end Loop
 
 section Region
@@ -229,23 +246,10 @@ private theorem cfgLabelRenaming {n : Nat} (R : Fin n → τ) (Γ : VCtx τ)
   have split := congrArg J.map (labelAppendSplit_labelMap M hρ R)
   simp only [Functor.map_comp] at split
   rw [split]
-  simp only [← Category.assoc]
-  rw [caseWithContext_map]
-  simp only [Category.assoc, MonoidalCategory.whiskerLeft_id]
-  rw [J.map_id, Category.id_comp]
-  let body := J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ labelObjToFinite M R) ≫
-    blocks ≫ J.map (labelAppendSplit M (List.ofFn R) L)
-  have mapLoop := contextualLoop_map J body (labelMap M hρ)
-  simp only [body, Category.assoc] at mapLoop
-  rw [← mapLoop]
-  have projection : J.map ((ctxObj M Γ) ◁ labelMap M hρ) ≫
-      J.map (CartesianMonoidalCategory.snd (ctxObj M Γ) (labelObj M K)) =
-    J.map (CartesianMonoidalCategory.snd (ctxObj M Γ) (labelObj M L)) ≫
-      J.map (labelMap M hρ) := by
-    simp only [← Functor.map_comp]
-    congr 1
-    simp
-  rw [projection, caseWithContext_post]
+  simpa only [Category.assoc] using cfgDispatch_postmap_proof J (labelMap M hρ)
+    (entry ≫ J.map (labelAppendSplit M (List.ofFn R) L))
+    (J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ labelObjToFinite M R) ≫
+      blocks ≫ J.map (labelAppendSplit M (List.ofFn R) L))
 
 theorem RegionDenotes.renameLabels_proof {Γ : VCtx τ} {L K : LCtx τ} {ρ : Nat → Nat}
     {r : Region Φ} {hr : Region.HasType Γ r L}
@@ -280,6 +284,68 @@ theorem RegionDenotes.renameLabels_proof {Γ : VCtx τ} {L K : LCtx τ} {ρ : Na
         (fun i => (hb i).renameLabels hlabels) (ihe hlabels) (fun i => ihb i hlabels) dc'
       rw [← cfgLabelRenaming J M R Γ hρ fe collective]
       simpa only [Category.assoc] using renamed
+
+theorem RegionDenotes.of_renameLabels_proof {Γ : VCtx τ} {L K : LCtx τ} {ρ : Nat → Nat}
+    {r : Region Φ} (scope : r.LabelsBound L.length) (hρ : Ren L K ρ)
+    {hr : Region.HasType Γ (r.renameLabels ρ) K}
+    {f : J.obj (ctxObj M Γ) ⟶ J.obj (labelObj M K)}
+    (d : RegionDenotes J M hr f) :
+    ∃ (ht : r.HasType Γ L) (g : J.obj (ctxObj M Γ) ⟶ J.obj (labelObj M L)),
+      RegionDenotes J M ht g ∧ f = g ≫ J.map (labelMap M hρ) := by
+  induction r generalizing Γ L K ρ with
+  | br i a =>
+      change i < L.length at scope
+      cases d with
+      | @br _ _ _ _ _ _ _ hit da =>
+          have h := labelAt_get L ⟨i, scope⟩
+          cases Option.some.inj ((hρ h).symm.trans hit)
+          refine ⟨_, _, RegionDenotes.br (h := h) da, ?_⟩
+          rw [Category.assoc, ← J.map_comp, labelInject_labelMap_proof]
+  | case a left right ihl ihr =>
+      obtain ⟨hl, hr⟩ := scope
+      cases d with
+      | case da dl dr =>
+          obtain ⟨_, _, dl', rfl⟩ := ihl hl hρ dl
+          obtain ⟨_, _, dr', rfl⟩ := ihr hr hρ dr
+          exact ⟨_, _, RegionDenotes.case da dl' dr', (caseWithContext_post J _ _ _ _).symm⟩
+  | let₁ a body ih =>
+      cases d with
+      | let₁ da db =>
+          obtain ⟨_, _, db', rfl⟩ := ih scope hρ db
+          refine ⟨_, _, RegionDenotes.let₁ da db', ?_⟩
+          simp only [Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind, Category.assoc]
+  | let₂ a body ih =>
+      cases d with
+      | let₂ da db =>
+          obtain ⟨_, _, db', rfl⟩ := ih scope hρ db
+          refine ⟨_, _, RegionDenotes.let₂ da db', ?_⟩
+          simp only [Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind, Category.assoc]
+  | cfg entry n blocks ihe ihb =>
+      obtain ⟨entryScope, blockScope⟩ := scope
+      cases n with
+      | zero =>
+          cases d with
+          | @cfgZero _ _ _ R _ he hb _ de =>
+              obtain ⟨he', _, de', rfl⟩ := ihe (by simpa only [Nat.zero_add] using entryScope) hρ de
+              exact ⟨_, _, RegionDenotes.cfgZero (R := R) he' (fun i => Fin.elim0 i) de', rfl⟩
+      | succ n =>
+          cases d with
+          | @cfg _ R _ _ _ _ he hb fe fb collective de db dc =>
+              let ren := appendRen hρ R
+              have placed (i : Fin (n + 1)) :=
+                ihb i (by simpa only [List.length_append, List.length_ofFn] using blockScope i) ren (db i)
+              obtain ⟨he', fe', de', entry_eq⟩ :=
+                ihe (by simpa only [List.length_append, List.length_ofFn] using entryScope) ren de
+              choose hb' fb' db' block_eq using placed
+              obtain ⟨collective', restrictions⟩ :=
+                collective_exists J M n Γ R (labelObj M (List.ofFn R ++ L)) fb'
+              have blocks_eq : collective = collective' ≫ J.map (labelMap M ren) := by
+                apply collective_ext J M n Γ R
+                intro i
+                rw [← Category.assoc _ collective', restrictions i, dc.restrict, block_eq]
+              refine ⟨_, _, RegionDenotes.cfg he' hb' de' db' ⟨restrictions⟩, ?_⟩
+              rw [entry_eq, blocks_eq]
+              simpa only [Category.assoc] using cfgLabelRenaming J M R Γ hρ fe' collective'
 
 end Region
 

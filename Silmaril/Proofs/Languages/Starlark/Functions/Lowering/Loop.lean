@@ -13,14 +13,6 @@ open Silmaril.Languages.Starlark.Functions.Lowering
 open Silmaril.Languages.Starlark.Lists
 open Silmaril.Languages.Starlark.Lists.Iteration
 
-private theorem acquireAction (value : Value) : FrameAction (acquireIterator value) := by
-  cases value with
-  | list => exact actionMap _ (actionMap _ (actionList _))
-  | tuple => exact actionMap _ (actionMap _ (actionTuple _))
-  | dict => exact actionMap _ (actionMap _ (actionDict _))
-  | range => exact actionPure _
-  | _ => exact actionMap _ (actionThrow _)
-
 private theorem enterMatch {s t : State} (same : StateMatch 0 s t) (guard : Option Address) :
     StateMatch 0 (enterIterator s guard) (enterIterator t guard) := by
   cases guard with

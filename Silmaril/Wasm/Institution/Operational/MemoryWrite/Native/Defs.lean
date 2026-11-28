@@ -44,6 +44,13 @@ def v1ActivationCode (result : Option NumType) (callee : Frame)
   let arity := result.toList.length
   Wasm.V1.Execution.values saved ++ .frame arity callee [.label arity [] body] :: tail
 
+/-- An entered Lime1 activation with its implicit result label. The arity can
+describe the full ordered result list. Caller operands and code remain outside. -/
+def limeActivationCode (arity : Nat) (callee : Frame)
+    (saved : List Execution.Runtime.Value) (tail body : List Wasm.Lime1.Execution.Admin) :
+    List Wasm.Lime1.Execution.Admin :=
+  Wasm.Lime1.Execution.values saved ++ .frame arity callee [.label arity [] body] :: tail
+
 /-- The allocated slot selected by the module's zero index has a 32-bit address type. -/
 def CoreMemory32 {H : Type} (s : Core.Store H) (f : Core.Frame) (a : Nat) (m : Core.MemInst) : Prop :=
   s.mem? f MemoryQuery.index = some (a, m) ∧ m.type.address = .i32

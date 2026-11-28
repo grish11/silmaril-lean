@@ -16,7 +16,7 @@ namespace Silmaril.Machine.SeaOfNodes.Diamond.RTL
 
 open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow Graph Model Projection Val ValueSort dataPorts)
 open Silmaril.SSA.RVSDG (Origin Port PortType Tuple Wires extend)
-open Silmaril.Machine.Lir (Word)
+open Silmaril.Machine.Lir (Word ofBool)
 open Silmaril.Machine.RTL.SSA (Block Func Label Op Prog)
 
 abbrev PortTy := Silmaril.SSA.SeaOfNodes.Diamond.Ty Unit
@@ -32,6 +32,7 @@ inductive WordOp : Silmaril.SSA.SeaOfNodes.Diamond.Signature Unit where
   | sub : WordOp [word, word] word
   | eq : WordOp [word, word] .predicate
   | ne : WordOp [word, word] .predicate
+  | slt : WordOp [word, word] .predicate
 
 abbrev values : Unit → Type := fun _ => Word
 
@@ -43,6 +44,15 @@ def model : Model WordOp where
     | .sub, .cons x (.cons y .nil) => BitVec.sub x y
     | .eq, .cons x (.cons y .nil) => ⟨BEq.beq (α := Word) x y⟩
     | .ne, .cons x (.cons y .nil) => ⟨!(BEq.beq (α := Word) x y)⟩
+    | .slt, .cons x (.cons y .nil) => ⟨decide (x.toInt < y.toInt)⟩
+
+/-- The frame stores numeric predicates as the existing RTL comparison does.
+This encoding also types the register invariant for ordered producer tables. -/
+def encodeValue : (t : PortTy) → Val model.value t → Word
+  | .value .predicate, b => ofBool b.down
+  | .value (.data _), w => w
+  | .control _, n => BitVec.ofNat 64 n.down.val
+  | .state e, _ => nomatch e
 
 def entry (x y : Word) : Tuple (Val model.value) args := .cons x (.cons y .nil)
 
@@ -62,30 +72,42 @@ def portIndex {ts : List PortTy} {t : PortTy} : Port ts t → Nat
   | .tail p => portIndex p + 1
 
 /-- Resolve typed arguments in their block context and keep producer indices. -/
-def registerWith {ports : List PortTy} {past : List (List PortTy)} {t : PortTy}
-    (argReg : {ty : PortTy} → Port ports ty → Reg) : Origin ports past t → Reg
+def registerWithResults {ports : List PortTy} {past : List (List PortTy)} {t : PortTy}
+    (argReg : {ty : PortTy} → Port ports ty → Reg) (resultReg : Nat → Reg) : Origin ports past t → Reg
   | .arg p => argReg p
-  | .output i _ => .node i.val
+  | .output i _ => resultReg i.val
+
+def registerWith {ports : List PortTy} {past : List (List PortTy)} {t : PortTy}
+    (argReg : {ty : PortTy} → Port ports ty → Reg) (wire : Origin ports past t) : Reg :=
+  registerWithResults argReg Reg.node wire
 
 def register {past : List (List PortTy)} {t : PortTy} (wire : Origin args past t) : Reg :=
   registerWith (fun p => .arg (portIndex p)) wire
 
-def emitOpWith {ports : List PortTy} {sorts : List (ValueSort Unit)} {out : ValueSort Unit}
-    {past : List (List PortTy)} (argReg : {ty : PortTy} → Port ports ty → Reg) (dest : Reg) :
+def emitOpWithResults {ports : List PortTy} {sorts : List (ValueSort Unit)} {out : ValueSort Unit}
+    {past : List (List PortTy)} (argReg : {ty : PortTy} → Port ports ty → Reg) (resultReg : Nat → Reg) (dest : Reg) :
     WordOp sorts out → Wires ports past (dataPorts sorts) → Op Reg
   | .const value, _ => .const dest value
   | .add, wires =>
-      .binary .add dest (registerWith argReg (wires.get .head))
-        (registerWith argReg (wires.get (.tail .head)))
+      .binary .add dest (registerWithResults argReg resultReg (wires.get .head))
+        (registerWithResults argReg resultReg (wires.get (.tail .head)))
   | .sub, wires =>
-      .binary .sub dest (registerWith argReg (wires.get .head))
-        (registerWith argReg (wires.get (.tail .head)))
+      .binary .sub dest (registerWithResults argReg resultReg (wires.get .head))
+        (registerWithResults argReg resultReg (wires.get (.tail .head)))
   | .eq, wires =>
-      .binary (.cmp .eq) dest (registerWith argReg (wires.get .head))
-        (registerWith argReg (wires.get (.tail .head)))
+      .binary (.cmp .eq) dest (registerWithResults argReg resultReg (wires.get .head))
+        (registerWithResults argReg resultReg (wires.get (.tail .head)))
   | .ne, wires =>
-      .binary (.cmp .ne) dest (registerWith argReg (wires.get .head))
-        (registerWith argReg (wires.get (.tail .head)))
+      .binary (.cmp .ne) dest (registerWithResults argReg resultReg (wires.get .head))
+        (registerWithResults argReg resultReg (wires.get (.tail .head)))
+  | .slt, wires =>
+      .binary (.cmp .lts) dest (registerWithResults argReg resultReg (wires.get .head))
+        (registerWithResults argReg resultReg (wires.get (.tail .head)))
+
+def emitOpWith {ports : List PortTy} {sorts : List (ValueSort Unit)} {out : ValueSort Unit}
+    {past : List (List PortTy)} (argReg : {ty : PortTy} → Port ports ty → Reg) (dest : Reg)
+    (op : WordOp sorts out) (wires : Wires ports past (dataPorts sorts)) : Op Reg :=
+  emitOpWithResults argReg Reg.node dest op wires
 
 def emitOp {sorts : List (ValueSort Unit)} {out : ValueSort Unit}
     {past : List (List PortTy)} (dest : Reg)
@@ -98,6 +120,14 @@ def emitOpsWith {ports : List PortTy} (argReg : {ty : PortTy} → Port ports ty 
   | _, _, .nil => []
   | past, _, .cons op wires rest =>
       emitOpWith argReg (.node past.length) op wires :: emitOpsWith argReg rest
+
+/-- Emit the ordered table in a separate result register range. -/
+def emitOpsWithResults {ports : List PortTy} (argReg : {ty : PortTy} → Port ports ty → Reg)
+    (resultReg : Nat → Reg) :
+    {past sigs : List (List PortTy)} → Dataflow WordOp ports past sigs → List (Op Reg)
+  | _, _, .nil => []
+  | past, _, .cons op wires rest =>
+    emitOpWithResults argReg resultReg (resultReg past.length) op wires :: emitOpsWithResults argReg resultReg rest
 
 /-- Emit each source producer once into the entry block. -/
 def emitOps {past sigs : List (List PortTy)} (flow : Dataflow WordOp args past sigs) : List (Op Reg) :=

@@ -1,10 +1,8 @@
 module
 
 public import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Cover.Defs
-import Mathlib.Data.Fintype.EquivFin
+import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.Codes.Thms
 import Mathlib.Basic.Finite.Prod
-import Mathlib.Basic.Finite.Sum
-import Mathlib.Logic.Equiv.Fin.Basic
 
 public section
 
@@ -12,28 +10,6 @@ namespace Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Stru
 
 variable {Q K S T B : Code} {L : Table Q K S B} {R : Table Q K T B}
   {s₀ : S.Value} {t₀ : T.Value}
-
-private theorem finiteValue (c : Code) : _root_.Finite c.Value := by
-  induction c with
-  | unit => exact inferInstanceAs (_root_.Finite PUnit)
-  | sum l r il ir => exact inferInstanceAs (_root_.Finite (l.Value ⊕ r.Value))
-
-private theorem encodeFin (n : Nat) : ∃ c : Code, Nonempty (c.Value ≃ Fin (n + 1)) := by
-  let unitCode : Code.Value Code.unit ≃ Fin 1 := (Equiv.equivPUnit (Fin 1)).symm
-  induction n with
-  | zero => exact ⟨.unit, ⟨unitCode⟩⟩
-  | succ _ ih =>
-      obtain ⟨c, ⟨eqv⟩⟩ := ih
-      exact ⟨.sum c .unit, ⟨(eqv.sumCongr unitCode).trans finSumFinEquiv⟩⟩
-
-private theorem encodeFinite (A : Type) [_root_.Finite A] (initial : A) :
-    ∃ c : Code, Nonempty (c.Value ≃ A) := by
-  obtain ⟨n, ⟨e⟩⟩ := _root_.Finite.exists_equiv_fin A
-  cases n with
-  | zero => exact (e initial).elim0
-  | succ n =>
-      obtain ⟨c, ⟨v⟩⟩ := encodeFin n
-      exact ⟨c, ⟨v.trans e.symm⟩⟩
 
 theorem run_eq_of_reach (obs : L.run s₀ = R.run t₀)
     {p : S.Value × T.Value} (reach : PairedReach L R s₀ t₀ p) :

@@ -1,0 +1,3 @@
+736496d91995984174884aaf77487ce2705fa69a49c9a4890fa1573f57611b20  year=%37/base.parquet
+8103cca2929eb6d237d53fc3cbdb0950e4503fae148d0a59ed9e1d84e93fc44c  year=__HIVE_DEFAULT_PARTITION__/added.parquet
+f2badc3646fab7a17b3ffb5556d88f10c2c6a6d547f6bbd83faa6299027fd4a5  year=8/damaged.parquet

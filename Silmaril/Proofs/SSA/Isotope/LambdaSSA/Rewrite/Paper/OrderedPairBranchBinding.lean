@@ -48,19 +48,23 @@ private theorem constantValues {r : Region Φ} (hr : ValueBranches [A] r [B]) :
     LSubst.ValueFamily [] [A] [B] (fun _ => r) :=
   fun _ _ h => (List.mem_singleton.mp (List.mem_of_getElem? h)).symm ▸ hr
 
-theorem normalize_compRep (r : Rep (Φ := Φ) A B) (s : Rep (Φ := Φ) B C) :
-    normalizeHom pe (Quotient.mk _ (composeRep r s)) =
-      normalizeHom pe (Quotient.mk _ r) ≫ normalizeHom pe (Quotient.mk _ s) := by
+theorem ofRegion_bind_compRep (Step : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+    (r : Rep (Φ := Φ) A B) (s : Rep (Φ := Φ) B C) :
+    ofRegion Step (composeRep r s).property.bindBranchArguments =
+      ofRegion Step r.property.bindBranchArguments ≫ ofRegion Step s.property.bindBranchArguments := by
   have post := (singletonContinuation_typed s.property).liftVars A
   have comp := r.property.bindBranchArguments.normalize_lsubst post
   rw [bindBranchArguments_liftLSubstVars] at comp
   have guarded := r.property.bindBranchArguments.lsubst
     ((constantValues s.property.bindBranchArguments).liftVars A)
-  change ofRegion Seed (composeRep r s).property.bindBranchArguments =
-    ofRegion Seed r.property.bindBranchArguments ≫ ofRegion Seed s.property.bindBranchArguments
   rw [← CategoryTheory.Functor.map_comp, Paper.TypeCategory.ofRegion_comp _ _ guarded]
-  exact (ofRegion_eq_iff Seed (composeRep r s).property.bindBranchArguments guarded).mpr
+  exact (ofRegion_eq_iff Step (composeRep r s).property.bindBranchArguments guarded).mpr
     (.paper (.cfgEta (.native comp)))
+
+theorem normalize_compRep (r : Rep (Φ := Φ) A B) (s : Rep (Φ := Φ) B C) :
+    normalizeHom pe (Quotient.mk _ (composeRep r s)) =
+      normalizeHom pe (Quotient.mk _ r) ≫ normalizeHom pe (Quotient.mk _ s) :=
+  ofRegion_bind_compRep Seed r s
 
 @[simp] theorem normalize_identity :
     normalizeHom pe (identity (Φ := Φ) pe A) = 𝟙 (G A) := by

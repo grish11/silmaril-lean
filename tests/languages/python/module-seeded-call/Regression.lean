@@ -22,7 +22,8 @@ private def assertionCase (space : Namespace) : Result :=
 private theorem caughtIntegerInequality (onReturn : AssertionArgument) :
     invoke (.helper (.assertRaises onReturn))
       [.exceptionClass .assertionError, .helper .assertEqual, .int 1, .int 2] = .ok .none := by
-  simp [invoke.eq_def, Request.decode, Expectation.deliver, Raised.classify, ExceptionClass.catches]
+  simp [invoke.eq_def, Request.decode, Expectation.deliver, Raised.classify, ExceptionClass.catches,
+    Silmaril.Languages.Python.Core.Closure.ExceptionClass.catches]
 
 -- Each seed is supplied explicitly. The stock subset includes only the class.
 example : assertionCase Namespace.empty = .error (.raised (.runtime (.nameError "___assertRaises"))) := rfl
@@ -57,10 +58,12 @@ example : run (Namespace.empty.bindGlobal "alias" (.helper .assertEqual)) emptyL
 example : invoke (.helper (.assertRaises .empty))
     [.exceptionClass .typeError, .helper .assertEqual, .int (-5), .int 8] =
       .error (.raised (.assertionError (.integerPair (-5) 8))) := by
-  simp [invoke.eq_def, Request.decode, Expectation.deliver, Raised.classify, ExceptionClass.catches]
+  simp [invoke.eq_def, Request.decode, Expectation.deliver, Raised.classify, ExceptionClass.catches,
+    Silmaril.Languages.Python.Core.Closure.ExceptionClass.catches]
 
 example : invoke (.helper (.assertRaises .empty)) [.exceptionClass .typeError, .none] = .ok .none := by
-  simp [invoke.eq_def, Request.decode, Expectation.deliver, Raised.classify, ExceptionClass.catches]
+  simp [invoke.eq_def, Request.decode, Expectation.deliver, Raised.classify, ExceptionClass.catches,
+    Silmaril.Languages.Python.Core.Closure.ExceptionClass.catches]
 
 example : invoke (.helper (.assertRaises .empty))
     [.exceptionClass .assertionError, .helper .assertEqual, .int 8, .int 8] =

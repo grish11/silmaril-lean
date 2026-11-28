@@ -28,6 +28,25 @@ structure Result (Op : Signature.{u,v} Data)
   rewrite : DeletedLoop Op inputs carried entrySigs out
   deletions : Nat
 
+/-- A step works with the current header and keeps the typed loop interface. -/
+abbrev Step (Op : Signature.{u,v} Data) (inputs carried : List (ValueSort Data))
+    (entrySigs : List (List (Ty Data))) (out : ValueSort Data) :=
+  {headerSigs : List (List (Ty Data))} →
+    Loop.Graph Op inputs carried entrySigs headerSigs out → Option (DeletedLoop Op inputs carried entrySigs out)
+
+/-- Spend fuel only on successful steps, calling the supplied step on each
+current graph with its current header signature. -/
+def runWith (advance : Step Op inputs carried entrySigs out) :
+    Nat → {headerSigs : List (List (Ty Data))} →
+      Loop.Graph Op inputs carried entrySigs headerSigs out → Result Op inputs carried entrySigs out
+  | 0, _, loop => ⟨⟨_, loop⟩, 0⟩
+  | fuel + 1, _, loop =>
+    match advance loop with
+    | none => ⟨⟨_, loop⟩, 0⟩
+    | some next =>
+      let tail := runWith advance fuel next.graph
+      { tail with deletions := tail.deletions + 1 }
+
 variable [DecidableEq (ValueSort Data)] [∀ ins out, DecidableEq (Op ins out)]
 
 /-- Allow at most the given number of successful deletions. The builder

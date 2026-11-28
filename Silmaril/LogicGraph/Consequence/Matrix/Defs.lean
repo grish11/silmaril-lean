@@ -10,6 +10,7 @@ public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp.Thms
 public import Silmaril.Logic.TypeTheory.LambdaPi.Institution.Thms
 public import Silmaril.Logic.Metamath.Text.RoundTrip
 public import Silmaril.Logic.Metamath.Verify.Thms
+public import Silmaril.ProofFormats.LeanNDJSON.MLTT.Thms
 
 /-!
 # The logic graph: a coverage matrix of the consequence systems of its logics
@@ -61,6 +62,14 @@ def coverageRows : Silmaril.Project.MatrixRows := [
   ("extensional MLTT", ``Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp.encodeJdg, [``Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp.decodeJdg_eq_some_iff, ``Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp.parseJdg_printJdg, ``Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp.legalNames_of_parseJdg, ``Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp.Examples.polyId], "concrete syntax", "proved", "S-expressions; bytes round trip exactly for the judgments whose names are legal atoms; examples and rejected inputs in ExtensionalMLTT/SExp/Examples.lean"),
   ("extensional MLTT", ``Silmaril.Consequence.Concrete.mlttInst, [``Silmaril.Consequence.Concrete.mlttToAbstract_modelExpansive, ``Silmaril.Consequence.Concrete.mlttRoom_seq_iff], "concrete institution", "proved", ""),
   ("extensional MLTT", ``Silmaril.Consequence.Concrete.mlttDerives, [``Silmaril.Consequence.Concrete.mlttDerives_ofJdg_iff, ``Silmaril.Consequence.Concrete.mlttDerives_le_entails, ``Silmaril.Consequence.Concrete.mlttDerives_closed], "concrete consequence systems", "proved", ""),
+  ("extensional MLTT", ``Silmaril.ProofFormats.LeanNDJSON.MLTT.pi,
+    [``Silmaril.ProofFormats.LeanNDJSON.MLTT.derives_iff_mltt,
+     ``Silmaril.ProofFormats.LeanNDJSON.MLTT.derives_weaken_iff],
+    "Lean NDJSON syntactic consequence", "proved",
+    "The pi API specializes to Lean.Name. At each signature its entailment agrees with \
+    extensional MLTT derivability on the translated judgment hypotheses and conclusion. \
+    Signature prefix inclusions preserve and reflect this entailment. \
+    The finite-tower interpretation is at logic.proof_formats.lean_ndjson.mltt.fixed_budget."),
   ("extensional MLTT", ``Silmaril.LogicGraph.Consequence.extensionalEntails, [], "explorer: abstract", "registered", "logic.consequence.mltt.extensional.*"),
   ("extensional MLTT", ``Silmaril.Consequence.Concrete.mlttDerives, [``Silmaril.Consequence.Concrete.mlttInst, ``Silmaril.Consequence.Concrete.mlttToAbstract, ``Silmaril.Consequence.Concrete.mlttCorridor], "explorer: concrete", "registered", "logic.consequence.concrete.mltt.institution, logic.consequence.concrete.mltt.room, logic.consequence.concrete.mltt.corridor, logic.consequence.concrete.mltt.to_abstract; systems logic.consequence.concrete.mltt.derives, logic.consequence.concrete.mltt.entails, with soundness and translations to and from the abstract systems"),
   ("intensional MLTT", ``Silmaril.Logic.TypeTheory.IntensionalMLTT.Term, [], "abstract syntax", "defined", "Martin-Löf's original rules with J"),

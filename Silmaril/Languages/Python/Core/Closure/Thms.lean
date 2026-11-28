@@ -7,6 +7,26 @@ public section
 
 namespace Silmaril.Languages.Python.Core.Closure
 
+/-- For a positive divisor, this interval uniquely specifies the floor quotient
+and the remainder, regardless of the numerator's sign. -/
+theorem intDivMod_pos {numerator divisor quotient remainder : Int} (positive : 0 < divisor) :
+    (IntDivModOp.floorDiv.eval numerator divisor = .ok quotient ∧
+      IntDivModOp.modulo.eval numerator divisor = .ok remainder) ↔
+    remainder + divisor * quotient = numerator ∧ 0 ≤ remainder ∧ remainder < divisor := by
+  simpa [IntDivModOp.eval, ne_of_gt positive] using
+    (Int.fdiv_fmod_unique (a := numerator) (q := quotient) (r := remainder) positive)
+
+/-- For a negative divisor, the remainder is zero or has the divisor's sign. -/
+theorem intDivMod_neg {numerator divisor quotient remainder : Int} (negative : divisor < 0) :
+    (IntDivModOp.floorDiv.eval numerator divisor = .ok quotient ∧
+      IntDivModOp.modulo.eval numerator divisor = .ok remainder) ↔
+    remainder + divisor * quotient = numerator ∧ divisor < remainder ∧ remainder ≤ 0 := by
+  simpa [IntDivModOp.eval, ne_of_lt negative] using
+    (Int.fdiv_fmod_unique' (a := numerator) (q := quotient) (r := remainder) negative)
+
+theorem IntDivModOp.eval_zero (op : IntDivModOp) (numerator : Int) :
+    op.eval numerator 0 = .error (.arithmetic .zeroDivisionError) := rfl
+
 theorem Heap.lookup_reserve_old (heap : Heap) (count : Nat) (identity : CellId)
     (live : identity.address < heap.next) :
     (heap.reserve count).lookup identity = heap.lookup identity :=
@@ -17,11 +37,100 @@ theorem Heap.lookup_reserve_new (heap : Heap) (count : Nat) (identity : CellId)
     (heap.reserve count).lookup identity = some none :=
   Proofs.Languages.Python.Core.Closure.lookup_reserve_new heap count identity lower upper
 
+theorem Heap.allocate_write (heap : Heap) (value : Value) :
+    (heap.reserve 1).write (heap.allocate value).1 value = some (heap.allocate value).2 := by
+  simp [Heap.allocate, Heap.write, Heap.reserve]
+  rfl
+
+theorem Heap.lookup_allocate_old (heap : Heap) (value : Value) (identity : CellId)
+    (live : identity.address < heap.next) :
+    (heap.allocate value).2.lookup identity = heap.lookup identity := by
+  simp [Heap.allocate, Heap.lookup, Heap.reserve, live, Nat.ne_of_lt live,
+    Nat.lt_trans live (Nat.lt_succ_self heap.next)]
+
+theorem Heap.lookup_allocate_new (heap : Heap) (value : Value) :
+    (heap.allocate value).2.lookup (heap.allocate value).1 = some (some value) := by
+  simp [Heap.allocate, Heap.lookup, Heap.reserve]
+
+theorem Heap.allocate_frontier (heap : Heap) (value : Value) :
+    (heap.allocate value).1.address = heap.next ∧ (heap.allocate value).2.next = heap.next + 1 :=
+  ⟨rfl, rfl⟩
+
+theorem Heap.materializeDictionary_frontier (heap : Heap) (display : List Core.Module.Dictionary.Entry) :
+    (heap.materializeDictionary display).1.address = heap.next ∧
+      (heap.materializeDictionary display).2.next = heap.next + 1 := ⟨rfl, rfl⟩
+
+theorem Heap.materializeDictionary_keeps (heap : Heap) (display : List Core.Module.Dictionary.Entry)
+    (identity : CellId) (live : identity.address < heap.next) :
+    (heap.materializeDictionary display).2.lookup identity = heap.lookup identity :=
+  Heap.lookup_allocate_old heap _ identity live
+
+theorem Heap.materializeDictionary_entries (heap : Heap) (display : List Core.Module.Dictionary.Entry) :
+    let (object, reached) := heap.materializeDictionary display
+    reached.dictionaryEntries? object = some (Core.Module.Dictionary.build display) := by
+  let data := Value.dictionaryData (Core.Module.Dictionary.build display)
+  have found : (heap.allocate data).2.lookup ⟨heap.next⟩ = some (some data) := Heap.lookup_allocate_new heap data
+  change (heap.allocate data).2.dictionaryEntries? ⟨heap.next⟩ = _
+  simp [Heap.dictionaryEntries?, found, data]
+
+theorem Heap.allocate_distinct (heap : Heap) (first second : Value) :
+    ((heap.allocate first).2.allocate second).1 ≠ (heap.allocate first).1 := by
+  simp [Heap.allocate, Heap.reserve]
+
+theorem Heap.materializeFreshTuple_empty (heap : Heap) :
+    heap.materializeFreshTuple [] = (.tuple [], heap) := rfl
+
+theorem Heap.materializeFreshTuple_nonempty (heap : Heap) (head : Core.Module.TupleDispatch.Element)
+    (tail : List Core.Module.TupleDispatch.Element) :
+    heap.materializeFreshTuple (head :: tail) =
+      (.tupleObject ⟨some heap.next, head :: tail⟩, (heap.allocate (.tuple (head :: tail))).2) := rfl
+
+theorem Heap.materializeFreshTuple_distinct (heap : Heap) (first second : Core.Module.TupleDispatch.Element)
+    (restFirst restSecond : List Core.Module.TupleDispatch.Element) :
+    let (object, reached) := heap.materializeFreshTuple (first :: restFirst)
+    object ≠ (reached.materializeFreshTuple (second :: restSecond)).1 := by
+  simp [Heap.materializeFreshTuple, Heap.allocate, Heap.reserve]
+
+theorem Heap.moduleTuple_empty (heap : Heap) (items : List GlobalTupleItem) :
+    heap.materializeModuleTuple items [] = (.tuple [], heap) ∧
+      (Value.tuple []).tupleObject? = some ⟨none, []⟩ := ⟨rfl, rfl⟩
+
+theorem Heap.moduleTuple_closed (heap : Heap) (items : List GlobalTupleItem)
+    (values : List Core.Module.TupleDispatch.Element) (closed : items.any GlobalTupleItem.isRead = false) :
+    heap.materializeModuleTuple items values = (.tuple values, heap) := by
+  cases values <;> simp [Heap.materializeModuleTuple, closed]
+
+theorem Heap.moduleTuple_closedOrigin (heap : Heap) (items : List GlobalTupleItem)
+    (head : Core.Module.TupleDispatch.Element) (tail : List Core.Module.TupleDispatch.Element) (closed : items.any GlobalTupleItem.isRead = false) :
+    heap.materializeModuleTuple items (head :: tail) true =
+      (.tupleObject (heap.saveTupleOrigin head tail).1, (heap.saveTupleOrigin head tail).2) := by
+  simp [Heap.materializeModuleTuple, closed]
+
+theorem Heap.moduleTuple_fresh (heap : Heap) (items : List GlobalTupleItem)
+    (head : Core.Module.TupleDispatch.Element) (tail : List Core.Module.TupleDispatch.Element)
+    (reads : items.any GlobalTupleItem.isRead = true) :
+    heap.materializeModuleTuple items (head :: tail) =
+      (.tupleObject ⟨some heap.next, head :: tail⟩, (heap.allocate (.tuple (head :: tail))).2) := by
+  simp [Heap.materializeModuleTuple, Heap.materializeFreshTuple, reads, Heap.allocate]
+
 theorem Heap.write_spec {heap updated : Heap} {identity : CellId} {value : Value}
     (write : heap.write identity value = some updated) :
     updated.next = heap.next ∧ updated.lookup identity = some (some value) ∧
       ∀ other, other ≠ identity → updated.lookup other = heap.lookup other :=
   Proofs.Languages.Python.Core.Closure.heap_write_spec write
+
+theorem clearDictionary_spec {heap updated : Heap} {call : Core.Module.Dictionary.Clear}
+    {globals : String → Option Core.Module.Dictionary.ReadValue} {object : Core.Module.Dictionary.Object}
+    (prepared : call.prepare globals heap.dictionaryEntries? = .ok object)
+    (cleared : clearDictionary heap globals call = .ok updated) :
+    updated.next = heap.next ∧ updated.dictionaryEntries? object = some [] ∧
+      ∀ other, other.address ≠ object.address → updated.lookup other = heap.lookup other :=
+  Proofs.Languages.Python.Core.Closure.clear_dictionary_spec prepared cleared
+
+theorem clearDictionary_prepareError {heap : Heap} {call : Core.Module.Dictionary.Clear}
+    {globals : String → Option Core.Module.Dictionary.ReadValue} {error : Core.Module.Dictionary.Failure}
+    (failed : call.prepare globals heap.dictionaryEntries? = .error error) :
+    clearDictionary heap globals call = .error error := by simp [clearDictionary, failed, bind, Except.bind]
 
 theorem Frame.fresh_owned_unbound (heap : Heap) {layout : Layout}
     (captures : Fin layout.captures → CellId) (index : Fin layout.owned) :

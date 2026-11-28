@@ -51,19 +51,24 @@ def positions (index : Nat) : {args : List Width} → Operands Γ args → Nat �
     let later := positions index rest (slot + 1)
     if ref.index == index then slot :: later else later
 
-def useSites (index cut : Nat) : {Γ : List Width} →
-    Block TargetOp (SourceLabel carried result) Γ [result] → List (Use (SourceLabel carried result))
+def useSitesAt {Labels : List Width → Type} {Result : List Width}
+    (block : BlockId Labels) (index cut : Nat) : {Γ : List Width} →
+    Block TargetOp Labels Γ Result → List (Use Labels)
   | _, .letOp _ operands rest =>
-    let later := useSites (index + 1) (cut + 1) rest
-    if (positions index operands 0).isEmpty then later else .ordinary ⟨headerId, cut⟩ :: later
+    let later := useSitesAt block (index + 1) (cut + 1) rest
+    if (positions index operands 0).isEmpty then later else .ordinary ⟨block, cut⟩ :: later
   | _, .terminator (.br edge) =>
-    (positions index edge.args 0).map (.phi headerId .jump)
+    (positions index edge.args 0).map (.phi block .jump)
   | _, .terminator (.condBr test onTrue onFalse) =>
-    let guard := if test.index == index then [.ordinary ⟨headerId, cut⟩] else []
-    guard ++ (positions index onTrue.args 0).map (.phi headerId .onTrue) ++
-      (positions index onFalse.args 0).map (.phi headerId .onFalse)
+    let guard := if test.index == index then [.ordinary ⟨block, cut⟩] else []
+    guard ++ (positions index onTrue.args 0).map (.phi block .onTrue) ++
+      (positions index onFalse.args 0).map (.phi block .onFalse)
   | _, .terminator (.ret values) =>
-    if (positions index values 0).isEmpty then [] else [.ordinary ⟨headerId, cut⟩]
+    if (positions index values 0).isEmpty then [] else [.ordinary ⟨block, cut⟩]
+
+def useSites (index cut : Nat) {Γ : List Width} :
+    Block TargetOp (SourceLabel carried result) Γ [result] → List (Use (SourceLabel carried result)) :=
+  useSitesAt headerId index cut
 
 abbrev Rename (Γ Δ : List Width) := ∀ {w}, Var Γ w → Var Δ w
 
@@ -201,6 +206,11 @@ def originSites (origins : Origins Input Γ) : {args : List Width} →
       | .inr cut => ⟨headerId, cut⟩
     site :: originSites origins rest
 
+/-- The captured variables denote the corresponding values in the entry environment. -/
+def CapturesAgree (origins : Origins Input Γ) (env : Env Γ) (input : Env Input) : Prop :=
+  ∀ {w} (ref : Var Γ w) (captured : Var Input w),
+    origins ref = .inl captured → env.get ref = input.get captured
+
 /-- Translate only directly captured operands, rejecting a read of any local result. -/
 def captureOrigins? (origins : Origins Input Γ) :
     {args : List Width} → Operands Γ args → Option (Operands Input args)
@@ -248,18 +258,35 @@ def findBinding : (index cut : Nat) → {Γ : List Width} → Origins Input Γ �
     (findBinding index (cut + 1) (afterBinding origins (cut + 1)) rest).map
       fun ⟨saved, binding⟩ => ⟨saved, binding.prepend op operands⟩
 
+/-- Apply the chooser's cut to the current entry and header code. The
+emitted profile has the canonical exit that returns its sole argument. -/
+def hoistCodeWith? (entry : Block TargetOp (SourceLabel carried result) Input [result])
+    (header : Block TargetOp (SourceLabel carried result) (carried :: Input) [result]) (index : Nat)
+    (choose : List (Point (SourceLabel carried result)) → List (Use (SourceLabel carried result)) →
+      Option (Point (SourceLabel carried result))) :
+    Option (Point (SourceLabel carried result) × Output Input carried result) := do
+  let ⟨saved, binding⟩ ← findBinding index 0 headerOrigins header
+  let cut ← choose binding.operands binding.uses
+  if cut.block.isNone && cut.cut == 0 then
+    let captured ← binding.captured?
+    let rewritten := binding.rewrite Var.there .here
+    pure (cut, ⟨saved, emitHeader entry binding.op captured rewritten⟩)
+  else none
+
+/-- Hoist on the native program's lowered entry and header. The caller
+supplies the placement check through `choose`. -/
+def hoistBindingWith? (g : Program Input carried result entrySigs headerSigs) (index : Nat)
+    (choose : List (Point (SourceLabel carried result)) → List (Use (SourceLabel carried result)) →
+      Option (Point (SourceLabel carried result))) :
+    Option (Point (SourceLabel carried result) × Output Input carried result) :=
+  hoistCodeWith? (lower g).entry ((lower g).block .header) index choose
+
 /-- Hoist the nominated binding when its exact use sites and operand origins
 lead the loop ranker to preheader cut zero and the operands are captured inputs. -/
 def pickBindingAndHoist? (g : Program Input carried result entrySigs headerSigs)
     (tree : DominatorTree (lower g)) (index : Nat) :
-    Option (Point (SourceLabel carried result) × Output Input carried result) := do
-  let ⟨saved, binding⟩ ← findBinding index 0 headerOrigins ((lower g).block .header)
-  let cut ← LoopForest.choosePlacement tree blocks binding.operands binding.uses
-  if cut.block.isNone && cut.cut == 0 then
-    let captured ← binding.captured?
-    let header := binding.rewrite Var.there .here
-    pure (cut, ⟨saved, emitHeader (lower g).entry binding.op captured header⟩)
-  else none
+    Option (Point (SourceLabel carried result) × Output Input carried result) :=
+  hoistBindingWith? g index (LoopForest.choosePlacement tree blocks)
 
 /-- At the consumer, the prerequisite is an input to the preheader's
 second binding. Other local origins retain their original definition cuts. -/

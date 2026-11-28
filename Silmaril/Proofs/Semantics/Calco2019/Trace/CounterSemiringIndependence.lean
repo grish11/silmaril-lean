@@ -106,6 +106,30 @@ theorem fails_oneBody_cycle :
     exact (iterate_apply oneBody () ()).trans singleLoop_solution
   exact (by decide : Scalar.both ≠ Scalar.overflow) (lhs.symm.trans (value.trans rhs))
 
+theorem fails_oneBody_doubling :
+    conway.iterate (oneBody ≫ coproducts.desc coproducts.inl oneBody) True.intro ≠
+      conway.iterate oneBody True.intro := by
+  let twice : Unit → Unit ⊕ Unit → Scalar := fun _ y =>
+    match y with
+    | .inl _ => .both
+    | .inr _ => 1
+  have body : (fun x y => (oneBody ≫ coproducts.desc coproducts.inl oneBody) x y) = twice := by
+    funext x y
+    cases x
+    rw [comp_apply]
+    change (∑ z : Unit ⊕ Unit,
+      oneBody () z * coproducts.desc coproducts.inl oneBody z y) = twice () y
+    rw [Fintype.sum_sum_type, Fintype.sum_unique, Fintype.sum_unique, desc_inl_apply, desc_inr_apply]
+    cases y <;> decide +revert
+  intro e
+  have value := congrArg (fun h : one ⟶ one => h () ()) e
+  change conway.iterate (oneBody ≫ coproducts.desc coproducts.inl oneBody) True.intro () () =
+    conway.iterate oneBody True.intro () () at value
+  have lhs := (iterate_apply (oneBody ≫ coproducts.desc coproducts.inl oneBody) () ()).trans
+    (congrArg (fun (g : Unit → Unit ⊕ Unit → Scalar) => networkDagger g () ()) body)
+  have rhs := (iterate_apply oneBody () ()).trans singleLoop_solution
+  exact (by decide : networkDagger twice () () ≠ .overflow) (lhs.symm.trans (value.trans rhs))
+
 theorem fails_cycle : ¬ conway.{0}.toFixpoints.BinaryCycleIdentity :=
   fun h => fails_oneBody_cycle (h oneBody True.intro True.intro)
 

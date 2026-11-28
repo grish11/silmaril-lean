@@ -18,6 +18,26 @@ universe u v w
 
 variable {Data : Type u} {Op : Diamond.Signature.{u, v} Data}
 variable {regs : List (ValueSort Data)} {out : ValueSort Data}
+
+theorem runFrom_mono {n : Nat} {source : Source Op regs out n} (m : Model.{u, v, w} Op)
+    {fuel larger : Nat} {id : Fin n} {bank : Bank (regs := regs) m} {value : sortValue m.value out}
+    (enough : fuel ≤ larger) (returned : source.runFrom m fuel id bank = some value) :
+    source.runFrom m larger id bank = some value := by
+  induction fuel generalizing larger id bank with
+  | zero => cases returned
+  | succ fuel ih =>
+    cases larger with
+    | zero => omega
+    | succ larger =>
+      simp only [Source.runFrom] at returned ⊢
+      cases edge : (source id).terminator.select m ((source id).body.eval m bank) with
+      | jump target =>
+        rw [edge] at returned
+        exact ih (Nat.le_of_succ_le_succ enough) returned
+      | ret port =>
+        rw [edge] at returned
+        exact returned
+
 variable {src : Source Op regs out} {p : Program Op regs out}
 
 theorem source_of_check (accepted : src.check = some p) : p.source = src := by

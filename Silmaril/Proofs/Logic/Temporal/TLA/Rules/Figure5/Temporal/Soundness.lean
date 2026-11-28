@@ -33,9 +33,9 @@ theorem propDerives_sound {Γ : List (Formula S)} {F : Formula S} (proof : PropD
     intro hF
     have extended := holdsWith valid hF
     exact negative extended (positive extended)
-  | reductio _ _ positive negative =>
+  | @reductio _ F _ _ _ positive negative =>
     refine Classical.byContradiction fun notF => ?_
-    have extended := holdsWith valid (show (Formula.neg _).Holds σ i from notF)
+    have extended := holdsWith valid (show (Formula.neg F).Holds σ i from notF)
     exact negative extended (positive extended)
 
 theorem stl6 (F G : Formula S) (σ : Behavior S) :

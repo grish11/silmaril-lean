@@ -15,6 +15,7 @@ open Silmaril.Isotope.LambdaSSA
 open Silmaril.Isotope.LambdaSSA.Semantics.Categorical
 open Silmaril.Isotope.LetIter.Semantics.Categorical (TypeModel InstructionModel)
 open CategoryTheory CategoryTheory.Limits
+open scoped MonoidalCategory
 
 variable {V : Type u₁} {C : Type u₂}
   [Category.{v₁} V] [Category.{v₂} C]
@@ -35,5 +36,16 @@ theorem Denotes.rename {Γ : VCtx τ} {a : Tm Φ} {A : τ} {ha : Tm.HasType Γ a
     (hp : ∀ ⦃i B⦄ (h : At Γ i B), p ≫ lookup M i h = lookup M (ρ i) (hρ h)) :
     Denotes J M (ha.rename hρ) (J.map p ≫ f) :=
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.denotes_rename J M d hρ hp
+
+omit [DistributiveFreydCategory J] [SymmetricCategory V] [DistributiveTensor V] in
+/-- Extend a lookup-preserving environment map by the identity on a fresh
+binder of the same type. -/
+theorem lookup_liftRename {Γ Δ : VCtx τ} {ρ : Nat → Nat} (hρ : Ren Γ Δ ρ)
+    {k : ctxObj M Δ ⟶ ctxObj M Γ}
+    (hk : ∀ ⦃i A⦄ (h : At Γ i A), k ≫ lookup M i h = lookup M (ρ i) (hρ h)) (B : τ) :
+    ∀ ⦃i A⦄ (h : At (B :: Γ) i A),
+      (k ▷ M.obj B) ≫ lookup M i h =
+        lookup M (Silmaril.DeBruijn.lift ρ i) ((hρ.lift B) h) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.renameLookup_lift M hρ hk B
 
 end Silmaril.Isotope.LambdaSSA.Semantics.Categorical

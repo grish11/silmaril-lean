@@ -1,5 +1,10 @@
 module
 
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.GrowthExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.IndirectExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.LoopExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.RecursiveExamples
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.TableExamples
 import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Run.Thms
 import Silmaril.Wasm.V1.Execution.Properties
 import Silmaril.Wasm.Institution.Operational.MemoryQuery.Native.Thms
@@ -29,13 +34,13 @@ private def writer (traps : Bool) : Function :=
 private def target (traps : Bool) : CallTarget := ⟨⟨0⟩, childAddr, (writer traps).declaration⟩
 private def reader (traps : Bool) : Function :=
   ⟨{ declaration [childAddr] [.int .i32] with params := [.int .i64] }, 1, [i32 2], [.ranked (.call (target traps)), .load 1]⟩
-private def program (traps : Bool) : Program := ⟨[some (writer traps), some (reader traps)]⟩
+private def program (traps : Bool) : Program := { functions := [some (writer traps), some (reader traps)] }
 
 private theorem checked (traps : Bool) : (program traps).checkV1 slot = true := by cases traps <;> rfl
 
 example : (program false).checkV1 ⟨0⟩ = false := rfl
 
-example : (Program.mk [some (writer false), some { reader false with rank := 0 }]).checkV1 slot = false :=
+example : (Program.mk [some (writer false), some { reader false with rank := 0 }] none).checkV1 slot = false :=
   rfl
 
 example : ({ writer false with initial := [Value.int .i64 1, i32 0] } : Function).checkV1 slot = false :=
@@ -264,7 +269,7 @@ private def conditional (traps : Bool) : Function :=
   ⟨{ declaration [childAddr] [.int .i32] with params := [.int .i32] }, 1, [i32 2],
     [.ranked (.numeric (.get ⟨0⟩)), .if_ none [.ranked (.call (target traps))] [], .load 1]⟩
 
-private def ifProgram (traps : Bool) : Program := ⟨[some (writer traps), some (conditional traps)]⟩
+private def ifProgram (traps : Bool) : Program := { functions := [some (writer traps), some (conditional traps)] }
 private def ifBase (traps : Bool) : Store Unit :=
   { memories := [untouched, memory], funcs := [writer traps, conditional traps].map
       (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }
@@ -298,7 +303,7 @@ example : Function.checkV1 { conditional false with
         .ranked (.numeric (.get ⟨0⟩))]
       [.ranked (.numeric (.get ⟨0⟩))]] } slot = true := rfl
 
-example : (Program.mk [some (writer false), some { conditional false with rank := 0 }]).checkV1 slot =
+example : (Program.mk [some (writer false), some { conditional false with rank := 0 }] none).checkV1 slot =
     false := rfl
 
 private def ifInput (condition : BitVec 32) : State :=
@@ -443,7 +448,7 @@ private def blockReader (traps : Bool) : Function :=
       .ranked (.numeric (.get ⟨0⟩))],
       .ranked (.numeric (.bin .i32 .sub)), .load 1]⟩
 
-private def blockProgram (traps : Bool) : Program := ⟨[some (writer traps), some (blockReader traps)]⟩
+private def blockProgram (traps : Bool) : Program := { functions := [some (writer traps), some (blockReader traps)] }
 private def blockBase (traps : Bool) : Store Unit :=
   { memories := [untouched, memory], funcs := [writer traps, blockReader traps].map
       (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }
@@ -456,7 +461,7 @@ private theorem blockLayout (traps : Bool) : Layout (blockProgram traps) (blockB
     rcases a with ⟨_ | _ | n⟩ <;> simp [Program.lookup, blockProgram] at found
     all_goals subst fn; rfl
 
-example : (Program.mk [some (writer false), some { blockReader false with rank := 0 }]).checkV1 slot =
+example : (Program.mk [some (writer false), some { blockReader false with rank := 0 }] none).checkV1 slot =
     false := rfl
 
 -- The body cannot use the enclosing address without producing its own.
@@ -616,7 +621,7 @@ private def branching (toFunction : Bool := false) : Function :=
       .ranked (.numeric (.get ⟨0⟩)), .ranked (.br ⟨0⟩ [.int .i32])],
       .ranked (.numeric (.bin .i32 .sub)), .load 1]⟩
 
-private def branchProgram (toFunction : Bool := false) : Program := ⟨[some (writer false), some (branching toFunction)]⟩
+private def branchProgram (toFunction : Bool := false) : Program := { functions := [some (writer false), some (branching toFunction)] }
 private def branchBase (toFunction : Bool := false) : Store Unit :=
   { memories := [untouched, memory], funcs := [writer false, branching toFunction].map
       (fun fn => .wasm fn.declaration.type fn.declaration.module fn.v1Func) }

@@ -110,6 +110,17 @@ theorem step_rename (model : Model F M α) (graph : CFG V K F) {rename : V → W
 
 variable [Iterate M] [LawfulElgotMonad M]
 
+omit [DecidableEq W] in
+theorem run_packetClosed_obs (model : Model F M α) (graph : CFG V K F)
+    (closed : PacketClosed graph) (input : V → α) :
+    obs <$> Cyclic.run model graph input = Cyclic.runSSA model graph input := by
+  rw [CFG.Cyclic.run, CFG.Cyclic.runSSA, CFG.Body.evalJump]
+  simp only [CFG.Body.exec_eq_evalRTL, map_bind, bind_assoc, pure_bind]
+  apply bind_congr
+  intro transfer
+  exact CFG.Cyclic.iter_obs_of_step_encoding model _ obs _
+    (step_packetClosed model graph.blocks closed input) transfer
+
 theorem run_rename (model : Model F M α) (graph : CFG V K F) {rename : V → W}
     (injective : Set.InjOn rename (support graph)) (closed : PacketClosed graph)
     (input : V → α) (store : W → α)

@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.SSA.PEG.Builder
+public import Silmaril.SSA.PEG.Reindex.Defs
 public import Silmaril.SSA.PEG.Simple.While.Defs
 
 /-! # Reversion of a canonical one-slot loop
@@ -67,69 +67,7 @@ theorem singlePort {out : Ty Data} (a b : Port [state] out) : a = b := by
     | tail p => exact nomatch p
   | tail p => exact nomatch p
 
-def portEq : {ps : List (Ty Data)} → {out : Ty Data} →
-    (a b : Port ps out) → Decidable (a = b)
-  | _, _, .head, .head => isTrue rfl
-  | _, _, .head, .tail _ => isFalse (by intro h; cases h)
-  | _, _, .tail _, .head => isFalse (by intro h; cases h)
-  | _, _, .tail a, .tail b =>
-    match portEq a b with
-    | isTrue h => isTrue (congrArg Port.tail h)
-    | isFalse h => isFalse (by intro eq; cases eq; exact h rfl)
-termination_by structural _ _ a _ => a
-
-variable [∀ ins out, DecidableEq (P ins out)]
-
-def labelEq {ins : List (Ty Data)} {out : Ty Data}
-    (a b : Label P params (Fin 1) ins out) : Decidable (a = b) := by
-  cases a <;> cases b
-  case param.param a b =>
-    letI := portEq a b
-    if h : a = b then exact isTrue (congrArg Label.param h)
-    else exact isFalse (by intro eq; cases eq; exact h rfl)
-  case op.op a b =>
-    if h : a = b then exact isTrue (h ▸ rfl) else exact isFalse (by
-      intro eq
-      cases eq
-      exact h rfl)
-  case phi.phi => exact isTrue rfl
-  case theta.theta a b => exact isTrue (congrArg Label.theta (Subsingleton.elim a b))
-  case eval.eval a b => exact isTrue (congrArg Label.eval (Subsingleton.elim a b))
-  case pass.pass a b => exact isTrue (congrArg Label.pass (Subsingleton.elim a b))
-  all_goals exact isFalse (by intro h; cases h)
-
-def rowEq [DecidableEq Data] {out : Ty Data}
-    (a b : RawNode P params 1 out) : Decidable (a = b) := by
-  obtain ⟨ins, label, args⟩ := a
-  obtain ⟨ins', label', args'⟩ := b
-  if hi : ins = ins' then
-    subst ins'
-    letI := labelEq label label'
-    if hl : label = label' then
-      if ha : args = args' then exact isTrue (by subst label'; subst args'; rfl)
-      else exact isFalse (fun h => ha (congrArg RawNode.args h))
-    else exact isFalse (by intro h; cases h; exact hl rfl)
-  else exact isFalse (fun h => hi (congrArg RawNode.inputs h))
-
-/-- Exact serialized equality for a numbered single-loop table. -/
-def tableEq [DecidableEq Data] (a b : RawGraph P params results n 1) : Decidable (a = b) := by
-  obtain ⟨⟨forest⟩, sort, node, roots⟩ := a
-  obtain ⟨⟨forest'⟩, sort', node', roots'⟩ := b
-  if hf : ∀ i, forest i = forest' i then
-    have he := funext hf
-    subst forest'
-    if hs : ∀ i, sort i = sort' i then
-      have he := funext hs
-      subst sort'
-      letI (i : Fin n) := rowEq (node i) (node' i)
-      if hn : ∀ i, node i = node' i then
-        have he := funext hn
-        subst node'
-        if hr : roots = roots' then exact isTrue (by subst roots'; rfl)
-        else exact isFalse (fun h => hr (congrArg RawGraph.roots h))
-      else exact isFalse (by intro h; cases h; exact hn fun _ => rfl)
-    else exact isFalse (by intro h; cases h; exact hs fun _ => rfl)
-  else exact isFalse (by intro h; cases h; exact hf fun _ => rfl)
+export RawGraph.Check (portEq labelEq rowEq tableEq)
 
 end Check
 

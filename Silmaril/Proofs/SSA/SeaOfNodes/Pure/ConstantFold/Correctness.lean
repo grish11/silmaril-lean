@@ -40,7 +40,7 @@ theorem push_agrees (agree : known.Agrees entry locals)
         actual).trans (sound value found)
     | tail rest => nomatch rest
 
-private theorem literalInputs_sound (agree : known.Agrees entry locals) {ports : List (Ty Unit)}
+theorem literalInputs_sound (agree : known.Agrees entry locals) {ports : List (Ty Unit)}
     (operands : Wires args past ports) {values : Tuple (Val m.value) ports}
     (found : literalInputs? known operands = some values) :
     operands.read entry locals = values := by
@@ -54,7 +54,7 @@ private theorem literalInputs_sound (agree : known.Agrees entry locals) {ports :
     change Tuple.cons (Diamond.read m wire entry locals) (Wires.read rest entry locals) = _
     rw [agree wire knownWire, ih knownRest]
 
-private theorem replacement_sound (agree : known.Agrees entry locals) {op : Op ins out}
+theorem replacement_sound (agree : known.Agrees entry locals) {op : Op ins out}
     (rule : Rule m op) (operands : Wires args past (dataPorts ins)) {literal : Op [] out}
     (found : rule.replacement? known operands = some literal) :
     m.run op (operands.read entry locals) = m.run literal .nil := by
@@ -84,6 +84,15 @@ private theorem replacement_sound (agree : known.Agrees entry locals) {op : Op i
           exact read_same _
         · exact ih _ found
   | commuteLeftLiteral opcode read_swapped fallback ih => exact ih operands found
+
+theorem record_agrees (agree : known.Agrees entry locals) {op : Op ins out}
+    (rule : Rule m op) (operands : Wires args past (dataPorts ins)) :
+    Literals.Agrees (rule.record known operands) entry
+      (locals.snoc (.cons (m.run op (operands.read entry locals)) .nil)) := by
+  apply push_agrees agree
+  intro value found
+  obtain ⟨literal, computed, rfl⟩ := Option.map_eq_some_iff.mp found
+  exact replacement_sound agree rule operands computed
 
 private theorem orderOperands_sound {op : Op ins out}
     (rule : Rule m op) (operands : Wires args past (dataPorts ins)) :

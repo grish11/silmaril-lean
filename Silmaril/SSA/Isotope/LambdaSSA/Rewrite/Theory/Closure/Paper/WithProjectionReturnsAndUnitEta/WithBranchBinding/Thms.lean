@@ -26,6 +26,12 @@ section Seed
 
 variable {Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
 
+/-- An inclusion of seed equations extends through the full typed contextual closure. -/
+theorem mapSeed {Target : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
+    (incl : ∀ {Γ r s L}, Seed Γ r s L → Target Γ r s L)
+    (h : Extension.Eqv Seed Γ r s L) : Extension.Eqv Target Γ r s L :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.JoinedBranchBinding.mapSeed incl h
+
 /-- Include any seed's contextual closure after adjoining the typed branch rule. -/
 theorem ofSeed (h : Extension.Eqv Seed Γ r s L) : Extension.Eqv (AddBinding Seed) Γ r s L :=
   Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.JoinedBranchBinding.ofSeed h
@@ -46,6 +52,15 @@ theorem eqv_normalize_of_guardedSeed
 theorem bindBranchArguments_eqv_addBinding (hr : HasType Γ r L) :
     Extension.Eqv (AddBinding Seed) Γ r r.bindBranchArguments L :=
   Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.JoinedBranchBinding.bindBranchArguments_eqv hr
+
+/-- Raw equality for a guarded seed compares exactly the branch-normalized representatives. -/
+theorem eqv_iff_normalized_of_guardedSeed
+    (guarded : ∀ {Γ r s L}, Seed Γ r s L → ValueBranches Γ r L ∧ ValueBranches Γ s L)
+    (hr : HasType Γ r L) (hs : HasType Γ s L) :
+    Extension.Eqv (AddBinding Seed) Γ r s L ↔
+      Extension.Eqv Seed Γ r.bindBranchArguments s.bindBranchArguments L :=
+  ⟨eqv_normalize_of_guardedSeed guarded, fun h => (bindBranchArguments_eqv_addBinding hr).trans
+    ((ofSeed h).trans (bindBranchArguments_eqv_addBinding hs).symm)⟩
 
 /-- Adjoining the typed branch rule to a guarded seed preserves and reflects its guarded equality. -/
 theorem guarded_eqv_iff_of_guardedSeed
@@ -82,8 +97,7 @@ theorem bindBranchArguments_eqv (hr : HasType Γ r L) : Eqv Γ r r.bindBranchArg
 /-- Opt-in equality compares exactly the normalized representatives in the old relation. -/
 theorem eqv_iff_normalized (hr : HasType Γ r L) (hs : HasType Γ s L) :
     Eqv Γ r s L ↔ JoinedEqv Γ r.bindBranchArguments s.bindBranchArguments L :=
-  ⟨eqv_normalize, fun h => (bindBranchArguments_eqv hr).trans
-    ((ofJoined h).trans (bindBranchArguments_eqv hs).symm)⟩
+  eqv_iff_normalized_of_guardedSeed joinedSeed_valueBranches hr hs
 
 /-- The branch rule identifies no additional guarded representatives. -/
 theorem guarded_eqv_iff (hr : ValueBranches Γ r L) (hs : ValueBranches Γ s L) :

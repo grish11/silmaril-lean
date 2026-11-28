@@ -49,22 +49,30 @@ structure ArmOverwrite (args : List ValueSort) where
 /-- Each Region input occurrence has its own overwrite and reader evidence. -/
 abbrev Candidate (args : List ValueSort) := Slot → ArmOverwrite args
 
+/-- Check one closed path from the common entry Store to its export. -/
+def rewriteArm (store : PrefixStore args) (arm : Memory.Graph args) (witness : ArmOverwrite args)
+    (input : Tuple (Val cells) args) : Option (Memory.Graph args) :=
+  Memory.DeadStore.rewrite (store.prepend arm) ⟨1, witness.storeVersion + 1⟩
+    ⟨store.address, witness.readers⟩ input
+
 def rewriteSlot (source : Prefixed args) (candidate : Candidate args) (input : Tuple (Val cells) args)
     (arrival : Slot) : Option (Memory.Graph args) :=
-  let witness := candidate arrival
-  let arm := source.diamond.arm (source.diamond.merge.predecessor arrival)
-  Memory.DeadStore.rewrite (source.store.prepend arm) ⟨1, witness.storeVersion + 1⟩
-    ⟨source.store.address, witness.readers⟩ input
+  rewriteArm source.store (source.diamond.arm (source.diamond.merge.predecessor arrival)) (candidate arrival) input
 
-/-- Require the checked deletion on both Region occurrences. The target
-has no entry Store and runs the selected rewritten arm and original suffix. -/
-def rewrite (source : Prefixed args) (candidate : Candidate args) (input : Tuple (Val cells) args) :
+/-- Assemble the two accepted arm tables in their original Region slots. -/
+def rewriteUsing (source : Prefixed args) (check : Slot → Option (Memory.Graph args)) :
     Option (Graph args) := do
-  let first ← rewriteSlot source candidate input .first
-  let second ← rewriteSlot source candidate input .second
+  let first ← check .first
+  let second ← check .second
   some { source.diamond with
     arm := fun edge => match source.diamond.merge.slot edge with
       | .first => first
       | .second => second }
+
+/-- Require the checked deletion on both Region occurrences. The target
+has no entry Store and runs the selected rewritten arm and original suffix. -/
+def rewrite (source : Prefixed args) (candidate : Candidate args) (input : Tuple (Val cells) args) :
+    Option (Graph args) :=
+  rewriteUsing source (rewriteSlot source candidate input)
 
 end Silmaril.SSA.SeaOfNodes.Memory.Diamond.DeadStore

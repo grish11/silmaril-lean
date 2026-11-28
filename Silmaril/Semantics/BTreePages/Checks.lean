@@ -1,6 +1,6 @@
 module
 
-import Silmaril.Semantics.BTreePages.Thms
+import Silmaril.Semantics.BTreePages.Trace.Thms
 import Mathlib.Data.Nat.Basic
 
 namespace Silmaril.Semantics.BTreePages
@@ -109,6 +109,12 @@ example (edits out) :
   apply lookup_frame_of_disjoint represented disjoint (key := 12)
   intro page outside
   exact (model.store.lookup_set_other memory [8] page .undef (fun eq => outside ⟨[], by simp [atPath], eq.symm⟩)).symm
+
+example : ((lookupTrace 6 layout sample).map Prod.fst) = [[7], [7, 0], [7, 0, 1]] := rfl
+
+example : Page.Run model (lookup 6 2 [7]) memory
+    (Page.writeEdits (lookupTrace 6 layout sample).toTrace.writes) (.returned (some "six") memory) :=
+  ((lookupTrace_spec represented 6).1).run (lookupTrace_replays represented 6)
 
 -- A separate root can observe a leaf already reachable from the multi-level root.
 example : Footprint layout sample [7, 0, 0] ∧ Footprint sharedLayout sharedTree [7, 0, 0] :=

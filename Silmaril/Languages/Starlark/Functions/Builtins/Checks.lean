@@ -20,6 +20,7 @@ deriving instance DecidableEq for Except
 private def slot (name : String) : Binding := ⟨.local, name⟩
 private def read (name : String) : Lists.Expr := .read (.bound (slot name))
 private def number (n : Int) : Lists.Value := .scalar (.int n)
+private def flag (b : Bool) : Lists.Value := .scalar (.bool b)
 private def int (n : Int) : Lists.Expr := .scalar (.int n)
 private def list (xs : List Lists.Expr) : Lists.Expr := .list (operandList xs)
 private def dict (xs : List (Lists.Expr × Lists.Expr)) : Lists.Expr :=
@@ -133,5 +134,91 @@ private def inspect (id : Builtin) (args : Arguments) : Except Error Lists.Value
   result out = .error (.builtinKeyword .len "ignored") ∧
   after.bindingValue (slot "out") = .ok (number 9) ∧
   after.heap = #[⟨.list ([1, 2, 3].map number), false⟩]
+
+#guard
+  Builtin.resolve "abs" = some .abs ∧ Builtin.resolve "any" = some .any ∧
+  Builtin.resolve "all" = some .all ∧
+  inspect .abs { positional := [int (-(10^30))] } = .ok (number (10^30)) ∧
+  inspect .abs { positional := [int 0] } = .ok (number 0) ∧
+  inspect .abs { positional := [int 7] } = .ok (number 7) ∧
+  inspect .any { positional := [list []] } = .ok (flag false) ∧
+  inspect .all { positional := [.tuple .empty] } = .ok (flag true) ∧
+  inspect .any { positional := [list [int 0, .scalar .none, list [], .string "x"]] } = .ok (flag true) ∧
+  inspect .all { positional := [.tuple (operandList [int 1, list [], int 2])] } = .ok (flag false) ∧
+  inspect .any { positional := [dict [(int 0, .scalar (.bool true))]] } = .ok (flag false) ∧
+  inspect .all { positional := [dict [(.string "x", .scalar (.bool false))]] } = .ok (flag true) ∧
+  inspect .any { star := list [list [int 0, .builtin .abs]], starStar := dict [] } = .ok (flag true)
+
+-- Calling a new builtin through a local alias uses the same first-class key.
+#guard
+  let out := run #[] (seq [set "alias" (.builtin .abs),
+    call "out" (read "alias") { positional := [int (-7)] }])
+  let after := finishState out
+  result out = .ok .next ∧ after.bindingValue (slot "out") = .ok (number 7) ∧
+    result (Lists.denote (.index (dict [(.builtin .abs, int 1), (.builtin .any, int 2)])
+      (read "alias")) after) = .ok (number 1)
+
+-- The long range reaches a decision after at most two yields and allocates nothing.
+#guard
+  let before : State := { iterators := [3] }
+  let empty : Lists.RangeValue := ⟨0, 0, 1, by decide⟩
+  let large : Lists.RangeValue := ⟨0, 10^30, 1, by decide⟩
+  let descending : Lists.RangeValue := ⟨5, 1, -2, by decide⟩
+  let runRange := fun id span => apply id { positional := [read "span"] }
+    (before.write (slot "span") (.range span))
+  let checks : List (Builtin × Lists.RangeValue × Bool) :=
+    [(.any, empty, false), (.all, empty, true), (.any, large, true), (.all, large, false),
+      (.all, descending, true)]
+  checks.all (fun (id, span, expected) =>
+    let out := runRange id span
+    let after := finishState out
+    decide (result out = .ok .next ∧ after.bindingValue (slot "out") = .ok (flag expected) ∧
+      after.heap = before.heap ∧ after.iterators = before.iterators)) = true
+
+-- Malformed resolved stores distinguish the skipped tail, first truth error and acquisition error.
+#guard
+  let before : State := { heap := #[⟨.list [number 0, .list 5, .tuple 0], true⟩,
+    ⟨.list [number 1, .list 5], false⟩, ⟨.list [number 0, .tuple 0], false⟩], iterators := [0] }
+  let runList := fun id addr => invoke id ⟨[.list addr], []⟩ before
+  let skippedFalse := runList .all 0
+  let skippedTrue := runList .any 1
+  let failed := runList .any 0
+  result skippedFalse = .ok (flag false) ∧ result skippedTrue = .ok (flag true) ∧
+    result failed = .error (.danglingAddress 5) ∧ result (runList .all 1) = .error (.danglingAddress 5) ∧
+    result (runList .any 2) = .error (.wrongCellKind 0) ∧
+    result (runList .all 9) = .error (.danglingAddress 9) ∧
+    (finishState failed).heap = before.heap ∧ (finishState failed).iterators = before.iterators
+
+#guard
+  inspect .abs {} = .error (.builtinArity .abs 1 1 0) ∧
+  inspect .any {} = .error (.builtinArity .any 1 1 0) ∧
+  inspect .all {} = .error (.builtinArity .all 1 1 0) ∧
+  inspect .abs { positional := [.scalar (.bool true)] } = .error (.builtinType .abs (flag true)) ∧
+  inspect .any { positional := [.scalar .none] } = .error (.builtinType .any (.scalar .none)) ∧
+  inspect .all { positional := [.string "x"] } = .error (.builtinType .all (.string "x"))
+
+-- Checked expression operands retain the exact reached effects and leave a failed destination alone.
+#guard
+  let before := finishState (run #[] (seq [set "events" (list []), set "out" (int 99)]))
+  let note := fun n (value : Lowering.Expr) =>
+    Lowering.Expr.branch (.atom (.append (read "events") (int n))) value value
+  let zero := Lowering.Expr.atom (int 0)
+  let someTrue := Lowering.Expr.atom (.builtin .any)
+  let every := Lowering.Expr.atom (.builtin .all)
+  let lenError := Lowering.Expr.callPos (.atom (.builtin .len)) [note 2 zero]
+  let calls : List (Lowering.Expr × Error × List Int) := [
+    (.call (note 1 someTrue) [note 2 zero, note 3 zero] [("ignored", note 4 zero)] none none,
+      .builtinKeyword .any "ignored", [1, 2, 3, 4]),
+    (.callPos every [note 1 zero, note 2 (.list [])], .builtinArity .all 1 1 2, [1, 2]),
+    (.call someTrue [] [] (some (note 1 zero)) (some (note 2 (.dict [(.atom (.string "x"), zero)]))),
+      .invalidStar, [1, 2]),
+    (.call every [note 1 zero, lenError] [("ignored", note 3 zero)] none none,
+      .builtinType .len (number 0), [1, 2])]
+  calls.all (fun (expr, error, events) =>
+    let out := run #[] (.assignExpr (slot "out") expr) before
+    let after := finishState out
+    decide (result out = .error error ∧ after.bindingValue (slot "out") = .ok (number 99) ∧
+      result (Lists.listElements 0 after) = .ok (events.map number) ∧
+      after.iterators = before.iterators)) = true
 
 end Silmaril.Languages.Starlark.Functions.Builtins

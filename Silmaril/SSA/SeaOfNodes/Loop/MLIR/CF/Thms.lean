@@ -14,12 +14,27 @@ public section
 namespace Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF
 
 open SeaOfNodes.MLIR (Word sourceInputs)
+open SeaOfNodes.MLIR.Lowering (Scope.Agrees encodeValues valueBits)
+open Diamond (Val ValueSort dataPorts)
+open RVSDG (Tuple)
 open Silmaril.MLIR.Arith (Env Width)
 open Silmaril.MLIR.CF.SwitchAssert (Outcome)
+
+/-- The CF emitter's scalar opcode map implements the source word operations. -/
+theorem opcode_eval {ins : List (ValueSort Width)} {out : ValueSort Width}
+    (op : Op ins out) (input : Tuple (Val Word) (dataPorts ins)) :
+    evalOp (opcode op) (encodeValues input) = valueBits (model.run op input) :=
+  Proofs.opcode_correct op input
 
 namespace Bank
 
 variable {Γ carried : List Width} {result : Width} {entrySigs headerSigs : List (List (Diamond.Ty Width))}
+/-- The ordinary header starts with the carried bank followed by the captures. -/
+theorem headerScope_agrees (input : Env Γ) (old : Values carried) :
+    (headerScope Γ carried).Agrees ((bankEnv old).append input)
+      (appendTuple old (sourceInputs input)) PUnit.unit :=
+  Proofs.headerScope_agrees input old
+
 variable (g : Program Γ carried result entrySigs headerSigs) (input : Env Γ)
 
 /-- Preserves every entry Φ operand in argument order. -/

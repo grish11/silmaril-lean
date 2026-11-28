@@ -54,23 +54,53 @@ def angle (A : Action S) (f : StateExpr S V) : Action S :=
 
 end Action
 
+/-- Repeat each time instant a positive finite number of times. Starting at zero
+and advancing by at most one ensures every original step has a corresponding
+step. Cofinality rules out stopping forever before a future step. -/
+structure Retiming where
+  index : Nat → Nat
+  zero : index 0 = 0
+  step (i : Nat) : index (i + 1) = index i ∨ index (i + 1) = index i + 1
+  cofinal (j : Nat) : ∃ i, j ≤ index i
+
+def Behavior.retime (σ : Behavior S) (r : Retiming) : Behavior S := fun i => σ (r.index i)
+
+/-- Two behaviors have a common expansion by repeating whole states. -/
+def StutterEquiv (σ τ : Behavior S) : Prop :=
+  ∃ r t : Retiming, σ.retime r = τ.retime t
+
+/-- A predicate gives the same answer on stuttering-equivalent behaviors. -/
+def StutterInvariant (p : Behavior S → Prop) : Prop :=
+  ∀ ⦃σ τ⦄, StutterEquiv σ τ → (p σ ↔ p τ)
+
+/-- Flexible hiding for split states. A witness has its own hidden component
+at every instant and agrees with the visible behavior up to stuttering. -/
+def hide (p : Behavior (S × V) → Prop) (σ : Behavior S) : Prop :=
+  ∃ τ, StutterEquiv σ (τ.map Prod.fst) ∧ p τ
+
 /-- Temporal syntax with denotational state predicates and actions as leaves.
 The bracket modality is primitive. A bare action is not a formula. -/
-inductive Formula (S : Type u) where
-  | state (p : StatePred S)
-  | alwaysBracket {V : Type u} (A : Action S) (f : StateExpr S V)
-  | neg (p : Formula S)
-  | conj (p q : Formula S)
-  | always (p : Formula S)
+inductive Formula : Type u → Type (u + 1) where
+  | state {S : Type u} (p : StatePred S) : Formula S
+  | alwaysBracket {S V : Type u} (A : Action S) (f : StateExpr S V) : Formula S
+  | neg {S : Type u} (p : Formula S) : Formula S
+  | conj {S : Type u} (p q : Formula S) : Formula S
+  | always {S : Type u} (p : Formula S) : Formula S
+  /-- Choose one value for the entire formula body. -/
+  | existsRigid {S V : Type u} (p : V → Formula S) : Formula S
+  /-- Extend the state at every instant, then hide the new coordinate. -/
+  | existsFlex {S V : Type u} (p : Formula (S × V)) : Formula S
 
 namespace Formula
 
-def Holds (σ : Behavior S) : Formula S → Nat → Prop
-  | .state p, n => p (σ n)
-  | .alwaysBracket A f, n => ∀ j, n ≤ j → A.bracket f (σ j) (σ (j + 1))
-  | .neg p, n => ¬ p.Holds σ n
-  | .conj p q, n => p.Holds σ n ∧ q.Holds σ n
-  | .always p, n => ∀ j, n ≤ j → p.Holds σ j
+def Holds : {S : Type u} → Behavior S → Formula S → Nat → Prop
+  | _, σ, .state p, n => p (σ n)
+  | _, σ, .alwaysBracket A f, n => ∀ j, n ≤ j → A.bracket f (σ j) (σ (j + 1))
+  | _, σ, .neg p, n => ¬ p.Holds σ n
+  | _, σ, .conj p q, n => p.Holds σ n ∧ q.Holds σ n
+  | _, σ, .always p, n => ∀ j, n ≤ j → p.Holds σ j
+  | _, σ, .existsRigid p, n => ∃ v, (p v).Holds σ n
+  | _, σ, .existsFlex p, n => hide (fun τ => p.Holds τ 0) (σ.suffix n)
 
 def Sat (p : Formula S) (σ : Behavior S) : Prop := p.Holds σ 0
 
@@ -79,6 +109,9 @@ def Entails (p q : Formula S) : Prop := ∀ σ, p.Sat σ → q.Sat σ
 def disj (p q : Formula S) : Formula S := .neg (.conj (.neg p) (.neg q))
 
 def imp (p q : Formula S) : Formula S := .neg (.conj p (.neg q))
+def forallRigid {V : Type u} (p : V → Formula S) : Formula S := .neg (.existsRigid fun v => .neg (p v))
+
+def forallFlex {V : Type u} (p : Formula (S × V)) : Formula S := .neg (.existsFlex (.neg p))
 
 def eventually (p : Formula S) : Formula S := .neg (.always (.neg p))
 
@@ -104,29 +137,5 @@ def spec {V : Type u} (init : StatePred S) (next : Action S) (f : StateExpr S V)
   .conj (.state init) (.conj (.alwaysBracket next f) live)
 
 end Formula
-
-/-- Repeat each time instant a positive finite number of times. Starting at zero
-and advancing by at most one ensures every original step has a corresponding
-step. Cofinality rules out stopping forever before a future step. -/
-structure Retiming where
-  index : Nat → Nat
-  zero : index 0 = 0
-  step (i : Nat) : index (i + 1) = index i ∨ index (i + 1) = index i + 1
-  cofinal (j : Nat) : ∃ i, j ≤ index i
-
-def Behavior.retime (σ : Behavior S) (r : Retiming) : Behavior S := fun i => σ (r.index i)
-
-/-- Two behaviors have a common expansion by repeating whole states. -/
-def StutterEquiv (σ τ : Behavior S) : Prop :=
-  ∃ r t : Retiming, σ.retime r = τ.retime t
-
-/-- A predicate gives the same answer on stuttering-equivalent behaviors. -/
-def StutterInvariant (p : Behavior S → Prop) : Prop :=
-  ∀ ⦃σ τ⦄, StutterEquiv σ τ → (p σ ↔ p τ)
-
-/-- Flexible hiding for split states. A witness has its own hidden component
-at every instant and agrees with the visible behavior up to stuttering. -/
-def hide (p : Behavior (S × V) → Prop) (σ : Behavior S) : Prop :=
-  ∃ τ, StutterEquiv σ (τ.map Prod.fst) ∧ p τ
 
 end Silmaril.Logic.Temporal.TLA

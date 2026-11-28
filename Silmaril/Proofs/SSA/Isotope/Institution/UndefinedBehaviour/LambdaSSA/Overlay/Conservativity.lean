@@ -31,17 +31,21 @@ theorem observe_native (r : UB.Typed (Φ := Φ) Γ L) (M : Model.{u,w,x} Φ Γ.l
     | fault s s' => exact ⟨s, .fault s', ho, rfl⟩
     | diverge s => exact ⟨s, .diverge, ho, rfl⟩
 
-theorem native_refines_iff (r t : UB.Typed (Φ := Φ) Γ L) :
-    Refines.{u,v,w,x} (.native r) (.native t) ↔ UB.Refines.{u,v,w,x} r t := by
-  rw [UB.refines_iff]
+theorem native_observe_subset_iff (M : Model.{u,w,x} Φ Γ.length)
+    (r t : UB.Typed (Φ := Φ) Γ L) :
+    UB.observe M r ⊆ UB.observe M t ↔ ∀ s, denote (.native r) M s ≤ denote (.native t) M s := by
   constructor
-  · intro h M o ho
+  · intro h s
+    exact WithTop.coe_le_coe.mpr (fun _ hx => h hx)
+  · intro h o ho
     rw [← observe_native r M] at ho
     rw [← observe_native t M]
     obtain ⟨s, x, hx, rfl⟩ := ho
-    exact ⟨s, x, WithTop.coe_le_coe.mp (h M s) hx, rfl⟩
-  · intro h M s
-    apply WithTop.coe_le_coe.mpr
-    exact fun _ hx => h M hx
+    exact ⟨s, x, WithTop.coe_le_coe.mp (h s) hx, rfl⟩
+
+theorem native_refines_iff (r t : UB.Typed (Φ := Φ) Γ L) :
+    Refines.{u,v,w,x} (.native r) (.native t) ↔ UB.Refines.{u,v,w,x} r t := by
+  rw [UB.refines_iff]
+  exact forall_congr' fun M => (native_observe_subset_iff M r t).symm
 
 end Silmaril.Proofs.Isotope.LambdaSSA.UB.Overlay

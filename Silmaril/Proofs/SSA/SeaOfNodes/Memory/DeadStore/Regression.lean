@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Thms
+import Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Search.Thms
 import Silmaril.SSA.SeaOfNodes.Memory.Thms
 
 namespace Silmaril.SSA.SeaOfNodes.Memory.DeadStore
@@ -72,5 +73,33 @@ example : target.denote aliasedReader initial = (1, (initial.write logCell 1).wr
 example : rewriteWith source candidate ⟨observed, []⟩ = none := rfl
 example : rewriteWith (source observed) candidate ⟨observed, [observed]⟩ = none := rfl
 example : rewriteWith source ⟨1, 2⟩ facts = none := rfl
+
+example : Search.discover source 1 facts = some candidate := rfl
+
+private theorem discovered : Search.rewrite source 1 facts input = some target := rfl
+
+example : source.Returns input initial 2 final :=
+  (Search.rewrite_returns_iff input discovered initial 2 final).mp
+    ((target.returns_iff_denote input initial 2 final).mpr (by cbv))
+
+-- The first overwrite ends the search. An observing read after that
+-- overwrite is safe and can still feed Return.
+private def twoOverwrites : Graph args :=
+  .store (.latest 0) (.arg observed) (.arg early)
+    (.store (.latest 1) (.arg observed) (.arg early)
+      (.load (.latest 2) (.arg observed)
+        (.store (.latest 2) (.arg observed) (.arg early) (.ret (.latest 3) (.output (0 : Fin 1) .head)))))
+
+example : Search.discover twoOverwrites 1 ⟨observed, []⟩ = some ⟨1, 2⟩ := rfl
+
+example : Search.discover (source observed) 1 ⟨observed, [observed]⟩ = none := rfl
+example : Search.discover source 1 ⟨observed, []⟩ = none := rfl
+example : Search.rewrite source 1 facts aliasedReader = none := rfl
+
+private def noMatchingOverwrite : Graph args :=
+  .store (.latest 0) (.arg observed) (.arg early)
+    (.store (.latest 1) (.arg logger) (.arg early) (.ret (.latest 2) (.arg early)))
+
+example : Search.discover noMatchingOverwrite 1 ⟨observed, []⟩ = none := rfl
 
 end Silmaril.SSA.SeaOfNodes.Memory.DeadStore

@@ -312,7 +312,7 @@ mutual
         throw ⟨context.path, .lambdaParameterAnnotation annotated.name⟩
       let nested ← collectExpr (outer.startChild context) body
       return outer.addChild nested
-    | .integer _ | .floatBits _ | .text _ | .boolean _ | .none_ | .ellipsis => .ok block
+    | .integer _ | .floatBits _ | .floatDecimal .. | .text _ | .boolean _ | .none_ | .ellipsis => .ok block
     | .unsupported form => .error ⟨block.context.path, .unsupportedExpression form⟩
 
   private def collectExprs (block : Collecting) : List Expr → Except Diagnostic Collecting

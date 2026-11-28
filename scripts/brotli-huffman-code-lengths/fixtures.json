@@ -1,0 +1,115 @@
+{
+  "libbrotli_commit": "028fb5a23661f123017c060daa546b55cf4bde29",
+  "fixtures": {
+    "producer-v1-entropy-brotli": {
+      "sha256": "95b5dd767881a635df970a200fed394eca154a6154297931aa189ac7b67ab056",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 0,
+          "start": 37,
+          "stop": 77,
+          "depths": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 0, 4, 4]
+        },
+        {
+          "alphabet": 704,
+          "selector": 3,
+          "start": 281,
+          "stop": 313,
+          "depths": [5, 0, 0, 0, 5, 4, 4, 4, 5, 5, 3, 0, 0, 0, 0, 0, 4, 1]
+        },
+        {
+          "alphabet": 64,
+          "selector": 3,
+          "start": 623,
+          "stop": 650,
+          "depths": [0, 0, 0, 0, 4, 3, 3, 3, 4, 0, 4, 0, 4, 0, 0, 0, 2, 3]
+        }
+      ]
+    },
+    "producer-v2-entropy-brotli": {
+      "sha256": "9a9cbc2c64924d1efc0f7b111a776de9a4655cbb3f63a2acf0d0a803685bf64c",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 1,
+          "start": 37
+        },
+        {
+          "alphabet": 704,
+          "selector": 1,
+          "start": 65
+        },
+        {
+          "alphabet": 64,
+          "selector": 1,
+          "start": 79
+        }
+      ]
+    },
+    "libbrotli-text-q4": {
+      "sha256": "ff294ead92703bc9f8387277e5a937818b313da20103db9fc0663685ac34d151",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 2,
+          "start": 37,
+          "stop": 61,
+          "depths": [4, 0, 0, 4, 4, 5, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1]
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "start": 154,
+          "stop": 178,
+          "depths": [0, 4, 0, 3, 3, 0, 4, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+        },
+        {
+          "alphabet": 64,
+          "selector": 0,
+          "start": 269,
+          "stop": 288,
+          "depths": [2, 4, 0, 4, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
+        }
+      ]
+    },
+    "libbrotli-text-q6": {
+      "sha256": "6a552bdbff1a5d0e76e4b71ab59c9121d7182142b96e0173f6be16823c2f4a11",
+      "tables": [
+        {
+          "alphabet": 256,
+          "selector": 2,
+          "start": 37,
+          "stop": 63,
+          "depths": [3, 0, 0, 5, 4, 5, 4, 3, 2, 0, 0, 0, 0, 0, 0, 0, 4, 2]
+        },
+        {
+          "alphabet": 704,
+          "selector": 0,
+          "start": 193,
+          "stop": 222,
+          "depths": [0, 5, 0, 5, 3, 0, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+        },
+        {
+          "alphabet": 64,
+          "selector": 0,
+          "start": 330,
+          "stop": 349,
+          "depths": [3, 4, 0, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
+        }
+      ]
+    },
+    "libbrotli-singleton-description": {
+      "sha256": "b89e2135aecc325ff96fd8a5ae081f7b3dfc3576e4b483cce5a41bdba25b88bf",
+      "tables": [
+        {
+          "alphabet": 8,
+          "selector": 2,
+          "start": 0,
+          "stop": 36,
+          "depths": [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        }
+      ]
+    }
+  }
+}

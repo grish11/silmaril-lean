@@ -58,3 +58,40 @@ make check CHECK_TARGETS='+Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Institution.Thms
 SILMARIL_REPLAY_MODULE=Silmaril.SSA.SeaOfNodes.Loop.MLIR.CF.Institution.Thms \
   lake env lean tools/compiler-explorer/Replay.lean
 ```
+
+## Checked physical-layout replay
+
+`Layout.run_fromTwo_run_eq` compares the emitted CFG directly with the
+original CF lowering at every block fuel. It requires a successful
+two-save `Replay.replay` of the same native loop with the nominated
+header edits, a successful `Layout.initial?` on that seed, and a
+successful `Layout.run` from position 2 on the finite suffix. Each
+suffix cut is in the current physical preheader. The loop has captured
+word inputs, one word latch and one word result. The concrete primitive
+evaluator is total, while CFG execution may diverge.
+[Layout replay](sea-of-nodes/optimization/sea-of-nodes-gcm-hoist-discovery.md#replaying-a-finite-list-of-physical-placements)
+
+`run_fromTwo_translate_observe` applies that result to a native graph
+with a typed realization into the concrete profile. The replay seed
+must come from that realized graph. `observeCfg` uses the institution's
+same partial denotation with the scheduled CFG's own typed block labels
+and saved arguments. For every input, the emitted CFG and ordinary
+translation have the same returned singleton or the same undefined
+observation. Replacing either side of a partial equation, or the CFG in
+a universal termination assertion, therefore preserves and reflects
+its truth. No termination premise is required. A single exhausted fuel
+budget establishes no divergence claim.
+[Bridge theorems](../../Silmaril/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Layout/Institution/Thms.lean)
+
+The scheduler moves total scalar lets in this profile. Its operation
+and packet types cannot express memory loads or stores, ordering
+tokens, observable calls, or trapping primitives. Effectful replay
+would need those operations and their dependencies in the schedule and
+an observation that accounts for their effects.
+
+The regression seeds two hoists and replays three physical placements.
+The generated preheader has seven lets, compared with two in the
+original lowering. With inputs `(2, 10, 1)`, the generated CFG exhausts
+fuel four and returns `9` at fuel five. With `(2, 10, 0)`, the latch
+stays at `3` and the same generated CFG is undefined.
+[Replay regression](../../Silmaril/Proofs/SSA/SeaOfNodes/GCM/LoopHoist/Corridor/Replay/Step/Layout/Institution/Regression.lean)

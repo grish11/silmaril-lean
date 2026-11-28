@@ -98,6 +98,14 @@ private theorem step_preserves {globals : List String} {head : SourceCommand} {r
     have within := (Array.getElem?_eq_some_iff.mp found).choose
     simp [Array.getElem?_push, Nat.ne_of_lt within, found]
 
+  | @emitPair name signature body rest emitted _ =>
+    obtain ⟨child, parent, step⟩ := emitted
+    change elaborateCommand ⟨⟨[], globals⟩, .global⟩ (.define name signature body) program = _ at compiled
+    rw [step program] at compiled
+    cases compiled
+    have within := (Array.getElem?_eq_some_iff.mp found).choose
+    simp [Array.getElem?_push, Nat.ne_of_lt within, Nat.ne_of_lt (Nat.lt_succ_of_lt within), found]
+
 private theorem segment_preserves {globals : List String} {commands : List SourceCommand}
     (profile : Segment globals commands) (program next : Program) (code : List Modules.Command)
     (compiled : compileSegment ⟨(parentContext globals []).reads, .global⟩ commands program = .ok (code, next))
@@ -240,6 +248,28 @@ theorem checked_single_emission (before after : List SourceCommand) (command : S
   cases step
   exact ⟨middle.size, by simp [commands, ← length],
     segment_preserves suffix _ _ later tail (by simp)⟩
+
+theorem checked_pair_emission (before after : List SourceCommand) (command : SourceCommand) (name : String)
+    (globals : List String) (linked : Program) (resolved : ResolvedModule) (child : Functions.Declaration)
+    (parent : Nat → Functions.Declaration)
+    (binders : ModuleBinders (before ++ command :: after) globals)
+    (checked : resolve (before ++ command :: after) linked = .ok resolved) (suffix : Segment globals after)
+    (emits : ∀ program, elaborateCommand ⟨⟨[], globals⟩, .global⟩ command program =
+      .ok (.exec (.define name (program.size + 1)), (program.push child).push (parent program.size))) :
+    ∃ id, resolved.source.commands[before.length]? = some (.exec (.define name (id + 1))) ∧
+      resolved.program[id]? = some child ∧ resolved.program[id + 1]? = some (parent id) := by
+  obtain ⟨earlier, later, middle, next, code, _, step, tail, commands, length⟩ :=
+    split_site _ before after command linked _ _ (checked_segment binders checked)
+  have compiled := emits middle
+  change elaborateCommand ⟨⟨[], globals⟩, .global⟩ command middle = _ at step
+  rw [compiled] at step
+  cases step
+  refine ⟨middle.size, by simp [commands, ← length], ?_, ?_⟩
+  · exact segment_preserves suffix _ _ later tail (by simp [Array.getElem?_push])
+  · apply segment_preserves suffix _ _ later tail
+    exact (by
+      rw [← Array.size_push (xs := middle) (v := child)]
+      exact Array.getElem?_push_size)
 
 theorem checked_eval_site (before after : List SourceCommand)
     (source : Functions.Lowering.Resolve.SourceExpr) (code : Functions.Lowering.Expr) (reads : List Binding)

@@ -1,6 +1,10 @@
 module
 
+public import Silmaril.SSA.RVSDG.Defs
+
 import Silmaril.SSA.RVSDG.Thms
+import Silmaril.SSA.RVSDG.NestedTheta.Isomorphism.Check.Defs
+meta import Silmaril.SSA.RVSDG.NestedTheta.Isomorphism.Check.Defs
 
 namespace Silmaril.SSA.RVSDG.Tests
 
@@ -81,5 +85,77 @@ example (origin : Origin statePorts [] valueTy) : False := by
   cases origin with
   | arg port => cases port with | tail port => cases port
   | output node _ => exact node.elim0
+
+namespace IndependentRows
+
+deriving instance DecidableEq for PortType
+
+private abbrev one : Ports Ty := [valueTy]
+private abbrev two : Ports Ty := [valueTy, valueTy]
+private abbrev selection : Ports Ty := [.control 2, valueTy]
+
+private inductive Step : Ports Ty → Ports Ty → Type where
+  | offset (amount : Nat) : Step one one
+
+private abbrev keys : NestedTheta.Equality.OpcodeCode Step where
+  Key := Nat
+  encode | .offset k => k
+  injective := by
+    intro _ _ x y same
+    cases x
+    cases y
+    cases same
+    rfl
+
+private def pair (first second : Nat) (reversed : Bool) :
+    NestedTheta.Term Step one [] [one, one] two :=
+  .bind ⟨one, .base (.simple (.offset first)), .cons (.arg .head) .nil, fun j => j.elim0⟩
+    (fun j => j.elim0)
+    (.bind ⟨one, .base (.simple (.offset second)), .cons (.arg .head) .nil, fun j => j.elim0⟩
+      (fun j => j.elim0) (.ret (if reversed then
+        .cons (.output (1 : Fin 2) .head) (.cons (.output (0 : Fin 2) .head) .nil)
+      else
+        .cons (.output (0 : Fin 2) .head) (.cons (.output (1 : Fin 2) .head) .nil))))
+
+private def chosenTerm (moved : Bool) : NestedTheta.Term Step selection [] [two] two :=
+  .bind ⟨selection, .base (.gamma 0), .cons (.arg .head) (.cons (.arg (.tail .head)) .nil),
+    fun _ => [one, one]⟩
+    (fun arm => if arm.val = 1 ∧ moved then pair 9 2 true else pair 2 9 false)
+    (.ret (.cons (.output (0 : Fin 1) .head) (.cons (.output (0 : Fin 1) (.tail .head)) .nil)))
+
+private def chosen (moved : Bool) := (chosenTerm moved).toGraph
+
+example : (pair 9 2 true).toGraph ≠ (pair 2 9 false).toGraph := by
+  intro same
+  have results := congrArg (fun g => g.results.addresses) same
+  change [Address.output 1 0, Address.output 0 0] = [Address.output 0 0, Address.output 1 0] at results
+  cases results
+
+private def swap : Nat → Nat
+  | 0 => 1
+  | 1 => 0
+  | i => i
+
+private def swapSelected : NestedTheta.Isomorphism.Mapping :=
+  fun path => if path = [(0, 1)] then ⟨swap, swap⟩ else ⟨id, id⟩
+
+private def model : Model Step where
+  value _ := Nat
+  state _ := Unit
+  run | .offset k, .cons n .nil => .cons ((show Nat from n) + k) .nil
+
+private def selectedInput : Tuple model.Val selection := .cons ⟨1⟩ (.cons (10 : Nat) .nil)
+private def expected : Tuple model.Val two := .cons (12 : Nat) (.cons (19 : Nat) .nil)
+
+example : (chosen true).run model 1 selectedInput = some expected := rfl
+example : (chosen false).run model 1 selectedInput = some expected := rfl
+
+#eval show IO Unit from do
+  unless (NestedTheta.Isomorphism.check keys swapSelected (chosen true) (chosen false)).isSome do
+    throw (IO.userError "rejected a dependency-preserving row swap in the selected child")
+  unless (NestedTheta.Isomorphism.check keys (fun _ => ⟨id, id⟩) (chosen true) (chosen false)).isNone do
+    throw (IO.userError "accepted the wrong map for independently renumbered rows")
+
+end IndependentRows
 
 end Silmaril.SSA.RVSDG.Tests

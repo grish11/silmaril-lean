@@ -135,6 +135,17 @@ theorem operands_total {globals : List String} {source : List NormalizedExpr} {r
 theorem enter_distinct (source : Modules.Source) (caller : State) : DistinctOwned (enter source caller) :=
   Proofs.Languages.Starlark.Modules.Resolve.Capture.RootCall.enter_distinct source caller
 
+/-- Function activation allocates distinct owned binding cells. -/
+theorem activation_distinct (caller : State) (declaration : Declaration)
+    (captures : List Capture) (assigned : List (Binding × Lists.Value)) :
+    DistinctOwned (activate caller declaration captures assigned) :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.RootCall.activation_distinct caller declaration captures assigned
+
+theorem write_other_cell (state : State) (binding : Binding) (value : Lists.Value) (address : Address)
+    (other : state.slots binding ≠ some (.owned address)) :
+    (state.write binding value).heap[address]? = state.heap[address]? :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.RootCall.write_other_cell state binding value address other
+
 /-- Writing a different name preserves the live closure and its binding. -/
 theorem write_keeps_live (state : State) (name destination : String) (value : Lists.Value)
     {address : Address} {id : Nat} {captures : List Capture} {frozen : Bool} {defaults : List (Binding × Lists.Value)}

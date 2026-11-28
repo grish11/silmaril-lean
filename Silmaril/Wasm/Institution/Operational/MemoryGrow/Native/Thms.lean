@@ -14,7 +14,7 @@ import Silmaril.Proofs.Wasm.Institution.Operational.MemoryGrow.Transport
 namespace Silmaril.Wasm.Institution.Operational.MemoryGrow
 
 open Execution
-open Execution.Runtime (Frame MemAddr MemInst)
+open Execution.Runtime (Frame MemAddr MemInst Value)
 
 section v1
 variable {H : Type} {host : Wasm.V1.Execution.HostSemantics H}
@@ -30,6 +30,23 @@ theorem v1_step_iff
     Wasm.V1.Execution.Step host (v1Config s f a m q) b ↔
       ∃ out, Edge m q out ∧ b = v1Config s f a m out :=
   ⟨Proofs.V1.readback lookup, fun ⟨_, edge, eq⟩ => eq.symm ▸ v1_sound lookup edge⟩
+
+/-- Failure returns all ones with the same store. Success requires alignment
+and the page limits, extends by zero-filled pages, and returns the old size. -/
+theorem v1_request_cases_iff {delta : BitVec 32} {dst : Wasm.V1.Execution.Config H}
+    (lookup : Wasm.V1.Execution.frameMemory s f = some (a, m)) :
+    Wasm.V1.Execution.Step host (v1Config s f a m (.request delta)) dst ↔
+      dst = v1Config s f a m .failed ∨
+      (SizeAllows m delta.toNat ∧ dst = v1Config s f a m
+        (.grown (m.data ++ ⟨Array.replicate (delta.toNat * Memory.pageSize) 0⟩))) :=
+  Proofs.V1.request_cases_iff lookup
+
+open Wasm.V1.Execution in
+/-- The current page count is read from the selected memory, preserving the store and frame. -/
+theorem v1_size_cases_iff {dst : Config H} (lookup : frameMemory s f = some (a, m)) :
+    Step host ⟨s, f, [.source .memorySize]⟩ dst ↔
+      dst = ⟨s, f, values [Value.int .i32 (BitVec.ofNat 32 (Memory.size m.data))]⟩ :=
+  Proofs.V1.size_cases_iff lookup
 
 theorem v1_run_iff
     (lookup : Wasm.V1.Execution.frameMemory s f = some (a, m)) {q : State} {b : Wasm.V1.Execution.Config H} :

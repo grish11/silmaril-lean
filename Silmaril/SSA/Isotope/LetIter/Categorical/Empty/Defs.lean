@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.Isotope.LetIter.Categorical.Syntactic.Thms
 public import Silmaril.SSA.Isotope.Bridge.Defs
+public import Silmaril.Raw.SSA.Isotope.Institution.InstrSig
 
 /-! # Closed reification and semantic reflection in the syntactic model -/
 
@@ -44,3 +45,13 @@ def ClosedReflection : Prop :=
     denoteInSyntax pe d = denoteInSyntax pe e → LocallyNameless.Equiv pe .nil .nil t s A
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic
+
+namespace Silmaril.Isotope.LetIter.Semantics.Categorical.AbortCounterexample
+
+/-- Two effectful primitives with a unit input and an empty result. -/
+def signature : Institution.InstrSig (Ty Empty) Bool where
+  Instr := Bool
+  hasTy := ⟨fun _ => .unit, fun _ => .empty⟩
+  hasEff := ⟨fun _ => true⟩
+
+end Silmaril.Isotope.LetIter.Semantics.Categorical.AbortCounterexample

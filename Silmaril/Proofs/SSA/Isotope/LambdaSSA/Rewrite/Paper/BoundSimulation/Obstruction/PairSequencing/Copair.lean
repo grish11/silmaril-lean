@@ -107,8 +107,10 @@ private theorem evalTerm_related (t : Tm Empty) {a b : Env}
     cases h' with
     | pair hx hy => exact ir (extend_related (extend_related h hx) hy)
     | _ => exact .none
-  | inl _ ih => exact (ih h).map _ .inl
-  | inr _ ih => exact (ih h).map _ .inr
+  | inl _ ih =>
+    simpa only [evalTermWith, Bool.and_false, Bool.false_eq_true, ite_false] using (ih h).map _ .inl
+  | inr _ ih =>
+    simpa only [evalTermWith, Bool.and_false, Bool.false_eq_true, ite_false] using (ih h).map _ .inr
   | case _ _ _ _ _ _ => exact .none
   | abort _ _ => exact .none
 

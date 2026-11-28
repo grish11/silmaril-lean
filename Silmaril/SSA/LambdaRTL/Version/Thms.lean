@@ -29,6 +29,11 @@ universe v w
 variable {V L : Type w} {F : Type v} {M : Type w → Type w} {α : Type w}
 variable [DecidableEq V] [DecidableEq L]
 
+omit [DecidableEq L] in
+/-- The ordered and set-valued free-read interfaces have the same members. -/
+theorem mem_fvList_iff (r : Region V L F) (reg : V) : reg ∈ r.fvList ↔ reg ∈ r.fv :=
+  Silmaril.Proofs.SSA.LambdaRTL.Version.mem_fvList_iff r reg
+
 theorem version_isSSA (r : Region V L F) (lenv : L → Option (List V)) (live : List V)
     (cur : V → ℕ) (d : ℕ) (Γ : Finset (V × ℕ))
     (hl : ∀ ℓ ys, lenv ℓ = some ys → ∀ y ∈ ys, y ∈ live) (hd : ∀ p ∈ Γ, p.2 ≤ d)

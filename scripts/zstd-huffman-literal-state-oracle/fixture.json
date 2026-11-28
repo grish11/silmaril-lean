@@ -1,0 +1,44 @@
+{
+  "libzstd_commit": "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+  "compression_level": 3,
+  "input_bytes": 135168,
+  "input_sha256": "36a609ca013d8a4eec845ad8ce724b05b1ec006e6f9ea9573c455651d7d953da",
+  "frame_bytes": 50883,
+  "frame_sha256": "6fb53d7c3100b6c9c30c275f3c7bb02fba4fd5ebb8dd96bcc4078ade9f24d73e",
+  "frame_header_bytes": 9,
+  "dictionary_id": 0,
+  "block_maximum": 131072,
+  "blocks": [
+    {
+      "block_index": 1,
+      "block_header_offset": 9,
+      "block_body_bytes": 49308,
+      "literal_kind": 2,
+      "size_format": 2,
+      "header_bytes": 4,
+      "section_bytes": 562,
+      "section_sha256": "6c5ddf8d078de7b85050412cfdd4a23f13bfdc39d69895a31a388eeb4b27274e",
+      "regenerated_bytes": 1833,
+      "literals_sha256": "f59a37e3e030673b5f65e23d57c18c0a836b17050e06f77aaba823002e487e3a",
+      "following_bytes": 48746,
+      "following_sha256": "3334c107f4b5fd45a9b75f525b0a388a8f2ec35f908c5b832220440cf048989f",
+      "tree_encoding": "direct"
+    },
+    {
+      "block_index": 2,
+      "block_header_offset": 49320,
+      "block_body_bytes": 1560,
+      "literal_kind": 3,
+      "size_format": 0,
+      "header_bytes": 3,
+      "section_bytes": 25,
+      "section_sha256": "a941550ce0b96dd6af7d4c81904d2037b4a8ef84272c6f27636383949457470a",
+      "regenerated_bytes": 71,
+      "literals_sha256": "2e096c3a9b91c516fe9dba7db2e1b5879b0728eea1998e5f6775085098f3c20d",
+      "following_bytes": 1535,
+      "following_sha256": "1c59f7e52d6b6df0b6c7f72c7004833bb91fa7d50ae7e7ca2d26f712109248b3"
+    }
+  ],
+  "treeless_after_reset": "ZSTD_error_dictionary_corrupted",
+  "raw_and_rle_between_pair": "second output unchanged"
+}

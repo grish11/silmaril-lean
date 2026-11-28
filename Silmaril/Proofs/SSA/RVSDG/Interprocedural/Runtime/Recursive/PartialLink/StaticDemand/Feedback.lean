@@ -20,7 +20,7 @@ theorem resultDemand_mono {pc : Nat} {low high : DemandPlan} (le : low.live ⊆ 
   fun _ live => List.contains_iff_mem.2 (le (List.contains_iff_mem.1 live))
 
 theorem applyReads_mono {context params : Ports (Ty V S)} {low high : List Address}
-    (le : low ⊆ high) (captures : Wires entry [] context) (arguments : Wires entry past params) :
+    (le : low ⊆ high) {capturePast : List (Ports (Ty V S))} (captures : Wires entry capturePast context) (arguments : Wires entry past params) :
     applyReads low captures arguments ⊆ applyReads high captures arguments := by
   intro a h
   simp only [applyReads, List.mem_append] at h ⊢
@@ -60,7 +60,7 @@ theorem plan_mono (code : Code Op entry past sigs results loops member) {low hig
       (reads_mono (.theta (Op := Instruction Op) carried) wires _ (ihRest more)
         (fun _ requested => (body.plan requested).live) (fun _ _ _ more => ihBody more))
 
-  | @familyCall _ _ _ _ table i _ captures arguments _ ih =>
+  | @callAt _ _ _ _ table i _ captures arguments _ ih =>
     exact prepend_mono (ih more)
       (applyReads_mono (table.monotone i (resultDemand_mono (ih more))) captures arguments)
 

@@ -33,6 +33,13 @@ theorem normalizeHom_injective : Function.Injective (normalizeHom (Φ := Φ) pe 
 theorem normalizeHom_surjective : Function.Surjective (normalizeHom (Φ := Φ) pe (A := A) (B := B)) :=
   Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.OrderedPairBranchBinding.normalizeHom_surjective pe
 
+/-- The literal bind-first composite commutes with normalization for any guarded quotient seed. -/
+theorem ofRegion_bind_compRep (Step : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop)
+    (r : Rep (Φ := Φ) A B) (s : Rep (Φ := Φ) B C) :
+    ofRegion Step (composeRep r s).property.bindBranchArguments =
+      ofRegion Step r.property.bindBranchArguments ≫ ofRegion Step s.property.bindBranchArguments :=
+  Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper.OrderedPairBranchBinding.ofRegion_bind_compRep Step r s
+
 theorem composeRep_respects {r r' : Rep (Φ := Φ) A B} {s s' : Rep (Φ := Φ) B C}
     (hr : (rawSetoid pe A B).r r r') (hs : (rawSetoid pe B C).r s s') :
     (rawSetoid pe A C).r (composeRep r s) (composeRep r' s') :=

@@ -84,6 +84,11 @@ def Rule.replacement? (known : Literals m args past) :
     else replacement? known fallback operands
   | _, _, _, .commuteLeftLiteral _ _ fallback, operands => replacement? known fallback operands
 
+/-- Advance the literal facts without rewriting the binding being analyzed. -/
+def Rule.record {op : Op ins out} (rule : Rule m op) (known : Literals m args past)
+    (operands : Wires args past (dataPorts ins)) : Literals m args (past ++ [[.value out]]) :=
+  known.push ((rule.replacement? known operands).map fun literal => m.run literal .nil)
+
 /-- Normalize a surviving binding's operand order. Only a certified
 commutative rule can move a known left literal past an unknown right wire. -/
 def Rule.orderOperands (known : Literals m args past) :

@@ -58,9 +58,73 @@ An admitted near miss uses the live counter as initializer. The matcher
 rejects it, and at iteration one its self-feedback row still denotes zero
 while the initializer denotes one.
 
+## Checked cyclic PEG-to-SIMPLE path
+
+`SimpleValidation.Cyclic.optimize` takes a numbered one-loop PEG with
+one designated output. The original optimizer's structural admission
+excludes eval and pass. The cyclic SIMPLE path instead infers and checks
+the single-loop demand rank with separate eval and pass phases. It uses
+the same matcher, guarded saturation, compaction, ordered root check
+and row replay for the first candidate that passes replay. The replay
+independently checks a rank on the compacted table. Failed source
+ranking, absence of a replay-checked rewrite, and rejected SIMPLE
+reversion are distinct outcomes.
+
+The compacted table must pass the graph-only single-loop region
+reverter. That checker needs one parameter-backed θ per carried slot
+and scope-closed primitive guard and update schedules. A redundant θ
+with a nullary primitive initializer can disappear while leaving that
+boundary intact. Redirecting a live use to a raw parameter outside the
+carried scope can pass replay and still fail reversion.
+
+The return theorem uses the source and target ranks and the replay
+receipt to equate the Figure 11 observations. It then uses the region
+theorem under guard and full-update totality and the negation law. The
+fixture compiles a top-level SIMPLE while and inserts a redundant θ on
+its decrement operand. The executable check discovers the rewrite and
+runs the emitted SIMPLE for three iterations, returning `2`. A
+concrete replay receipt proves that compaction restores the compiler
+table and the original PEG's defined observation is also `2`. The
+insertion is specific to the PEG-input fixture.
+[Cyclic PEG-to-SIMPLE API](../../Silmaril/SSA/Peggy/SimpleValidation/Cyclic/Thms.lean) ·
+[Fixture](../../tests/ssa/PeggySimpleValidation.lean)
+
+## Checked SIMPLE source entry point
+
+`SimpleValidation.Cyclic.Source.optimize` takes a typed top-level
+`WhileProgram`, with a loop-free body and a designated return slot.
+It uses the single-loop SIMPLE compiler, whose demand rank has a
+general proof, and checks that rank on the emitted table. It discovers
+and replays one self-feedback elimination on the actual compiler
+output. The compiler's typed guard, update, eval and pass references
+are redirected through the replay's row compaction. The region
+checker verifies the redirected boundary, target rank and schedules.
+
+A feedback slot can disappear when the source body passes that slot
+through unchanged. The reverter permits an invariant slot only when
+its current and next references equal the initial parameter for the
+same port. The emitted SIMPLE uses an identity update for that slot
+while the other slots update simultaneously. An eval that selects the
+invariant slot still observes it at the loop's first pass.
+
+Lean proves that each successful source return gives the same
+successful return in any accepted output on the same input. The proof
+uses the source compiler theorem, the checked replay and the existing
+reversion theorem. Its premises are totality of the accepted guard
+and whole update schedule, and the Boolean negation law for the
+shared opcode. Acceptance succeeds in the fixture where a changing
+counter reads an unchanged decrement slot. With no literal self
+feedback the entry point rejects at discovery. A demanded φ or
+another unsupported operand can still fail the primitive scheduler
+after successful replay. The theorem covers successful returns in this
+checked top-level fragment.
+[SIMPLE-to-SIMPLE API](../../Silmaril/SSA/Peggy/SimpleValidation/Cyclic/Source/Thms.lean) ·
+[Source regressions](../../tests/ssa/PeggySimpleValidation.lean)
+
 ```sh
-lake build --wfail +Silmaril.SSA.Peggy.Optimizer.Cyclic.Thms PEGCoreTests PEGRulesTests PeggyEggTests
-lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/PeggyEgg.lean
+lake build --wfail PEGCoreTests PEGRulesTests PeggyEggTests PeggySimpleValidationTests
 lake env leanchecker --fresh Silmaril.SSA.Peggy.Optimizer.Cyclic.Thms
 lake env leanchecker tests.ssa.PeggyEgg
+lake env leanchecker --fresh Silmaril.SSA.Peggy.SimpleValidation.Cyclic.Source.Thms
+lake env leanchecker tests.ssa.PeggySimpleValidation
 ```

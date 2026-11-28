@@ -8,7 +8,7 @@ public import Silmaril.SSA.SeaOfNodes.Memory.Forwarding.Disjoint.Defs
 
 namespace Silmaril.SSA.SeaOfNodes.Memory.DeadStore
 
-open RVSDG (Tuple)
+open RVSDG (Locals Tuple)
 open Memory.Forwarding.Disjoint (Certificate)
 
 variable {args : List ValueSort} {cells : Nat}
@@ -63,5 +63,23 @@ def rewriteWith (graph : Graph args) (candidate : Candidate) (facts : Certificat
 def rewrite (graph : Graph args) (candidate : Candidate) (facts : Certificate args)
     (input : Tuple (Val cells) args) : Option (Graph args) :=
   if facts.check input then rewriteWith graph candidate facts else none
+
+/-- Cut the table at a zero-based Load occurrence and return that Load's
+word. Stores and preceding Loads keep their original operands. -/
+def throughLoad :
+    {past : List (List ValueSort)} → {version : Nat} →
+      Body args past version → Nat → Option (Body args past version)
+  | _, _, .ret _ _, _ => none
+  | _, _, .store memory address word rest, index =>
+    (throughLoad rest index).map (.store memory address word)
+  | _, _, .load memory address _, 0 => some (.load memory address (.ret memory (.output 0 .head)))
+  | _, _, .load memory address rest, index + 1 =>
+    (throughLoad rest index).map (.load memory address)
+
+/-- Observe the selected Load using the native denotation of its prefix. -/
+def readAt {past : List (List ValueSort)} {version : Nat}
+    (body : Body args past version) (index : Nat) (input : Tuple (Val cells) args)
+    (locals : Locals (Val cells) past) (initial : Heap cells) : Option Word :=
+  (throughLoad body index).map fun selected => (selected.denote input locals initial).1
 
 end Silmaril.SSA.SeaOfNodes.Memory.DeadStore

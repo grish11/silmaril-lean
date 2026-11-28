@@ -24,15 +24,22 @@ variable {A B K M C J E D : τ}
 abbrev First (A M : τ) := Carrier A M M
 abbrev Second (M E D : τ) := Carrier M E D
 
-/-- The link decodes a returned first-loop payload to enter the second.
-It carries the first loop's token. Its guard only rejects a value that
-still represents a first-loop feedback request. -/
+/-- Loop opcodes and structural routing on a single live token. -/
 inductive Effect (Φ : Type u) [HasTy Φ τ] : Dialect.{u,u} τ PUnit where
   | loop {ins outs : Ports (OrderedRuntime.Structured.Ty τ)} : ExplicitRuntime.Effect Φ ins outs → Effect Φ ins outs
   | nested {ins outs : Ports (OrderedRuntime.Structured.Ty τ)} : NestedFeedback.Effect Φ ins outs → Effect Φ ins outs
   | enterNested {A M : τ} : Effect Φ (carried (First A M)) (carried (NestedFeedback.Carrier A M))
   | exitNested {A M : τ} : Effect Φ (carried (NestedFeedback.Carrier A M)) (carried (First A M))
+  /-- Decode a homogeneous typed choice into its tag and selected payload. -/
+  | classifyPayload {A : τ} : TwoBlock.Instruction Φ A (Silmaril.coprod A A) →
+      Effect Φ (carried A) (OrderedTheta.results A)
+  /-- Package a raw payload as an active carrier while forwarding the live token. -/
+  | enterCarrier {A E D : τ} : Effect Φ (carried A) (carried (Carrier A E D))
+  /-- Enter the consumer from either producer exit of the same payload sort. -/
   | link {A M E D : τ} : Effect Φ (carried (First A M)) (carried (Second M E D))
+  /-- Classify completed producer exits into a bypass result or a consumer entry. -/
+  | routeExit {H E M D : τ} :
+      Effect Φ (carried (Carrier H E M)) (OrderedTheta.results (Carrier M E D))
 
 abbrev Op (Φ : Type u) [HasTy Φ τ] := OrderedRuntime.Structured.Opcode (Pure τ) (Effect Φ)
 

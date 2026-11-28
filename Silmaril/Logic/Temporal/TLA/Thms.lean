@@ -29,6 +29,29 @@ theorem holds_imp (p q : Formula S) (σ : Behavior S) (n : Nat) :
     (p.imp q).Holds σ n ↔ (p.Holds σ n → q.Holds σ n) :=
   Proofs.Logic.Temporal.TLA.holds_imp p q σ n
 
+theorem holds_existsRigid (p : V → Formula S) (σ : Behavior S) (n : Nat) :
+    (Formula.existsRigid p).Holds σ n ↔ ∃ v, (p v).Holds σ n := Iff.rfl
+
+theorem holds_existsFlex (p : Formula (S × V)) (σ : Behavior S) (n : Nat) :
+    (Formula.existsFlex p).Holds σ n ↔ hide p.Sat (σ.suffix n) := Iff.rfl
+
+theorem sat_existsFlex (p : Formula (S × V)) (σ : Behavior S) :
+    (Formula.existsFlex p).Sat σ ↔ hide p.Sat σ := by
+  have h : σ.suffix 0 = σ := funext fun i => congrArg σ (Nat.zero_add i)
+  simpa only [h, Sat] using holds_existsFlex p σ 0
+
+theorem sat_forallFlex (p : Formula (S × V)) (σ : Behavior S) :
+    (p.forallFlex).Sat σ ↔ ∀ τ, StutterEquiv σ (τ.map Prod.fst) → p.Sat τ := by
+  classical
+  change ¬(Formula.existsFlex (.neg p)).Sat σ ↔ _
+  rw [sat_existsFlex]
+  simp only [hide, not_exists, not_and, Formula.Sat, Formula.Holds, Classical.not_not]
+
+theorem holds_forallRigid (p : V → Formula S) (σ : Behavior S) (n : Nat) :
+    (Formula.forallRigid p).Holds σ n ↔ ∀ v, (p v).Holds σ n := by
+  classical
+  simp only [Formula.forallRigid, Formula.Holds, not_exists, Classical.not_not]
+
 theorem holds_eventually (p : Formula S) (σ : Behavior S) (n : Nat) :
     p.eventually.Holds σ n ↔ ∃ j, n ≤ j ∧ p.Holds σ j :=
   Proofs.Logic.Temporal.TLA.holds_eventually p σ n

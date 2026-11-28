@@ -5,6 +5,7 @@ public import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Over
 public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Singleton.Coproducts.Finite.Thms
 public import Mathlib.CategoryTheory.Limits.Preserves.Shapes.BinaryProducts
 import Silmaril.Proofs.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Continuation.Values
+import Silmaril.Proofs.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Paper.Category.Representatives
 
 public section
 
@@ -33,38 +34,9 @@ private theorem denote_pure_branch (M : Shape.Model.{u,v,w,x} Φ ([] : List (Ty 
     (pure : PureValue (ops M) (extend (envOfBound M.raw.bound) a) t b) (s : M.raw.σ) :
     Shape.denote (.native (⟨.br 0 t, .br (ℓ := 0) rfl ht⟩ : UB.Typed (Φ := Φ) [A] [B])) (M.extend ha) s =
       ↑({Outcome.ret 0 b s} : Set (Outcome 1 M.raw.α M.raw.σ)) := by
-  apply WithTop.coe_inj.mpr
-  apply Set.ext
-  intro o
-  rw [mem_nativeOutcomes_iff (M := (M.extend ha).raw) _ ((envOfBound_agrees M.raw.bound).extend a) s o,
-    Set.mem_singleton_iff]
-  cases o with
-  | ret i c finish =>
-    have hi := Fin.eq_zero i
-    subst i
-    constructor
-    · intro run
-      cases run with
-      | br arg =>
-        obtain ⟨rfl, rfl⟩ := pure.unique arg
-        rfl
-    · intro eq
-      obtain ⟨_, rfl, rfl⟩ := Outcome.ret.inj eq
-      exact .br (pure.eval _)
-  | fault t =>
-    constructor
-    · intro run
-      cases run with | br arg => exact (pure.noFault arg).elim
-    · intro eq
-      cases eq
-  | diverge =>
-    constructor
-    · intro run
-      cases (show Semantics.External.Diverges M.raw.instr M.raw.prim _ from run).unfold with
-      | core step => cases step
-      | br arg => exact (pure.noDiv arg).elim
-    · intro eq
-      cases eq
+  exact congrArg WithTop.some
+    (Proofs.Isotope.LambdaSSA.UB.Overlay.Shape.Paper.Category.branch_outcomes
+      (M.extend ha).raw ((envOfBound_agrees M.raw.bound).extend a) ht pure s)
 
 theorem map_sumInl (M : Shape.Model.{u,v,w,x} Φ ([] : List (Ty κ))) (A B : Ty κ) :
     (singletonInterpretation M).map (sumCofan (Φ := Φ) A B).inl = sumInl A B := by

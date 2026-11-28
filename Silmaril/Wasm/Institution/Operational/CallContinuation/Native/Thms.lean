@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Institution.Operational.CallContinuation.Thms
 public import Silmaril.Wasm.Institution.Operational.CallFrame.Native.Thms
 import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.V1
 import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.Lime1
+import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.Lime1Head
 import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.Core
 import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.Rules
 import Silmaril.Proofs.Wasm.Institution.Operational.CallContinuation.Transport
@@ -96,6 +97,40 @@ theorem lime_invoke_strip_suffix {H : Type} {s : Store H} {f : Frame} {a : FuncA
     ∃ mid, Step CallFrame.limeNoHost ⟨s, f, values stack ++ [.invoke a]⟩ mid ∧
       dst = ⟨mid.store, mid.frame, mid.code ++ rest⟩ :=
   Proofs.Lime1.invoke_strip_suffix step
+
+open Wasm.Lime1.Execution in
+theorem lime_intLoad_strip {H : Type} {s : Store H} {f : Frame} {arg : V1.MemArg}
+    {ptr : BitVec 32} {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Step CallFrame.limeNoHost ⟨s, f, values (saved ++ [Value.int .i32 ptr]) ++ .source (.intLoad .i32 none arg) :: tail⟩ dst) :
+    ∃ mid, Step CallFrame.limeNoHost ⟨s, f, [value (Value.int .i32 ptr), .source (.intLoad .i32 none arg)]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ :=
+  Proofs.Lime1.intLoad_strip move
+
+open Wasm.Lime1.Execution in
+theorem lime_intStore_strip {H : Type} {s : Store H} {f : Frame} {arg : V1.MemArg}
+    {ptr word : BitVec 32} {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Step CallFrame.limeNoHost ⟨s, f, values (saved ++ [Value.int .i32 ptr, Value.int .i32 word]) ++
+      .source (.intStore .i32 none arg) :: tail⟩ dst) :
+    ∃ mid, Step CallFrame.limeNoHost ⟨s, f, [value (Value.int .i32 ptr), value (Value.int .i32 word),
+      .source (.intStore .i32 none arg)]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ :=
+  Proofs.Lime1.intStore_strip move
+
+open Wasm.Lime1.Execution in
+theorem lime_memoryGrow_strip {H : Type} {s : Store H} {f : Frame}
+    {delta : BitVec 32} {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Step CallFrame.limeNoHost ⟨s, f, values (saved ++ [Value.int .i32 delta]) ++ .source .memoryGrow :: tail⟩ dst) :
+    ∃ mid, Step CallFrame.limeNoHost ⟨s, f, [value (Value.int .i32 delta), .source .memoryGrow]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ :=
+  Proofs.Lime1.memoryGrow_strip move
+
+open Wasm.Lime1.Execution in
+theorem lime_memorySize_strip {H : Type} {s : Store H} {f : Frame}
+    {saved : List Value} {tail : List Admin} {dst : Config H}
+    (move : Step CallFrame.limeNoHost ⟨s, f, values saved ++ .source .memorySize :: tail⟩ dst) :
+    ∃ mid, Step CallFrame.limeNoHost ⟨s, f, [.source .memorySize]⟩ mid ∧
+      dst = ⟨mid.store, mid.frame, values saved ++ mid.code ++ tail⟩ :=
+  Proofs.Lime1.memorySize_strip move
 
 open Wasm.Lime1.Execution in
 theorem lime_frame_context_inv {H : Type} {s : Store H} {f inside : Frame} {n : Nat}

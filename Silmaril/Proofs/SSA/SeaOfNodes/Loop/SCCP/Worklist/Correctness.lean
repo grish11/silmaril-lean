@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.Defs
+import Silmaril.SSA.SeaOfNodes.Loop.SCCP.Worklist.FIFO.Thms
 import Silmaril.Proofs.SSA.SeaOfNodes.Loop.SCCP.Worklist.Equations
 import Silmaril.Proofs.SSA.SeaOfNodes.Loop.SCCP.Worklist.Queue
 
@@ -42,54 +43,17 @@ private theorem stable_step (job : Task) (state : State m.value carried out) (pe
     have old := stable reader (by simp [current, tailAbsent])
     exact rhs.trans (old.trans (get_update_other job reader state current).symm)
 
-private theorem ascending_step (job : Task) (state : State m.value carried out)
-    (ascending : state ≤ SCCP.transfer m g input state) :
-    update m g input job state ≤ SCCP.transfer m g input (update m g input job state) :=
-  (update_le job ascending le_rfl).trans (transfer_mono m g input (le_update job state ascending))
-
 theorem step_decreases (job : Task) (state : State m.value carried out) (pending : List Task)
     (ascending : state ≤ SCCP.transfer m g input state) :
     potential (step m g input job state pending).1 (step m g input job state pending).2 <
       potential state (job :: pending) := by
-  let new := update m g input job state
-  change potential new (wake state new pending) < potential state (job :: pending)
-  by_cases equal : new = state
-  · rw [equal, wake_same]
-    simp [potential]
-  · let ranks := height m.value carried out
-    have grown : state < new := lt_of_le_of_ne (le_update job state ascending) (fun h => equal h.symm)
-    have strict := ranks.rank_strict grown
-    have bound := ranks.rank_le new
-    have size := wake_length state new pending
-    change (ranks.bound - ranks.rank new) * 4 + (wake state new pending).length <
-      (ranks.bound - ranks.rank state) * 4 + (pending.length + 1)
-    omega
+  apply FIFO.potential_decreases _ _ (le_update job state ascending) (wake_length _ _ _)
+  intro equal
+  rw [show update m g input job state = state from equal, wake_same]
 
 theorem step_nodup (job : Task) (state : State m.value carried out) {pending : List Task}
     (nodup : pending.Nodup) : (step m g input job state pending).2.Nodup :=
   wake_nodup state (update m g input job state) nodup
-
-private theorem runSteps_checked (fuel : Nat) (state upper : State m.value carried out) (pending : List Task)
-    (fixed : SCCP.transfer m g input upper = upper) (ascending : state ≤ SCCP.transfer m g input state)
-    (below : state ≤ upper) (stable : Stable (g := g) (input := input) state pending)
-    (budget : potential state pending ≤ fuel) :
-    let result := runSteps m g input fuel state pending
-    result.pending = [] ∧ result.state ≤ upper ∧ Stable (g := g) (input := input) result.state result.pending := by
-  induction fuel generalizing state pending with
-  | zero =>
-    cases pending with
-    | nil => exact ⟨rfl, below, stable⟩
-    | cons job rest =>
-      simp only [potential, List.length_cons] at budget
-      omega
-  | succ fuel ih =>
-    cases pending with
-    | nil => exact ⟨rfl, below, stable⟩
-    | cons job rest =>
-      have nextBudget := Nat.lt_succ_iff.mp ((step_decreases job state rest ascending).trans_le budget)
-      have rhsBelow := (transfer_mono m g input below).trans fixed.le
-      exact ih _ _ (ascending_step job state ascending) (update_le job below rhsBelow)
-        (stable_step job state rest stable) nextBudget
 
 private theorem initial_stable : Stable (g := g) (input := input) ⊥ initial := by
   intro job absent
@@ -104,7 +68,10 @@ theorem run_spec : (run m g input).pending = [] ∧ solve m g input = SCCP.solve
   let result := run m g input
   have final : result.pending = [] ∧ result.state ≤ SCCP.solve m g input ∧
       Stable (g := g) (input := input) result.state result.pending :=
-    runSteps_checked _ _ _ _ (solve_fixed m g input) bot_le bot_le initial_stable le_rfl
+    FIFO.runSteps_checked (transfer_mono m g input) (fun job state _ => le_update job state)
+      (fun job _ _ _ => update_le job) stable_step step_decreases
+      (fun _ _ _ => Nat.zero_lt_succ _) _ _ _ _
+      (solve_fixed m g input) bot_le bot_le initial_stable le_rfl
   have stable := final.2.2
   rw [final.1] at stable
   have fixed : SCCP.transfer m g input result.state = result.state :=

@@ -47,6 +47,56 @@ theorem checked_definition_site {before after : List Command} {definition : Defi
   Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.checked_definition_site
     declared checked admitted segment
 
+/-- Positional preparation respects the active declaration set at a
+checked nested call site. -/
+theorem checked_prepare_positional {commands : List Command} {linked : Program} {resolved : ResolvedModule}
+    (checked : resolve commands linked = .ok resolved) (id : Nat) (available : List DeclarationId)
+    (permitted : id ∈ available) (parameters : Parameters)
+    (declaration : Declaration) (codes : List Lowering.Expr)
+    (found : resolved.program[id]? = some declaration)
+    (signature : declaration.signature = parameters.signature codes)
+    (codeLength : codes.length = parameters.optional.length)
+    (state : State) (address : Nat) (frozen : Bool)
+    (captures : List Lists.Capture)
+    (defaults actuals : List Value)
+    (valueLength : defaults.length = parameters.optional.length)
+    (cell : state.heap[address]? = some ⟨.function ⟨id, captures,
+      (parameters.optional.map (fileSlot ∘ Prod.fst)).zip defaults⟩, frozen⟩)
+    {result : Except Lists.Error (List (Binding × Value))}
+    (binding : Binds (parameters.slots defaults) actuals result) :
+    prepareExpanded resolved.program available ⟨actuals, []⟩ (.function address) state =
+      match result with
+      | .error error => .error error state
+      | .ok assigned => .ok (.closure ⟨id, permitted, declaration.body⟩)
+        (activate state declaration captures assigned) :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.checked_prepare_positional
+    checked id available permitted parameters declaration codes found signature codeLength state
+    address frozen captures defaults actuals valueLength cell binding
+
+/-- Checked positional preparation applies to any emitted declaration
+with this plain signature and its recorded capture vector and defaults. -/
+theorem checked_prepare_signature {commands : List Command} {linked : Program} {resolved : ResolvedModule}
+    (checked : resolve commands linked = .ok resolved) (id : Nat) (parameters : Parameters)
+    (declaration : Declaration) (codes : List Lowering.Expr)
+    (found : resolved.program[id]? = some declaration)
+    (signature : declaration.signature = parameters.signature codes)
+    (codeLength : codes.length = parameters.optional.length)
+    (state : State) (address : Nat) (frozen : Bool) (captures : List Lists.Capture)
+    (defaults actuals : List Value) (valueLength : defaults.length = parameters.optional.length)
+    (cell : state.heap[address]? = some ⟨.function ⟨id, captures,
+      (parameters.optional.map (fileSlot ∘ Prod.fst)).zip defaults⟩, frozen⟩)
+    {result : Except Lists.Error (List (Binding × Value))}
+    (binding : Binds (parameters.slots defaults) actuals result) :
+    let available := List.range resolved.program.size
+    ∃ permitted : id ∈ available,
+      prepareExpanded resolved.program available ⟨actuals, []⟩ (.function address) state =
+        match result with
+        | .error error => .error error state
+        | .ok assigned => .ok (.closure ⟨id, permitted, declaration.body⟩)
+          (activate state declaration captures assigned) :=
+  Proofs.Languages.Starlark.Modules.Resolve.Capture.Trace.Defaults.checked_prepare_signature checked id
+    parameters declaration codes found signature codeLength state address frozen captures defaults actuals valueLength cell binding
+
 /-- A later call reads the saved values from the actual function cell.
 Preparing the call agrees with the independent positional binder on an
 exact activation or an error with its unchanged state. -/

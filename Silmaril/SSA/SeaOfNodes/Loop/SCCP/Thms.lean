@@ -15,7 +15,7 @@ import Silmaril.Proofs.SSA.SeaOfNodes.Loop.SCCP.Soundness
 namespace Silmaril.SSA.SeaOfNodes.Loop.SCCP
 
 open Diamond (Model Signature Ty Val ValueSort dataPorts sortValue)
-open Diamond.SCCP (Fact TupleCovers tupleFacts)
+open Diamond.SCCP (Fact TupleCovers TupleLE tupleFacts)
 open RVSDG (Tuple)
 open Semantics.Dataflow (Flat)
 open Semantics.Dataflow.FiniteHeight (HeightBound)
@@ -42,6 +42,24 @@ theorem phiFacts_le_iff {value : Data → Type w} {ports : List (Ty Data)} [Bank
 theorem bankTuple_tupleFacts {value : Data → Type w} {ports : List (Ty Data)}
     (facts : Tuple (Fact value) ports) : bankTuple (tupleFacts facts) = facts :=
   Proofs.bankTuple_tupleFacts facts
+
+theorem tupleFacts_mono {value : Data → Type w} {ports : List (Ty Data)}
+    {lhs rhs : Tuple (Fact value) ports} (le : TupleLE lhs rhs) : tupleFacts lhs ≤ tupleFacts rhs :=
+  Proofs.tupleFacts_mono le
+
+theorem bankTuple_mono {value : Data → Type w} {ports : List (Ty Data)}
+    {lhs rhs : BankFacts value ports} (le : lhs ≤ rhs) : TupleLE (bankTuple lhs) (bankTuple rhs) :=
+  Proofs.bankTuple_mono le
+
+theorem bankCovers_of_tuple {value : Data → Type w} {ports : List (Ty Data)}
+    {facts : Tuple (Fact value) ports} {concrete : Tuple (Val value) ports}
+    (covered : TupleCovers facts concrete) : BankCovers (tupleFacts facts) concrete :=
+  Proofs.bankCovers_of_tuple covered
+
+theorem bankCovers_mono {value : Data → Type w} {ports : List (Ty Data)}
+    {lhs rhs : BankFacts value ports} {concrete : Tuple (Val value) ports}
+    (le : lhs ≤ rhs) (covered : BankCovers lhs concrete) : BankCovers rhs concrete :=
+  Proofs.bankCovers_mono le covered
 
 /-- The abstract guard covers the native guard read on the same old bank. -/
 theorem headerGuard_cover {m : Model.{u, v, w} Op}

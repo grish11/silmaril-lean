@@ -52,6 +52,10 @@ abbrev Table (Q K S B : Code) := Machine carriers (Opcode.ask : Opcode Q K) S.Va
 def stateMap {Φ : Type} (S T : Code) (h : S.Value → T.Value) : Expr Φ :=
   S.dispatch (fun s => T.literal (h s)) (.var 0)
 
+/-- Map the repeat state in a source control result, leaving returns intact. -/
+def mapControl {Φ : Type} (_B : Code) {S T : Code} (h : S.Value → T.Value) : Expr Φ :=
+  .case (.var 0) (.inl (.var 0)) (.inr (stateMap S T h))
+
 variable {Q K S B : Code}
 
 def Table.row (M : Table Q K S B) (s : S.Value) : Expr (Opcode Q K) :=

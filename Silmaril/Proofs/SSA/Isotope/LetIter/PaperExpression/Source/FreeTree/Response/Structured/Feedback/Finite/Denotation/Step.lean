@@ -15,10 +15,11 @@ open Silmaril.Isotope.LetIter.PaperExpression.Source
 
 namespace Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite.DenotationProofs
 
-variable {Q K S B : Code} {ε : Type} [HasEff (Opcode Q K) ε] [SemilatticeSup ε] [OrderBot ε]
-  [EffectIteration ε] {e : ε}
+section ConstructorSemantics
 
-local notation "Ops" => Opcode Q K
+variable {Ops : Type} [HasTy Ops (Ty Unit)] {ε : Type} [HasEff Ops ε]
+  [SemilatticeSup ε] [OrderBot ε] {e : ε}
+
 local notation "Free" => (Ctx.nil : Ctx Empty (Ty Unit))
 local notation "Den" => Ty.denote (Lifted carriers)
 local notation "Events" => Event (Φ := Ops) carriers
@@ -33,6 +34,7 @@ private def shape : (c : Code) → c.Value → ReplyShape (Fin.elim0 : Fin 0 →
   | .sum l _, .inl v => .inl (shape l v)
   | .sum _ r, .inr v => .inr (shape r v)
 
+omit [HasTy Ops (Ty Unit)] in
 private theorem shape_source (c : Code) (v : c.Value) {n : Nat} (p : Fin 0 → Fin n) :
     (shape c v).source (Φ := Ops) p = c.literal v := by
   induction c with
@@ -51,7 +53,6 @@ private theorem shape_value (c : Code) (v : c.Value) (values : (i : Fin 0) → D
       | inl x => exact congrArg Sum.inl (il x)
       | inr x => exact congrArg Sum.inr (ir x)
 
-omit [EffectIteration ε] in
 /-- Every closed table literal has the indicated constructor value in any
 ambient bound environment. -/
 theorem literal_denote (P : PureMaps (Φ := Ops) (ε := ε) carriers) (c : Code) (v : c.Value)
@@ -63,14 +64,15 @@ theorem literal_denote (P : PureMaps (Φ := Ops) (ε := ε) carriers) (c : Code)
   let typed : ∀ i, β.get (p i) = .base ((Fin.elim0 : Fin 0 → Unit) i) := fun i => i.elim0
   let vals : (i : Fin 0) → Lifted carriers ((Fin.elim0 : Fin 0 → Unit) i) := fun i => i.elim0
   refine ⟨sh.native p, sh.derivation p typed, ?_, ?_⟩
-  · rw [← shape_source (Q := Q) (K := K) c v p]
+  · rw [← shape_source (Ops := Ops) c v p]
     exact sh.lowers p
   · have h := sh.denote_derivation p (Lifted carriers) (instructions carriers P) typed ρ vals
         (fun i => i.elim0)
     rw [shape_value] at h
     exact h
 
-private theorem specialize_denote (P : PureMaps (Φ := Ops) (ε := ε) carriers)
+variable [EffectIteration ε] in
+theorem specialize_denote (P : PureMaps (Φ := Ops) (ε := ε) carriers)
     {c : Code} (v : c.Value) {a rhs : Expr Ops} {A : Ty Unit}
     {t : Tm Empty Ops 1} {r : Tm Empty Ops 0}
     (d : Derivation Ops Free (.snoc .nil c.ty) t A) (dr : Derivation Ops Free .nil r A)
@@ -90,6 +92,21 @@ private theorem specialize_denote (P : PureMaps (Φ := Ops) (ε := ε) carriers)
     rw [Fin.eq_zero i]
     exact hValue
   exact (Derivation.denote_bsubst Den (instructions carriers P) γ d ds _ ρ₀ values).symm.trans soundEq
+
+end ConstructorSemantics
+
+variable {Q K S B : Code} {ε : Type} [HasEff (Opcode Q K) ε] [SemilatticeSup ε] [OrderBot ε]
+  [EffectIteration ε] {e : ε}
+
+local notation "Ops" => Opcode Q K
+local notation "Free" => (Ctx.nil : Ctx Empty (Ty Unit))
+local notation "Den" => Ty.denote (Lifted carriers)
+local notation "Events" => Event (Φ := Ops) carriers
+local notation "γ" => (fun x : Empty => x.elim)
+local notation "ρ₀" => (fun i : Fin 0 => i.elim0)
+
+set_option backward.isDefEq.respectTransparency false
+set_option backward.isDefEq.respectTransparency.types false
 
 private abbrev responseBody (M : Table Q K S B) (s : S.Value) : Expr Ops :=
   K.dispatch (fun r => (Code.sum B S).literal (M.reply s r)) (.var 0)

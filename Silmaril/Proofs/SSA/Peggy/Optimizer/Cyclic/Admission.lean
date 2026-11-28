@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Peggy.Optimizer.Cyclic.Defs
+import Silmaril.SSA.Peggy.EPEG.Selection.Legality.Thms
 
 public section
 
@@ -42,12 +43,7 @@ theorem wellFormed (admitted : Admission g) : g.WellFormed := by
     | cons step _ =>
       have bad := admitted.noParent.symm.trans step
       cases bad
-  · intro a ks walk nonempty
-    by_contra absent
-    apply Nat.lt_irrefl (admitted.phase a)
-    apply walk.strictRank nonempty admitted.phase
-    rintro x y k ⟨slot, rfl, rfl⟩ mem
-    exact admitted.nonfeedback x slot (fun feedback => absent ⟨_, mem, feedback⟩)
+  · exact admitted.feedback.feedbackCycles
   · intro a b ks start target walk sourceLoop targetLoop
     have eq : target = start := Subsingleton.elim _ _
     subst target

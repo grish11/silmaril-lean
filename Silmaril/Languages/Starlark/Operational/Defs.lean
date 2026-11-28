@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Languages.Starlark.Defs
+public import Silmaril.Languages.Starlark.Comparison.Operational.Defs
 
 public section
 
@@ -16,7 +16,11 @@ inductive Eval (frame : Frame) : ResolvedExpr → Result Value → Prop where
       Eval frame arg (.error error) → Eval frame (.unary op arg) (.error error)
   | binary {op : BinaryOp} {left right : ResolvedExpr} {a b : Value} :
       Eval frame left (.ok a) → Eval frame right (.ok b) →
+      op.isComparison = false →
       Eval frame (.binary op left right) (applyBinary op a b)
+  | comparison {op : BinaryOp} {left right : ResolvedExpr} {a b : Value} {out : Result Value} :
+      Eval frame left (.ok a) → Eval frame right (.ok b) → Compares op a b out →
+      Eval frame (.binary op left right) out
   | binaryLeftError {op : BinaryOp} {left right : ResolvedExpr} {error : RuntimeError} :
       Eval frame left (.error error) → Eval frame (.binary op left right) (.error error)
   | binaryRightError {op : BinaryOp} {left right : ResolvedExpr} {a : Value} {error : RuntimeError} :

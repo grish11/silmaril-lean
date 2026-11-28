@@ -13,7 +13,8 @@ open Silmaril.Semantics.Dataflow.FiniteHeight (HeightBound)
 universe u v
 variable {V S : Type u} {Op : Dialect.{u, v} (ValueSort V S) S}
 variable {shape : MemberSummaries V S} {imports : Ports (Ty V S)}
-variable (template : Template Op shape imports)
+variable {calls : CallTransfer shape} {past : List (Ports (Ty V S))}
+variable (template : Template Op shape imports calls past)
 
 private theorem includes_mono {n : Nat} {small large : Feedback.Mask n} (h : small ⊆ large)
     (p : Nat) (live : Feedback.includes small p = true) : Feedback.includes large p = true := by
@@ -36,7 +37,7 @@ private theorem step_le {low high : MemberTransfer shape.members.length}
   intro bit live
   apply Finset.mem_filter.mpr
   refine ⟨Finset.mem_univ _, ?_⟩
-  exact plan_compare (template.body bit.1) (left := low) (right := high) le
+  exact plan_compare (template.body bit.1) (left := calls.lift low) (right := calls.lift high) (calls.lift_mono le)
     (fun _ _ h => h) (Finset.mem_filter.mp live).2
 
 theorem round_mono : Monotone template.round :=
@@ -94,8 +95,8 @@ theorem round_rows_mono (rows : Rows shape) (i : Fin shape.members.length) :
     Monotone (row shape (template.round rows) i) := by
   intro smaller larger le p h
   simp only [row, Template.round, step, Finset.mem_filter, Finset.mem_univ, true_and] at h ⊢
-  exact plan_compare (template.body i) (left := rowTransfer shape rows) (right := rowTransfer shape rows)
-    (fun _ _ _ live => live) (fun q _ => includes_mono le q) h
+  let reads := calls.lift (rowTransfer shape rows)
+  exact plan_compare (template.body i) (left := reads) (right := reads) (fun _ _ _ live => live) (fun q _ => includes_mono le q) h
 
 theorem synthesize_rows_mono (i : Fin shape.members.length) : Monotone (row shape template.synthesize i) := by
   rw [← synthesize_fixed template]
@@ -109,11 +110,11 @@ theorem synthesize_read (i : Fin shape.members.length) (demand : Demand) :
   · exact Finset.subset_biUnion_of_mem _ (Finset.mem_powerset_self _)
 
 theorem synthesized_closed (safe : template.ReferenceSafe) (i : Fin shape.members.length) (demand : Demand) :
-    let live := (((template.body i).withTransfer (rowTransfer shape template.synthesize)).plan demand).live
+    let live := (((template.body i).withTransfer template.callReads).plan demand).live
     (∀ p, p < (memberPorts shape.members).length → .arg p ∉ live) ∧
     ∀ p, .arg ((memberPorts shape.members).length + p) ∈ live → .arg p ∈ template.summaries.live i demand := by
   dsimp only
-  let reads := rowTransfer shape template.synthesize
+  let reads := template.callReads
   refine ⟨?_, ?_⟩
   · intro p below active
     exact safe i ⟨p, below⟩ (plan_compare (template.body i) (left := reads) (right := reads)

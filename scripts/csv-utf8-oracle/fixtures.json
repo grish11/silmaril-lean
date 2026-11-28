@@ -1,0 +1,160 @@
+{
+  "profile": "RFC 4180 section 2 ASCII grammar with non-ASCII UTF-8 field data",
+  "fixture_license": "MIT",
+  "oracle": {
+    "implementation": "CPython",
+    "version": "3.13.5",
+    "commit": "6cb20a219a860eaf687b2d968b41c480c7461909",
+    "source": "https://github.com/python/cpython/blob/6cb20a219a860eaf687b2d968b41c480c7461909/Modules/_csv.c",
+    "license": "PSF-2.0"
+  },
+  "fixtures": [
+    {
+      "name": "unicode_quoted_multiline",
+      "wire_hex": "22636166c3a92ce69db1e4baac222c22f09f99822073616964202222d0b4d0b02222222c22e7958c0d0ae5ad97220d0a22c3a90dc3a0222c22ceb20aceb3222c22d0bad0b8d180d0b8d0bbd0bbd0b8d186d0b0220d0a",
+      "wire_sha256": "e0013af6f66a5a74dbee57d5a34a2072c3e2c70522ea166ccce7c0dad0309a16",
+      "source": "cpython-writer",
+      "writer_sha256": "e0013af6f66a5a74dbee57d5a34a2072c3e2c70522ea166ccce7c0dad0309a16",
+      "rows": [
+        [
+          "caf\u00e9,\u6771\u4eac",
+          "\ud83d\ude42 said \"\u0434\u0430\"",
+          "\u754c\r\n\u5b57"
+        ],
+        [
+          "\u00e9\r\u00e0",
+          "\u03b2\n\u03b3",
+          "\u043a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0430"
+        ]
+      ]
+    },
+    {
+      "name": "bare_without_final_crlf",
+      "wire_hex": "636166c3a92ce69db1e4baac2cf09f99820d0ac3a92c65cc81",
+      "wire_sha256": "fc8eb8fc48a5f441a5059ad3ab2565135a932ac8866332e43cd311e92b5cf82d",
+      "source": "handwritten",
+      "writer_sha256": "2232bb76c4b45357f4033ed624eb7ed02cbddc4acbb462c9ef36e51b2864bb8c",
+      "rows": [
+        [
+          "caf\u00e9",
+          "\u6771\u4eac",
+          "\ud83d\ude42"
+        ],
+        [
+          "\u00e9",
+          "e\u0301"
+        ]
+      ]
+    },
+    {
+      "name": "bom_as_field_data",
+      "wire_hex": "efbbbf636166c3a92ce7958c0d0a",
+      "wire_sha256": "9033e305e3f6b8d25b6b28b1182495b40759d3fcdf41651b00014269ebd03061",
+      "source": "handwritten",
+      "writer_sha256": "6830b36b1d857ec7bb162d1995f2a51ef278af8b976e3228b937a83237e85329",
+      "rows": [
+        [
+          "\ufeffcaf\u00e9",
+          "\u754c"
+        ]
+      ]
+    },
+    {
+      "name": "unicode_scalar_boundaries",
+      "wire_hex": "22c280dfbfe0a080ed9fbfee8080efbfbff0908080f48fbfbf220d0a",
+      "wire_sha256": "d524712e7812752f031b4fad9dc1083b21251e93040f4b382f762422195f6e25",
+      "source": "cpython-writer",
+      "writer_sha256": "d524712e7812752f031b4fad9dc1083b21251e93040f4b382f762422195f6e25",
+      "rows": [
+        [
+          "\u0080\u07ff\u0800\ud7ff\ue000\uffff\ud800\udc00\udbff\udfff"
+        ]
+      ]
+    },
+    {
+      "name": "empty_file",
+      "wire_hex": "",
+      "wire_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "cpython-writer",
+      "writer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": []
+    },
+    {
+      "name": "one_empty_field",
+      "wire_hex": "22220d0a",
+      "wire_sha256": "91a4e2f100227487a802ac040b85700f03520b347fbfe4c23b7bf2d97b43d9fa",
+      "source": "cpython-writer",
+      "writer_sha256": "91a4e2f100227487a802ac040b85700f03520b347fbfe4c23b7bf2d97b43d9fa",
+      "rows": [
+        [
+          ""
+        ]
+      ]
+    },
+    {
+      "name": "ragged_rows_and_trailing_empty",
+      "wire_hex": "c3a92ce7958c2cf09f99820d0ac3a02cceb20d0aceb32cceb42c0d0a",
+      "wire_sha256": "fc6bf02fd29628b697f3c17d8fd9f8d6baf35ab18946702d2c78944445982687",
+      "source": "handwritten",
+      "writer_sha256": "4cbe1ba5e7981bcd80a0837b099c14971724a0bb606210df3007af622177f230",
+      "rows": [
+        [
+          "\u00e9",
+          "\u754c",
+          "\ud83d\ude42"
+        ],
+        [
+          "\u00e0",
+          "\u03b2"
+        ],
+        [
+          "\u03b3",
+          "\u03b4",
+          ""
+        ]
+      ]
+    }
+  ],
+  "malformed_utf8": [
+    {
+      "name": "overlong_two_byte",
+      "wire_hex": "c0af",
+      "wire_sha256": "caf573f0daa6960ecb26f8eddbc4e2059277ad5afc6f72ffd59a0ecead602a22"
+    },
+    {
+      "name": "stray_continuation",
+      "wire_hex": "80",
+      "wire_sha256": "76be8b528d0075f7aae98d6fa57a6d3c83ae480a8469e668d7b0af968995ac71"
+    },
+    {
+      "name": "surrogate",
+      "wire_hex": "22eda08022",
+      "wire_sha256": "ee4a76500d4d714ca691afe56c1fd9e0a5fbcb42d6c8f8d7178aae4ddb683cf7"
+    },
+    {
+      "name": "above_unicode_limit",
+      "wire_hex": "f4908080",
+      "wire_sha256": "fb16995ef3b5d7c2c81b153f945979f1db35ebc62b17616cdc896f8e7836d371"
+    },
+    {
+      "name": "split_by_field_delimiter",
+      "wire_hex": "c32ca9",
+      "wire_sha256": "57623d191238a2e6268288de14e2bf79ed38e83658532bc88919ee131458de9b"
+    },
+    {
+      "name": "truncated_before_closing_quote",
+      "wire_hex": "22e28222",
+      "wire_sha256": "83cb8dd8849f887edb0a1419ab55d5ee5058b4bcc6c8e97dcc4afcda83ad3c95"
+    },
+    {
+      "name": "split_by_doubled_quote",
+      "wire_hex": "22c32222a922",
+      "wire_sha256": "e815cac793665c0888434a9f81b07507830147ea25b22a39680e43090d1e4c30"
+    },
+    {
+      "name": "split_by_record_delimiter",
+      "wire_hex": "c30d0aa9",
+      "wire_sha256": "42f48c6843e73445cac295cdf19deeca3fd040e06e2852c7bb56815d87fa82bf"
+    }
+  ]
+}

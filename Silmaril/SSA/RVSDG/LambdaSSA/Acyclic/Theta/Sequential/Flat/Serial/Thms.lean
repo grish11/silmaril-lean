@@ -87,6 +87,20 @@ theorem Spine.agrees (s : Spine Φ A X Y L E D sigs)
     Agrees (ε := ε) (σ := σ) s.source s.graph :=
   Proofs.spine_agrees s coherent
 
+theorem returns_of_agrees {source : Fragment Φ A E D} {g : Graph Φ A X Y L E D sigs}
+    (h : Agrees (ε := ε) (σ := σ) source g) (env : Env [A]) (exit : LabelDen [E,D]) (initial final : σ) :
+    returns (ε := ε) g env.2 initial exit final ↔
+      (Region.denote (ε := ε) (m := StateT σ Part.{u}) source.typing env).run initial =
+        Part.some (exit, final) :=
+  Proofs.returns_of_agrees h env exit initial final
+
+theorem undefined_of_agrees {source : Fragment Φ A E D} {g : Graph Φ A X Y L E D sigs}
+    (h : Agrees (ε := ε) (σ := σ) source g) (env : Env [A]) (initial : σ) :
+    observe (ε := ε) g env.2 initial = Part.none ↔
+      (Region.denote (ε := ε) (m := StateT σ Part.{u}) source.typing env).run initial = Part.none := by
+  rw [h env initial]
+  exact Proofs.map_none_iff _ _
+
 variable {g : Graph Φ A X Y L E D sigs}
 
 theorem Decomposition.agrees (d : Decomposition g)
@@ -100,14 +114,13 @@ theorem Decomposition.region_returns_iff (d : Decomposition g)
     returns (ε := ε) g env.2 initial exit final ↔
       (Region.denote (ε := ε) (m := StateT σ Part.{u}) d.recover.typing env).run initial =
         Part.some (exit, final) :=
-  Proofs.returns_of_agrees (d.agrees coherent) env exit initial final
+  returns_of_agrees (d.agrees coherent) env exit initial final
 
 theorem Decomposition.region_undefined_iff (d : Decomposition g)
     (coherent : RegionCoherent (τ := τ) (Φ := Φ) (ε := ε) (m := StateT σ Part.{u}))
     (env : Env [A]) (initial : σ) :
     observe (ε := ε) g env.2 initial = Part.none ↔
-      (Region.denote (ε := ε) (m := StateT σ Part.{u}) d.recover.typing env).run initial = Part.none := by
-  rw [d.agrees coherent env initial]
-  exact Proofs.map_none_iff _ _
+      (Region.denote (ε := ε) (m := StateT σ Part.{u}) d.recover.typing env).run initial = Part.none :=
+  undefined_of_agrees (d.agrees coherent) env initial
 
 end Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Serial

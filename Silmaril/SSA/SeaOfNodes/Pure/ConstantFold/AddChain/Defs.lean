@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.Defs
+public import Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.AddRewrite.Defs
 
 /-! Combine the right literals of two adjacent additions on an add spine. -/
 
@@ -8,11 +8,11 @@ public import Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.Defs
 
 namespace Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.AddChain
 
-open Diamond (Dataflow Ty ValueSort dataPorts)
-open GVN (newest weaken)
-open GVN.Elimination (Rewrite Routing routeSuffix splitOrigin)
-open SubZero (wordPort)
-open RVSDG (Origin Wires)
+open Diamond (Dataflow Ty Val ValueSort dataPorts)
+open GVN (weaken)
+open GVN.Elimination (Rewrite splitOrigin)
+open SubZero (model wordPort)
+open RVSDG (Locals Origin Tuple Wires)
 
 variable {args : List (Ty Unit)} {past sigs : List (List (Ty Unit))}
 variable {ins : List (ValueSort Unit)} {out : ValueSort Unit}
@@ -30,6 +30,14 @@ structure Prefix (args : List (Ty Unit)) (past : List (List (Ty Unit))) where
   additions : WordWire args past → Option (Offset args past)
 
 def Prefix.empty : Prefix args [] := ⟨fun _ => none, fun _ => none⟩
+
+/-- Explicit literal and constant-offset facts agree with the original prefix. -/
+def Prefix.Agrees (known : Prefix args past) (entry : Tuple (Val model.value) args)
+    (locals : Locals (Val model.value) past) : Prop :=
+  Scan.Literals.Agrees known.literals entry locals ∧
+  ∀ (wire : WordWire args past) {offset}, known.additions wire = some offset →
+    Diamond.read model wire entry locals =
+      BitVec.add (Diamond.read model offset.base entry locals) offset.value
 
 /-- An add with a literal right operand and a left operand without a literal
 fact. Leave two-literal adds and the right identity to their existing rules. -/
@@ -63,30 +71,25 @@ def Prefix.combine? (known : Prefix args past) (lhs rhs : WordWire args past) :
   let inner ← known.additions outer.base
   return ⟨inner.base, inner.value + outer.value⟩
 
-/-- Insert the combined literal before the replacement add and route the
-suffix through the new scope. Both original additions retain a result. -/
-def insertCombined (offset : Offset args past) (rest : Dataflow SubZero.Opcode args (past ++ [[wordPort]]) sigs) :
-    Rewrite SubZero.Opcode args past ([wordPort] :: sigs) :=
-  let lift : Routing args past (past ++ [[wordPort]]) := fun wire => weaken [wordPort] wire
-  let suffix := routeSuffix rest (lift.push [wordPort])
-  ⟨_, .cons (.literal offset.value) .nil
-    (.cons .add (.cons (lift offset.base) (.cons (newest .head) .nil)) suffix.1), suffix.2⟩
+def rules : AddRewrite.Rules args (Prefix args) where
+  record := Prefix.record
+  matchAdd? known lhs rhs := (known.combine? lhs rhs).map fun offset =>
+    (AddRewrite.Edit.mk .add offset.base offset.value).splice
 
-def atHead? (known : Prefix args past) :
-    (op : SubZero.Opcode ins out) → Wires args past (dataPorts ins) →
-    Dataflow SubZero.Opcode args (past ++ [[.value out]]) sigs → Option (Rewrite SubZero.Opcode args past ([.value out] :: sigs))
-  | .add, .cons lhs (.cons rhs .nil), rest => (known.combine? lhs rhs).map (insertCombined · rest)
-  | .literal _, _, _ | .sub, _, _ | .mul, _, _ => none
+/-- Insert the combined literal before the replacement add. -/
+abbrev insertCombined (offset : Offset args past) (rest : Dataflow SubZero.Opcode args (past ++ [[wordPort]]) sigs) :
+    Rewrite SubZero.Opcode args past ([wordPort] :: sigs) :=
+  AddRewrite.insert ⟨.add, offset.base, offset.value⟩ rest
+
+abbrev atHead? (known : Prefix args past) (op : SubZero.Opcode ins out) (operands : Wires args past (dataPorts ins))
+    (rest : Dataflow SubZero.Opcode args (past ++ [[.value out]]) sigs) :
+    Option (Rewrite SubZero.Opcode args past ([.value out] :: sigs)) :=
+  AddRewrite.atHead? rules known op operands rest
 
 /-- Scan in dependency order and rewrite the first admitted outer addition. -/
-def stepDataflow? : {past sigs : List (List (Ty Unit))} →
-    Prefix args past → Dataflow SubZero.Opcode args past sigs → Option (Rewrite SubZero.Opcode args past sigs)
-  | _, _, _, .nil => none
-  | _, _, known, .cons op operands rest =>
-    match atHead? known op operands rest with
-    | some rewrite => some rewrite
-    | none => (stepDataflow? (known.record op operands) rest).map fun rewrite =>
-      ⟨_, .cons op operands rewrite.flow, rewrite.route⟩
+abbrev stepDataflow? (known : Prefix args past) (flow : Dataflow SubZero.Opcode args past sigs) :
+    Option (Rewrite SubZero.Opcode args past sigs) :=
+  AddRewrite.scan? rules known flow
 
 variable {inputs : List (ValueSort Unit)}
 
@@ -96,8 +99,8 @@ def step? (program : Program SubZero.Opcode inputs out) : Option (Rewrite SubZer
   stepDataflow? Prefix.empty program.dataflow
 
 /-- Read the original return through the rewrite's typed map. -/
-def rewrittenProgram (program : Program SubZero.Opcode inputs out)
+abbrev rewrittenProgram (program : Program SubZero.Opcode inputs out)
     (rewrite : Rewrite SubZero.Opcode (dataPorts inputs) [] program.sigs) : Program SubZero.Opcode inputs out :=
-  { dataflow := rewrite.flow, result := rewrite.route program.result }
+  AddRewrite.rewrittenProgram program rewrite
 
 end Silmaril.SSA.SeaOfNodes.Pure.ConstantFold.AddChain

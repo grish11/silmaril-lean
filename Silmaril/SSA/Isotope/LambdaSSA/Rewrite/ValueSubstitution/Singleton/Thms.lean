@@ -1,0 +1,46 @@
+module
+
+public import Silmaril.SSA.Isotope.LambdaSSA.Categorical.Thms
+public import Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Defs
+import Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.ValueSubstitution.Singleton
+
+/-! # Selected denotations under singleton value substitution -/
+
+public section
+
+namespace Silmaril.Isotope.LambdaSSA.Semantics.Categorical
+
+open Silmaril.Isotope.LetIter.Semantics.Categorical (TypeModel InstructionModel)
+open CategoryTheory CategoryTheory.Limits
+open scoped MonoidalCategory
+
+universe u v m n x y
+
+variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
+  {V : Type m} {C : Type n} [Category.{x} V] [Category.{y} C]
+  [CartesianMonoidalCategory V] [SymmetricCategory V] [PremonoidalCategory C] [SymmetricPremonoidalCategory C]
+  [HasFiniteCoproducts V] [HasFiniteCoproducts C] [DistributiveTensor V] [DistributivePremonoidalCategory C]
+  [Iteration C] [ElgotCategory C] (J : V ⥤ C) [StrongElgotFreydCategory J]
+  (M : TypeModel τ V) [InstructionModel J M Φ]
+
+/-- Supply the only free variable of an exact region with a selected value arrow. -/
+theorem RegionDenotes.substSingleton {Δ : VCtx τ} {L : LCtx τ} {X : τ} {r : Region Φ}
+    {hr : Region.HasType [X] r L} {f : J.obj (ctxObj M [X]) ⟶ J.obj (labelObj M L)}
+    (d : RegionDenotes J M hr f) (σ : Nat → Tm Φ)
+    {hv : Tm.HasType Δ (σ 0) X} {v : ctxObj M Δ ⟶ M.obj X}
+    (dv : Denotes J M hv (J.map v)) :
+    ∃ h : Region.HasType Δ (r.substVars σ) L,
+      RegionDenotes J M h (J.map (v ≫ (λ_ (M.obj X)).inv) ≫ f) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.ValueSubstitution.Singleton.regionDenotes_substSingleton J M d σ dv
+
+/-- Supply the only free slot by a selected value arrow. The tail of the
+substitution is immaterial because the original context is a singleton. -/
+theorem Denotes.substSingleton {Δ : VCtx τ} {X D : τ} {t : Tm Φ} {ht : Tm.HasType [X] t D}
+    {f : J.obj (ctxObj M [X]) ⟶ J.obj (M.obj D)} (d : Denotes J M ht f)
+    (σ : Nat → Tm Φ) {hv : Tm.HasType Δ (σ 0) X} {v : ctxObj M Δ ⟶ M.obj X}
+    (dv : Denotes J M hv (J.map v)) :
+    ∃ h : Tm.HasType Δ (t.subst σ) D,
+      Denotes J M h (J.map (v ≫ (λ_ (M.obj X)).inv) ≫ f) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.ValueSubstitution.Singleton.denotes_subst J M d σ dv
+
+end Silmaril.Isotope.LambdaSSA.Semantics.Categorical

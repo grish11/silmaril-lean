@@ -1,0 +1,196 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "thrift": "0.25.0",
+  "thrift_wheel_sha256": "aa0cfa1db4d2129114d9548c4fc7e85680013aa442692377606b6305d236a1c0",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "optional_second_v1": {
+      "parquet": {
+        "bytes": 697,
+        "sha256": "5371f536f41f7abb486119ab9cff94e6f78a98220db148d0845359b90e89804a"
+      },
+      "physical_ordinal": 1,
+      "selected_spans": [
+        [
+          35,
+          68
+        ],
+        [
+          160,
+          197
+        ]
+      ],
+      "raw_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "signed_slots": [
+        [
+          -2147483648,
+          null,
+          -1
+        ],
+        [
+          2147483647,
+          0,
+          11016
+        ]
+      ],
+      "lean_ipc": {
+        "bytes": 520,
+        "sha256": "c64c707e3d7cd9e8b7ead5b3f287d91cf5b1fbe46b5010c7731370c69d9dfffe"
+      }
+    },
+    "required_third_v2": {
+      "parquet": {
+        "bytes": 658,
+        "sha256": "a8962ca615cfeed2ea313db78c8f8a08f681b25fa26335d2c613cf3285745233"
+      },
+      "physical_ordinal": 2,
+      "selected_spans": [
+        [
+          86,
+          118
+        ],
+        [
+          200,
+          232
+        ]
+      ],
+      "raw_leaf": {
+        "1": 1,
+        "3": 0,
+        "4": "époque",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "signed_slots": [
+        [
+          -719528,
+          -1
+        ],
+        [
+          0,
+          11016
+        ]
+      ],
+      "lean_ipc": {
+        "bytes": 504,
+        "sha256": "7e0aca810754cbf3f1f091ab79f438673af0a2613ca8ba222490d06f753ef0d4"
+      }
+    },
+    "damaged_unselected_neighbor": {
+      "parquet": {
+        "bytes": 697,
+        "sha256": "4c137ebe86f0d157d2813b69f779cf5cf637130b40d1f99573a66314c78a8538"
+      },
+      "physical_ordinal": 1,
+      "selected_spans": [
+        [
+          35,
+          68
+        ],
+        [
+          160,
+          197
+        ]
+      ],
+      "raw_leaf": {
+        "1": 1,
+        "3": 1,
+        "4": "日付",
+        "6": 6,
+        "10": [
+          [
+            6,
+            []
+          ]
+        ]
+      },
+      "signed_slots": [
+        [
+          -2147483648,
+          null,
+          -1
+        ],
+        [
+          2147483647,
+          0,
+          11016
+        ]
+      ],
+      "thrift_edit_offset": 139,
+      "lean_ipc": {
+        "bytes": 520,
+        "sha256": "c64c707e3d7cd9e8b7ead5b3f287d91cf5b1fbe46b5010c7731370c69d9dfffe"
+      }
+    }
+  },
+  "controls": {
+    "unannotated_adjacent_int32": {
+      "parquet": {
+        "bytes": 697,
+        "sha256": "5371f536f41f7abb486119ab9cff94e6f78a98220db148d0845359b90e89804a"
+      },
+      "ordinal": 0,
+      "error": "(.source (.openFailure (.annotation .missingAnnotation)))"
+    },
+    "wrong_physical_type": {
+      "parquet": {
+        "bytes": 697,
+        "sha256": "5371f536f41f7abb486119ab9cff94e6f78a98220db148d0845359b90e89804a"
+      },
+      "ordinal": 2,
+      "error": "(.source (.openFailure (.annotation .notFlatInt32)))"
+    },
+    "nonexistent_column": {
+      "parquet": {
+        "bytes": 697,
+        "sha256": "5371f536f41f7abb486119ab9cff94e6f78a98220db148d0845359b90e89804a"
+      },
+      "ordinal": 3,
+      "error": "(.source (.openFailure (.footer (.leafOrdinal 4))))"
+    },
+    "overlapping_neighbor": {
+      "parquet": {
+        "bytes": 697,
+        "sha256": "e52c3211fed028536bf902bf7018f71b9f9019ecb445b6ec10f9832b96a58fea"
+      },
+      "ordinal": 1,
+      "error": "(.source (.groupFailure 0 .overlap))",
+      "thrift_edit_offset": 368
+    },
+    "late_selected_encoding": {
+      "parquet": {
+        "bytes": 697,
+        "sha256": "8987bf9652d71f9f030499bffc30a4ffdcdad23c14bbd7a4ee79d57b12c82a79"
+      },
+      "ordinal": 1,
+      "error": "(.source (.groupFailure 1 (.scan .unsupportedPageEncoding)))",
+      "thrift_edit_offset": 170
+    },
+    "output_batch_budget": {
+      "parquet": {
+        "bytes": 697,
+        "sha256": "5371f536f41f7abb486119ab9cff94e6f78a98220db148d0845359b90e89804a"
+      },
+      "ordinal": 1,
+      "error": "(.writer (.writer (.limit .batches)))"
+    }
+  }
+}

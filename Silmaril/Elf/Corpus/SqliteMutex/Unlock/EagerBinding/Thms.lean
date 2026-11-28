@@ -45,10 +45,4 @@ theorem absolute_relocation :
       (blobRead Silmaril.Elf.Staged.Corpus.Sqlite.X8664.Libsqlite3So.F) = some absoluteReloc :=
   Proofs.Elf.Corpus.SqliteMutex.Unlock.EagerBinding.absolute_relocation
 
-/-- The current relocation model gives this absolute relocation no value. -/
-theorem absolute_has_no_model_value (resolver : Dyn.Resolver) (info : Elf.DynInfo) :
-    Dyn.relocVal resolver Silmaril.Elf.Staged.Corpus.Sqlite.X8664.Libsqlite3So.F
-      info absoluteReloc = none :=
-  Proofs.Elf.Corpus.SqliteMutex.Unlock.EagerBinding.absolute_has_no_model_value resolver info
-
 end Silmaril.Elf.Corpus.SqliteMutex.Unlock.EagerBinding

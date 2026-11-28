@@ -105,16 +105,17 @@ private def exports (cap : Nat) : Tuple machine.Val [caller.port] :=
 
 private theorem resolved (cap req next dead : Nat) :
     callerCode.Resolved (prependContext (params req next dead) (captures cap)) := by
+  intro locals
+  cases locals
   constructor
-  · intro locals now stable
-    cases locals
+  · intro now stable
     have target : now.get .head = .closure (one cap) calleeCode.term.toGraph := stable .head rfl
     have capValue : now.get capture = .data cap := stable capture rfl
-    refine ⟨?_, fun _ => trivial, trivial⟩
+    refine ⟨?_, fun _ _ => trivial, fun _ _ => trivial⟩
     change now.get .head = .closure (.cons (now.get capture) .nil) calleeCode.term.toGraph
     rw [target, capValue]
     rfl
-  · trivial
+  · exact fun _ _ => trivial
 
 private theorem agree (cap req next deadL deadR : Nat) :
     callerCode.AgreesOnInputs requested

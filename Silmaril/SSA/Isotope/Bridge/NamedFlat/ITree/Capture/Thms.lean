@@ -27,6 +27,14 @@ variable {τ : Type u} {F : Type v} {α Reply : Type w} {Events : Type x → Typ
   {g : FiniteCFG F blocks exits n} {closed : FiniteCFG F blocks exits 0}
   {ambient : Env α} {original : Reply → Env α} {produce : Tree Events Reply}
 
+/-- Decoding the canonical capture record supplies the original slots to a
+scoped flat region, as an equality of its complete weak trees. -/
+theorem Capture.unpack_tree {labels : Nat} (instr : Primitive Events F α) (body : LambdaSSA.Flat F labels n)
+    (context : BoundCtx τ n) (original ambient : Env α) :
+    region instr (LambdaSSA.Semantics.extend ambient (Capture.packEnv n original))
+      (body.erase.packInputsDestructure context.toList) = region instr original body.erase :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Capture.unpack_tree instr body context original ambient
+
 /-- The capture expression runs the producer and packs its reply environment.
 The erased decoder then gives the original entry tree for that reply. -/
 theorem Capture.entry_tree (instr : Primitive Events F α) (closure : Capture.Closes β input g closed)

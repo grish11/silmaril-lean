@@ -1,0 +1,104 @@
+{
+  "profile": "RFC 4180 section 2 ASCII lexical rows",
+  "fixture_license": "MIT",
+  "oracle": {
+    "implementation": "CPython",
+    "version": "3.13.5",
+    "commit": "6cb20a219a860eaf687b2d968b41c480c7461909",
+    "source": "https://github.com/python/cpython/blob/6cb20a219a860eaf687b2d968b41c480c7461909/Modules/_csv.c",
+    "license": "PSF-2.0"
+  },
+  "fixtures": [
+    {
+      "name": "quoted_fields",
+      "source": "cpython-writer",
+      "wire_hex": "22612c62222c2273617920222268692222222c226c696e6520310d0a6c696e652032220d0a22610d62222c22630a64222c2220207370616365732020220d0a",
+      "wire_sha256": "62ecf3e082522365e959fcae297ed6840ac5bbe5fccc6ebb062d2304c5a66852",
+      "writer_sha256": "62ecf3e082522365e959fcae297ed6840ac5bbe5fccc6ebb062d2304c5a66852",
+      "rows": [
+        [
+          "a,b",
+          "say \"hi\"",
+          "line 1\r\nline 2"
+        ],
+        [
+          "a\rb",
+          "c\nd",
+          "  spaces  "
+        ]
+      ]
+    },
+    {
+      "name": "optional_final_crlf",
+      "source": "handwritten",
+      "wire_hex": "6669656c645f6e616d652c646174650d0a66697273742c313937302d30312d3031",
+      "wire_sha256": "1b271b52f4e07a8a9b5fef36af3c767f22b624f129b708b5b4fdedd57fe1e28d",
+      "writer_sha256": "a62e5a44739b1287e9c55177bd24e7d27bebaf1699a8c0684a7599d339c1dbf8",
+      "rows": [
+        [
+          "field_name",
+          "date"
+        ],
+        [
+          "first",
+          "1970-01-01"
+        ]
+      ]
+    },
+    {
+      "name": "empty_file",
+      "source": "cpython-writer",
+      "wire_hex": "",
+      "wire_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "writer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rows": []
+    },
+    {
+      "name": "one_empty_field",
+      "source": "cpython-writer",
+      "wire_hex": "22220d0a",
+      "wire_sha256": "91a4e2f100227487a802ac040b85700f03520b347fbfe4c23b7bf2d97b43d9fa",
+      "writer_sha256": "91a4e2f100227487a802ac040b85700f03520b347fbfe4c23b7bf2d97b43d9fa",
+      "rows": [
+        [
+          ""
+        ]
+      ]
+    },
+    {
+      "name": "missing_and_empty_fields",
+      "source": "handwritten",
+      "wire_hex": "612c622c630d0a642c650d0a662c672c0d0a",
+      "wire_sha256": "af75580c845060a3eaf5efae7240e94532b982e37bfc65088d568676dae01f26",
+      "writer_sha256": "119bc7c912e2c6118ac10468cddacf4c0924a8c10dbeb152bd4373edf1ed2293",
+      "rows": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        [
+          "f",
+          "g",
+          ""
+        ]
+      ]
+    },
+    {
+      "name": "doubled_quote_at_end",
+      "source": "cpython-writer",
+      "wire_hex": "22656e647320696e202222220d0a",
+      "wire_sha256": "48f247b655b9f5f3b8daf8e2fcffb7dd83dd3304bb36b4b4b3ec6ef558e81748",
+      "writer_sha256": "48f247b655b9f5f3b8daf8e2fcffb7dd83dd3304bb36b4b4b3ec6ef558e81748",
+      "rows": [
+        [
+          "ends in \""
+        ]
+      ]
+    }
+  ]
+}

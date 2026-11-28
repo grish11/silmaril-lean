@@ -17,6 +17,39 @@ open Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic (repairedDenoteInS
 
 namespace Silmaril.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Structured.Feedback.Finite
 
+section ConstructorSemantics
+
+variable {Ops : Type} [HasTy Ops (Ty Unit)] {ε : Type} [HasEff Ops ε]
+  [SemilatticeSup ε] [OrderBot ε] {e : ε}
+
+local notation "Free" => (Ctx.nil : Ctx Empty (Ty Unit))
+local notation "Den" => Ty.denote (Lifted carriers)
+local notation "Events" => Event (Φ := Ops) carriers
+local notation "γ" => (fun x : Empty => x.elim)
+local notation "ρ₀" => (fun i : Fin 0 => i.elim0)
+
+set_option backward.isDefEq.respectTransparency false
+set_option backward.isDefEq.respectTransparency.types false
+
+theorem literal_denote (P : PureMaps (Φ := Ops) (ε := ε) carriers) (c : Code) (v : c.Value)
+    {n : Nat} {β : BoundCtx (Ty Unit) n} (ρ : BoundEnv Den β) :
+    ∃ (t : Tm Empty Ops n) (d : Derivation Ops Free β t c.ty),
+      (c.literal v).toLetIter n = some t ∧ d.denote Den (instructions carriers P) γ ρ = pure (c.raise v) :=
+  DenotationProofs.literal_denote P c v ρ
+
+variable [EffectIteration ε] in
+theorem specialize_denote (P : PureMaps (Φ := Ops) (ε := ε) carriers)
+    {c : Code} (v : c.Value) {a rhs : Expr Ops} {A : Ty Unit}
+    {t : Tm Empty Ops 1} {r : Tm Empty Ops 0}
+    (d : Derivation Ops Free (.snoc .nil c.ty) t A) (dr : Derivation Ops Free .nil r A)
+    (hl : a.toLetIter 1 = some t) (hr : rhs.toLetIter 0 = some r)
+    (eq : Source.Eqv ([] : EffectCtx (Ty Unit) ε) A e (a.subst (c.literal v).subst0) rhs) :
+    d.denote Den (instructions carriers P) γ (BoundEnv.snoc ρ₀ (c.raise v)) =
+      dr.denote Den (instructions carriers P) γ ρ₀ :=
+  DenotationProofs.specialize_denote P v d dr hl hr eq
+
+end ConstructorSemantics
+
 variable {Q K S T B : Code} {ε : Type} [HasEff (Opcode Q K) ε] [SemilatticeSup ε] [OrderBot ε]
   [EffectIteration ε] {e : ε} {L : Table Q K S B} {R : Table Q K T B}
 

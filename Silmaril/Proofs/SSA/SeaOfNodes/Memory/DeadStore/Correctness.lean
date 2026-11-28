@@ -23,6 +23,36 @@ theorem reindexMemory_denote (body : Body args past version) (live : Nat)
   | load _ _ _ ih => exact ih _ _ _
   | store _ _ _ _ ih => exact ih _ _ _
 
+theorem readAt_store (memory : MemoryInput version) (address : Origin args past .address)
+    (word : Origin args past .word) (rest : Body args past (version + 1)) (index : Nat)
+    (input : Tuple (Val cells) args) (locals : Locals (Val cells) past) (heap : Heap cells) :
+    readAt (.store memory address word rest) index input locals heap =
+      readAt rest index input locals (heap.write (readValue address input locals) (readValue word input locals)) := by
+  simp [readAt, throughLoad, Option.map_map, Function.comp_def, Body.denote]
+
+theorem readAt_load (memory : MemoryInput version) (address : Origin args past .address)
+    (rest : Body args ([.word] :: past) version) (index : Nat)
+    (input : Tuple (Val cells) args) (locals : Locals (Val cells) past) (heap : Heap cells) :
+    readAt (.load memory address rest) (index + 1) input locals heap =
+      readAt rest index input (.cons (heap.read (readValue address input locals)) .nil, locals) heap := by
+  simp [readAt, throughLoad, Option.map_map, Function.comp_def, Body.denote]
+
+private theorem throughLoad_reindex (body : Body args past version) (target index : Nat) :
+    throughLoad (reindexMemory body target) index =
+      (throughLoad body index).map (fun selected => reindexMemory selected target) := by
+  induction body generalizing target index with
+  | ret => rfl
+  | load _ _ _ ih =>
+    cases index with
+    | zero => rfl
+    | succ index => simp [reindexMemory, throughLoad, ih, Option.map_map, Function.comp_def]
+  | store _ _ _ _ ih => simp [reindexMemory, throughLoad, ih, Option.map_map, Function.comp_def]
+
+theorem reindexMemory_readAt (body : Body args past version) (target index : Nat)
+    (input : Tuple (Val cells) args) (locals : Locals (Val cells) past) (heap : Heap cells) :
+    readAt (reindexMemory body target) index input locals heap = readAt body index input locals heap := by
+  simp [readAt, throughLoad_reindex, Option.map_map, Function.comp_def, reindexMemory_denote]
+
 private theorem arg_read (port other : Port args .address) (same : port.index = other.index)
     (input : Tuple (Val cells) args) (locals : Locals (Val cells) past) :
     readValue (.arg port) input locals = cell input other := by
@@ -69,40 +99,63 @@ private theorem overwrite_agrees {observed : Address cells} {first second : Heap
     simp only [Heap.read_write_same]
   · exact writes_agree agrees word other same
 
-private theorem noReadUntil_denote (overwrite : Nat) (body : Body args past version)
+private theorem noReadUntil_observations (overwrite : Nat) (body : Body args past version)
     (input : Tuple (Val cells) args) (locals : Locals (Val cells) past) (valid : facts.Valid input)
     (first second : Heap cells) (agrees : AgreeOutside (cell input facts.observed) first second)
     (checked : noReadUntil facts overwrite body = true) :
-    body.denote input locals first = body.denote input locals second := by
+    body.denote input locals first = body.denote input locals second ∧
+      ∀ index, readAt body index input locals first = readAt body index input locals second := by
   induction body generalizing first second with
   | ret => cases checked
   | load _ address _ ih =>
     obtain ⟨reader, rest⟩ := Bool.and_eq_true_iff.mp checked
     have disjoint := covers_read address (Bool.and_eq_true_iff.mp reader).2 input locals valid
     have same := agrees (readValue address input locals) disjoint.symm
-    simp only [Body.denote, same]
-    exact ih _ _ _ agrees rest
-  | @store _ version _ address value _ ih =>
+    obtain ⟨result, reads⟩ := ih _ _ _ agrees rest
+    refine ⟨by simpa only [Body.denote, same] using result, ?_⟩
+    intro index
+    cases index with
+    | zero => exact congrArg some same
+    | succ index => simpa only [readAt_load, same] using reads index
+  | @store _ version memory address value _ ih =>
     by_cases hit : version + 1 = overwrite
     · have matched : facts.matches address = true := by
         simpa only [noReadUntil, ite_eq_left hit] using checked
-      simp only [Body.denote, matches_read address matched input locals]
-      rw [overwrite_agrees agrees (readValue value input locals)]
+      have addressEq := matches_read address matched input locals
+      have heaps := overwrite_agrees agrees (readValue value input locals)
+      exact ⟨by simp only [Body.denote, addressEq, heaps],
+        fun index => by simp only [readAt_store memory, addressEq, heaps]⟩
     · have rest := show noReadUntil facts overwrite _ = true by
         simpa only [noReadUntil, ite_eq_right hit] using checked
-      exact ih _ _ _ (writes_agree agrees (readValue value input locals)) rest
+      obtain ⟨result, reads⟩ := ih _ _ _ (writes_agree agrees (readValue value input locals)) rest
+      exact ⟨result, fun index => by simpa only [readAt_store memory] using reads index⟩
 
-private theorem rewriteAt_denote (candidate : Candidate) (body rewritten : Body args past version)
+theorem noReadUntil_write (overwrite : Nat) (graph : Graph args)
+    (input : Tuple (Val cells) args) (valid : facts.Valid input) (initial : Heap cells) (word : Word)
+    (checked : noReadUntil facts overwrite graph = true) :
+    let written := initial.write (cell input facts.observed) word
+    graph.denote input initial = graph.denote input written ∧
+      ∀ index, readAt graph index input PUnit.unit initial = readAt graph index input PUnit.unit written :=
+  noReadUntil_observations overwrite graph input PUnit.unit valid initial _
+    (fun other distinct => (initial.read_write_other _ other word distinct).symm) checked
+
+private theorem rewriteAt_observations (candidate : Candidate) (body rewritten : Body args past version)
     (success : rewriteAt candidate facts body = some rewritten)
     (input : Tuple (Val cells) args) (locals : Locals (Val cells) past) (valid : facts.Valid input)
     (heap : Heap cells) :
-    rewritten.denote input locals heap = body.denote input locals heap := by
+    rewritten.denote input locals heap = body.denote input locals heap ∧
+      ∀ index, readAt rewritten index input locals heap = readAt body index input locals heap := by
   induction body generalizing heap with
   | ret => cases success
-  | load _ _ _ ih =>
+  | load memory _ _ ih =>
     obtain ⟨tail, accepted, rfl⟩ := Option.map_eq_some_iff.mp success
-    exact ih tail accepted _ _
-  | @store _ version _ address value rest ih =>
+    obtain ⟨result, reads⟩ := ih tail accepted _ _
+    refine ⟨result, ?_⟩
+    intro index
+    cases index with
+    | zero => rfl
+    | succ index => simpa only [readAt_load memory] using reads index
+  | @store _ version memory address value rest ih =>
     by_cases hit : version + 1 = candidate.removeVersion
     · simp only [rewriteAt, ite_eq_left hit] at success
       split at success
@@ -115,17 +168,22 @@ private theorem rewriteAt_denote (candidate : Candidate) (body rewritten : Body 
           intro other distinct
           rw [matches_read address matched input locals]
           exact (Heap.read_write_other heap _ _ _ distinct).symm
-        exact (reindexMemory_denote rest version input locals heap).trans
-          (noReadUntil_denote candidate.overwriteVersion rest input locals valid _ _ outside safe)
+        obtain ⟨result, reads⟩ := noReadUntil_observations candidate.overwriteVersion rest input locals
+          valid _ _ outside safe
+        refine ⟨(reindexMemory_denote rest version input locals heap).trans result, fun index => ?_⟩
+        rw [reindexMemory_readAt, readAt_store memory]
+        exact reads index
       next => cases success
     · simp only [rewriteAt, ite_eq_right hit] at success
       obtain ⟨tail, accepted, rfl⟩ := Option.map_eq_some_iff.mp success
-      exact ih tail accepted _ _
+      obtain ⟨result, reads⟩ := ih tail accepted _ _
+      exact ⟨result, fun index => by simpa only [readAt_store memory] using reads index⟩
 
-theorem rewriteWith_denote {graph rewritten : Graph args} {candidate : Candidate}
+theorem rewriteWith_observations {graph rewritten : Graph args} {candidate : Candidate}
     (success : rewriteWith graph candidate facts = some rewritten)
     (input : Tuple (Val cells) args) (valid : facts.Valid input) (heap : Heap cells) :
-    rewritten.denote input heap = graph.denote input heap :=
-  rewriteAt_denote candidate graph rewritten success input PUnit.unit valid heap
+    rewritten.denote input heap = graph.denote input heap ∧
+      ∀ index, readAt rewritten index input PUnit.unit heap = readAt graph index input PUnit.unit heap :=
+  rewriteAt_observations candidate graph rewritten success input PUnit.unit valid heap
 
 end Silmaril.SSA.SeaOfNodes.Memory.DeadStore.Proofs

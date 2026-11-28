@@ -39,6 +39,16 @@ theorem Denotes.weaken {Γ : VCtx τ} {A : τ} {a : Tm Φ} {ha : Tm.HasType Γ a
     Denotes J M (ha.rename (Ren.wk Γ B)) (J.map (fst (ctxObj M Γ) (M.obj B)) ≫ f) :=
   Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.denotes_rename J M d (Ren.wk Γ B) (fun _ _ _ => rfl)
 
+/-- Substituting a payload with a named pure map retains the original captures
+and precomposes the selected term by pairing them with that payload. -/
+theorem Denotes.substValue {Γ : VCtx τ} {a b : Tm Φ} {A B : τ}
+    {ha : Tm.HasType Γ a A} {hb : Tm.HasType (A :: Γ) b B}
+    {p : ctxObj M Γ ⟶ M.obj A} {f : J.obj (ctxObj M (A :: Γ)) ⟶ J.obj (M.obj B)}
+    (da : Denotes J M ha (J.map p)) (db : Denotes J M hb f) :
+    ∃ hs : Tm.HasType Γ (b.subst (Tm.singleSubst a)) B,
+      Denotes J M hs (J.map (CartesianMonoidalCategory.lift (𝟙 _) p) ≫ f) :=
+  Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.denotes_substValue J M da db
+
 end Term
 
 variable [Iteration C] [ElgotCategory C] (J : V ⥤ C) [StrongElgotFreydCategory J]

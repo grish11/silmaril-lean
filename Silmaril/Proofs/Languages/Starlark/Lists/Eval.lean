@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Languages.Starlark.Lists.Denotation.Defs
 public import Silmaril.Languages.Starlark.Lists.Operational.Defs
+import Silmaril.Languages.Starlark.Lists.Comparison.Thms
 
 public section
 
@@ -20,6 +21,8 @@ private theorem runMap {α β : Type} (f : α → β) (first : Meaning α) (stat
 theorem denote_eq_of_eval {α : Type} {s : State} {code : Code α} {out : Outcome α}
     (h : Eval s code out) : denote code s = out := by
   induction h <;> simp_all [denote, runBind, runMap, Outcome.resume]
+  case compare tests _ _ =>
+    rw [Comparison.apply, (Comparison.tests_iff_evaluate ..).mp tests]
   case appendTargetError value _ _ _ =>
     cases value <;> simp_all <;> rfl
   all_goals rfl
@@ -64,6 +67,20 @@ theorem eval_denote {α : Type} (code : Code α) (state : State) :
     | ok value next =>
       simpa [denote, runBind, Outcome.resume, h] using Eval.index (h ▸ ihReceiver state) (ihIndex next)
   | slice operands ih => simpa [denote, runBind] using Eval.slice (ih state)
+  | compare op left right ihLeft ihRight =>
+    cases leftRun : denote left state with
+    | error error next =>
+      simpa [denote, runBind, Outcome.resume, leftRun] using
+        Eval.compareLeftError (op := op) (right := right) (leftRun ▸ ihLeft state)
+    | ok a next =>
+      cases rightRun : denote right next with
+      | error error final =>
+        simpa [denote, runBind, Outcome.resume, leftRun, rightRun] using
+          Eval.compareRightError (op := op) (leftRun ▸ ihLeft state) (rightRun ▸ ihRight next)
+      | ok b final =>
+        simpa [denote, runBind, Outcome.resume, leftRun, rightRun, Comparison.apply] using
+          Eval.compare (leftRun ▸ ihLeft state) (rightRun ▸ ihRight next)
+            ((Comparison.tests_iff_evaluate final.heap a b op _).mpr rfl)
   | append receiver argument ihReceiver ihArgument =>
     cases h : denote receiver state with
     | error error next =>

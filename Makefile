@@ -40,7 +40,7 @@ CHECK_TARGETS += PeggyDialectTests
 CHECK_TARGETS += PeggyEggTests PeggySimpleValidationTests
 CHECK_TARGETS += PeggyFieldHeapTests PeggyFieldHeapLinearizeTests
 
-CHECK_TARGETS += PeggyInstitutionTests
+CHECK_TARGETS += PeggyInstitutionTests PeggySortMapTests
 CHECK_TARGETS += PeggyEquationalTests
 CHECK_TARGETS += PEGRulesTests
 CHECK_TARGETS += PEGCanonicalWhileTests
@@ -71,6 +71,10 @@ cache:
 	fi
 
 CHECK_TARGETS += PEGStructuredThetaTests
+CHECK_TARGETS += arrow_ipc_metadata_tests
+CHECK_TARGETS += +Silmaril.Formats.Parquet.Footer.Thms parquet-footer-regression
+CHECK_TARGETS += +Silmaril.Formats.Parquet.Page.Thms parquet-page-regression
+CHECK_TARGETS += +Silmaril.Formats.Parquet.FlatScan.Thms parquet-flat-scan-regression
 
 # The release suites run when CHECK_TARGETS holds the executables. A change scoped to a library
 # that wasm-opt imports puts only wasm-opt in scope, so the other release binaries are built first.
@@ -89,14 +93,57 @@ check:
 		$(LAKE) build --wfail $(CHECK_TARGETS); \
 	fi
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) build --wfail ci_cjson_array_size_context ci_cjson_array_item_context ci_cjson_array_item_machine)
-	$(MAKE) -j2 check-runtime check-integrations
+	$(MAKE) check-prebuild
+	$(MAKE) -j$(CHECK_JOBS) $(CHECK_GROUPS)
+	$(if $(filter SilmarilLogicGraphData,$(CHECK_TARGETS)),$(MAKE) logic-graph-check)
 
-# Runtime observations read the completed build. Integration suites own their separate
-# generated outputs; overlap the two bounded groups and propagate either failure.
-.PHONY: check-runtime check-integrations tla-import-check
-check-runtime:
+# The checks that read the completed build run as groups, CHECK_JOBS at a time. Each group keeps
+# its lines in order and owns its outputs. logic-graph-check edits a records file and rebuilds
+# its loader, so it runs alone afterwards. Two slots is the overlap `make check` had before.
+CHECK_JOBS ?= 2
+CHECK_INTEGRATION_GROUPS := check-integrations-ssa check-integrations-operational \
+	check-integrations-python check-integrations-python-functions check-integrations-tools
+# Three slots on prove can overlap the RVSDG tail. Other runs keep the original group order.
+ifeq ($(CHECK_JOBS),3)
+CHECK_RUNTIME_GROUPS := check-runtime-core check-runtime-rvsdg
+CHECK_GROUPS := check-runtime-core check-integrations-tools check-integrations-operational \
+	check-runtime-rvsdg check-integrations-ssa check-integrations-python-functions check-integrations-python
+else
+CHECK_RUNTIME_GROUPS := check-runtime
+CHECK_GROUPS := check-runtime check-integrations-tools check-integrations-operational \
+	check-integrations-ssa check-integrations-python check-integrations-python-functions
+endif
+ifneq ($(sort $(CHECK_GROUPS)),$(sort $(CHECK_RUNTIME_GROUPS) $(CHECK_INTEGRATION_GROUPS)))
+$(error CHECK_GROUPS must list the runtime and integration groups)
+endif
+
+# Every target the groups' recipe lines build, in one Lake process, so that the groups only read
+# the build. The TLA+, SQLite virtual table, Binaryen and compiler explorer scripts build their
+# own targets, as they did before the split.
+check-prebuild:
+	@case '$(CHECK_JOBS)' in ''|*[!0-9]*|0*) echo 'CHECK_JOBS must be a positive integer' >&2; exit 1;; esac
+	@targets=$$(scripts/check-build-targets.sh $(CHECK_GROUPS)) || exit; \
+	if [ -n "$$targets" ]; then echo $(LAKE) build --wfail $$targets; $(LAKE) build --wfail $$targets; fi
+
+# Runtime observations read the completed build.
+.PHONY: check-prebuild check-runtime check-runtime-core check-runtime-rvsdg check-integrations $(CHECK_INTEGRATION_GROUPS) tla-import-check tla-acp-source-check
+check-runtime: check-runtime-core
+	$(MAKE) check-runtime-rvsdg
+
+check-runtime-core:
 	$(MAKE) process-gates
+	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.%,$(CHECK_TARGETS)),$(MAKE) tla-acp-source-check)
+	$(if $(filter Silmaril +Silmaril.Logic.Abstraction +Silmaril.Logic.Abstraction.% +Silmaril.Proofs.Logic.Abstraction.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Logic.Abstraction && \
+		for suite in Regression Soundness Comparisons; do \
+			$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/logic/abstraction/$$suite.lean || exit $$?; \
+		done)
+	$(if $(filter arrow_ipc_metadata_tests,$(CHECK_TARGETS)),$(MAKE) arrow-ipc-metadata-check)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Surface.Parser.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-parser/check.py)
+	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.Collections.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-collection-binders/check.py)
+	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.NamedFunctions.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-named-functions/check.py)
+	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.Sequences.% +Silmaril.Logic.Temporal.TLA.Data.Tagged.Sequences.% \
+		+Silmaril.Logic.Temporal.TLA.DataElab.Temporal.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-sequence-source/check.py)
+	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.DataElab.Temporal.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-temporal-source/check.py)
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Import.% +Silmaril.Logic.Temporal.TLA.Surface.Parser.% +Silmaril.Logic.Temporal.TLA.Elaborator.% +Silmaril.Logic.Temporal.TLA.Kernel.%,$(CHECK_TARGETS)),$(MAKE) tla-import-check)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Institution.% +Silmaril.Proofs.SSA.RVSDG.Institution.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Institution.Categorical.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGInstitution.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.% +Silmaril.Proofs.SSA.RVSDG.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDG.lean)
@@ -109,9 +156,12 @@ check-runtime:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.LambdaSSA.Region.% +Silmaril.Proofs.SSA.RVSDG.LambdaSSA.Region.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.LambdaSSA.Region.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGSingleExit.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.Isotope.LambdaSSA.% +Silmaril.Proofs.SSA.Isotope.LambdaSSA.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Thms +Silmaril.SSA.Isotope.LambdaSSA.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/LambdaSSAEffectfulReplacement.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.Isotope.LambdaSSA.% +Silmaril.Proofs.SSA.Isotope.LambdaSSA.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Packing.Roundtrip.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/LambdaSSANeutralPacking.lean)
-	$(if $(filter Silmaril +Silmaril.SSA.Isotope.LambdaSSA.% +Silmaril.Proofs.SSA.Isotope.LambdaSSA.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Feedback.Thms +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Singleton.Coproducts.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/LambdaSSAPaperImports.lean)
+	$(if $(filter Silmaril +Silmaril.SSA.Isotope.LambdaSSA.% +Silmaril.Proofs.SSA.Isotope.LambdaSSA.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Feedback.Thms +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Singleton.Coproducts.Thms +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.WithBoundEntryEta.Example.Thms +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.Category.Singleton.Denotation.Functor.ITree.Reflection.Defs && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/LambdaSSAPaperImports.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.Isotope.LambdaSSA.% +Silmaril.Proofs.SSA.Isotope.LambdaSSA.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.UnaryReturn.Thms +Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Theory.Closure.Paper.BoundSimulation.InstructionFree.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/LambdaSSAUnaryReturn.lean)
 	$(if $(filter sqlite_file_format_compatibility,$(CHECK_TARGETS)),bash tests/formats/sqlite-tranche/run.sh)
+	$(if $(filter parquet-footer-regression,$(CHECK_TARGETS)),printf '%s\n' '12a618d20a59ee0967fef45e7ec1ff6d451e724838edc1bbeac780ca15e8fcc4  tools/parquet-footer/fixtures/alltypes_plain.parquet' | sha256sum -c - && .lake/build/bin/parquet-footer-regression)
+	$(if $(filter parquet-page-regression,$(CHECK_TARGETS)),printf '%s\n' '12a618d20a59ee0967fef45e7ec1ff6d451e724838edc1bbeac780ca15e8fcc4  tools/parquet-footer/fixtures/alltypes_plain.parquet' '44f29191b5fa8cfe0ab848495bd8ef89344ac0d8f87b3dff12e267631e2b5c03  tools/parquet-page/fixtures/datapage_v2.snappy.parquet' | sha256sum -c - && .lake/build/bin/parquet-page-regression)
+	$(if $(filter parquet-flat-scan-regression,$(CHECK_TARGETS)),printf '%s\n' '3f7e748761fafc49e50ec4362925c8d6f70f2255bdd352f4a009df1b2f14deeb  tools/parquet-flat-scan/fixtures/flat-plain-v1.parquet' '725a8bd282efdb86d8c01e74a85615c0f05684737757ea003405adc7e120dfc2  tools/parquet-flat-scan/fixtures/flat-plain-v2.parquet' | sha256sum -c - && .lake/build/bin/parquet-flat-scan-regression)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.NestedTheta.Isomorphism.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.Isomorphism.% +Silmaril.SSA.RVSDG.NestedTheta.Partial.Isomorphism.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.Partial.Isomorphism.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.NestedTheta.Partial.Isomorphism.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedThetaIsomorphism.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.NestedTheta.Petri.Isomorphism.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.Petri.Isomorphism.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.NestedTheta.Petri.Isomorphism.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedPetriIsomorphism.lean)
 	$(if $(filter sqlite_lean,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Cli.Spec.LeanSqliteShell.Thms && $(PYTHON) -I tests/formats/sqlite-shell/check.py)
@@ -168,6 +218,9 @@ check-runtime:
 	$(if $(filter Silmaril +Silmaril.Wasm.Sublanguages.Strict.Thms +Silmaril.Wasm.Sublanguages.Strict.Link.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Wasm.Sublanguages.Strict.Link.Thms +Silmaril.Wasm.Verify.Kernel.Defs && $(LAKE) env lean -DwarningAsError=true tests/wasm/profiles/OpenStrict.lean)
 	$(if $(filter Silmaril +Silmaril.Formats.PER.EGraph.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/formats/GuardedEGraph.lean)
 	$(if $(filter Silmaril +Silmaril.Formats.Dasl.EGraph.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/formats/DaslEGraphBridge.lean)
+
+# Theta and interprocedural RVSDG regressions read the prebuilt modules.
+check-runtime-rvsdg:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Theta.% +Silmaril.Proofs.SSA.RVSDG.Theta.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Theta.Thms +Silmaril.SSA.RVSDG.Theta.Petri.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGTheta.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Theta.Categorical.% +Silmaril.Proofs.SSA.RVSDG.Theta.Categorical.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Theta.Categorical.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGThetaCategorical.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.NestedTheta.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.NestedTheta.ExplicitRuntime.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedTheta.lean && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedThetaOrderedState.lean)
@@ -187,6 +240,9 @@ check-runtime:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Descent.ThetaReach.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGRecursiveContinuations.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Descent.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Descent.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Descent.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGRecursiveDescent.lean)
 
+tla-acp-source-check:
+	LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-acp-source-acceptance/check.py
+
 tla-import-check:
 	$(LAKE) build --wfail +Silmaril.Logic.Temporal.TLA.Import.Defs +Silmaril.Logic.Temporal.TLA.Kernel.Thms +Silmaril.Logic.Temporal.TLA.Elaborator.Thms +Silmaril.ProofFormats.TLA.SurfaceSExp.Defs
 	cd tests/semantics/tla-quint && sha256sum -c SHA256SUMS
@@ -194,7 +250,19 @@ tla-import-check:
 	$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/semantics/tla-quint/Temporal.lean
 	$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/semantics/tla-quint/ServiceCycle.lean
 
+.PHONY: arrow-ipc-metadata-check
+arrow-ipc-metadata-check:
+	$(PYTHON) -I tests/formats/arrow-ipc/fixture.py
+	.lake/build/bin/arrow_ipc_metadata_tests
+	$(LAKE) build --wfail +Silmaril.Formats.Arrow.Framing.Thms +Silmaril.Formats.Arrow.Layout.Thms +Silmaril.Formats.Arrow.Body.Thms +Silmaril.Formats.Arrow.Writer.Thms +Silmaril.Formats.Arrow.MetadataWriter.Thms +Silmaril.Formats.Arrow.StreamWriter.Thms
+	$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/formats/arrow-ipc/Axioms.lean
+
 check-integrations:
+	$(MAKE) -j1 $(CHECK_INTEGRATION_GROUPS)
+	$(if $(filter SilmarilLogicGraphData,$(CHECK_TARGETS)),$(MAKE) logic-graph-check)
+
+# RVSDG and LambdaSSA, Wasm component and Cerberus oracle regressions.
+check-integrations-ssa:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.OrderedRuntime.% +Silmaril.Proofs.SSA.RVSDG.OrderedRuntime.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.OrderedRuntime.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGOrderedRuntime.lean)
 	$(if $(filter ci_cerberus_genuine_oracle,$(CHECK_TARGETS)),$(MAKE) cerberus-oracle)
 	$(if $(filter Silmaril +Silmaril.Wasm.Component.Reference.Validation.FunctionPorts.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Wasm.Component.Reference.Validation.FunctionPorts.Thms && $(LAKE) env lean -DwarningAsError=true tests/wasm/profiles/LimeFunctionPorts.lean)
@@ -222,6 +290,9 @@ check-integrations:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.LoopDiamond.% +Silmaril.Proofs.SSA.RVSDG.LambdaSSA.Acyclic.Theta.LoopDiamond.% +Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Sequential.Flat.Fork.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.LoopDiamond.Reverse.Thms +Silmaril.SSA.RVSDG.Isomorphism.Defs +Silmaril.Raw.SSA.Isotope.Semantics.Model && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGLambdaSSALoopDiamond.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.LambdaSSA.OrderedTheta.% +Silmaril.Proofs.SSA.RVSDG.LambdaSSA.OrderedTheta.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.LambdaSSA.OrderedTheta.Thms +Silmaril.Raw.SSA.Isotope.Semantics.Model && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGLambdaSSAOrderedTheta.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.LambdaSSA.TwoBlock.% +Silmaril.Proofs.SSA.RVSDG.LambdaSSA.TwoBlock.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.LambdaSSA.TwoBlock.ExplicitRuntime.Thms +Silmaril.Raw.SSA.Isotope.Semantics.Model && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGLambdaSSATwoBlock.lean)
+
+# Wasm operational, semantics and Python core regressions.
+check-integrations-operational:
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.Entry.Thms +Silmaril.Wasm.Execution.Core.Entry.Program.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Wasm.Execution.Core.Exec.InstantiateIff +Silmaril.Wasm.Validation.Intrinsic.Thms +Silmaril.Wasm.Execution.Core.Entry.Program.Thms && $(LAKE) env lean -DwarningAsError=true tests/wasm/module-entry/Regression.lean)
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.Entry.Program.Versions.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Wasm.Execution.Core.Exec.InstantiateIff && $(LAKE) env lean -DwarningAsError=true tests/wasm/operational-program/Version.lean)
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.Intrinsic.Normalize.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/wasm/intrinsic-machine/Regression.lean)
@@ -266,6 +337,9 @@ check-integrations:
 	$(if $(filter Silmaril +Silmaril.Logic.Operational.SOS.Marked.% +Silmaril.Proofs.Logic.Operational.SOS.Marked.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Logic.Operational.SOS.Marked.Policy.Thms +Silmaril.Logic.Operational.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true --run tests/semantics/sos-marked/Regression.lean)
 	$(if $(filter Silmaril +Silmaril.RiscV.OperationalInstitution.LPS.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.RiscV.OperationalInstitution.LPS.Thms +Silmaril.X86.OperationalInstitution.Thms +Silmaril.Wasm.Institution.Operational.Thms && $(LAKE) env lean -DwarningAsError=true tests/semantics/rv64-operational/Regression.lean)
 	$(if $(filter Silmaril +Silmaril.Semantics.Operational.Determinism.Fuel.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/semantics/operational-determinism/Regression.lean)
+
+# The Python source and closure compilers and module entry.
+check-integrations-python:
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Source.Scope.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/languages/python/source-scope/Regression.lean && LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-scope/check_intake.py)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Source.Closure.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/languages/python/source-closure/Regression.lean)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Source.Closure.Frame.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/languages/python/source-frame-layout/Regression.lean)
@@ -277,11 +351,20 @@ check-integrations:
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.Closed.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/languages/python/closed-source/Regression.lean && LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-scope/check_intake.py --closed-compiler)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_intake.py)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Run.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_run.py)
+
+# Python module-entry functions.
+check-integrations-python-functions:
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_functions.py)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_function_run.py)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.Closure.VarNames.Defs +Silmaril.Languages.Python.Compile.Closure.VarNames.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Languages.Python.Compile.Closure.VarNames.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms && LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_varnames.py)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms && LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_keyword_default.py)
+	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I scripts/check-python-division-call-transport.py)
+	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I scripts/check-python-finite-numeric-equality.py)
+	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I scripts/check-python-mixed-finite-addition.py)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.Closure.Run.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Languages.Python.Compile.Closure.Run.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded.Thms && LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_return_local_call.py && LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_factory_results.py && LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_nested_lambdas.py)
+
+# Wasm profiles and the Binaryen intrinsic, release, ELF and compiler explorer suites.
+check-integrations-tools:
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.Entry.Determinism.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/wasm/operational-determinism/Regression.lean)
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.GlobalProfile.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/wasm/global-profile/Regression.lean)
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.Entry.ClosedFunctional.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Wasm.Det.NaN.Litmus.Thms +Silmaril.Wasm.Execution.Core.Exec.InstantiateIff && $(LAKE) env lean -DwarningAsError=true tests/wasm/closed-functional/Regression.lean)
@@ -290,7 +373,6 @@ check-integrations:
 	$(if $(filter Silmaril +Silmaril.Wasm.Binaryen.Intrinsic.% +Silmaril.Proofs.Wasm.Binaryen.Intrinsic.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" bash tests/wasm/binaryen-intrinsic/check.sh)
 	$(if $(filter wasm-opt,$(CHECK_TARGETS)),$(LAKE) build --wfail $(RELEASE_BINARIES) && $(MAKE) release-check)
 	$(if $(filter elf-pages,$(CHECK_TARGETS)),$(MAKE) elf-check)
-	$(if $(filter SilmarilLogicGraphData,$(CHECK_TARGETS)),$(MAKE) logic-graph-check)
 	$(if $(filter cexplorer-export CompilesToExamples,$(CHECK_TARGETS)),$(MAKE) compiler-explorer-check)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.LambdaSSA.Theta.% +Silmaril.Proofs.SSA.RVSDG.LambdaSSA.Theta.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.LambdaSSA.Theta.Categorical.Thms +Silmaril.Raw.SSA.Isotope.LetIter.Semantics.Categorical.Kleisli && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGLambdaSSATheta.lean)
 
@@ -509,7 +591,7 @@ help:
 	@echo 'make tools    Build seven native Wasm tools and stage build/bin/sil'
 	@echo 'make library  Check every included Lean library module'
 	@echo 'make cache    Restore dependencies; with LAKE_CI_BUCKET, the seed of main and the check targets'
-	@echo 'make check    Build library, tools and proof roots; run native regressions'
+	@echo 'make check    Build library, tools and proof roots; run native regressions (CHECK_JOBS=2)'
 	@echo 'make project-tool   Build sil project (Cargo) and stage it in build/bin'
 	@echo 'make project-registry  Run the sil project checks that need no Lean: init, lock, lint'
 	@echo 'make compiler-explorer-serve  Browse compiler fixtures locally (127.0.0.1:8765)'

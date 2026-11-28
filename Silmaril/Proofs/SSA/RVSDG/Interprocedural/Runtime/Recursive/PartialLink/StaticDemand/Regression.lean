@@ -92,7 +92,7 @@ private def exports (cap : Nat) : Tuple machine.Val [caller.port] :=
 
 private theorem resolved (cap first pass dead : Nat) :
     callerCode.Resolved (prependContext (nums first pass dead) (captures cap)) :=
-  ⟨rfl, fun _ => trivial, rfl, fun _ => trivial, trivial⟩
+  fun _ => ⟨rfl, fun _ _ _ => trivial, fun _ => ⟨rfl, fun _ _ _ => trivial, fun _ => trivial⟩⟩
 
 private theorem agree (cap first pass deadL deadR : Nat) :
     callerCode.AgreesOnInputs requested

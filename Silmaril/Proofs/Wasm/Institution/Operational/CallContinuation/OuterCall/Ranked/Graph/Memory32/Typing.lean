@@ -6,10 +6,11 @@ public import Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.R
 
 namespace Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Proofs
 
-open Execution.Runtime (FuncAddr MemAddr Value)
+open Execution.Runtime (FuncAddr MemAddr ModuleInst Value)
+open CallResolution.Indirect (Outcome resolveTable)
 open Computed
 
-private theorem split_i32 {stack : List Value} {resume : List NumType → Bool}
+theorem split_i32 {stack : List Value} {resume : List NumType → Bool}
     (checked : Graph.checkCondition (Prefix.stackTypes stack) resume = true) :
     ∃ (saved : List Value) (bits : BitVec 32),
       stack = saved ++ [Value.int .i32 bits] ∧ resume (Prefix.stackTypes saved) = true := by
@@ -28,22 +29,56 @@ private theorem split_i32 {stack : List Value} {resume : List NumType → Bool}
       | i64 => simp [Graph.checkCondition] at checked
 
 theorem load_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} {rest : List Op}
-    (checked : fn.WellTyped stack (.load offset :: rest)) :
+    {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.load offset :: rest) labels = true) :
     ∃ (saved : List Value) (address : BitVec 32),
       stack = saved ++ [Value.int .i32 address] ∧
-      ∀ bits : BitVec 32, fn.WellTyped (saved ++ [Value.int .i32 bits]) rest := by
+      ∀ bits : BitVec 32, fn.checkRegion (Prefix.stackTypes (saved ++ [Value.int .i32 bits])) fallthrough rest labels = true := by
   change Graph.checkCondition (Prefix.stackTypes stack)
-    (fun saved => fn.checkCode (.int .i32 :: saved) rest) = true at checked
+    (fun saved => fn.checkRegion (.int .i32 :: saved) fallthrough rest labels) = true at checked
   obtain ⟨saved, address, rfl, resume⟩ := split_i32 checked
   refine ⟨saved, address, rfl, fun bits => ?_⟩
-  simpa [Function.WellTyped, Prefix.stackTypes, Value.int, List.reverse_append] using resume
+  simpa [Prefix.stackTypes, Value.int, List.reverse_append] using resume
+
+theorem grow_typed {fn : Function} {stack : List Value} {rest : List Op}
+    {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.grow :: rest) labels = true) :
+    ∃ (saved : List Value) (delta : BitVec 32),
+      stack = saved ++ [Value.int .i32 delta] ∧
+      ∀ result : BitVec 32, fn.checkRegion (Prefix.stackTypes (saved ++ [Value.int .i32 result])) fallthrough rest labels = true :=
+  load_typed (offset := 0) checked
+
+theorem size_typed {fn : Function} {stack : List Value} {rest : List Op}
+    {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.size :: rest) labels = true) (pages : BitVec 32) :
+    fn.checkRegion (Prefix.stackTypes (stack ++ [Value.int .i32 pages])) fallthrough rest labels = true := by
+  change fn.checkRegion (.int .i32 :: Prefix.stackTypes stack) fallthrough rest labels = true at checked
+  simpa [Prefix.stackTypes, List.reverse_append, Value.int] using checked
+
+theorem indirect_typed {fn : Function} {stack : List Value} {index : TypeIdx} {signature : Wasm.V1.FuncType}
+    {rest : List Op} {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.callIndirect index signature :: rest) labels = true) :
+    ∃ (operands : List Value) (selector : BitVec 32), stack = operands ++ [Value.int .i32 selector] ∧
+      Graph.SuffixTyped signature.params operands ∧
+      fn.checkRegion (signature.results.reverse ++ (Prefix.stackTypes operands).drop signature.params.length)
+        fallthrough rest labels = true := by
+  change Graph.checkCondition (Prefix.stackTypes stack) (fun operands =>
+    decide (operands.take signature.params.length = signature.params.reverse) &&
+    fn.checkRegion (signature.results.reverse ++ operands.drop signature.params.length)
+      fallthrough rest labels) = true at checked
+  obtain ⟨operands, selector, rfl, checks⟩ := split_i32 checked
+  obtain ⟨typed, resume⟩ := Bool.and_eq_true_iff.mp checks
+  have shape : (Prefix.stackTypes operands).take signature.params.length = signature.params.reverse :=
+    of_decide_eq_true typed
+  exact ⟨operands, selector, rfl, shape, resume⟩
 
 theorem store_typed {fn : Function} {stack : List Value} {offset : Fin (2 ^ 32)} {rest : List Op}
-    (checked : fn.WellTyped stack (.store offset :: rest)) :
+    {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough (.store offset :: rest) labels = true) :
     ∃ (saved : List Value) (address word : BitVec 32),
-      stack = saved ++ [Value.int .i32 address, Value.int .i32 word] ∧ fn.WellTyped saved rest := by
+      stack = saved ++ [Value.int .i32 address, Value.int .i32 word] ∧ fn.checkRegion (Prefix.stackTypes saved) fallthrough rest labels = true := by
   change Graph.checkCondition (Prefix.stackTypes stack)
-    (fun args => Graph.checkCondition args (fun saved => fn.checkCode saved rest)) = true at checked
+    (fun args => Graph.checkCondition args (fun saved => fn.checkRegion saved fallthrough rest labels)) = true at checked
   obtain ⟨args, word, rfl, remaining⟩ := split_i32 checked
   obtain ⟨saved, address, rfl, tail⟩ := split_i32 remaining
   exact ⟨saved, address, word, by simp [List.append_assoc], tail⟩
@@ -55,6 +90,18 @@ theorem block_typed {fn : Function} {saved : List Value} {result : Option NumTyp
       ∀ delivered : List Value, delivered.map Value.type = result.toList →
         fn.checkRegion (Prefix.stackTypes (saved ++ delivered)) fallthrough rest labels = true := by
   change (fn.checkRegion [] result.toList body (result.toList :: labels) &&
+    fn.checkRegion (result.toList.reverse ++ Prefix.stackTypes saved) fallthrough rest labels) = true at checked
+  obtain ⟨checkBody, checkTail⟩ := Bool.and_eq_true_iff.mp checked
+  refine ⟨checkBody, fun delivered typed => ?_⟩
+  simpa [Prefix.stackTypes, List.reverse_append, typed] using checkTail
+
+theorem loop_typed {fn : Function} {saved : List Value} {result : Option NumType}
+    {body rest : List Op} {fallthrough : List NumType} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes saved) fallthrough (.loop result body :: rest) labels = true) :
+    fn.checkRegion [] result.toList body ([] :: labels) = true ∧
+      ∀ delivered : List Value, delivered.map Value.type = result.toList →
+        fn.checkRegion (Prefix.stackTypes (saved ++ delivered)) fallthrough rest labels = true := by
+  change (fn.checkRegion [] result.toList body ([] :: labels) &&
     fn.checkRegion (result.toList.reverse ++ Prefix.stackTypes saved) fallthrough rest labels) = true at checked
   obtain ⟨checkBody, checkTail⟩ := Bool.and_eq_true_iff.mp checked
   refine ⟨checkBody, fun delivered typed => ?_⟩
@@ -97,6 +144,23 @@ theorem br_if_typed {fn : Function} {stack : List Value} {depth : LabelIdx} {res
   obtain ⟨target, payload⟩ := of_decide_eq_true branch
   exact ⟨saved, condition, rfl, target, payload, tail⟩
 
+theorem br_table_typed {fn : Function} {stack : List Value} {depths : List LabelIdx} {fallback : LabelIdx}
+    {result fallthrough : List NumType} {rest : List Op} {labels : List (List NumType)}
+    (checked : fn.checkRegion (Prefix.stackTypes stack) fallthrough
+      (.ranked (.brTable depths fallback result) :: rest) labels = true) :
+    ∃ (saved : List Value) (selector : BitVec 32), stack = saved ++ [Value.int .i32 selector] ∧
+      Graph.SuffixTyped result saved ∧ ∀ depth ∈ fallback :: depths, labels[depth.toNat]? = some result := by
+  change Graph.checkCondition (Prefix.stackTypes stack) (fun saved =>
+    Graph.checkBranch labels saved fallback result &&
+      depths.all (fun depth => Graph.checkBranch labels saved depth result)) = true at checked
+  obtain ⟨saved, selector, rfl, checks⟩ := split_i32 checked
+  obtain ⟨fallbackOK, entriesOK⟩ := Bool.and_eq_true_iff.mp checks
+  obtain ⟨target, payload⟩ := of_decide_eq_true fallbackOK
+  refine ⟨saved, selector, rfl, payload, fun depth used => ?_⟩
+  rcases List.mem_cons.mp used with rfl | used
+  · exact target
+  · exact (of_decide_eq_true (List.all_eq_true.mp entriesOK depth used)).1
+
 theorem lookup_table (program : Program) (address : FuncAddr) :
     program.table.lookup address = (program.lookup address).map Function.entry := by
   unfold Table.lookup Program.table Program.lookup
@@ -114,9 +178,11 @@ private theorem lookup_mem {program : Program} {address : FuncAddr} {fn : Functi
     have eq : slot = some fn := by simpa [h] using found
     exact List.mem_of_getElem? (eq ▸ h)
 
-theorem function_checked {program : Program} {memory : MemAddr} (checked : program.checkV1 memory = true)
+theorem function_checked {program : Program} {memory : MemAddr} {mode : MemoryMode} {calls : CallMode}
+    (checked : program.checkV1 memory mode calls = true)
     {address : FuncAddr} {fn : Function} (found : program.lookup address = some fn) :
-    fn.declaration.results.length ≤ 1 ∧ fn.code.all fn.supports = true ∧
+    fn.declaration.results.length ≤ 1 ∧
+      fn.code.all (fun op => fn.supports op mode (program.checkIndirect calls fn.rank fn.declaration.module)) = true ∧
       fn.WellTyped fn.initial fn.code ∧ fn.declaration.module.memories[0]? = some memory := by
   have each := (Bool.and_eq_true_iff.mp checked).2
   have body := List.all_eq_true.mp each (some fn) (lookup_mem found)
@@ -124,21 +190,84 @@ theorem function_checked {program : Program} {memory : MemAddr} (checked : progr
     decide_eq_true_eq, Function.WellTyped] at body ⊢
   exact ⟨body.1.1.1, body.1.1.2, body.1.2, body.2⟩
 
-theorem linked_target {program : Program} {memory : MemAddr} (checked : program.checkV1 memory = true)
+theorem linked_target {program : Program} {memory : MemAddr} {mode : MemoryMode} {calls : CallMode}
+    (checked : program.checkV1 memory mode calls = true)
     {address : FuncAddr} {fn : Function} {target : CallTarget}
     (found : program.lookup address = some fn) (used : target ∈ fn.targets) :
     ∃ callee, program.lookup target.address = some callee ∧
       fn.declaration.module.funcs[target.index.toNat]? = some target.address ∧
-      callee.declaration = target.declaration ∧ callee.rank < fn.rank := by
-  have valid := (Bool.and_eq_true_iff.mp checked).1
-  have entry : program.table.lookup address = some fn.entry := by rw [lookup_table, found]; rfl
-  have member := List.mem_of_getElem? (show program.table.entries[address.value]? = some (some fn.entry) by
-    unfold Table.lookup at entry
-    cases h : program.table.entries[address.value]? <;> simp_all)
-  obtain ⟨callee, atTarget, resolves, declares, rank⟩ :=
-    (Table.check_iff program.table).mp valid _ member target used
-  rw [lookup_table] at atTarget
-  obtain ⟨body, foundBody, rfl⟩ := Option.map_eq_some_iff.mp atTarget
-  exact ⟨body, foundBody, resolves, declares, rank⟩
+      callee.declaration = target.declaration ∧ calls.permits fn.rank callee.rank := by
+  have valid := (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp checked).1).1
+  cases calls with
+  | ranked =>
+    have entry : program.table.lookup address = some fn.entry := by rw [lookup_table, found]; rfl
+    have member := List.mem_of_getElem? (show program.table.entries[address.value]? = some (some fn.entry) by
+      unfold Table.lookup at entry
+      cases h : program.table.entries[address.value]? <;> simp_all)
+    obtain ⟨callee, atTarget, resolves, declares, rank⟩ :=
+      (Table.check_iff program.table).mp valid _ member target used
+    rw [lookup_table] at atTarget
+    obtain ⟨body, foundBody, rfl⟩ := Option.map_eq_some_iff.mp atTarget
+    exact ⟨body, foundBody, resolves, declares, rank⟩
+  | recursive =>
+    unfold Program.checkLinks at valid
+    have targets := List.all_eq_true.mp valid (some fn) (lookup_mem found)
+    have link := List.all_eq_true.mp targets target used
+    cases lookup : program.lookup target.address with
+    | none => simp [lookup] at link
+    | some callee =>
+      have exactLink : callee.declaration = target.declaration ∧
+          fn.declaration.module.funcs[target.index.toNat]? = some target.address := by
+        simpa only [lookup, decide_eq_true_eq] using link
+      exact ⟨callee, rfl, exactLink.2, exactLink.1, trivial⟩
+
+theorem table_target {program : Program} {memory : MemAddr} {mode : MemoryMode} {calls : CallMode}
+    (checked : program.checkV1 memory mode calls = true) {fixed : FixedTable}
+    (selected : program.fixedTable = some fixed) {address : FuncAddr} (member : some address ∈ fixed.table.refs) :
+    ∃ fn, program.lookup address = some fn := by
+  have complete := (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp checked).1).2
+  simp only [Program.checkTable, selected, Option.map_some, Option.getD_some] at complete
+  have present := List.all_eq_true.mp complete (some address) member
+  simpa only [Option.map_some, Option.getD_some, Option.isSome_iff_exists] using present
+
+theorem indirect_link {program : Program} {calls : CallMode} {rank : Nat} {module : ModuleInst}
+    {index : TypeIdx} {signature : Wasm.V1.FuncType}
+    (checked : program.checkIndirect calls rank module index signature = true) :
+    ∃ fixed, program.fixedTable = some fixed ∧ module.tables[0]? = some fixed.address ∧
+      module.types[index.toNat]? = some signature ∧ signature.results.length ≤ 1 ∧
+      ∀ address fn, some address ∈ fixed.table.refs → program.lookup address = some fn →
+        fn.declaration.type = signature → calls.permits rank fn.rank := by
+  cases selected : program.fixedTable with
+  | none => simp [Program.checkIndirect, selected] at checked
+  | some fixed =>
+    simp only [Program.checkIndirect, selected, Option.map_some, Option.getD_some, Bool.and_eq_true_iff,
+      decide_eq_true_eq] at checked
+    refine ⟨fixed, rfl, checked.1.1, checked.1.2.1, checked.1.2.2, ?_⟩
+    intro address fn member found
+    have permits := List.all_eq_true.mp checked.2 (some address) member
+    simpa only [Option.map_some, Option.getD_some, found, decide_eq_true_eq] using permits
+
+theorem indirect_target {program : Program} {calls : CallMode} {rank : Nat} {module : ModuleInst}
+    {index : TypeIdx} {signature : Wasm.V1.FuncType}
+    (checked : program.checkIndirect calls rank module index signature = true)
+    {fixed : FixedTable} (selected : program.fixedTable = some fixed) {selector : BitVec 32} {address : FuncAddr}
+    (resolved : program.resolveIndirect fixed module index selector = some (.resolved address)) :
+    ∃ fn, program.lookup address = some fn ∧ fn.declaration.type = signature ∧ calls.permits rank fn.rank := by
+  obtain ⟨table, h, _, expected, _, guard⟩ := indirect_link checked
+  cases Option.some.inj (selected.symm.trans h)
+  cases entry : fixed.table.refs[selector.toNat]? with
+  | none => simp [Program.resolveIndirect, resolveTable, entry] at resolved
+  | some elem =>
+    cases elem with
+    | none => simp [Program.resolveIndirect, resolveTable, entry] at resolved
+    | some target =>
+      cases found : program.lookup target with
+      | none => simp [Program.resolveIndirect, resolveTable, entry, expected, found] at resolved
+      | some fn =>
+        by_cases same : fn.declaration.type = signature
+        · simp [Program.resolveIndirect, resolveTable, entry, expected, found, same] at resolved
+          subst target
+          exact ⟨fn, found, same, guard address fn (List.mem_of_getElem? entry) found same⟩
+        · simp [Program.resolveIndirect, resolveTable, entry, expected, found, same] at resolved
 
 end Silmaril.Wasm.Institution.Operational.CallContinuation.OuterCall.Ranked.Graph.Memory32.Proofs

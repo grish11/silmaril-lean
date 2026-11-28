@@ -11,8 +11,30 @@ public section
 namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Checked
 
 open Silmaril.Machine.Lir (Memory Word)
-open Silmaril.Machine.SeaOfNodes.Diamond.RTL (Reg entry model)
+open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy Reg WordOp entry model word)
 open Silmaril.Machine.RTL.SSA (Prog StepsNWithin step)
+open Silmaril.SSA.RVSDG (Wires)
+open Silmaril.SSA.SeaOfNodes.Diamond (Dataflow ValueSort)
+open Silmaril.SSA.SeaOfNodes.Loop (Graph)
+
+theorem schedule_eq {args : List PortTy} (body : Dataflow WordOp args [] headerSigs)
+    (p : Profile) (update : Wires args [] [.value word, .value word])
+    (guard : Wires args [[.value word], [.value word]] [.value word, .value word])
+    (decoded : decodeSchedule body = some p)
+    (addresses : scheduleAddresses body = scheduleAddresses (schedule p update guard)) :
+    body = schedule p update guard :=
+  Proofs.schedule_eq body p update guard decoded addresses
+
+theorem decode_schedule {args : List PortTy} (p : Profile)
+    (update : Wires args [] [.value word, .value word])
+    (guard : Wires args [[.value word], [.value word]] [.value word, .value word]) :
+    decodeSchedule (schedule p update guard) = some p :=
+  Proofs.decode_schedule p update guard
+
+theorem graph_eq_of_provenance {inputs carried : List (ValueSort Unit)}
+    {g h : Graph WordOp inputs carried [] headerSigs word}
+    (header : g.header = h.header) (agree : provenance g = provenance h) : g = h :=
+  Proofs.graph_eq_of_provenance header agree
 
 theorem recognize_eq_some_iff (g : WordLoop) (p : Profile) :
     recognize g = some p ↔ g = p.graph :=

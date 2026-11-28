@@ -1,0 +1,166 @@
+{
+  "cpython": "3.13.5",
+  "pyarrow": "26.0.1",
+  "pyarrow_wheel_sha256": "f71221bbc7707e3fad920d0478db9350791d4714ec445299ee0d56559fbc156c",
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "cases": {
+    "cuts_a": {
+      "batches": [
+        [
+          -719528,
+          null
+        ],
+        [
+          11016,
+          2932896
+        ]
+      ],
+      "pyarrow_source": {
+        "bytes": 448,
+        "sha256": "cdaab5bd4895ba62877b67f5a1f443b8936a519c784265da8ab207c12c321dd3"
+      },
+      "canonical_csv": {
+        "bytes": 60,
+        "sha256": "8bd16baf6c526c84549efa2cdc2c553db6aea10068ba54c5306ad84f40d27279"
+      },
+      "normalized_ipc": {
+        "bytes": 336,
+        "sha256": "c98f57d5661b37ae4cd5b028bfefcebc9f05f8743edf84b7fab33047b5c9bbd8"
+      }
+    },
+    "cuts_b": {
+      "batches": [
+        [],
+        [
+          -719528
+        ],
+        [],
+        [],
+        [
+          null,
+          11016
+        ],
+        [
+          2932896
+        ],
+        []
+      ],
+      "pyarrow_source": {
+        "bytes": 1080,
+        "sha256": "4c46a5210ab7b27caa0e052c6e55a93bab5ab33dd768c5845e658d22f1797ed1"
+      },
+      "canonical_csv": {
+        "bytes": 60,
+        "sha256": "8bd16baf6c526c84549efa2cdc2c553db6aea10068ba54c5306ad84f40d27279"
+      },
+      "normalized_ipc": {
+        "bytes": 336,
+        "sha256": "c98f57d5661b37ae4cd5b028bfefcebc9f05f8743edf84b7fab33047b5c9bbd8"
+      }
+    },
+    "null_moved": {
+      "batches": [
+        [
+          null,
+          -719528
+        ],
+        [
+          11016,
+          2932896
+        ]
+      ],
+      "pyarrow_source": {
+        "bytes": 448,
+        "sha256": "3fccc1b35a1342c1563750e922d734186d281544ad3995e742cc462e1a19e984"
+      },
+      "canonical_csv": {
+        "bytes": 60,
+        "sha256": "41f6e507acf29f086531c6b99ac98e1fb944c829a7bbf8763047c9d3cd9bfc18"
+      },
+      "normalized_ipc": {
+        "bytes": 336,
+        "sha256": "e574765a55cf517169e5bca1359bd0486fb53b96c682bd9ad1748f9f18575d80"
+      }
+    },
+    "days_reordered": {
+      "batches": [
+        [
+          2932896,
+          null
+        ],
+        [
+          11016,
+          -719528
+        ]
+      ],
+      "pyarrow_source": {
+        "bytes": 448,
+        "sha256": "ddc7fcfe5b8f0a954eb3ee6a98b84c9395b4c15464f252e5a9c62d2158883749"
+      },
+      "canonical_csv": {
+        "bytes": 60,
+        "sha256": "7a173fb6dcff7d7a18deed172ff9973daa7cd8db153416264c6210e11f922a88"
+      },
+      "normalized_ipc": {
+        "bytes": 336,
+        "sha256": "79ce5b14def5a55fb4fb24f6b8f9fd982153ef46daf0153eb71f8beefe37de1c"
+      }
+    },
+    "schema_only": {
+      "batches": [],
+      "pyarrow_source": {
+        "bytes": 136,
+        "sha256": "8df8289f4c287838eb772fa70f2b437def0867874ab290ee7da81688f7ab84d5"
+      },
+      "canonical_csv": {
+        "bytes": 10,
+        "sha256": "0a255c2232f9bc88ec5205548f72bd881e2318315e9ff407e96f13aa617576ca"
+      },
+      "normalized_ipc": {
+        "bytes": 312,
+        "sha256": "8b5e38a69f6674f967aa84932ab3c3635d11a7ac3ea2f94ccc201ec7e3ea9c41"
+      }
+    },
+    "consecutive_empties": {
+      "batches": [
+        [],
+        [],
+        []
+      ],
+      "pyarrow_source": {
+        "bytes": 496,
+        "sha256": "cbae30f87c3b9cdad63618fbb9b96451f433cc99afc6425e1373df964f5215c7"
+      },
+      "canonical_csv": {
+        "bytes": 10,
+        "sha256": "0a255c2232f9bc88ec5205548f72bd881e2318315e9ff407e96f13aa617576ca"
+      },
+      "normalized_ipc": {
+        "bytes": 312,
+        "sha256": "8b5e38a69f6674f967aa84932ab3c3635d11a7ac3ea2f94ccc201ec7e3ea9c41"
+      }
+    }
+  },
+  "refusals": {
+    "total_csv_rows": {
+      "bytes": 448,
+      "sha256": "cdaab5bd4895ba62877b67f5a1f443b8936a519c784265da8ab207c12c321dd3"
+    },
+    "canonical_csv_bytes": {
+      "bytes": 448,
+      "sha256": "cdaab5bd4895ba62877b67f5a1f443b8936a519c784265da8ab207c12c321dd3"
+    },
+    "ipc_per_batch_rows": {
+      "bytes": 448,
+      "sha256": "cdaab5bd4895ba62877b67f5a1f443b8936a519c784265da8ab207c12c321dd3"
+    },
+    "late_truncated_eos": {
+      "bytes": 447,
+      "sha256": "a7659c72759bcbf86bb5c94ee04553ed5f61876b17e649f214ccfc3c24e06ec3"
+    },
+    "late_outside_calendar": {
+      "bytes": 440,
+      "sha256": "fe4c197e032137df9f4484b3304934fd8745af61188a26a7a2be3584c05236dc"
+    }
+  }
+}

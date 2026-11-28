@@ -25,6 +25,11 @@ structure Parameters where
   { positional := parameters.required.map (fun name => ⟨name, none⟩) ++
       parameters.optional.map fun (name, expr) => ⟨name, some (.plain expr)⟩ }
 
+@[expose] def Parameters.signature (parameters : Parameters) (codes : List Lowering.Expr) : Signature :=
+  let optional := ((parameters.optional.map (fileSlot ∘ Prod.fst)).zip codes).map
+    (fun (slot, code) => (⟨slot, some code⟩ : Parameter))
+  { positional := (requiredSignature parameters.required).positional ++ optional }
+
 /-- The source definition bridge starts with a body that returns one
 parameter. The binder theorem below applies to arbitrary resolved bodies. -/
 structure Definition where
@@ -42,9 +47,7 @@ structure Admitted (globals : List String) (definition : Definition) : Prop wher
   returned : Visible definition.parameters.names definition.returned
 
 @[expose] def Definition.emitted (definition : Definition) (codes : List Lowering.Expr) : Declaration :=
-  let optional := ((definition.parameters.optional.map (fileSlot ∘ Prod.fst)).zip codes).map
-    (fun (slot, code) => (⟨slot, some code⟩ : Parameter))
-  { signature := { positional := (requiredSignature definition.parameters.required).positional ++ optional }
+  { signature := definition.parameters.signature codes
     locals := []
     free := []
     body := .returnExpr (Leaf.readOperand (fileSlot definition.returned)) }

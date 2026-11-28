@@ -55,14 +55,15 @@ theorem run_eq_forward (model : Model F M α) (graph : CFG V K F)
   funext value next
   exact iter_step_eq_jump model graph.blocks graph.blocks forward label value next rfl
 
-theorem iter_obs_of_step_encoding {Target : Type w} (model : Model F M α)
-    (table : List (K × Block V K F)) (encode : Transfer V K α → Target)
-    (targetStep : Target → M ((K × α) ⊕ Target))
+theorem iter_project_of_step_encoding {Output Target : Type w} (model : Model F M α)
+    (table : List (K × Block V K F)) (project : Transfer V K α → Output)
+    (encode : Transfer V K α → Target)
+    (targetStep : Target → M (Output ⊕ Target))
     (commutes : ∀ transfer,
-      Sum.map obs encode <$> step model table transfer = targetStep (encode transfer))
+      Sum.map project encode <$> step model table transfer = targetStep (encode transfer))
     (initial : Transfer V K α) :
-    obs <$> iter (step model table) initial = iter targetStep (encode initial) := by
-  let observed := mapReturn (step model table) (fun result => pure (obs result))
+    project <$> iter (step model table) initial = iter targetStep (encode initial) := by
+  let observed := mapReturn (step model table) (fun result => pure (project result))
   have square : (observed >=> liftPure (Sum.map id encode)) =
       (liftPure encode >=> targetStep) := by
     funext transfer
@@ -74,11 +75,11 @@ theorem iter_obs_of_step_encoding {Target : Type w} (model : Model F M α)
     funext result
     cases result <;> simp [liftPure]
   have natural := congrFun
-    (LawfulElgotMonad.naturality (step model table) (fun result => pure (obs result))) initial
+    (LawfulElgotMonad.naturality (step model table) (fun result => pure (project result))) initial
   have uniform := congrFun
     (LawfulElgotMonad.uniformity observed targetStep encode square) initial
   have result := natural.trans uniform
-  change (iter (step model table) initial >>= fun exit => pure (obs exit)) =
+  change (iter (step model table) initial >>= fun exit => pure (project exit)) =
     (pure (encode initial) >>= iter targetStep) at result
   simpa using result
 

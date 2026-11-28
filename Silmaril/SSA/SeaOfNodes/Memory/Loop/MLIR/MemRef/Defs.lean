@@ -55,15 +55,21 @@ def tailCode (graph : Graph args) {past : List (List (Ty cells))}
   ⟨.prim .cmpiNe (.cons value (.cons (stopWire graph past) .nil))
     (.yield (.cons test (.cons (weaken (testPorts cells) value) .nil))), trivial⟩
 
-def lowerActivation (cells : Nat) (graph : Graph args) :
-    StraightBlock (Op cells) [entryPorts cells args] (activationPorts cells) :=
+abbrev Activation (cells : Nat) (args : List ValueSort) :=
+  StraightBlock (Op cells) [entryPorts cells args] (activationPorts cells)
+
+def lowerActivation (cells : Nat) (graph : Graph args) : Activation cells args :=
   let body := SeaOfNodes.Memory.MLIR.MemRef.lower cells graph.body
   body.val.mapYield Op.memory (tailCode graph) body.property
 
+/-- Execute a typed activation already emitted by the body compiler. -/
+def evalActivation (block : Activation cells args) (input : Tuple (Val cells) args) :
+    StateM (Buffer cells) (Tuple (Values (Value cells)) (activationPorts cells)) :=
+  block.val.runStraightLine (runOp cells) block.property (encodeInput input, PUnit.unit)
+
 def runActivation (graph : Graph args) (input : Tuple (Val cells) args) :
     StateM (Buffer cells) (Tuple (Values (Value cells)) (activationPorts cells)) :=
-  let block := lowerActivation cells graph
-  block.val.runStraightLine (runOp cells) block.property (encodeInput input, PUnit.unit)
+  evalActivation (lowerActivation cells graph) input
 
 /-- Decode one emitted activation's tail result. Both outcomes retain the
 entire updated buffer, which is the starting state for a restart. -/
